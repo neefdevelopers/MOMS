@@ -1,0 +1,531 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String              @id @default(uuid())
+  email        String              @unique
+  password     String
+  name         String
+  role         String              @default("STAFF") // MEDIA_MANAGER, TECHNICAL_MANAGER, STAFF
+  avatarUrl    String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  employeeProfile    EmployeeProfile?
+  tasks              TaskAssignment[]
+  createdProjects    ShootProject[]      @relation("ProjectCreator")
+  projectAssignments ProjectAssignment[]
+  attendanceRecords  Attendance[]
+  fileUploads        FileMetadata[]
+  communications     Communication[]
+  notifications      Notification[]
+  activityLogs       ActivityLog[]
+  approvalsReviewed  Approval[]          @relation("Approver")
+  equipmentMovements EquipmentMovement[]
+}
+
+model Department {
+  id          String            @id @default(uuid())
+  name        String            @unique
+  description String?
+  employees   EmployeeProfile[]
+}
+
+model Skill {
+  id        String          @id @default(uuid())
+  name      String          @unique
+  category  String?
+  employees EmployeeSkill[]
+}
+
+model EmployeeSkill {
+  id         String          @id @default(uuid())
+  employeeId String
+  skillId    String
+  employee   EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  skill      Skill           @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, skillId])
+}
+
+model EmployeeProfile {
+  id                 String          @id @default(uuid())
+  userId             String          @unique
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone              String?
+  departmentId       String?
+  department         Department?     @relation(fields: [departmentId], references: [id])
+  dailyCapacityHours Float           @default(8.0)
+  dailyTarget        Float           @default(1.0)
+  weeklyTarget       Float           @default(5.0)
+  monthlyTarget      Float           @default(20.0)
+  designation        String
+  skills             EmployeeSkill[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+}
+
+model Client {
+  id             String       @id @default(uuid())
+  name           String
+  companyName    String
+  contactPerson  String
+  mobile         String
+  email          String
+  address        String?
+  gstNumber      String?
+  website        String?
+  status         String       @default("ACTIVE") // ACTIVE, INACTIVE, ON_HOLD, ARCHIVED
+  onboardingDate DateTime     @default(now())
+  internalNotes  String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  brands         Brand[]
+  projects       ShootProject[]
+  calendarEvents MediaCalendarEvent[]
+  scripts        Script[]
+  graphicReqs    GraphicRequirement[]
+  tasks          Task[]
+}
+
+model Brand {
+  id            String      @id @default(uuid())
+  clientId      String
+  client        Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name          String
+  shortCode     String      @unique
+  logoUrl       String?
+  description   String?
+  industry      String?
+  primaryColor  String?     @default("#3B82F6")
+  status        String      @default("ACTIVE") // ACTIVE, INACTIVE, ARCHIVED
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  products       Product[]
+  projects       ShootProject[]
+  calendarEvents MediaCalendarEvent[]
+  scripts        Script[]
+  graphicReqs    GraphicRequirement[]
+  tasks          Task[]
+}
+
+model Product {
+  id            String        @id @default(uuid())
+  brandId       String
+  brand         Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  name          String
+  productCode   String
+  category      String?
+  status        String        @default("ACTIVE") // ACTIVE, INACTIVE, ARCHIVED
+  internalNotes String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  projects       ShootProject[]
+  calendarEvents MediaCalendarEvent[]
+  scripts        Script[]
+  graphicReqs    GraphicRequirement[]
+  tasks          Task[]
+
+  @@unique([brandId, productCode])
+}
+
+model Campaign {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+
+  projects    ShootProject[]
+  scripts     Script[]
+  graphicReqs GraphicRequirement[]
+}
+
+model MediaCalendarEvent {
+  id              String      @id @default(uuid())
+  title           String
+  clientId        String
+  client          Client      @relation(fields: [clientId], references: [id])
+  brandId         String
+  brand           Brand       @relation(fields: [brandId], references: [id])
+  productId       String?
+  product         Product?    @relation(fields: [productId], references: [id])
+  shootType       String      @default("INDOOR") // INDOOR, OUTDOOR
+  shootDate       DateTime
+  influencerTalent String?
+  priority        String      @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  productionNotes String?
+  status          String      @default("PLANNED")
+  createdAt       DateTime    @default(now())
+
+  shootProjects   ShootProject[]
+}
+
+model ShootProject {
+  id                     String         @id @default(uuid())
+  projectId              String         @unique
+  name                   String
+  clientId               String
+  client                 Client         @relation(fields: [clientId], references: [id])
+  brandId                String
+  brand                  Brand          @relation(fields: [brandId], references: [id])
+  productId              String?
+  product                Product?       @relation(fields: [productId], references: [id])
+  campaignId             String?
+  campaign               Campaign?      @relation(fields: [campaignId], references: [id])
+  calendarEventId        String?
+  calendarEvent          MediaCalendarEvent? @relation(fields: [calendarEventId], references: [id])
+  shootType              String         // INDOOR, OUTDOOR
+  shootDate              DateTime
+  shootLocation          String
+  locationCategory       String?
+  locationAddress        String?
+  locationContactPerson  String?
+  reportingTime          String?
+  expectedWrapUpTime     String?
+  influencerTalent       String?
+  priority               String         @default("MEDIUM")
+  status                 String         @default("PLANNED")
+  estimatedCompletionDate DateTime?
+  notes                  String?
+  progressPercentage     Int            @default(0)
+  revisionCount          Int            @default(0)
+  createdById            String
+  createdBy              User           @relation("ProjectCreator", fields: [createdById], references: [id])
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  indoorDetails          IndoorShootDetails?
+  outdoorDetails         OutdoorShootDetails?
+  assignedTeam           ProjectAssignment[]
+  scripts                Script[]
+  graphicRequirements    GraphicRequirement[]
+  tasks                  Task[]
+  equipmentReservations  EquipmentReservation[]
+  equipmentMovements     EquipmentMovement[]
+  approvals              Approval[]
+  clientConfirmations    ClientConfirmation[]
+  revisions              Revision[]
+  files                  FileMetadata[]
+  communications         Communication[]
+}
+
+model IndoorShootDetails {
+  id                    String              @id @default(uuid())
+  projectId             String              @unique
+  project               ShootProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  studioName            String
+  studioAddress         String
+  studioBookingStatus   String              @default("PENDING") // PENDING, CONFIRMED, CANCELLED
+  studioBookingRef      String?
+  reportingTime         String
+  wrapUpTime            String
+  indoorEquipmentReqs   String?
+  lightingRequirements  String?
+  indoorChecklist       String?
+}
+
+model OutdoorShootDetails {
+  id                    String           @id @default(uuid())
+  projectId             String           @unique
+  project               ShootProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  outdoorLocation       String
+  locationAddress       String
+  locationCategory      String?
+  locationContactPerson String?
+  permissionStatus      String           @default("PENDING") // NOT_REQUIRED, PENDING, APPROVED, REJECTED
+  weatherStatus         String           @default("FAVORABLE") // FAVORABLE, RISK_RAIN, EXTREME_HEAT, POOR_LIGHT
+  transportationReq     Boolean          @default(false)
+  driver                String?
+  logisticsCoordinator  String?
+  travelNotes           String?
+  outdoorEquipmentReqs  String?
+  droneRequirement      Boolean          @default(false)
+  outdoorChecklist      String?
+}
+
+model ProjectAssignment {
+  id         String       @id @default(uuid())
+  projectId  String
+  userId     String
+  project    ShootProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleInProject String?
+  assignedAt DateTime     @default(now())
+
+  @@unique([projectId, userId])
+}
+
+model Script {
+  id                 String       @id @default(uuid())
+  scriptId           String       @unique
+  name               String
+  projectId          String
+  project            ShootProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clientId           String
+  client             Client       @relation(fields: [clientId], references: [id])
+  brandId            String
+  brand              Brand        @relation(fields: [brandId], references: [id])
+  productId          String?
+  product            Product?     @relation(fields: [productId], references: [id])
+  campaignId         String?
+  campaign           Campaign?    @relation(fields: [campaignId], references: [id])
+  language           String       @default("English")
+  category           String       @default("Social Media")
+  objective          String?
+  description        String?
+  estimatedDuration  String?
+  status             String       @default("DRAFT")
+  priority           String       @default("MEDIUM")
+  remarks            String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  tasks              Task[]
+  files              FileMetadata[]
+}
+
+model GraphicRequirement {
+  id                 String           @id @default(uuid())
+  requirementId      String           @unique
+  name               String
+  projectId          String
+  project            ShootProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clientId           String
+  client             Client           @relation(fields: [clientId], references: [id])
+  brandId            String
+  brand              Brand            @relation(fields: [brandId], references: [id])
+  productId          String?
+  product            Product?         @relation(fields: [productId], references: [id])
+  campaignId         String?
+  campaign           Campaign?        @relation(fields: [campaignId], references: [id])
+  requirementType    String           @default("Poster")
+  objective          String?
+  description        String?
+  priority           String           @default("MEDIUM")
+  estimatedCompletion DateTime?
+  status             String           @default("DRAFT")
+  remarks            String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  tasks              Task[]
+  files              FileMetadata[]
+}
+
+model Task {
+  id                  String             @id @default(uuid())
+  taskId              String             @unique
+  title               String
+  description         String?
+  projectId           String
+  project             ShootProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scriptId            String?
+  script              Script?            @relation(fields: [scriptId], references: [id])
+  graphicRequirementId String?
+  graphicRequirement  GraphicRequirement? @relation(fields: [graphicRequirementId], references: [id])
+  clientId            String
+  client              Client             @relation(fields: [clientId], references: [id])
+  brandId             String
+  brand               Brand              @relation(fields: [brandId], references: [id])
+  productId           String?
+  product             Product?           @relation(fields: [productId], references: [id])
+  priority            String             @default("MEDIUM")
+  dueDate             DateTime
+  estimatedHours      Float              @default(2.0)
+  status              String             @default("PENDING")
+  completionPercentage Int               @default(0)
+  remarks             String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  assignedEmployees   TaskAssignment[]
+}
+
+model TaskAssignment {
+  id         String   @id @default(uuid())
+  taskId     String
+  userId     String
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@unique([taskId, userId])
+}
+
+model Equipment {
+  id                 String                @id @default(uuid())
+  equipmentId        String                @unique
+  name               String
+  category           String
+  brand              String
+  model              String
+  serialNumber       String                @unique
+  condition          String                @default("Good")
+  availability       String                @default("AVAILABLE") // AVAILABLE, RESERVED, ISSUED, MAINTENANCE, DAMAGED, RETIRED
+  maintenanceStatus  String                @default("OPERATIONAL") // OPERATIONAL, NEEDS_SERVICE, UNDER_REPAIR, DECOMMISSIONED
+  currentHolder      String?
+  notes              String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  reservations       EquipmentReservation[]
+  movements          EquipmentMovement[]
+}
+
+model EquipmentReservation {
+  id          String   @id @default(uuid())
+  projectId   String
+  equipmentId String
+  project     ShootProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  equipment   Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  startDate   DateTime
+  endDate     DateTime
+  status      String   @default("RESERVED")
+  createdAt   DateTime @default(now())
+}
+
+model EquipmentMovement {
+  id          String                 @id @default(uuid())
+  equipmentId String
+  projectId   String?
+  userId      String
+  action      String                 // ISSUED, USED, RETURNED
+  notes       String?
+  timestamp   DateTime               @default(now())
+
+  equipment   Equipment              @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  project     ShootProject?          @relation(fields: [projectId], references: [id])
+  user        User                   @relation(fields: [userId], references: [id])
+}
+
+model Attendance {
+  id        String           @id @default(uuid())
+  userId    String
+  date      DateTime
+  status    String           @default("PRESENT") // PRESENT, LATE, HALF_DAY, ABSENT
+  remarks   String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model Approval {
+  id            String         @id @default(uuid())
+  projectId     String
+  project       ShootProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  approvalType  String         // TECHNICAL_REVIEW, MEDIA_REVIEW, CLIENT_CONFIRMATION
+  reviewerId    String
+  reviewer      User           @relation("Approver", fields: [reviewerId], references: [id])
+  status        String         @default("PENDING") // PENDING, APPROVED, REJECTED
+  remarks       String?
+  reviewedAt    DateTime       @default(now())
+}
+
+model ClientConfirmation {
+  id                  String         @id @default(uuid())
+  projectId           String
+  project             ShootProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  decision            String         // APPROVED, REVISION_REQUESTED, REJECTED
+  decisionDate        DateTime       @default(now())
+  communicationMethod String         @default("WhatsApp")
+  remarks             String?
+  recordedBy          String
+  createdAt           DateTime       @default(now())
+}
+
+model Revision {
+  id             String       @id @default(uuid())
+  projectId      String
+  project        ShootProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  revisionNumber Int
+  reason         String
+  requestedBy    String
+  requestedAt    DateTime     @default(now())
+  status         String       @default("IN_PROGRESS")
+}
+
+model FileMetadata {
+  id                   String              @id @default(uuid())
+  fileName             String
+  fileSize             Int
+  fileType             String
+  storagePath          String
+  activeVersion        Boolean             @default(true)
+  projectId            String
+  project              ShootProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scriptId             String?
+  script               Script?             @relation(fields: [scriptId], references: [id])
+  graphicRequirementId String?
+  graphicRequirement  GraphicRequirement? @relation(fields: [graphicRequirementId], references: [id])
+  uploadedById         String
+  uploadedBy           User                @relation(fields: [uploadedById], references: [id])
+  createdAt            DateTime            @default(now())
+}
+
+model Communication {
+  id                   String            @id @default(uuid())
+  entityType           String            // PROJECT, SCRIPT, GRAPHIC_REQ, TASK, EQUIPMENT, APPROVAL
+  entityId             String
+  projectId            String?
+  project              ShootProject?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  senderId             String
+  sender               User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  type                 String            @default("GENERAL_NOTE")
+  content              String
+  createdAt            DateTime          @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("INFO")
+  isRead    Boolean  @default(false)
+  linkUrl   String?
+  createdAt DateTime @default(now())
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  action      String
+  entity      String
+  entityId    String
+  description String
+  metadata    String?
+  timestamp   DateTime @default(now())
+}
+
+model OutputFormula {
+  id              String   @id @default(uuid())
+  deliverableType String   @unique
+  quantity        Int      @default(1)
+  outputValue     Float    @default(1.0)
+  description     String?
+  updatedAt       DateTime @updatedAt
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
