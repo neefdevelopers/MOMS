@@ -18,6 +18,13 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
   });
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined' && !endpoint.includes('/auth/login')) {
+      localStorage.removeItem('moms_token');
+      localStorage.removeItem('moms_user');
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
     const errorData = await response.json().catch(() => ({ message: response.statusText }));
     throw new Error(errorData.message || 'API request failed');
   }

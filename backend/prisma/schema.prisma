@@ -28,6 +28,12 @@ model User {
   activityLogs       ActivityLog[]
   approvalsReviewed  Approval[]          @relation("Approver")
   equipmentMovements EquipmentMovement[]
+  scriptAssignments  ScriptAssignment[]
+  scriptTimelines    ScriptTimeline[]
+  scriptRemarks      ScriptRemark[]
+  taskRemarks        TaskRemark[]
+  deliverableUploads TaskDeliverableHistory[]
+  taskTimelines      TaskTimeline[]
 }
 
 model Department {
@@ -196,8 +202,10 @@ model ShootProject {
   influencerTalent       String?
   priority               String         @default("MEDIUM")
   status                 String         @default("PLANNED")
+  lifecycle              String         @default("ACTIVE") // ACTIVE, CLOSED, ARCHIVED
   estimatedCompletionDate DateTime?
   notes                  String?
+  closureReason          String?
   progressPercentage     Int            @default(0)
   revisionCount          Int            @default(0)
   createdById            String
@@ -285,14 +293,69 @@ model Script {
   objective          String?
   description        String?
   estimatedDuration  String?
-  status             String       @default("DRAFT")
-  priority           String       @default("MEDIUM")
-  remarks            String?
-  createdAt          DateTime     @default(now())
+  status                      String       @default("DRAFT")
+  priority                    String       @default("MEDIUM")
+  remarks                     String?
+  revisionCount               Int          @default(0)
+  productionCompleted         Boolean      @default(false)
+  technicalReviewApproved     Boolean      @default(false)
+  mediaManagerReviewApproved  Boolean      @default(false)
+  clientConfirmationRecorded  Boolean      @default(false)
+  createdAt                   DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
   tasks              Task[]
   files              FileMetadata[]
+  scriptAssignments  ScriptAssignment[]
+  timeline           ScriptTimeline[]
+  scriptRemarks      ScriptRemark[]
+  deliverables       ScriptDeliverable[]
+}
+
+model ScriptAssignment {
+  id             String   @id @default(uuid())
+  scriptId       String
+  script         Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  responsibility String   @default("Writer") // Writer, Shooter, Video Editor, Motion Designer, Graphic Designer, Reviewer
+  assignedAt     DateTime @default(now())
+
+  @@unique([scriptId, userId, responsibility])
+}
+
+model ScriptTimeline {
+  id          String    @id @default(uuid())
+  scriptId    String
+  script      Script    @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  event       String    // SCRIPT_CREATED, ASSIGNED, PRODUCTION_STARTED, PRODUCTION_UPDATED, TECHNICAL_REVIEW, MEDIA_REVIEW, CLIENT_CONFIRMATION, REVISION_REQUESTED, COMPLETED, CLOSED
+  description String?
+  triggeredById String?
+  triggeredBy   User?   @relation(fields: [triggeredById], references: [id])
+  createdAt   DateTime  @default(now())
+}
+
+model ScriptRemark {
+  id        String   @id @default(uuid())
+  scriptId  String
+  script    Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String
+  createdAt DateTime @default(now())
+}
+
+model ScriptDeliverable {
+  id          String   @id @default(uuid())
+  scriptId    String
+  script      Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  type        String   // Reel, Advertisement Video, Long-form Video, Short-form Video, Story, Teaser, Custom
+  title       String?  // Optional custom title
+  description String?
+  duration    String?  // e.g. "30s", "1m", "3m"
+  status      String   @default("Pending") // Pending, In Progress, Done
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model GraphicRequirement {
@@ -346,19 +409,60 @@ model Task {
   status              String             @default("PENDING")
   completionPercentage Int               @default(0)
   remarks             String?
+  activeDeliverableUrl String?
+  activeDeliverableFileName String?
+  activeDeliverableVersion Int           @default(0)
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
   assignedEmployees   TaskAssignment[]
+  remarksHistory      TaskRemark[]
+  deliverableHistory  TaskDeliverableHistory[]
+  timeline            TaskTimeline[]
+}
+
+model TaskTimeline {
+  id          String   @id @default(uuid())
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  event       String   // TASK_CREATED, TASK_ASSIGNED, EMPLOYEE_ACCEPTED, STATUS_CHANGED, PROGRESS_UPDATED, FILE_UPLOADED, REMARK_ADDED, COMPLETED
+  description String
+  createdAt   DateTime @default(now())
+}
+
+model TaskDeliverableHistory {
+  id          String   @id @default(uuid())
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileUrl     String
+  fileName    String
+  version     Int
+  createdAt   DateTime @default(now())
+}
+
+model TaskRemark {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String
+  createdAt DateTime @default(now())
 }
 
 model TaskAssignment {
-  id         String   @id @default(uuid())
-  taskId     String
-  userId     String
-  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assignedAt DateTime @default(now())
+  id               String    @id @default(uuid())
+  taskId           String
+  userId           String
+  task             Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  acceptanceStatus String    @default("NOT_YET_ACCEPTED") // ACCEPTED, NOT_YET_ACCEPTED
+  acceptedAt       DateTime?
+  assignedAt       DateTime  @default(now())
 
   @@unique([taskId, userId])
 }
@@ -465,6 +569,7 @@ model FileMetadata {
   fileType             String
   storagePath          String
   activeVersion        Boolean             @default(true)
+  attachmentCategory   String              @default("SCRIPT_DOCUMENT")
   projectId            String
   project              ShootProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scriptId             String?

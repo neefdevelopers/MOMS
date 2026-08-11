@@ -35,6 +35,12 @@ export enum Priority {
   CRITICAL = 'CRITICAL',
 }
 
+export enum ProjectLifecycle {
+  ACTIVE = 'ACTIVE',
+  CLOSED = 'CLOSED',
+  ARCHIVED = 'ARCHIVED',
+}
+
 export enum ProjectStatus {
   DRAFT = 'DRAFT',
   PLANNED = 'PLANNED',

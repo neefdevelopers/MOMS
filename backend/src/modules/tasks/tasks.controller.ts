@@ -14,11 +14,23 @@ export class TasksController {
   @Get()
   findAll(
     @CurrentUser() user: any,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
     @Query('projectId') projectId?: string,
+    @Query('scriptId') scriptId?: string,
+    @Query('clientId') clientId?: string,
+    @Query('brandId') brandId?: string,
+    @Query('productId') productId?: string,
     @Query('employeeId') employeeId?: string,
   ) {
     return this.tasksService.findAll({
+      search,
+      status,
       projectId,
+      scriptId,
+      clientId,
+      brandId,
+      productId,
       employeeId,
       userId: user.id,
       role: user.role,
@@ -50,10 +62,10 @@ export class TasksController {
   @Put(':id/reassign')
   reassign(
     @Param('id') id: string,
-    @Body('assignedUserIds') assignedUserIds: string[],
+    @Body() body: { assignedUserIds: string[]; reason?: string },
     @CurrentUser('id') managerUserId: string,
   ) {
-    return this.tasksService.reassign(id, assignedUserIds, managerUserId);
+    return this.tasksService.reassign(id, body.assignedUserIds, managerUserId, body.reason);
   }
 
   @Patch(':id/progress')
@@ -63,5 +75,38 @@ export class TasksController {
     @CurrentUser() user: any,
   ) {
     return this.tasksService.updateProgress(id, data, user);
+  }
+
+  @Post(':id/accept')
+  acknowledgeAcceptance(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.tasksService.acknowledgeTaskAcceptance(id, user);
+  }
+
+  @Post(':id/remarks')
+  addRemark(
+    @Param('id') id: string,
+    @Body('message') message: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.tasksService.addRemark(id, message, user);
+  }
+
+  @Post(':id/upload-deliverable')
+  uploadDeliverable(
+    @Param('id') id: string,
+    @Body() data: { fileUrl: string; fileName?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.tasksService.uploadDeliverable(id, data, user);
+  }
+
+  @Put('capacity/:userId')
+  @Roles(Role.MEDIA_MANAGER)
+  updateEmployeeCapacity(
+    @Param('userId') userId: string,
+    @Body('dailyCapacityHours') dailyCapacityHours: number,
+    @CurrentUser() user: any,
+  ) {
+    return this.tasksService.updateEmployeeCapacity(userId, dailyCapacityHours, user.id);
   }
 }

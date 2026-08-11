@@ -21,4 +21,9 @@ export class ReportsController {
   getProductionReports() {
     return this.reportsService.getProductionReports();
   }
+
+  @Get('script-analytics')
+  getScriptAnalytics() {
+    return this.reportsService.getScriptAnalytics();
+  }
 }

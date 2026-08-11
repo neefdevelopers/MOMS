@@ -46,7 +46,7 @@ export class GraphicReqsService {
     const count = await this.prisma.graphicRequirement.count();
     const autoReqId = `GR-${(count + 1).toString().padStart(6, '0')}`;
 
-    return this.prisma.graphicRequirement.create({
+    const req = await this.prisma.graphicRequirement.create({
       data: {
         requirementId: autoReqId,
         name: data.name,
@@ -63,6 +63,60 @@ export class GraphicReqsService {
         remarks: data.remarks,
       },
     });
+
+    // Automated Task Creation Trigger 4: Automatically created from graphic requirements
+    const taskCount = await this.prisma.task.count();
+    const autoTaskId1 = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
+    const autoTaskId2 = `TSK-${(taskCount + 2).toString().padStart(6, '0')}`;
+
+    await this.prisma.task.createMany({
+      data: [
+        {
+          taskId: autoTaskId1,
+          title: `Graphic Asset Design & Key Visual Composition - ${req.name}`,
+          description: `Automated graphic task generated for Requirement ${req.requirementId}`,
+          projectId: req.projectId,
+          graphicRequirementId: req.id,
+          clientId: req.clientId,
+          brandId: req.brandId,
+          productId: req.productId || null,
+          priority: req.priority || 'MEDIUM',
+          dueDate: new Date(Date.now() + 2 * 86400000),
+          estimatedHours: 3.0,
+          status: 'PENDING',
+        },
+        {
+          taskId: autoTaskId2,
+          title: `Final Graphic Export & Review Preparation - ${req.name}`,
+          description: `Automated graphic task generated for Requirement ${req.requirementId}`,
+          projectId: req.projectId,
+          graphicRequirementId: req.id,
+          clientId: req.clientId,
+          brandId: req.brandId,
+          productId: req.productId || null,
+          priority: req.priority || 'MEDIUM',
+          dueDate: new Date(Date.now() + 3 * 86400000),
+          estimatedHours: 2.0,
+          status: 'PENDING',
+        },
+      ],
+    });
+
+    const createdTasks = await this.prisma.task.findMany({
+      where: { taskId: { in: [autoTaskId1, autoTaskId2] } },
+    });
+
+    for (const t of createdTasks) {
+      await this.prisma.taskTimeline.create({
+        data: {
+          taskId: t.id,
+          event: 'TASK_CREATED',
+          description: `Task ${t.taskId} ('${t.title}') automatically created during Graphic Requirement ${req.requirementId} creation`,
+        },
+      });
+    }
+
+    return req;
   }
 
   async update(id: string, data: any) {

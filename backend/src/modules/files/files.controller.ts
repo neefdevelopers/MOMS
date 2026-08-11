@@ -14,11 +14,29 @@ export class FilesController {
     return this.filesService.getProjectFiles(projectId);
   }
 
+  @Post()
+  createDeliverable(
+    @Body()
+    data: {
+      projectId: string;
+      fileName: string;
+      deliverableType: string;
+      scriptId?: string;
+      graphicRequirementId?: string;
+      fileSize?: number;
+      fileType?: string;
+      storagePath?: string;
+    },
+    @CurrentUser('id') uploadedById: string,
+  ) {
+    return this.filesService.createDeliverableMetadata(data, uploadedById);
+  }
+
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   uploadFile(
     @UploadedFile() file: MulterFile,
-    @Body() data: { projectId: string; scriptId?: string; graphicRequirementId?: string; folderCategory?: string },
+    @Body() data: { projectId: string; scriptId?: string; graphicRequirementId?: string; folderCategory?: string; attachmentCategory?: string },
     @CurrentUser('id') uploadedById: string,
   ) {
     return this.filesService.saveFileMetadataAndPhysicalDisk(file, data, uploadedById);

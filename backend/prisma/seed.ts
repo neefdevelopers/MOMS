@@ -149,12 +149,131 @@ async function main() {
     data: {
       email: 'staff4@example.com',
       password: hashedPassword,
-      name: 'Devika Sharma (Photographer & Shooter)',
+      name: 'Devika Sharma (Photographer)',
       role: 'STAFF',
       avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
       employeeProfile: {
         create: {
-          designation: 'Cinematographer & Camera Operator',
+          designation: 'Lead Photographer & Videographer',
+          departmentId: deptProduction.id,
+          dailyCapacityHours: 8.0,
+        },
+      },
+    },
+  });
+
+  const staff5 = await prisma.user.create({
+    data: {
+      email: 'producer@example.com',
+      password: hashedPassword,
+      name: 'Karan Malhotra (Producer)',
+      role: 'STAFF',
+      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+      employeeProfile: {
+        create: {
+          designation: 'Shoot Producer',
+          departmentId: deptProduction.id,
+          dailyCapacityHours: 8.0,
+        },
+      },
+    },
+  });
+
+  const staff6 = await prisma.user.create({
+    data: {
+      email: 'drone@example.com',
+      password: hashedPassword,
+      name: 'Rohan Gupta (Drone Operator)',
+      role: 'STAFF',
+      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+      employeeProfile: {
+        create: {
+          designation: 'Licensed Drone Operator (Outdoor)',
+          departmentId: deptProduction.id,
+          dailyCapacityHours: 8.0,
+        },
+      },
+    },
+  });
+
+  const staff7 = await prisma.user.create({
+    data: {
+      email: 'writer@example.com',
+      password: hashedPassword,
+      name: 'Priya Nambiar (Content Writer)',
+      role: 'STAFF',
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      employeeProfile: {
+        create: {
+          designation: 'Content Writer & Scriptwriter',
+          departmentId: deptDesign.id,
+          dailyCapacityHours: 8.0,
+        },
+      },
+    },
+  });
+
+  const staff8 = await prisma.user.create({
+    data: {
+      email: 'lighting@example.com',
+      password: hashedPassword,
+      name: 'Manish Pandey (Lighting Tech)',
+      role: 'STAFF',
+      avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150',
+      employeeProfile: {
+        create: {
+          designation: 'Lighting Technician & Gaffer',
+          departmentId: deptProduction.id,
+          dailyCapacityHours: 8.0,
+        },
+      },
+    },
+  });
+
+  const staff9 = await prisma.user.create({
+    data: {
+      email: 'sound@example.com',
+      password: hashedPassword,
+      name: 'Sameer Rao (Sound Engineer)',
+      role: 'STAFF',
+      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+      employeeProfile: {
+        create: {
+          designation: 'Sound Engineer & Boom Operator',
+          departmentId: deptProduction.id,
+          dailyCapacityHours: 8.0,
+        },
+      },
+    },
+  });
+
+  const staff10 = await prisma.user.create({
+    data: {
+      email: 'driver@example.com',
+      password: hashedPassword,
+      name: 'Ramesh Kumar (Driver)',
+      role: 'STAFF',
+      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+      employeeProfile: {
+        create: {
+          designation: 'Driver & Logistics Manager (Outdoor)',
+          departmentId: deptProduction.id,
+          dailyCapacityHours: 8.0,
+        },
+      },
+    },
+  });
+
+  const staff11 = await prisma.user.create({
+    data: {
+      email: 'logistics@example.com',
+      password: hashedPassword,
+      name: 'Anand Sharma (Logistics Coordinator)',
+      role: 'STAFF',
+      avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150',
+      employeeProfile: {
+        create: {
+          designation: 'Logistics Coordinator (Outdoor)',
           departmentId: deptProduction.id,
           dailyCapacityHours: 8.0,
         },
