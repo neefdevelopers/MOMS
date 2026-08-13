@@ -53,7 +53,6 @@ export class TasksService {
         { script: { name: { contains: query } } },
         { script: { scriptId: { contains: query } } },
         { assignedEmployees: { some: { user: { name: { contains: query } } } } },
-        { assignedEmployees: { some: { user: { email: { contains: query } } } } },
       ];
     }
 
@@ -215,7 +214,6 @@ export class TasksService {
       return {
         userId: user.id,
         name: user.name,
-        email: user.email,
         avatarUrl: user.avatarUrl,
         designation: user.employeeProfile?.designation || 'Staff Member',
         department: user.employeeProfile?.department?.name || 'General',
@@ -625,7 +623,7 @@ export class TasksService {
     }
 
     // 3. Log EMPLOYEE_ACCEPTED
-    await this.logTimelineEvent(task.id, 'EMPLOYEE_ACCEPTED', `Task receipt acknowledged & ACCEPTED by ${user.name || user.email}`, user.id);
+    await this.logTimelineEvent(task.id, 'EMPLOYEE_ACCEPTED', `Task receipt acknowledged & ACCEPTED by ${user.name}`, user.id);
 
     if (task.scriptId) {
       await this.prisma.scriptTimeline.create({
@@ -666,7 +664,7 @@ export class TasksService {
     });
 
     // 7. Log REMARK_ADDED
-    await this.logTimelineEvent(task.id, 'REMARK_ADDED', `Remark recorded by ${user.name || user.email}: "${message.trim()}"`, user.id);
+    await this.logTimelineEvent(task.id, 'REMARK_ADDED', `Remark recorded by ${user.name}: "${message.trim()}"`, user.id);
 
     return remark;
   }
@@ -715,7 +713,7 @@ export class TasksService {
     });
 
     // 6. Log FILE_UPLOADED
-    await this.logTimelineEvent(task.id, 'FILE_UPLOADED', `Work deliverable Version v${newVersion} (${fileName}) uploaded by ${user.name || user.email}`, user.id);
+    await this.logTimelineEvent(task.id, 'FILE_UPLOADED', `Work deliverable Version v${newVersion} (${fileName}) uploaded by ${user.name}`, user.id);
 
     return {
       task: updatedTask,

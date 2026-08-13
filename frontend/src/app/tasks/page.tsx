@@ -3,13 +3,27 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame } from 'lucide-react';
 
 export default function TasksPage() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<any[]>([]);
   const [capacity, setCapacity] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filtration States (Project-Style Filtration Control Panel)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selectedClient, setSelectedClient] = useState('');
+  const [selectedBrand, setSelectedBrand] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState('');
+  const [selectedProject, setSelectedProject] = useState('');
+  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [selectedPriority, setSelectedPriority] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [clientsList, setClientsList] = useState<any[]>([]);
+  const [brandsList, setBrandsList] = useState<any[]>([]);
+  const [productsList, setProductsList] = useState<any[]>([]);
 
   // Task Inspector Modal state (All 15 Mandatory Attributes)
   const [inspectedTask, setInspectedTask] = useState<any>(null);
@@ -50,13 +64,25 @@ export default function TasksPage() {
 
   const loadData = async () => {
     try {
-      const [resTasks, resCap, resProj, resScripts, resGraphic, resUsers] = await Promise.all([
-        fetchApi('/tasks'),
+      let query = '?';
+      if (searchQuery.trim()) query += `search=${encodeURIComponent(searchQuery.trim())}&`;
+      if (statusFilter && statusFilter !== 'ALL') query += `status=${statusFilter}&`;
+      if (selectedClient) query += `clientId=${selectedClient}&`;
+      if (selectedBrand) query += `brandId=${selectedBrand}&`;
+      if (selectedProduct) query += `productId=${selectedProduct}&`;
+      if (selectedProject) query += `projectId=${selectedProject}&`;
+      if (selectedEmployee) query += `employeeId=${selectedEmployee}&`;
+
+      const [resTasks, resCap, resProj, resScripts, resGraphic, resUsers, resClients, resBrands, resProducts] = await Promise.all([
+        fetchApi(`/tasks${query}`),
         fetchApi('/tasks/capacity/overview'),
         fetchApi('/projects'),
         fetchApi('/scripts'),
         fetchApi('/graphic-reqs'),
         fetchApi('/users'),
+        fetchApi('/clients'),
+        fetchApi('/brands'),
+        fetchApi('/products'),
       ]);
       setTasks(Array.isArray(resTasks) ? resTasks : []);
       setCapacity(Array.isArray(resCap) ? resCap : []);
@@ -64,6 +90,9 @@ export default function TasksPage() {
       setScriptsList(Array.isArray(resScripts) ? resScripts : []);
       setGraphicReqsList(Array.isArray(resGraphic) ? resGraphic : []);
       setStaffUsersList(Array.isArray(resUsers) ? resUsers : []);
+      setClientsList(Array.isArray(resClients) ? resClients : []);
+      setBrandsList(Array.isArray(resBrands) ? resBrands : []);
+      setProductsList(Array.isArray(resProducts) ? resProducts : []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -73,7 +102,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [searchQuery, statusFilter, selectedClient, selectedBrand, selectedProduct, selectedProject, selectedEmployee, selectedPriority]);
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,8 +174,6 @@ export default function TasksPage() {
       alert(err.message || 'Failed to reassign task');
     }
   };
-
-  const [statusFilter, setStatusFilter] = useState('ALL');
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -402,15 +429,77 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* Status Filtration Bar (All 8 Active Statuses) */}
-      <div className="bg-card border border-border p-4 rounded-xl flex items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-gray-400 font-semibold text-[11px]">Filter by Status:</span>
+      {/* User-Friendly Project-Style Filter Panel */}
+      <div className="bg-card border border-border p-5 rounded-xl space-y-4 text-xs shadow-md">
+        {/* Top Search & Controls Row */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Keyword Search Input */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="Search tasks by ID, Title, Client, Brand, Product, Project, Script, Staff..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 focus:border-blue-500 rounded-xl pl-9 pr-8 py-2.5 text-white font-medium focus:outline-none transition-all placeholder:text-gray-500"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-2.5 text-gray-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Controls: Advanced Toggle & Reset */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className={`px-3.5 py-2 rounded-lg font-semibold flex items-center gap-1.5 transition-colors border ${
+                showAdvancedFilters || (selectedClient || selectedBrand || selectedProduct || selectedProject || selectedEmployee || selectedPriority)
+                  ? 'bg-purple-600/20 text-purple-300 border-purple-500/50'
+                  : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-600'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-purple-400" />
+              <span>Advanced Filters</span>
+              {([selectedClient, selectedBrand, selectedProduct, selectedProject, selectedEmployee, selectedPriority].filter(Boolean).length > 0) && (
+                <span className="w-4 h-4 rounded-full bg-purple-500 text-white font-bold text-[10px] flex items-center justify-center">
+                  {[selectedClient, selectedBrand, selectedProduct, selectedProject, selectedEmployee, selectedPriority].filter(Boolean).length}
+                </span>
+              )}
+            </button>
+
+            {(searchQuery || statusFilter !== 'ALL' || selectedClient || selectedBrand || selectedProduct || selectedProject || selectedEmployee || selectedPriority) && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setStatusFilter('ALL');
+                  setSelectedClient('');
+                  setSelectedBrand('');
+                  setSelectedProduct('');
+                  setSelectedProject('');
+                  setSelectedEmployee('');
+                  setSelectedPriority('');
+                }}
+                className="px-3 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-800/40 text-red-300 rounded-lg font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Reset Filters
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Status Filter Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 border-t border-gray-800">
+          <span className="text-gray-400 font-bold text-[10px] uppercase mr-1">Status:</span>
           {['ALL', 'PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'ON_HOLD', 'WAITING_FOR_REVIEW', 'COMPLETED', 'CANCELLED'].map((st) => (
             <button
               key={st}
               onClick={() => setStatusFilter(st)}
-              className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors whitespace-nowrap ${
                 statusFilter === st
                   ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-600/30'
                   : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-700'
@@ -420,9 +509,158 @@ export default function TasksPage() {
             </button>
           ))}
         </div>
-        <span className="text-gray-400 text-[11px] font-mono">
-          Showing <strong className="text-white">{tasks.filter((t) => statusFilter === 'ALL' || t.status === statusFilter).length}</strong> of {tasks.length} tasks
-        </span>
+
+        {/* Active Filter Chips / Pills */}
+        {(selectedClient || selectedBrand || selectedProduct || selectedProject || selectedEmployee || selectedPriority) && (
+          <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-gray-800">
+            <span className="text-gray-500 text-[11px] font-semibold">Active Filters:</span>
+            {selectedClient && (
+              <span className="px-2.5 py-1 bg-purple-950 text-purple-300 border border-purple-800 rounded-full flex items-center gap-1 text-[11px]">
+                Client: {clientsList.find((c) => c.id === selectedClient)?.name}
+                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedClient('')} />
+              </span>
+            )}
+            {selectedBrand && (
+              <span className="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded-full flex items-center gap-1 text-[11px]">
+                Brand: [{brandsList.find((b) => b.id === selectedBrand)?.shortCode}] {brandsList.find((b) => b.id === selectedBrand)?.name}
+                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedBrand('')} />
+              </span>
+            )}
+            {selectedProduct && (
+              <span className="px-2.5 py-1 bg-cyan-950 text-cyan-300 border border-cyan-800 rounded-full flex items-center gap-1 text-[11px]">
+                Product: {productsList.find((p) => p.id === selectedProduct)?.name}
+                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedProduct('')} />
+              </span>
+            )}
+            {selectedProject && (
+              <span className="px-2.5 py-1 bg-blue-950 text-blue-300 border border-blue-800 rounded-full flex items-center gap-1 text-[11px]">
+                Project: {projectsList.find((p) => p.id === selectedProject)?.name}
+                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedProject('')} />
+              </span>
+            )}
+            {selectedEmployee && (
+              <span className="px-2.5 py-1 bg-indigo-950 text-indigo-300 border border-indigo-800 rounded-full flex items-center gap-1 text-[11px]">
+                Staff: {staffUsersList.find((u) => u.id === selectedEmployee)?.name}
+                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedEmployee('')} />
+              </span>
+            )}
+            {selectedPriority && (
+              <span className="px-2.5 py-1 bg-amber-950 text-amber-300 border border-amber-800 rounded-full flex items-center gap-1 text-[11px]">
+                Priority: {selectedPriority}
+                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedPriority('')} />
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Expandable Grouped Advanced Filters Drawer */}
+        {showAdvancedFilters && (
+          <div className="pt-3 border-t border-gray-800 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Group 1: Commercial Context */}
+              <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
+                <div className="font-bold text-purple-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-purple-400" /> Commercial Context
+                </div>
+                <div className="space-y-2">
+                  <select
+                    value={selectedClient}
+                    onChange={(e) => {
+                      setSelectedClient(e.target.value);
+                      setSelectedBrand('');
+                      setSelectedProduct('');
+                    }}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 font-medium"
+                  >
+                    <option value="">All Clients</option>
+                    {clientsList.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={selectedBrand}
+                    onChange={(e) => {
+                      setSelectedBrand(e.target.value);
+                      setSelectedProduct('');
+                    }}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 font-medium"
+                  >
+                    <option value="">All Brands</option>
+                    {brandsList
+                      .filter((b) => !selectedClient || b.clientId === selectedClient)
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>[{b.shortCode}] {b.name}</option>
+                      ))}
+                  </select>
+
+                  <select
+                    value={selectedProduct}
+                    onChange={(e) => setSelectedProduct(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 font-medium"
+                  >
+                    <option value="">All Products</option>
+                    {productsList
+                      .filter((p) => !selectedBrand || p.brandId === selectedBrand)
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Group 2: Project & Staff */}
+              <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
+                <div className="font-bold text-blue-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-blue-400" /> Project &amp; Staff
+                </div>
+                <div className="space-y-2">
+                  <select
+                    value={selectedProject}
+                    onChange={(e) => setSelectedProject(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 font-medium"
+                  >
+                    <option value="">All Parent Projects</option>
+                    {projectsList.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name} ({p.projectId})</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={selectedEmployee}
+                    onChange={(e) => setSelectedEmployee(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 font-medium"
+                  >
+                    <option value="">All Assigned Staff</option>
+                    {staffUsersList.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Group 3: Priority */}
+              <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
+                <div className="font-bold text-amber-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Flame className="w-3.5 h-3.5 text-amber-400" /> Priority Level
+                </div>
+                <div className="space-y-2">
+                  <select
+                    value={selectedPriority}
+                    onChange={(e) => setSelectedPriority(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-medium"
+                  >
+                    <option value="">All Priorities</option>
+                    <option value="LOW">LOW Priority</option>
+                    <option value="MEDIUM">MEDIUM Priority</option>
+                    <option value="HIGH">HIGH Priority</option>
+                    <option value="CRITICAL">CRITICAL Priority</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tasks Table */}
@@ -606,7 +844,7 @@ export default function TasksPage() {
             <form onSubmit={handleCreateTask} className="space-y-3">
               {/* Parent Entity Type Switcher */}
               <div>
-                <label className="block text-gray-400 font-semibold mb-1 text-[10px]">1. Select Parent Entity Type *</label>
+                <label className="block text-gray-400 font-semibold mb-1 text-[10px]">Select Parent Entity Type *</label>
                 <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
@@ -1077,8 +1315,8 @@ export default function TasksPage() {
           >
             <div className="flex justify-between items-start border-b border-border pb-3">
               <div>
-                <span className="font-mono text-blue-400 font-bold text-xs block">1. Task ID: {inspectedTask.taskId}</span>
-                <h3 className="text-lg font-bold text-white mt-0.5">2. {inspectedTask.title}</h3>
+                <span className="font-mono text-blue-400 font-bold text-xs block">Task ID: {inspectedTask.taskId}</span>
+                <h3 className="text-lg font-bold text-white mt-0.5">{inspectedTask.title}</h3>
               </div>
               <button
                 onClick={() => setInspectedTask(null)}
@@ -1092,19 +1330,19 @@ export default function TasksPage() {
               {/* Left Column */}
               <div className="space-y-3">
                 <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg">
-                  <span className="text-[10px] text-gray-500 font-bold block uppercase">3. Task Description</span>
+                  <span className="text-[10px] text-gray-500 font-bold block uppercase">Task Description</span>
                   <p className="text-gray-200 mt-1">{inspectedTask.description || 'No description provided.'}</p>
                 </div>
 
                 <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg space-y-1.5">
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase">4. Parent Project</span>
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Parent Project</span>
                     <strong className="text-blue-300 text-xs">{inspectedTask.project?.name || 'N/A'}</strong>
                     <span className="text-[10px] text-gray-400 font-mono ml-2">({inspectedTask.project?.projectId})</span>
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase">5. Parent Script / Graphic Req</span>
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Parent Script / Graphic Req</span>
                     {inspectedTask.script ? (
                       <span className="px-2 py-0.5 bg-purple-950 text-purple-300 border border-purple-800 rounded font-semibold text-[10px] inline-block">
                         📄 Script: {inspectedTask.script.name} ({inspectedTask.script.scriptId})
@@ -1121,15 +1359,15 @@ export default function TasksPage() {
 
                 <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg space-y-1">
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold uppercase">6. Client:</span>{' '}
+                    <span className="text-[10px] text-gray-500 font-bold uppercase">Client:</span>{' '}
                     <strong className="text-white">{inspectedTask.client?.name || 'N/A'}</strong>
                   </div>
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold uppercase">7. Brand:</span>{' '}
+                    <span className="text-[10px] text-gray-500 font-bold uppercase">Brand:</span>{' '}
                     <strong className="text-purple-300">[{inspectedTask.brand?.shortCode}] {inspectedTask.brand?.name}</strong>
                   </div>
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold uppercase">8. Product (Optional):</span>{' '}
+                    <span className="text-[10px] text-gray-500 font-bold uppercase">Product (Optional):</span>{' '}
                     <strong className="text-cyan-300">{inspectedTask.product?.name ? `${inspectedTask.product.name} (${inspectedTask.product.productCode})` : 'N/A (General)'}</strong>
                   </div>
                 </div>
@@ -1205,7 +1443,7 @@ export default function TasksPage() {
               {/* Right Column */}
               <div className="space-y-3">
                 <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg">
-                  <span className="text-[10px] text-gray-500 font-bold block uppercase">9. Assigned Employees</span>
+                  <span className="text-[10px] text-gray-500 font-bold block uppercase">Assigned Employees</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {(inspectedTask.assignedEmployees || []).length === 0 ? (
                       <span className="text-gray-500 italic">No assigned staff</span>
@@ -1221,7 +1459,7 @@ export default function TasksPage() {
 
                 <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg grid grid-cols-2 gap-2 font-mono">
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase">10. Priority</span>
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Priority</span>
                     <strong className={`text-xs px-2 py-0.5 rounded ${
                       inspectedTask.priority === 'CRITICAL' ? 'bg-red-500/20 text-red-400' :
                       inspectedTask.priority === 'HIGH' ? 'bg-amber-500/20 text-amber-300' : 'bg-blue-500/20 text-blue-300'
@@ -1229,24 +1467,24 @@ export default function TasksPage() {
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase">11. Due Date</span>
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Due Date</span>
                     <span className="text-gray-200 text-xs">{new Date(inspectedTask.dueDate).toLocaleDateString()}</span>
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase">12. Estimated Hours</span>
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Estimated Hours</span>
                     <strong className="text-emerald-400 text-xs">{inspectedTask.estimatedHours}h</strong>
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase">13. Current Status</span>
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Current Status</span>
                     <strong className="text-purple-300 text-xs">{inspectedTask.status}</strong>
                   </div>
                 </div>
 
                 <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg space-y-1">
                   <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-gray-500 font-bold uppercase">14. Completion Percentage</span>
+                    <span className="text-[10px] text-gray-500 font-bold uppercase">Completion Percentage</span>
                     <strong className="text-white text-xs">{inspectedTask.completionPercentage}%</strong>
                   </div>
                   <div className="w-full bg-gray-950 rounded-full h-2 overflow-hidden border border-gray-800">
@@ -1258,7 +1496,7 @@ export default function TasksPage() {
                 </div>
 
                 <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg space-y-3">
-                  <span className="text-[10px] text-gray-500 font-bold block uppercase">15. Permanent Execution Remarks History</span>
+                  <span className="text-[10px] text-gray-500 font-bold block uppercase">Permanent Execution Remarks History</span>
                   
                   {/* Add Remark Form */}
                   <div className="space-y-1.5 pt-1">

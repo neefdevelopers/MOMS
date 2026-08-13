@@ -126,7 +126,9 @@ export function Sidebar() {
           />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-white truncate">{user.name}</p>
-            <p className="text-xs text-gray-400 truncate">{user.email}</p>
+            <span className="text-[10px] font-semibold text-blue-400 bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-800/60 font-mono">
+              {user.role?.replace('_', ' ')}
+            </span>
           </div>
         </div>
       )}

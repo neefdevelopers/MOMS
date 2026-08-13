@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CalendarPage() {
@@ -16,11 +16,15 @@ export default function CalendarPage() {
   // View Mode: month, week, day
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
 
-  // Filters
+  // Project-Style Filtration Control Panel States
+  const [searchQuery, setSearchQuery] = useState('');
   const [clientIdFilter, setClientIdFilter] = useState('');
   const [brandIdFilter, setBrandIdFilter] = useState('');
   const [shootTypeFilter, setShootTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -102,6 +106,16 @@ export default function CalendarPage() {
     }
   };
 
+  const handleGenerateGraphicReq = async (eventId: string) => {
+    try {
+      await fetchApi(`/calendar/${eventId}/generate-graphic-req`, { method: 'POST' });
+      alert('✨ Graphic Requirement auto-generated successfully from Media Calendar Event!');
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to generate Graphic Requirement');
+    }
+  };
+
   const openEdit = (eventItem: any) => {
     setEditingEvent(eventItem);
     setFormData({
@@ -134,6 +148,22 @@ export default function CalendarPage() {
 
   const activeClients = clients.filter((c) => c.status === 'ACTIVE');
   const filteredBrands = brands.filter((b) => !formData.clientId || b.clientId === formData.clientId);
+
+  const filteredEvents = events.filter((evt) => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const titleMatch = (evt.title || '').toLowerCase().includes(q);
+      const clientMatch = (evt.client?.name || '').toLowerCase().includes(q);
+      const brandMatch = (evt.brand?.name || '').toLowerCase().includes(q) || (evt.brand?.shortCode || '').toLowerCase().includes(q);
+      const productMatch = (evt.product?.name || '').toLowerCase().includes(q);
+      const talentMatch = (evt.influencerTalent || '').toLowerCase().includes(q);
+      const notesMatch = (evt.productionNotes || '').toLowerCase().includes(q);
+      if (!titleMatch && !clientMatch && !brandMatch && !productMatch && !talentMatch && !notesMatch) return false;
+    }
+    if (priorityFilter && evt.priority !== priorityFilter) return false;
+    if (dateFilter && (!evt.shootDate || !evt.shootDate.startsWith(dateFilter))) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -186,54 +216,242 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-3 bg-card border border-border p-4 rounded-xl text-xs">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-400" />
-          <select
-            value={clientIdFilter}
-            onChange={(e) => setClientIdFilter(e.target.value)}
-            className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-          >
-            <option value="">All Clients</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+      {/* User-Friendly Project-Style Filter Panel */}
+      <div className="bg-card border border-border p-5 rounded-xl space-y-4 text-xs shadow-md">
+        {/* Top Search & Controls Row */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Keyword Search Input */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="Search calendar events by Title, Client, Brand, Product, Talent, Notes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 focus:border-blue-500 rounded-xl pl-9 pr-8 py-2.5 text-white font-medium focus:outline-none transition-all placeholder:text-gray-500"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-2.5 text-gray-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Controls: Quick Presets, Advanced Toggle & Reset */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setShootTypeFilter(shootTypeFilter === 'INDOOR' ? '' : 'INDOOR')}
+              className={`px-3 py-2 rounded-lg font-semibold flex items-center gap-1.5 transition-colors border ${
+                shootTypeFilter === 'INDOOR'
+                  ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30'
+                  : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-600'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" /> Indoor Studio
+            </button>
+
+            <button
+              onClick={() => setShootTypeFilter(shootTypeFilter === 'OUTDOOR' ? '' : 'OUTDOOR')}
+              className={`px-3 py-2 rounded-lg font-semibold flex items-center gap-1.5 transition-colors border ${
+                shootTypeFilter === 'OUTDOOR'
+                  ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/30'
+                  : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-600'
+              }`}
+            >
+              <Camera className="w-3.5 h-3.5" /> Outdoor Field
+            </button>
+
+            <button
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className={`px-3.5 py-2 rounded-lg font-semibold flex items-center gap-1.5 transition-colors border ${
+                showAdvancedFilters || (clientIdFilter || brandIdFilter || statusFilter || priorityFilter || dateFilter)
+                  ? 'bg-purple-600/20 text-purple-300 border-purple-500/50'
+                  : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-600'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-purple-400" />
+              <span>Advanced Filters</span>
+              {([clientIdFilter, brandIdFilter, statusFilter, priorityFilter, dateFilter].filter(Boolean).length > 0) && (
+                <span className="w-4 h-4 rounded-full bg-purple-500 text-white font-bold text-[10px] flex items-center justify-center">
+                  {[clientIdFilter, brandIdFilter, statusFilter, priorityFilter, dateFilter].filter(Boolean).length}
+                </span>
+              )}
+            </button>
+
+            {(searchQuery || clientIdFilter || brandIdFilter || shootTypeFilter || statusFilter || priorityFilter || dateFilter) && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setClientIdFilter('');
+                  setBrandIdFilter('');
+                  setShootTypeFilter('');
+                  setStatusFilter('');
+                  setPriorityFilter('');
+                  setDateFilter('');
+                }}
+                className="px-3 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-800/40 text-red-300 rounded-lg font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Reset Filters
+              </button>
+            )}
+          </div>
         </div>
 
-        <select
-          value={shootTypeFilter}
-          onChange={(e) => setShootTypeFilter(e.target.value)}
-          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-        >
-          <option value="">All Shoot Types</option>
-          <option value="INDOOR">INDOOR Studio</option>
-          <option value="OUTDOOR">OUTDOOR Location</option>
-        </select>
+        {/* Active Filter Chips / Pills */}
+        {(clientIdFilter || brandIdFilter || shootTypeFilter || statusFilter || priorityFilter || dateFilter) && (
+          <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-gray-800">
+            <span className="text-gray-500 text-[11px] font-semibold">Active Filters:</span>
+            {clientIdFilter && (
+              <span className="px-2.5 py-1 bg-purple-950 text-purple-300 border border-purple-800 rounded-full flex items-center gap-1 text-[11px]">
+                Client: {clients.find((c) => c.id === clientIdFilter)?.name}
+                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setClientIdFilter('')} />
+              </span>
+            )}
+            {brandIdFilter && (
+              <span className="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded-full flex items-center gap-1 text-[11px]">
+                Brand: [{brands.find((b) => b.id === brandIdFilter)?.shortCode}] {brands.find((b) => b.id === brandIdFilter)?.name}
+                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setBrandIdFilter('')} />
+              </span>
+            )}
+            {shootTypeFilter && (
+              <span className="px-2.5 py-1 bg-blue-950 text-blue-300 border border-blue-800 rounded-full flex items-center gap-1 text-[11px]">
+                Type: {shootTypeFilter}
+                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setShootTypeFilter('')} />
+              </span>
+            )}
+            {statusFilter && (
+              <span className="px-2.5 py-1 bg-cyan-950 text-cyan-300 border border-cyan-800 rounded-full flex items-center gap-1 text-[11px]">
+                Status: {statusFilter}
+                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setStatusFilter('')} />
+              </span>
+            )}
+            {priorityFilter && (
+              <span className="px-2.5 py-1 bg-amber-950 text-amber-300 border border-amber-800 rounded-full flex items-center gap-1 text-[11px]">
+                Priority: {priorityFilter}
+                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setPriorityFilter('')} />
+              </span>
+            )}
+            {dateFilter && (
+              <span className="px-2.5 py-1 bg-gray-800 text-gray-200 border border-gray-700 rounded-full flex items-center gap-1 text-[11px] font-mono">
+                Date: {dateFilter}
+                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setDateFilter('')} />
+              </span>
+            )}
+          </div>
+        )}
 
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-        >
-          <option value="">All Event Statuses</option>
-          <option value="SCHEDULED">SCHEDULED</option>
-          <option value="COMPLETED">COMPLETED</option>
-          <option value="CANCELLED">CANCELLED</option>
-        </select>
+        {/* Expandable Grouped Advanced Filters Drawer */}
+        {showAdvancedFilters && (
+          <div className="pt-3 border-t border-gray-800 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Group 1: Commercial Context */}
+              <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
+                <div className="font-bold text-purple-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-purple-400" /> Commercial Context
+                </div>
+                <div className="space-y-2">
+                  <select
+                    value={clientIdFilter}
+                    onChange={(e) => {
+                      setClientIdFilter(e.target.value);
+                      setBrandIdFilter('');
+                    }}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 font-medium"
+                  >
+                    <option value="">All Clients</option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={brandIdFilter}
+                    onChange={(e) => setBrandIdFilter(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 font-medium"
+                  >
+                    <option value="">All Brands</option>
+                    {brands
+                      .filter((b) => !clientIdFilter || b.clientId === clientIdFilter)
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>[{b.shortCode}] {b.name}</option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Group 2: Status & Type */}
+              <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
+                <div className="font-bold text-blue-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Video className="w-3.5 h-3.5 text-blue-400" /> Event Status &amp; Shoot Type
+                </div>
+                <div className="space-y-2">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 font-medium"
+                  >
+                    <option value="">All Event Statuses</option>
+                    <option value="SCHEDULED">SCHEDULED</option>
+                    <option value="COMPLETED">COMPLETED</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                  </select>
+
+                  <select
+                    value={shootTypeFilter}
+                    onChange={(e) => setShootTypeFilter(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 font-medium"
+                  >
+                    <option value="">All Shoot Types</option>
+                    <option value="INDOOR">INDOOR Studio</option>
+                    <option value="OUTDOOR">OUTDOOR Location</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Group 3: Priority & Date */}
+              <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
+                <div className="font-bold text-amber-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Flame className="w-3.5 h-3.5 text-amber-400" /> Priority &amp; Shoot Date
+                </div>
+                <div className="space-y-2">
+                  <select
+                    value={priorityFilter}
+                    onChange={(e) => setPriorityFilter(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-medium"
+                  >
+                    <option value="">All Priorities</option>
+                    <option value="LOW">LOW Priority</option>
+                    <option value="MEDIUM">MEDIUM Priority</option>
+                    <option value="HIGH">HIGH Priority</option>
+                    <option value="CRITICAL">CRITICAL Priority</option>
+                  </select>
+
+                  <input
+                    type="date"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white font-medium focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Events Stream / Cards */}
       {loading ? (
         <div className="p-8 text-center text-gray-400">Loading Calendar Events...</div>
-      ) : events.length === 0 ? (
+      ) : filteredEvents.length === 0 ? (
         <div className="p-8 text-center bg-card border border-border rounded-xl text-gray-400">
           No calendar events scheduled for the selected filters.
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {events.map((eventItem) => (
+          {filteredEvents.map((eventItem) => (
             <div
               key={eventItem.id}
               className={`bg-card border p-5 rounded-xl space-y-3 relative transition-all ${
@@ -299,7 +517,14 @@ export default function CalendarPage() {
                 )}
 
                 {user?.role === 'MEDIA_MANAGER' && eventItem.status !== 'CANCELLED' && (
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5 flex-wrap">
+                    <button
+                      onClick={() => handleGenerateGraphicReq(eventItem.id)}
+                      className="px-2 py-0.5 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 text-amber-300 rounded font-semibold text-[10px] flex items-center gap-1"
+                      title="Auto-generate Graphic Requirement from Media Calendar"
+                    >
+                      🎨 + Graphic Req
+                    </button>
                     <button
                       onClick={() => openEdit(eventItem)}
                       className="px-2 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded font-semibold text-[10px] flex items-center gap-1"

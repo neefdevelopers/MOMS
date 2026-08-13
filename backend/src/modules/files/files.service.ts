@@ -105,7 +105,11 @@ export class FilesService {
       });
     } else if (data.graphicRequirementId) {
       oldFiles = await this.prisma.fileMetadata.findMany({
-        where: { projectId: data.projectId, graphicRequirementId: data.graphicRequirementId },
+        where: {
+          projectId: data.projectId,
+          graphicRequirementId: data.graphicRequirementId,
+          attachmentCategory,
+        },
       });
     } else {
       oldFiles = await this.prisma.fileMetadata.findMany({
@@ -158,6 +162,36 @@ export class FilesService {
           triggeredById: uploadedById,
         },
       });
+    } else if (data.graphicRequirementId) {
+      const linkedTasks = await this.prisma.task.findMany({
+        where: { graphicRequirementId: data.graphicRequirementId },
+      });
+      const isReplacement = oldFileNames.length > 0;
+      const timelineDesc = isReplacement
+        ? `Production file replaced [Category: ${attachmentCategory}]: '${oldFileNames.join(', ')}' → active version '${file.originalname}' (${(file.size / 1024 / 1024).toFixed(2)} MB). Previous file deactivated. Revision history preserved in timeline.`
+        : `Production file uploaded [Category: ${attachmentCategory}]: '${file.originalname}' (${(file.size / 1024 / 1024).toFixed(2)} MB) set as active version.`;
+
+      // ── RULE: Revision history maintained in GraphicRequirementTimeline (never deleted) ──
+      await this.prisma.graphicRequirementTimeline.create({
+        data: {
+          graphicRequirementId: data.graphicRequirementId,
+          userId: uploadedById,
+          event: isReplacement ? 'PRODUCTION_UPDATED' : 'PRODUCTION_STARTED',
+          description: timelineDesc,
+        },
+      });
+
+      // Also log to linked task timelines
+      for (const t of linkedTasks) {
+        await this.prisma.taskTimeline.create({
+          data: {
+            taskId: t.id,
+            userId: uploadedById,
+            event: 'FILE_UPLOADED',
+            description: timelineDesc,
+          },
+        });
+      }
     }
 
     await this.prisma.activityLog.create({

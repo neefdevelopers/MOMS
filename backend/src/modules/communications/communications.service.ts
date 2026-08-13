@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CommunicationType } from '../../common/enums';
 
@@ -6,25 +6,674 @@ import { CommunicationType } from '../../common/enums';
 export class CommunicationsService {
   constructor(private prisma: PrismaService) {}
 
-  async findByEntity(entityType: string, entityId: string) {
-    return this.prisma.communication.findMany({
-      where: { entityType, entityId },
-      include: { sender: { select: { id: true, name: true, role: true, avatarUrl: true } } },
-      orderBy: { createdAt: 'asc' },
+  async findByEntity(
+    entityType?: string,
+    entityId?: string,
+    search?: string,
+    isRemark?: string,
+    blockerStatus?: string,
+    senderId?: string,
+    recipient?: string,
+    projectId?: string,
+    date?: string,
+    type?: string,
+    status?: string,
+  ) {
+    const where: any = {};
+    if (entityType && entityType !== 'ALL') {
+      where.entityType = entityType;
+    }
+    if (entityId) {
+      where.entityId = entityId;
+    }
+    if (search) {
+      where.OR = [
+        { subject: { contains: search } },
+        { content: { contains: search } },
+        { recipients: { contains: search } },
+      ];
+    }
+    if (isRemark === 'true') {
+      where.isRemark = true;
+    } else if (isRemark === 'false') {
+      where.isRemark = false;
+    }
+    if (blockerStatus === 'OPEN') {
+      where.isBlocker = true;
+      where.blockerStatus = 'OPEN';
+    } else if (blockerStatus === 'RESOLVED') {
+      where.isBlocker = true;
+      where.blockerStatus = 'RESOLVED';
+    }
+    if (senderId && senderId !== 'ALL') {
+      where.senderId = senderId;
+    }
+    if (recipient && recipient.trim()) {
+      where.recipients = { contains: recipient.trim() };
+    }
+    if (projectId && projectId !== 'ALL') {
+      where.projectId = projectId;
+    }
+    if (type && type !== 'ALL') {
+      where.type = type;
+    }
+    if (status && status !== 'ALL') {
+      where.status = status;
+    }
+    if (date) {
+      const startDate = new Date(date + 'T00:00:00.000Z');
+      const endDate = new Date(date + 'T23:59:59.999Z');
+      where.createdAt = {
+        gte: startDate,
+        lte: endDate,
+      };
+    }
+
+    const communications = await (this.prisma.communication as any).findMany({
+      where,
+      include: {
+        sender: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        assignedTo: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        resolvedBy: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        project: { select: { id: true, projectId: true, name: true } },
+        attachments: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Enrich with operational entity details if not already loaded via project
+    const enriched = await Promise.all(
+      communications.map(async (comm: any) => {
+        let entityName = comm.project?.name || 'Operational Record';
+        let entityRef = comm.project?.projectId || comm.entityId.substring(0, 8);
+
+        try {
+          if (comm.entityType === 'SCRIPT') {
+            const script = await this.prisma.script.findUnique({
+              where: { id: comm.entityId },
+              select: { scriptId: true, name: true },
+            });
+            if (script) {
+              entityName = script.name;
+              entityRef = script.scriptId;
+            }
+          } else if (comm.entityType === 'GRAPHIC_REQ') {
+            const graphic = await this.prisma.graphicRequirement.findUnique({
+              where: { id: comm.entityId },
+              select: { requirementId: true, name: true },
+            });
+            if (graphic) {
+              entityName = graphic.name;
+              entityRef = graphic.requirementId;
+            }
+          } else if (comm.entityType === 'TASK') {
+            const task = await this.prisma.task.findUnique({
+              where: { id: comm.entityId },
+              select: { taskId: true, title: true },
+            });
+            if (task) {
+              entityName = task.title;
+              entityRef = task.taskId;
+            }
+          } else if (comm.entityType === 'EQUIPMENT') {
+            const eq = await this.prisma.equipment.findUnique({
+              where: { id: comm.entityId },
+              select: { equipmentId: true, name: true },
+            });
+            if (eq) {
+              entityName = eq.name;
+              entityRef = eq.equipmentId;
+            }
+          } else if (comm.entityType === 'APPROVAL' || comm.entityType === 'REVIEW') {
+            const approval = await this.prisma.approval.findUnique({
+              where: { id: comm.entityId },
+              select: { id: true, approvalType: true, project: { select: { name: true, projectId: true } } },
+            });
+            if (approval) {
+              entityName = `${approval.approvalType} Review`;
+              entityRef = approval.project?.projectId || approval.id.substring(0, 8);
+            }
+          } else if (comm.entityType === 'PROJECT') {
+            if (comm.project) {
+              entityName = comm.project.name;
+              entityRef = comm.project.projectId;
+            }
+          }
+        } catch (e) {
+          // Fallback gracefully if record is not found
+        }
+
+        return {
+          ...comm,
+          entityName,
+          entityRef,
+        };
+      })
+    );
+
+    // Build hierarchical tree: separate root messages (parentId is null) and nest replies
+    const commMap = new Map();
+    enriched.forEach((c) => commMap.set(c.id, { ...c, replies: [] }));
+
+    const roots: any[] = [];
+    enriched.forEach((c) => {
+      if (c.parentId && commMap.has(c.parentId)) {
+        commMap.get(c.parentId).replies.push(commMap.get(c.id));
+      } else {
+        roots.push(commMap.get(c.id));
+      }
+    });
+
+    // Ensure replies are ordered chronologically ascending
+    roots.forEach((root) => {
+      if (root.replies && root.replies.length > 0) {
+        root.replies.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      }
+    });
+
+    return roots;
+  }
+
+  async getOperationalEntities() {
+    const [projects, scripts, graphicReqs, tasks, equipment, approvals] = await Promise.all([
+      this.prisma.shootProject.findMany({ select: { id: true, projectId: true, name: true } }),
+      this.prisma.script.findMany({ select: { id: true, scriptId: true, name: true } }),
+      this.prisma.graphicRequirement.findMany({ select: { id: true, requirementId: true, name: true } }),
+      this.prisma.task.findMany({ select: { id: true, taskId: true, title: true } }),
+      this.prisma.equipment.findMany({ select: { id: true, equipmentId: true, name: true } }),
+      this.prisma.approval.findMany({ select: { id: true, approvalType: true, project: { select: { name: true } } } }),
+    ]);
+
+    return {
+      PROJECT: projects.map((p) => ({ id: p.id, code: p.projectId, name: p.name })),
+      SCRIPT: scripts.map((s) => ({ id: s.id, code: s.scriptId, name: s.name })),
+      GRAPHIC_REQ: graphicReqs.map((g) => ({ id: g.id, code: g.requirementId, name: g.name })),
+      TASK: tasks.map((t) => ({ id: t.id, code: t.taskId, name: t.title })),
+      EQUIPMENT: equipment.map((e) => ({ id: e.id, code: e.equipmentId, name: e.name })),
+      APPROVAL: approvals.map((a) => ({ id: a.id, code: a.id.substring(0, 8), name: `${a.approvalType} (${a.project?.name})` })),
+      REVIEW: approvals.map((a) => ({ id: a.id, code: a.id.substring(0, 8), name: `${a.approvalType} Review` })),
+    };
+  }
+
+  async getCommunicationTypes() {
+    const builtinTypes = [
+      { key: 'INFORMATION', label: 'Information' },
+      { key: 'QUESTION', label: 'Question' },
+      { key: 'CLARIFICATION', label: 'Clarification' },
+      { key: 'REQUIREMENT', label: 'Requirement' },
+      { key: 'APPROVAL_REQUEST', label: 'Approval Request' },
+      { key: 'REVIEW_COMMENT', label: 'Review Comment' },
+      { key: 'ISSUE_REPORT', label: 'Issue Report' },
+      { key: 'BLOCKER', label: 'Blocker' },
+      { key: 'ANNOUNCEMENT', label: 'Announcement' },
+      { key: 'GENERAL_NOTE', label: 'General Note' },
+    ];
+
+    let customTypes: any[] = [];
+    try {
+      const setting = await this.prisma.systemSetting.findUnique({
+        where: { key: 'CUSTOM_COMMUNICATION_TYPES' },
+      });
+      if (setting && setting.value) {
+        customTypes = JSON.parse(setting.value);
+      }
+    } catch (e) {
+      customTypes = [];
+    }
+
+    return [...builtinTypes, ...customTypes];
+  }
+
+  async addCustomCommunicationType(label: string, userRole: string) {
+    if (userRole !== 'MEDIA_MANAGER') {
+      throw new ForbiddenException('Only Media Managers can introduce new communication types.');
+    }
+
+    const cleanLabel = label.trim();
+    if (!cleanLabel) {
+      throw new BadRequestException('Communication type label cannot be empty.');
+    }
+
+    const key = cleanLabel.toUpperCase().replace(/[^A_Z0-9]/g, '_');
+
+    let currentCustom: any[] = [];
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: 'CUSTOM_COMMUNICATION_TYPES' },
+    });
+    if (setting && setting.value) {
+      currentCustom = JSON.parse(setting.value);
+    }
+
+    if (!currentCustom.some((c) => c.key === key)) {
+      currentCustom.push({ key, label: cleanLabel, custom: true });
+      await this.prisma.systemSetting.upsert({
+        where: { key: 'CUSTOM_COMMUNICATION_TYPES' },
+        update: { value: JSON.stringify(currentCustom) },
+        create: {
+          key: 'CUSTOM_COMMUNICATION_TYPES',
+          value: JSON.stringify(currentCustom),
+          description: 'Custom communication categories introduced by Media Manager',
+        },
+      });
+    }
+
+    return this.getCommunicationTypes();
+  }
+
+  async getAnnouncements() {
+    return (this.prisma.communication as any).findMany({
+      where: {
+        OR: [
+          { type: 'ANNOUNCEMENT' },
+          { isAnnouncement: true },
+        ],
+      },
+      include: {
+        sender: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        attachments: true,
+      },
+      orderBy: [
+        { priority: 'desc' },
+        { createdAt: 'desc' },
+      ],
     });
   }
 
-  async create(data: { entityType: string; entityId: string; projectId?: string; type: CommunicationType; content: string }, senderId: string) {
-    return this.prisma.communication.create({
+  async create(
+    data: {
+      entityType: string;
+      entityId: string;
+      parentId?: string;
+      projectId?: string;
+      type?: CommunicationType | string;
+      subject?: string;
+      recipients?: string;
+      status?: string;
+      isRemark?: boolean;
+      isAnnouncement?: boolean;
+      priority?: string;
+      targetRole?: string;
+      blockerReason?: string;
+      assignedToId?: string;
+      content: string;
+      attachments?: { fileName: string; fileUrl: string; fileType: string; fileSize?: number }[];
+    },
+    senderId: string,
+  ) {
+    let resolvedProjectId = data.projectId || null;
+    const isAnnouncement = data.type === 'ANNOUNCEMENT' || Boolean(data.isAnnouncement);
+    const isRemark = Boolean(data.isRemark);
+
+    // ─── BUSINESS RULE 1: Communication system is NOT a messaging app ───────
+    // Personal direct messaging is disallowed. Every communication MUST belong
+    // to an operational entity (Project, Task, Script, Equipment, etc.).
+    if (!isAnnouncement && !data.entityType) {
+      throw new BadRequestException(
+        'Business Rule Violation: Every communication must belong to an operational entity (Project, Task, Script, Equipment, etc.). This system is not a direct messaging application.'
+      );
+    }
+    if (!isAnnouncement && !data.entityId && !data.parentId) {
+      throw new BadRequestException(
+        'Business Rule Violation: Communication must reference an operational entity ID. Personal direct messages are not permitted.'
+      );
+    }
+
+    // ─── BUSINESS RULE 3: One entity per communication ──────────────────────
+    const validEntityTypes = ['PROJECT', 'TASK', 'SCRIPT', 'EQUIPMENT', 'GRAPHIC_REQ', 'APPROVAL', 'REVIEW', 'SYSTEM'];
+    if (!isAnnouncement && data.entityType && !validEntityTypes.includes(data.entityType.toUpperCase())) {
+      throw new BadRequestException(
+        `Business Rule Violation: Entity type '${data.entityType}' is not a recognized operational module. Must be one of: ${validEntityTypes.join(', ')}.`
+      );
+    }
+
+    // ─── BUSINESS RULE 8: Only Media Manager may publish announcements ───────
+    if (isAnnouncement) {
+      const senderUser = await this.prisma.user.findUnique({ where: { id: senderId }, select: { role: true } });
+      if (!senderUser || (senderUser.role !== 'MEDIA_MANAGER' && senderUser.role !== 'ADMIN')) {
+        throw new ForbiddenException(
+          'Business Rule Violation: Company-wide announcements may only be published by the Media Manager.'
+        );
+      }
+    }
+
+    // ─── BUSINESS RULE 5: Remarks and Communications are separate entities ──
+    // Remarks have no recipients. Communications require recipients.
+    if (!isRemark && !isAnnouncement && !data.parentId) {
+      if (!data.content?.trim()) {
+        throw new BadRequestException('Business Rule Violation: Communication content cannot be empty.');
+      }
+    }
+
+    if (!resolvedProjectId && !isAnnouncement) {
+      if (data.entityType === 'PROJECT') {
+        resolvedProjectId = data.entityId;
+      } else if (data.entityType === 'SCRIPT') {
+        const script = await this.prisma.script.findUnique({ where: { id: data.entityId }, select: { projectId: true } });
+        if (script) resolvedProjectId = script.projectId;
+      } else if (data.entityType === 'GRAPHIC_REQ') {
+        const req = await this.prisma.graphicRequirement.findUnique({ where: { id: data.entityId }, select: { projectId: true } });
+        if (req) resolvedProjectId = req.projectId;
+      } else if (data.entityType === 'TASK') {
+        const task = await this.prisma.task.findUnique({ where: { id: data.entityId }, select: { projectId: true } });
+        if (task) resolvedProjectId = task.projectId;
+      } else if (data.entityType === 'APPROVAL' || data.entityType === 'REVIEW') {
+        const app = await this.prisma.approval.findUnique({ where: { id: data.entityId }, select: { projectId: true } });
+        if (app) resolvedProjectId = app.projectId;
+      }
+    }
+
+    // isRemark already validated above; reassign from data for create payload
+    const isBlocker = data.type === 'BLOCKER' || data.type === 'ISSUE_REPORT' || Boolean(data.blockerReason);
+    const blockerReason = isBlocker ? (data.blockerReason || 'OTHER') : null;
+    const priority = data.priority ? data.priority.toUpperCase() : 'NORMAL_PRIORITY';
+
+    // ─── BUSINESS RULE 6: Blockers remain OPEN until explicitly resolved ─────
+    // blockerStatus is always initialized as OPEN; it cannot be set to RESOLVED
+    // through the create endpoint — only via resolveBlocker().
+
+    const attachmentsData =
+      data.attachments && data.attachments.length > 0
+        ? {
+            create: data.attachments.map((att) => ({
+              fileName: att.fileName,
+              fileUrl: att.fileUrl,
+              fileType: att.fileType,
+              fileSize: att.fileSize || null,
+            })),
+          }
+        : undefined;
+
+    const createdComm = await (this.prisma.communication as any).create({
       data: {
-        entityType: data.entityType,
-        entityId: data.entityId,
-        projectId: data.projectId || null,
-        type: data.type || 'GENERAL_NOTE',
+        entityType: isAnnouncement ? 'SYSTEM' : (data.entityType || 'PROJECT'),
+        entityId: isAnnouncement ? 'COMPANY' : (data.entityId || 'SYS'),
+        parentId: isRemark ? null : (data.parentId || null),
+        projectId: resolvedProjectId,
+        isRemark,
+        isBlocker,
+        isAnnouncement,
+        priority: isAnnouncement ? priority : 'NORMAL_PRIORITY',
+        blockerReason,
+        blockerStatus: isBlocker ? 'OPEN' : null, // BUSINESS RULE 6: always OPEN on creation
+        assignedToId: data.assignedToId || null,
+        subject: data.subject || (isRemark ? 'Operational Remark' : isAnnouncement ? (priority === 'HIGH_PRIORITY' ? '🚨 Company Announcement (High Priority)' : 'Company Announcement') : isBlocker ? `[BLOCKER] ${blockerReason?.replace(/_/g, ' ')}` : 'Operational Communication'),
+        recipients: isRemark ? 'N/A (Operational Remark)' : isAnnouncement ? 'All Company Employees' : (data.recipients || 'All Assigned Team Members'),
+        type: isAnnouncement ? 'ANNOUNCEMENT' : (data.type || ('GENERAL_NOTE' as any)),
         content: data.content,
+        status: isRemark ? 'CLOSED' : (data.status || 'SENT'),
         senderId,
+        attachments: attachmentsData,
       },
-      include: { sender: { select: { id: true, name: true, role: true, avatarUrl: true } } },
+      include: {
+        sender: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        assignedTo: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        resolvedBy: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        attachments: true,
+      },
+    });
+
+    const senderName = createdComm.sender?.name || 'A staff member';
+
+    // TRIGGER 1: Announcement Published (Role Broadcast to All Employees)
+    try {
+      if (isAnnouncement) {
+        const users = await this.prisma.user.findMany({ select: { id: true } });
+        if (users.length > 0) {
+          const isHigh = priority === 'HIGH_PRIORITY';
+          for (const u of users) {
+            await this.prisma.notification.create({
+              data: {
+                userId: u.id,
+                title: isHigh
+                  ? `🚨 HIGH PRIORITY ANNOUNCEMENT: ${createdComm.subject}`
+                  : `📢 Company Announcement: ${createdComm.subject}`,
+                message: isHigh
+                  ? `URGENT: ${data.content.substring(0, 150)}`
+                  : `New company-wide announcement published by ${senderName}`,
+                type: isHigh ? 'WARNING' : 'INFO',
+                linkUrl: '/dashboard',
+              },
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to trigger announcement notifications:', err);
+    }
+
+    // TRIGGER 2: Employee Mentioned (@Name Tag)
+    try {
+      const mentionMatches = data.content.match(/@([A-Za-z0-9_.-]+)/g);
+      if (mentionMatches && mentionMatches.length > 0) {
+        const rawHandles = Array.from(new Set(mentionMatches.map((m) => m.substring(1))));
+        const users = await this.prisma.user.findMany({
+          select: { id: true, name: true, role: true },
+        });
+
+        for (const handle of rawHandles) {
+          const matchedUser = users.find(
+            (u) =>
+              u.id !== senderId &&
+              (u.name.toLowerCase().includes(handle.toLowerCase()) ||
+                handle.toLowerCase().includes(u.name.toLowerCase().split(' ')[0]))
+          );
+
+          if (matchedUser) {
+            await this.prisma.notification.create({
+              data: {
+                userId: matchedUser.id,
+                title: `Mentioned in ${data.entityType?.replace('_', ' ') || 'Operational'} Note`,
+                message: `${senderName} mentioned you: "${data.content.substring(0, 100)}${
+                  data.content.length > 100 ? '...' : ''
+                }"`,
+                type: 'MENTION',
+                linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
+              },
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to trigger mention notifications:', err);
+    }
+
+    // TRIGGER 3: Approval Requested (Role-Based Routing to Target Managers)
+    try {
+      const isApprovalType = data.type === 'APPROVAL_REQUEST' || Boolean(data.targetRole);
+      if (isApprovalType) {
+        const targetRole = data.targetRole || 'TECHNICAL_MANAGER';
+        const approvalType = targetRole === 'MEDIA_MANAGER' ? 'MEDIA_MANAGER_REVIEW' : 'TECHNICAL_REVIEW';
+
+        await this.prisma.approval.create({
+          data: {
+            projectId: resolvedProjectId || null,
+            entityType: data.entityType,
+            entityId: data.entityId,
+            targetRole,
+            approvalType,
+            requestedById: senderId,
+            status: 'PENDING',
+            remarks: `${data.subject || 'Approval Request'}: ${data.content}`,
+          },
+        });
+
+        const managers = await this.prisma.user.findMany({
+          where: { role: targetRole },
+          select: { id: true },
+        });
+
+        for (const mgr of managers) {
+          await this.prisma.notification.create({
+            data: {
+              userId: mgr.id,
+              title: `Pending ${targetRole === 'MEDIA_MANAGER' ? 'Media Manager' : 'Technical Manager'} Approval Request`,
+              message: `${senderName} submitted an approval request: "${data.subject || data.content.substring(0, 80)}"`,
+              type: 'APPROVAL_REQUEST',
+              linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
+            },
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to create pending approval item:', err);
+    }
+
+    // TRIGGER 4: Comment Received (Reply to Parent Communication Author)
+    try {
+      if (data.parentId) {
+        const parentComm = await (this.prisma.communication as any).findUnique({
+          where: { id: data.parentId },
+          select: { senderId: true, subject: true },
+        });
+
+        if (parentComm && parentComm.senderId && parentComm.senderId !== senderId) {
+          await this.prisma.notification.create({
+            data: {
+              userId: parentComm.senderId,
+              title: `New Comment on "${parentComm.subject || 'Operational Note'}"`,
+              message: `${senderName} commented: "${data.content.substring(0, 100)}${
+                data.content.length > 100 ? '...' : ''
+              }"`,
+              type: 'INFO',
+              linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
+            },
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to trigger comment notifications:', err);
+    }
+
+    // TRIGGER 5: Blocker Assigned (Assigned User & Manager Role Alerts)
+    try {
+      if (isBlocker) {
+        if (data.assignedToId && data.assignedToId !== senderId) {
+          await this.prisma.notification.create({
+            data: {
+              userId: data.assignedToId,
+              title: `⚠️ Operational Blocker Assigned`,
+              message: `${senderName} assigned an operational blocker to you (${blockerReason?.replace(/_/g, ' ')}): "${createdComm.subject}"`,
+              type: 'WARNING',
+              linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
+            },
+          });
+        }
+
+        // Also notify Technical and Media Managers of unresolved blocker
+        const managers = await this.prisma.user.findMany({
+          where: {
+            role: { in: ['TECHNICAL_MANAGER', 'MEDIA_MANAGER'] },
+            id: { not: senderId },
+          },
+          select: { id: true },
+        });
+
+        for (const mgr of managers) {
+          if (mgr.id !== data.assignedToId) {
+            await this.prisma.notification.create({
+              data: {
+                userId: mgr.id,
+                title: `🚨 Operational Blocker Reported`,
+                message: `${senderName} reported a blocker (${blockerReason?.replace(/_/g, ' ')}): "${createdComm.subject}"`,
+                type: 'WARNING',
+                linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
+              },
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to trigger blocker notifications:', err);
+    }
+
+    return createdComm;
+  }
+
+  async updateStatus(id: string, status: string) {
+    const validStatuses = ['SENT', 'DELIVERED', 'READ', 'CLOSED'];
+    const cleanStatus = status?.toUpperCase();
+    if (!validStatuses.includes(cleanStatus)) {
+      throw new BadRequestException(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+    }
+
+    const comm = await (this.prisma.communication as any).findUnique({ where: { id } });
+    if (!comm) throw new BadRequestException('Communication record not found');
+
+    // ─── BUSINESS RULE 6: Blockers remain open until resolved ────────────────
+    // Open blockers cannot be manually closed via status update.
+    // Use the resolveBlocker() endpoint to close a blocker with resolution notes.
+    if (cleanStatus === 'CLOSED' && comm.isBlocker && comm.blockerStatus === 'OPEN') {
+      throw new ForbiddenException(
+        'Business Rule Violation (Rule 6): An open operational blocker cannot be manually closed. Please use the Resolve Blocker action and provide resolution details.'
+      );
+    }
+
+    const updateData: any = { status: cleanStatus };
+    const now = new Date();
+
+    if (cleanStatus === 'DELIVERED' && !comm.deliveredAt) {
+      updateData.deliveredAt = now;
+    } else if (cleanStatus === 'READ') {
+      if (!comm.deliveredAt) updateData.deliveredAt = now;
+      if (!comm.readAt) updateData.readAt = now;
+    } else if (cleanStatus === 'CLOSED') {
+      if (!comm.deliveredAt) updateData.deliveredAt = now;
+      if (!comm.readAt) updateData.readAt = now;
+      if (!comm.closedAt) updateData.closedAt = now;
+    }
+
+    return (this.prisma.communication as any).update({
+      where: { id },
+      data: updateData,
+      include: {
+        sender: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        assignedTo: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        resolvedBy: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        attachments: true,
+      },
     });
   }
+
+  async resolveBlocker(id: string, resolutionNotes: string, resolverId: string) {
+    const comm = await (this.prisma.communication as any).findUnique({
+      where: { id },
+      include: { sender: true },
+    });
+    if (!comm) throw new BadRequestException('Communication record not found');
+
+    const updated = await (this.prisma.communication as any).update({
+      where: { id },
+      data: {
+        blockerStatus: 'RESOLVED',
+        status: 'CLOSED',
+        resolvedAt: new Date(),
+        closedAt: new Date(),
+        resolvedById: resolverId,
+        resolutionNotes: resolutionNotes || 'Operational Blocker marked as resolved.',
+      },
+      include: {
+        sender: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        assignedTo: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        resolvedBy: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        attachments: true,
+      },
+    });
+
+    if (comm.senderId && comm.senderId !== resolverId) {
+      await this.prisma.notification.create({
+        data: {
+          userId: comm.senderId,
+          title: 'Blocker Resolved',
+          message: `Your reported blocker "${comm.subject}" has been resolved: "${resolutionNotes || 'Resolved'}"`,
+          type: 'INFO',
+          linkUrl: comm.projectId ? `/projects/${comm.projectId}` : '/communication',
+        },
+      });
+    }
+
+    return updated;
+  }
 }
+
+
+

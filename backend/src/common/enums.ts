@@ -94,7 +94,7 @@ export enum GraphicReqStatus {
   DRAFT = 'DRAFT',
   READY = 'READY',
   ASSIGNED = 'ASSIGNED',
-  IN_PRODUCTION = 'IN_PRODUCTION',
+  IN_PROGRESS = 'IN_PROGRESS',
   WAITING_FOR_TECHNICAL_REVIEW = 'WAITING_FOR_TECHNICAL_REVIEW',
   WAITING_FOR_MEDIA_REVIEW = 'WAITING_FOR_MEDIA_REVIEW',
   WAITING_FOR_CLIENT_CONFIRMATION = 'WAITING_FOR_CLIENT_CONFIRMATION',
@@ -118,9 +118,11 @@ export enum TaskStatus {
 export enum EquipmentAvailability {
   AVAILABLE = 'AVAILABLE',
   RESERVED = 'RESERVED',
-  ISSUED = 'ISSUED',
-  MAINTENANCE = 'MAINTENANCE',
+  CHECKED_OUT = 'CHECKED_OUT',
+  IN_USE = 'IN_USE',
+  UNDER_MAINTENANCE = 'UNDER_MAINTENANCE',
   DAMAGED = 'DAMAGED',
+  LOST = 'LOST',
   RETIRED = 'RETIRED',
 }
 
@@ -135,6 +137,12 @@ export enum EquipmentMovementAction {
   ISSUED = 'ISSUED',
   USED = 'USED',
   RETURNED = 'RETURNED',
+  RETIRED = 'RETIRED', // Business Rule 4: logged when equipment is archived
+}
+
+export enum EquipmentLifecycle {
+  ACTIVE = 'ACTIVE',
+  ARCHIVED = 'ARCHIVED', // Business Rule 4: retired equipment becomes archived
 }
 
 export enum AttendanceStatus {

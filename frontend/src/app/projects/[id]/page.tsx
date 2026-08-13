@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import ActivityCommunicationThread from '@/components/communications/ActivityCommunicationThread';
 import {
   Film,
   FileText,
@@ -894,7 +895,7 @@ export default function ProjectDetailPage() {
                         <div className="space-y-0.5 overflow-hidden">
                           <h4 className="font-bold text-white text-sm truncate">{teamUser?.name}</h4>
                           <p className="text-blue-400 text-xs font-semibold">{profile?.designation || teamUser?.role}</p>
-                          <p className="text-gray-400 text-[11px] truncate">{teamUser?.email}</p>
+                          <p className="text-gray-400 text-[10px] font-mono bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded w-max">System Comm Only</p>
                         </div>
                       </div>
 
@@ -1215,74 +1216,14 @@ export default function ProjectDetailPage() {
 
         {/* Tab 10: Communication & Operational Remarks */}
         {activeTab === 'Communication' && (
-          <div className="space-y-6 text-xs">
-            <div>
-              <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-blue-400" /> Project Remarks & Operational Discussion
-              </h3>
-              <p className="text-gray-400 text-[11px] mt-0.5">
-                Every remark logs permanent history with exact Date, Time, Authoring User, and Message content.
-              </p>
-            </div>
-
-            <form onSubmit={handlePostComment} className="flex gap-2">
-              <input
-                type="text"
-                required
-                placeholder="Type a new operational remark or note..."
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                className="flex-1 bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
-              />
-              <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-md shadow-blue-600/30 transition-colors flex items-center gap-1">
-                <Plus className="w-3.5 h-3.5" /> Post Remark
-              </button>
-            </form>
-
-            <div className="space-y-3 pt-2">
-              {project.communications?.length === 0 ? (
-                <div className="p-6 text-center bg-gray-900/50 border border-gray-800 rounded-xl text-gray-400">
-                  No remarks logged yet. Post an operational remark above.
-                </div>
-              ) : (
-                project.communications?.map((c: any) => {
-                  const createdAtDate = new Date(c.createdAt);
-                  return (
-                    <div key={c.id} className="p-4 bg-gray-900 border border-gray-800 rounded-xl space-y-2">
-                      {/* Header: User, Date, Time */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800/80 pb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-blue-600/30 border border-blue-500/40 text-blue-300 flex items-center justify-center font-bold text-[10px]">
-                            {c.sender?.name ? c.sender.name.charAt(0).toUpperCase() : 'U'}
-                          </div>
-                          <div>
-                            <span className="font-bold text-white text-xs mr-2">{c.sender?.name || 'System User'}</span>
-                            <span className="text-[10px] text-blue-400 font-mono bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-800/40">
-                              {c.sender?.role || 'STAFF'}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 text-[11px] text-gray-400 font-mono">
-                          <span className="bg-gray-800 px-2 py-0.5 rounded text-gray-300">
-                            📅 {createdAtDate.toLocaleDateString()}
-                          </span>
-                          <span className="bg-gray-800 px-2 py-0.5 rounded text-gray-300">
-                            ⏰ {createdAtDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Message Body */}
-                      <div className="text-gray-200 text-xs leading-relaxed pt-1">
-                        {c.content}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
+          <ActivityCommunicationThread
+            entityType="PROJECT"
+            entityId={project.id}
+            entityName={project.name}
+            entityRef={project.projectId}
+            projectId={project.id}
+            title="Project Activity Communications"
+          />
         )}
 
         {/* Tab 11: Timeline */}

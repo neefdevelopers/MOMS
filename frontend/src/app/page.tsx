@@ -20,6 +20,22 @@ import {
   CloudRain,
   Building,
   Users,
+  Megaphone,
+  Bell,
+  Send,
+  X,
+  Plus,
+  Radio,
+  Paperclip,
+  Download,
+  File,
+  Image as ImageIcon,
+  Video,
+  Music,
+  MessageSquare,
+  AtSign,
+  Eye,
+  CornerDownRight,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -29,28 +45,115 @@ export default function DashboardPage() {
   const [myTasks, setMyTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [pubSubject, setPubSubject] = useState('');
+  const [pubContent, setPubContent] = useState('');
+  const [pubPriority, setPubPriority] = useState<'HIGH_PRIORITY' | 'NORMAL_PRIORITY'>('NORMAL_PRIORITY');
+  const [submittingAnn, setSubmittingAnn] = useState(false);
+
+  // Operational Communication Command State
+  const [unreadComms, setUnreadComms] = useState<any[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
+  const [assignedBlockers, setAssignedBlockers] = useState<any[]>([]);
+  const [mentions, setMentions] = useState<any[]>([]);
+  const [recentDiscussions, setRecentDiscussions] = useState<any[]>([]);
+
+  const loadAnnouncements = async () => {
+    try {
+      const annRes = await fetchApi('/communications/announcements');
+      setAnnouncements(Array.isArray(annRes) ? annRes : []);
+    } catch (err) {
+      console.error('Failed to load company announcements:', err);
+    }
+  };
+
   useEffect(() => {
     async function loadDashboard() {
       try {
-        const [dashRes, capRes, tasksRes] = await Promise.all([
+        const [dashRes, capRes, tasksRes, annRes] = await Promise.all([
           fetchApi('/reports/dashboard'),
           fetchApi('/tasks/capacity/overview'),
           fetchApi('/tasks'),
+          fetchApi('/communications/announcements'),
         ]);
         setData(dashRes || {});
         setCapacity(Array.isArray(capRes) ? capRes : []);
         setMyTasks(Array.isArray(tasksRes) ? tasksRes : []);
+        setAnnouncements(Array.isArray(annRes) ? annRes : []);
       } catch (err) {
         console.error('Failed to load dashboard:', err);
         setData({});
         setCapacity([]);
         setMyTasks([]);
+        setAnnouncements([]);
       } finally {
         setLoading(false);
       }
     }
     loadDashboard();
+
+    // Load operational communication dashboard widgets
+    async function loadCommWidgets() {
+      try {
+        const [unreadRes, approvalsRes, blockersRes, allCommsRes] = await Promise.all([
+          fetchApi('/communications?status=SENT&isRemark=false'),
+          fetchApi('/approvals?status=PENDING'),
+          fetchApi('/communications?blockerStatus=OPEN'),
+          fetchApi('/communications?isRemark=false'),
+        ]);
+
+        const allComms: any[] = Array.isArray(allCommsRes) ? allCommsRes : [];
+
+        setUnreadComms(Array.isArray(unreadRes) ? unreadRes.slice(0, 5) : []);
+        setPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes.slice(0, 5) : []);
+        setAssignedBlockers(Array.isArray(blockersRes) ? blockersRes.filter((c: any) => c.blockerStatus === 'OPEN').slice(0, 5) : []);
+
+        // Extract mentions from comm content
+        const mentionComms = allComms.filter((c: any) => c.type === 'MENTION' || (c.content && c.content.includes('@')));
+        setMentions(mentionComms.slice(0, 5));
+
+        // Recent discussions = comms with replies
+        const withReplies = [...allComms]
+          .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 6);
+        setRecentDiscussions(withReplies);
+      } catch (err) {
+        console.error('Failed to load comm widgets:', err);
+      }
+    }
+    loadCommWidgets();
   }, []);
+
+  const handlePublishAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pubContent.trim() || submittingAnn) return;
+
+    try {
+      setSubmittingAnn(true);
+      await fetchApi('/communications', {
+        method: 'POST',
+        body: JSON.stringify({
+          entityType: 'SYSTEM',
+          entityId: 'COMPANY',
+          type: 'ANNOUNCEMENT',
+          isAnnouncement: true,
+          priority: pubPriority,
+          subject: pubSubject.trim() || (pubPriority === 'HIGH_PRIORITY' ? '🚨 Company Announcement (High Priority)' : 'Company Announcement'),
+          recipients: 'All Company Employees',
+          content: pubContent.trim(),
+        }),
+      });
+      setPubSubject('');
+      setPubContent('');
+      setShowAnnouncementModal(false);
+      await loadAnnouncements();
+    } catch (err: any) {
+      alert(err.message || 'Failed to publish announcement');
+    } finally {
+      setSubmittingAnn(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -79,6 +182,14 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {(role === 'MEDIA_MANAGER' || (role as string) === 'ADMIN') && (
+            <button
+              onClick={() => setShowAnnouncementModal(true)}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-purple-600/30"
+            >
+              <Megaphone className="w-4 h-4" /> Publish Announcement
+            </button>
+          )}
           <Link
             href="/projects"
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-blue-600/30"
@@ -93,6 +204,347 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Company-Wide Announcements Banner Section */}
+      {announcements.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <Megaphone className="w-4 h-4 text-purple-400" /> Company-Wide Announcements ({announcements.length})
+            </h3>
+            <Link href="/communication" className="text-[11px] text-purple-400 hover:text-purple-300 font-medium">
+              View Repository Feed →
+            </Link>
+          </div>
+
+          <div className="space-y-3">
+            {announcements.map((ann) => {
+              const isHigh = ann.priority === 'HIGH_PRIORITY';
+              const dt = new Date(ann.createdAt);
+              const dateStr = dt.toLocaleDateString();
+              const timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+              return (
+                <div
+                  key={ann.id}
+                  className={`relative overflow-hidden rounded-xl border p-4.5 space-y-2.5 transition-all ${
+                    isHigh
+                      ? 'bg-gradient-to-r from-red-950/80 via-amber-950/60 to-red-950/80 border-red-500/80 shadow-xl shadow-red-950/40 ring-1 ring-red-500/30'
+                      : 'bg-gradient-to-r from-purple-950/40 via-zinc-900 to-zinc-900 border-purple-800/60'
+                  }`}
+                >
+                  {/* Top Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {isHigh ? (
+                        <span className="text-[10px] px-2.5 py-0.5 rounded font-bold bg-red-600 text-white border border-red-400 flex items-center gap-1.5 font-mono uppercase animate-pulse shadow-md">
+                          <AlertTriangle className="w-3.5 h-3.5" /> HIGH PRIORITY ANNOUNCEMENT
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-2.5 py-0.5 rounded font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 font-mono uppercase">
+                          <Megaphone className="w-3.5 h-3.5 text-purple-400" /> NORMAL PRIORITY ANNOUNCEMENT
+                        </span>
+                      )}
+                      <h4 className="font-bold text-white text-sm">{ann.subject}</h4>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-[10px] font-mono text-zinc-400">
+                      <span>Published by: <strong className="text-white">{ann.sender?.name || 'Media Manager'}</strong> ({ann.sender?.role || 'MEDIA_MANAGER'})</span>
+                      <span>•</span>
+                      <span>{dateStr} {timeStr}</span>
+                    </div>
+                  </div>
+
+                  {/* Body Content */}
+                  <p className="text-zinc-200 text-xs leading-relaxed whitespace-pre-wrap pl-0.5">
+                    {ann.content}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Publish Announcement Modal */}
+      {showAnnouncementModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-bold text-white text-base flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-purple-400" /> Publish Company-Wide Announcement
+              </h3>
+              <button onClick={() => setShowAnnouncementModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handlePublishAnnouncement} className="space-y-3.5">
+              <div className="space-y-1">
+                <label className="text-[11px] text-gray-300 font-semibold uppercase">Announcement Priority:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPubPriority('HIGH_PRIORITY')}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all border ${
+                      pubPriority === 'HIGH_PRIORITY'
+                        ? 'bg-red-600 text-white border-red-500 shadow-md shadow-red-600/30'
+                        : 'bg-zinc-900 text-gray-400 border-zinc-700 hover:text-zinc-200'
+                    }`}
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" /> High Priority
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPubPriority('NORMAL_PRIORITY')}
+                    className={`px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all border ${
+                      pubPriority === 'NORMAL_PRIORITY'
+                        ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/30'
+                        : 'bg-zinc-900 text-gray-400 border-zinc-700 hover:text-zinc-200'
+                    }`}
+                  >
+                    <Megaphone className="w-3.5 h-3.5" /> Normal Priority
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] text-gray-300 font-semibold">Announcement Title / Subject:</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Scheduled Maintenance, Office Holiday, Q3 All-Hands..."
+                  value={pubSubject}
+                  onChange={(e) => setPubSubject(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-zinc-200 text-xs focus:outline-none focus:border-purple-500 placeholder-zinc-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] text-gray-300 font-semibold">Announcement Content Body:</label>
+                <textarea
+                  rows={4}
+                  required
+                  placeholder="Type company-wide announcement details for all employees..."
+                  value={pubContent}
+                  onChange={(e) => setPubContent(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-zinc-200 text-xs focus:outline-none focus:border-purple-500 placeholder-zinc-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setShowAnnouncementModal(false)}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!pubContent.trim() || submittingAnn}
+                  className={`px-4 py-2 ${
+                    pubPriority === 'HIGH_PRIORITY' ? 'bg-red-600 hover:bg-red-500' : 'bg-purple-600 hover:bg-purple-500'
+                  } disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-md`}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {submittingAnn ? 'Publishing...' : 'Publish to All Dashboards'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Operational Communication Command Center (6 Mandatory Sections) ===== */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-blue-400" /> Operational Communication Command Center
+          </h2>
+          <Link href="/communication" className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold">View Full Hub →</Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+
+          {/* 1. Unread Communications */}
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Eye className="w-3.5 h-3.5 text-blue-400" /> Unread Communications
+              </span>
+              {unreadComms.length > 0 && (
+                <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-bold">
+                  {unreadComms.length} Unread
+                </span>
+              )}
+            </div>
+            {unreadComms.length === 0 ? (
+              <p className="text-[11px] text-zinc-500 italic">All communications read. ✓</p>
+            ) : (
+              <div className="space-y-1.5">
+                {unreadComms.map((c) => (
+                  <Link href="/communication" key={c.id} className="flex items-start gap-2 p-1.5 bg-zinc-950/60 rounded border border-zinc-800/60 hover:border-blue-500/40 transition-colors">
+                    <MessageSquare className="w-3 h-3 text-blue-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold text-white truncate">{c.subject || 'Operational Note'}</p>
+                      <p className="text-[10px] text-zinc-400 truncate">{c.sender?.name} • {c.entityType}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 2. Pending Approval Requests */}
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Pending Approvals
+              </span>
+              {pendingApprovals.length > 0 && (
+                <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                  {pendingApprovals.length} Pending
+                </span>
+              )}
+            </div>
+            {pendingApprovals.length === 0 ? (
+              <p className="text-[11px] text-zinc-500 italic">No pending approvals. ✓</p>
+            ) : (
+              <div className="space-y-1.5">
+                {pendingApprovals.map((a) => (
+                  <Link href="/approvals" key={a.id} className="flex items-start gap-2 p-1.5 bg-zinc-950/60 rounded border border-zinc-800/60 hover:border-emerald-500/40 transition-colors">
+                    <CheckSquare className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold text-white truncate">{a.remarks?.substring(0, 50) || 'Approval Request'}</p>
+                      <p className="text-[10px] text-zinc-400 truncate">Target: {a.targetRole?.replace('_', ' ')} • {a.approvalType?.replace('_', ' ')}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 3. Assigned Blockers */}
+          <div className="bg-zinc-900/80 border border-red-900/40 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400" /> Assigned Blockers
+              </span>
+              {assignedBlockers.length > 0 && (
+                <span className="text-[10px] bg-red-500/20 text-red-300 border border-red-500/30 px-2 py-0.5 rounded-full font-bold animate-pulse">
+                  {assignedBlockers.length} Open
+                </span>
+              )}
+            </div>
+            {assignedBlockers.length === 0 ? (
+              <p className="text-[11px] text-zinc-500 italic">No open blockers assigned. ✓</p>
+            ) : (
+              <div className="space-y-1.5">
+                {assignedBlockers.map((b) => (
+                  <Link href="/communication" key={b.id} className="flex items-start gap-2 p-1.5 bg-red-950/30 rounded border border-red-800/40 hover:border-red-500/60 transition-colors">
+                    <AlertTriangle className="w-3 h-3 text-red-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold text-white truncate">{b.subject || 'Operational Blocker'}</p>
+                      <p className="text-[10px] text-red-300 truncate">{b.blockerReason?.replace(/_/g, ' ')} • By {b.sender?.name}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 4. Mentions */}
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <AtSign className="w-3.5 h-3.5 text-cyan-400" /> Mentions
+              </span>
+              {mentions.length > 0 && (
+                <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded-full font-bold">
+                  {mentions.length} Tags
+                </span>
+              )}
+            </div>
+            {mentions.length === 0 ? (
+              <p className="text-[11px] text-zinc-500 italic">No active @mentions.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {mentions.map((m) => (
+                  <Link href="/communication" key={m.id} className="flex items-start gap-2 p-1.5 bg-zinc-950/60 rounded border border-zinc-800/60 hover:border-cyan-500/40 transition-colors">
+                    <AtSign className="w-3 h-3 text-cyan-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold text-white truncate">{m.subject || 'Mention Note'}</p>
+                      <p className="text-[10px] text-zinc-400 truncate">{m.content?.substring(0, 60)}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 5. Announcements (already shown above, compact summary here) */}
+          <div className="bg-zinc-900/80 border border-purple-900/40 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Megaphone className="w-3.5 h-3.5 text-purple-400" /> Company Announcements
+              </span>
+              {announcements.length > 0 && (
+                <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
+                  {announcements.length} Active
+                </span>
+              )}
+            </div>
+            {announcements.length === 0 ? (
+              <p className="text-[11px] text-zinc-500 italic">No active company announcements.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {announcements.slice(0, 4).map((a) => {
+                  const isHigh = a.priority === 'HIGH_PRIORITY';
+                  return (
+                    <div key={a.id} className={`flex items-start gap-2 p-1.5 rounded border transition-colors ${
+                      isHigh ? 'bg-red-950/40 border-red-800/50' : 'bg-zinc-950/60 border-zinc-800/60'
+                    }`}>
+                      {isHigh ? <AlertTriangle className="w-3 h-3 text-red-400 shrink-0 mt-0.5" /> : <Megaphone className="w-3 h-3 text-purple-400 shrink-0 mt-0.5" />}
+                      <div className="min-w-0">
+                        <p className={`text-[11px] font-semibold truncate ${isHigh ? 'text-red-200' : 'text-white'}`}>{a.subject}</p>
+                        <p className="text-[10px] text-zinc-400 truncate">{a.sender?.name} • {isHigh ? '🚨 HIGH PRIORITY' : 'Normal'}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 6. Recent Discussions */}
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <CornerDownRight className="w-3.5 h-3.5 text-amber-400" /> Recent Discussions
+              </span>
+              <Link href="/communication" className="text-[10px] text-blue-400 hover:text-blue-300 font-medium">View All →</Link>
+            </div>
+            {recentDiscussions.length === 0 ? (
+              <p className="text-[11px] text-zinc-500 italic">No recent discussion threads.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {recentDiscussions.map((d) => (
+                  <Link href="/communication" key={d.id} className="flex items-start gap-2 p-1.5 bg-zinc-950/60 rounded border border-zinc-800/60 hover:border-amber-500/40 transition-colors">
+                    <MessageSquare className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold text-white truncate">{d.subject || 'Operational Note'}</p>
+                      <p className="text-[10px] text-zinc-400 truncate">{d.sender?.name} • {d.entityType?.replace('_', ' ')} • {new Date(d.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+      {/* ===== End Operational Communication Command Center ===== */}
 
       {/* Row 1: Key Operational Indicators (5 Core Metrics) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs">

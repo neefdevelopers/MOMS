@@ -500,6 +500,7 @@ async function main() {
       projectId: project1.id,
       clientId: client1.id,
       brandId: brand1.id,
+      calendarEventId: calendarEvent1.id,
       productId: product1.id,
       requirementType: 'Poster',
       objective: 'Social Media Instagram Feed banner for launch discount.',
@@ -610,7 +611,7 @@ async function main() {
       condition: 'Minor Wear',
       availability: 'MAINTENANCE',
       maintenanceStatus: 'UNDER_REPAIR',
-      notes: 'Gimbal calibration issue under repair.',
+      internalNotes: 'Gimbal calibration issue under repair.',
     },
   });
 

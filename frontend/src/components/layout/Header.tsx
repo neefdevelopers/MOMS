@@ -249,7 +249,7 @@ export function Header() {
           />
           <div className="hidden sm:block text-left">
             <div className="text-xs font-bold text-white leading-tight">{user?.name}</div>
-            <div className="text-[10px] text-gray-400">{user?.email}</div>
+            <div className="text-[10px] text-blue-400 font-mono font-semibold">{user?.role?.replace('_', ' ')}</div>
           </div>
           <button
             onClick={logout}

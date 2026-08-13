@@ -26,4 +26,9 @@ export class ReportsController {
   getScriptAnalytics() {
     return this.reportsService.getScriptAnalytics();
   }
+
+  @Get('graphic-analytics')
+  getGraphicAnalytics() {
+    return this.reportsService.getGraphicAnalytics();
+  }
 }

@@ -8,6 +8,8 @@ generator client {
 }
 
 model User {
+  // ... existing fields ...
+  createdEquipmentCategories EquipmentCategory[] @relation("CreatedByUser")
   id           String              @id @default(uuid())
   email        String              @unique
   password     String
@@ -23,9 +25,12 @@ model User {
   projectAssignments ProjectAssignment[]
   attendanceRecords  Attendance[]
   fileUploads        FileMetadata[]
-  communications     Communication[]
+  communications     Communication[]     @relation("CommunicationSender")
+  assignedBlockers   Communication[]     @relation("BlockerAssignedTo")
+  resolvedBlockers   Communication[]     @relation("BlockerResolvedBy")
   notifications      Notification[]
   activityLogs       ActivityLog[]
+  approvalsRequested Approval[]          @relation("ApprovalRequester")
   approvalsReviewed  Approval[]          @relation("Approver")
   equipmentMovements EquipmentMovement[]
   scriptAssignments  ScriptAssignment[]
@@ -34,6 +39,15 @@ model User {
   taskRemarks        TaskRemark[]
   deliverableUploads TaskDeliverableHistory[]
   taskTimelines      TaskTimeline[]
+  graphicRequirementTimelines GraphicRequirementTimeline[]
+  graphicRequirementRemarks GraphicRequirementRemark[]
+  equipmentReservations EquipmentReservation[] @relation("ReservationCreator")
+  equipmentRequests     EquipmentRequest[]     @relation("EquipmentRequester")
+  equipmentRequestReviews EquipmentRequest[]   @relation("EquipmentRequestReviewer")
+  equipmentIssuedTo     EquipmentMovement[]    @relation("EquipmentIssuedTo")
+  equipmentApprovedBy   EquipmentMovement[]    @relation("EquipmentApprovedBy")
+  equipmentReturnedBy   EquipmentMovement[]    @relation("EquipmentReturnedBy")
+  equipmentDamageReports EquipmentDamageReport[] @relation("EquipmentDamageReporter")
 }
 
 model Department {
@@ -175,6 +189,7 @@ model MediaCalendarEvent {
   createdAt       DateTime    @default(now())
 
   shootProjects   ShootProject[]
+  graphicReqs     GraphicRequirement[]
 }
 
 model ShootProject {
@@ -226,6 +241,7 @@ model ShootProject {
   revisions              Revision[]
   files                  FileMetadata[]
   communications         Communication[]
+  equipmentRequests      EquipmentRequest[]
 }
 
 model IndoorShootDetails {
@@ -369,21 +385,50 @@ model GraphicRequirement {
   brandId            String
   brand              Brand            @relation(fields: [brandId], references: [id])
   productId          String?
-  product            Product?         @relation(fields: [productId], references: [id])
+  product            Product?           @relation(fields: [productId], references: [id])
   campaignId         String?
-  campaign           Campaign?        @relation(fields: [campaignId], references: [id])
+  campaign           Campaign?          @relation(fields: [campaignId], references: [id])
+  calendarEventId    String?
+  calendarEvent      MediaCalendarEvent? @relation(fields: [calendarEventId], references: [id])
   requirementType    String           @default("Poster")
   objective          String?
   description        String?
   priority           String           @default("MEDIUM")
   estimatedCompletion DateTime?
   status             String           @default("DRAFT")
+  revisionCount      Int              @default(0)
+  technicalReviewApproved Boolean     @default(false)
+  mediaManagerApproved    Boolean     @default(false)
+  clientConfirmed         Boolean     @default(false)
   remarks            String?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
   tasks              Task[]
   files              FileMetadata[]
+  timeline           GraphicRequirementTimeline[]
+  remarksHistory     GraphicRequirementRemark[]
+}
+
+model GraphicRequirementTimeline {
+  id                   String             @id @default(uuid())
+  graphicRequirementId String
+  graphicRequirement   GraphicRequirement @relation(fields: [graphicRequirementId], references: [id], onDelete: Cascade)
+  userId               String?
+  user                 User?              @relation(fields: [userId], references: [id])
+  event                String             // REQUIREMENT_CREATED, ASSIGNED, PRODUCTION_STARTED, PRODUCTION_UPDATED, TECHNICAL_REVIEW, MEDIA_REVIEW, CLIENT_CONFIRMATION, REVISION_REQUESTED, COMPLETED
+  description          String
+  createdAt            DateTime           @default(now())
+}
+
+model GraphicRequirementRemark {
+  id                   String             @id @default(uuid())
+  graphicRequirementId String
+  graphicRequirement   GraphicRequirement @relation(fields: [graphicRequirementId], references: [id], onDelete: Cascade)
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message              String
+  createdAt            DateTime           @default(now())
 }
 
 model Task {
@@ -472,6 +517,8 @@ model Equipment {
   equipmentId        String                @unique
   name               String
   category           String
+  categoryId         String?
+  categoryRef        EquipmentCategory? @relation(fields: [categoryId], references: [id])
   brand              String
   model              String
   serialNumber       String                @unique
@@ -479,12 +526,30 @@ model Equipment {
   availability       String                @default("AVAILABLE") // AVAILABLE, RESERVED, ISSUED, MAINTENANCE, DAMAGED, RETIRED
   maintenanceStatus  String                @default("OPERATIONAL") // OPERATIONAL, NEEDS_SERVICE, UNDER_REPAIR, DECOMMISSIONED
   currentHolder      String?
-  notes              String?
+  internalNotes      String?
+  storageLocation    String?               // New field for storage location
+  status             String                @default("AVAILABLE") // Current status of equipment
+
+  // ─── Permanent Inventory Record Fields (Business Rule 2) ───────────────────
+  purchaseDate       DateTime?             // Date asset was acquired by the company
+  purchaseCost       Float?                // Original acquisition cost
+  purchaseRef        String?               // PO number / invoice reference
+
+  // ─── Company Ownership (Business Rule 1) ──────────────────────────────────
+  ownedBy            String                @default("COMPANY")  // Always COMPANY — never personal
+
+  // ─── Archive / Retirement Fields (Business Rules 3 & 4) ──────────────────
+  isArchived         Boolean               @default(false)      // true = retired & archived
+  archivedAt         DateTime?             // Timestamp of retirement
+  retirementReason   String?               // Why the equipment was retired
+
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
 
   reservations       EquipmentReservation[]
   movements          EquipmentMovement[]
+  requests           EquipmentRequest[]
+  damageReports      EquipmentDamageReport[]
 }
 
 model EquipmentReservation {
@@ -492,25 +557,90 @@ model EquipmentReservation {
   projectId   String
   equipmentId String
   project     ShootProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  equipment   Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  equipment   Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Restrict) // Business Rule 3: parent record never deleted
   startDate   DateTime
   endDate     DateTime
+  reservedById String?
+  reservedBy   User?   @relation("ReservationCreator", fields: [reservedById], references: [id])
+  expectedCheckout DateTime?
   status      String   @default("RESERVED")
   createdAt   DateTime @default(now())
 }
 
-model EquipmentMovement {
-  id          String                 @id @default(uuid())
-  equipmentId String
-  projectId   String?
-  userId      String
-  action      String                 // ISSUED, USED, RETURNED
-  notes       String?
-  timestamp   DateTime               @default(now())
+model EquipmentRequest {
+  id                 String       @id @default(uuid())
+  equipmentId        String
+  equipment          Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  projectId          String
+  project            ShootProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requestedById      String
+  requestedBy        User         @relation("EquipmentRequester", fields: [requestedById], references: [id])
+  purpose            String
+  requiredDate       DateTime
+  expectedReturnDate DateTime
+  remarks            String?
+  status             String       @default("PENDING") // PENDING, APPROVED, REJECTED, CHECKED_OUT, CANCELLED
+  reviewedById       String?
+  reviewedBy         User?        @relation("EquipmentRequestReviewer", fields: [reviewedById], references: [id])
+  reviewNotes        String?
+  isAcknowledged     Boolean      @default(false)
+  acknowledgedAt     DateTime?
+  acknowledgedByName String?
+  acknowledgementStatement String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 
-  equipment   Equipment              @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  @@index([equipmentId])
+  @@index([projectId])
+  @@index([requestedById])
+}
+
+model EquipmentMovement {
+  id                 String                 @id @default(uuid())
+  equipmentId        String
+  projectId          String?
+  userId             String
+  employeeId         String?
+  employee           User?                  @relation("EquipmentIssuedTo", fields: [employeeId], references: [id])
+  approvedById       String?
+  approvedBy         User?                  @relation("EquipmentApprovedBy", fields: [approvedById], references: [id])
+  expectedReturnDate DateTime?
+  action             String                 // ISSUED, USED, RETURNED, RETIRED
+  returnedById       String?
+  returnedBy         User?                  @relation("EquipmentReturnedBy", fields: [returnedById], references: [id])
+  returnedByName     String?
+  condition          String?
+  hasPhysicalDamage  Boolean                @default(false)
+  physicalDamageNotes String?
+  hasMissingAccessories Boolean               @default(false)
+  missingAccessoriesNotes String?
+  functionalCondition String?
+  cleaningStatus     String?
+  notes              String?
+  timestamp          DateTime               @default(now())
+
+  equipment   Equipment              @relation(fields: [equipmentId], references: [id], onDelete: Restrict) // Business Rule 3: movement log preserved
   project     ShootProject?          @relation(fields: [projectId], references: [id])
   user        User                   @relation(fields: [userId], references: [id])
+}
+
+model EquipmentDamageReport {
+  id           String       @id @default(uuid())
+  equipmentId  String
+  equipment    Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  reportedById String
+  reportedBy   User         @relation("EquipmentDamageReporter", fields: [reportedById], references: [id])
+  date         DateTime     @default(now())
+  description  String
+  severity     String       // LOW, MEDIUM, HIGH, CRITICAL
+  repairStatus String       @default("PENDING") // PENDING, IN_REPAIR, REPAIRED, UNREPAIRABLE
+  repairNotes  String?
+  repairedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([equipmentId])
+  @@index([reportedById])
 }
 
 model Attendance {
@@ -528,15 +658,22 @@ model Attendance {
 }
 
 model Approval {
-  id            String         @id @default(uuid())
-  projectId     String
-  project       ShootProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  approvalType  String         // TECHNICAL_REVIEW, MEDIA_REVIEW, CLIENT_CONFIRMATION
-  reviewerId    String
-  reviewer      User           @relation("Approver", fields: [reviewerId], references: [id])
-  status        String         @default("PENDING") // PENDING, APPROVED, REJECTED
+  id            String        @id @default(uuid())
+  projectId     String?
+  project       ShootProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  entityType    String        @default("PROJECT") // PROJECT, SCRIPT, GRAPHIC_REQ, TASK, EQUIPMENT
+  entityId      String?
+  approvalType  String        @default("TECHNICAL_REVIEW") // TECHNICAL_REVIEW, MEDIA_MANAGER_REVIEW
+  targetRole    String        @default("TECHNICAL_MANAGER") // TECHNICAL_MANAGER, MEDIA_MANAGER
+  requestedById String?
+  requestedBy   User?         @relation("ApprovalRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  reviewerId    String?
+  reviewer      User?         @relation("Approver", fields: [reviewerId], references: [id])
+  status        String        @default("PENDING") // PENDING, APPROVED, REJECTED, CHANGES_REQUESTED
   remarks       String?
-  reviewedAt    DateTime       @default(now())
+  reviewedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now()) @updatedAt
 }
 
 model ClientConfirmation {
@@ -583,15 +720,48 @@ model FileMetadata {
 
 model Communication {
   id                   String            @id @default(uuid())
-  entityType           String            // PROJECT, SCRIPT, GRAPHIC_REQ, TASK, EQUIPMENT, APPROVAL
+  entityType           String            // PROJECT, SCRIPT, GRAPHIC_REQ, TASK, EQUIPMENT, APPROVAL, REVIEW (Related Module)
   entityId             String
   projectId            String?
   project              ShootProject?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   senderId             String
-  sender               User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  sender               User              @relation("CommunicationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  assignedToId         String?
+  assignedTo           User?             @relation("BlockerAssignedTo", fields: [assignedToId], references: [id])
+  parentId             String?
+  parent               Communication?    @relation("CommunicationReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies              Communication[]   @relation("CommunicationReplies")
+  attachments          CommunicationAttachment[]
+  isRemark             Boolean           @default(false)
+  isBlocker            Boolean           @default(false)
+  isAnnouncement       Boolean           @default(false)
+  priority             String?           @default("NORMAL_PRIORITY") // HIGH_PRIORITY, NORMAL_PRIORITY
+  blockerReason        String?           // WAITING_FOR_FILES, EQUIPMENT_UNAVAILABLE, CLIENT_CLARIFICATION_REQUIRED, MISSING_ASSETS, TECHNICAL_ISSUE, OTHER
+  blockerStatus        String?           @default("OPEN") // OPEN, RESOLVED
+  resolvedAt           DateTime?
+  resolvedById         String?
+  resolvedBy           User?             @relation("BlockerResolvedBy", fields: [resolvedById], references: [id])
+  resolutionNotes      String?
+  recipients           String?           @default("All Assigned Team Members")
+  subject              String?           @default("Operational Communication")
   type                 String            @default("GENERAL_NOTE")
   content              String
+  status               String            @default("SENT") // SENT, DELIVERED, READ, CLOSED
+  deliveredAt          DateTime?
+  readAt               DateTime?
+  closedAt             DateTime?
   createdAt            DateTime          @default(now())
+}
+
+model CommunicationAttachment {
+  id              String        @id @default(uuid())
+  communicationId String
+  communication   Communication @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+  fileName        String
+  fileUrl         String
+  fileType        String        // DOCUMENT, IMAGE, VIDEO, AUDIO, REFERENCE
+  fileSize        Int?
+  createdAt       DateTime      @default(now())
 }
 
 model Notification {
@@ -634,3 +804,13 @@ model SystemSetting {
   description String?
   updatedAt   DateTime @updatedAt
 }
+
+model EquipmentCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  createdAt   DateTime @default(now())
+  createdById String?
+  createdBy   User?    @relation("CreatedByUser", fields: [createdById], references: [id])
+  equipments   Equipment[]
+}
+

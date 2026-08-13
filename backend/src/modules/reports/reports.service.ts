@@ -57,8 +57,14 @@ export class ReportsService {
     const totalEquipment = await this.prisma.equipment.count();
     const availableEquipment = await this.prisma.equipment.count({ where: { availability: 'AVAILABLE' } });
     const reservedEquipment = await this.prisma.equipment.count({ where: { availability: 'RESERVED' } });
-    const issuedEquipment = await this.prisma.equipment.count({ where: { availability: 'ISSUED' } });
-    const maintenanceEquipment = await this.prisma.equipment.count({ where: { availability: 'MAINTENANCE' } });
+    const checkedOutEquipment = await this.prisma.equipment.count({ where: { availability: 'CHECKED_OUT' } });
+    const underMaintenanceEquipment = await this.prisma.equipment.count({ where: { availability: 'UNDER_MAINTENANCE' } });
+    const damagedEquipment = await this.prisma.equipment.count({ where: { availability: 'DAMAGED' } });
+    const recentReturnedDate = new Date();
+    recentReturnedDate.setDate(recentReturnedDate.getDate() - 7);
+    const recentReturnedEquipment = await this.prisma.equipmentMovement.count({
+      where: { action: 'RETURNED', timestamp: { gte: recentReturnedDate } },
+    });
 
     // 7. Assigned Employees Count
     const assignedEmployeesCount = await this.prisma.projectAssignment.groupBy({
@@ -120,8 +126,10 @@ export class ReportsService {
         total: totalEquipment,
         available: availableEquipment,
         reserved: reservedEquipment,
-        issued: issuedEquipment,
-        maintenance: maintenanceEquipment,
+        checkedOut: checkedOutEquipment,
+        underMaintenance: underMaintenanceEquipment,
+        damaged: damagedEquipment,
+        recentReturned: recentReturnedEquipment,
       },
       assignedEmployeesCount,
       todayIndoorShootsCount: todayIndoorShoots.length,
@@ -152,7 +160,7 @@ export class ReportsService {
       this.prisma.graphicRequirement.findMany({ where: { OR: [{ name: { contains: q } }, { requirementId: { contains: q } }] }, take: 5 }),
       this.prisma.task.findMany({ where: { OR: [{ title: { contains: q } }, { taskId: { contains: q } }] }, take: 5 }),
       this.prisma.equipment.findMany({ where: { OR: [{ name: { contains: q } }, { equipmentId: { contains: q } }, { serialNumber: { contains: q } }] }, take: 5 }),
-      this.prisma.user.findMany({ where: { OR: [{ name: { contains: q } }, { email: { contains: q } }] }, select: { id: true, name: true, email: true, role: true }, take: 5 }),
+      this.prisma.user.findMany({ where: { name: { contains: q } }, select: { id: true, name: true, role: true }, take: 5 }),
       this.prisma.fileMetadata.findMany({ where: { fileName: { contains: q } }, take: 5 }),
     ]);
 
@@ -356,6 +364,162 @@ export class ReportsService {
       languageWiseReports,
       categoryWiseReports,
       productionCapacity,
+      revisionReports,
+      approvalReports,
+    };
+  }
+
+  // --- Graphic Requirement Contribution Analytics (7 Report Types) ---
+  async getGraphicAnalytics() {
+    const reqs = await this.prisma.graphicRequirement.findMany({
+      include: {
+        brand: true,
+        product: true,
+        client: true,
+        project: true,
+        tasks: {
+          include: {
+            assignedEmployees: {
+              include: { user: { select: { id: true, name: true, role: true } } },
+            },
+          },
+        },
+        timeline: true,
+      },
+    });
+
+    // 1. Employee Productivity Reports (from graphic requirement task assignments)
+    const empMap: Record<string, {
+      userId: string; name: string; role: string;
+      assignedCount: number; completedCount: number; revisionCount: number; inProgressCount: number;
+    }> = {};
+    reqs.forEach((r) => {
+      r.tasks.forEach((t) => {
+        t.assignedEmployees.forEach((ae) => {
+          if (!ae.user) return;
+          const uid = ae.userId;
+          if (!empMap[uid]) {
+            empMap[uid] = { userId: uid, name: ae.user.name, role: ae.user.role, assignedCount: 0, completedCount: 0, revisionCount: 0, inProgressCount: 0 };
+          }
+          empMap[uid].assignedCount++;
+          if (r.status === 'COMPLETED') empMap[uid].completedCount++;
+          if (r.status === 'IN_PROGRESS') empMap[uid].inProgressCount++;
+          empMap[uid].revisionCount += r.revisionCount || 0;
+        });
+      });
+    });
+    const employeeProductivity = Object.values(empMap).sort((a, b) => b.assignedCount - a.assignedCount);
+
+    // 2. Brand Reports
+    const brandMap: Record<string, {
+      brandId: string; name: string; shortCode: string;
+      totalReqs: number; completedCount: number; inProgressCount: number; totalRevisions: number;
+    }> = {};
+    reqs.forEach((r) => {
+      const bKey = r.brandId || 'UNBRANDED';
+      if (!brandMap[bKey]) {
+        brandMap[bKey] = { brandId: bKey, name: r.brand?.name || 'Unassigned', shortCode: r.brand?.shortCode || 'N/A', totalReqs: 0, completedCount: 0, inProgressCount: 0, totalRevisions: 0 };
+      }
+      brandMap[bKey].totalReqs++;
+      if (r.status === 'COMPLETED') brandMap[bKey].completedCount++;
+      if (r.status === 'IN_PROGRESS') brandMap[bKey].inProgressCount++;
+      brandMap[bKey].totalRevisions += r.revisionCount || 0;
+    });
+    const brandReports = Object.values(brandMap).sort((a, b) => b.totalReqs - a.totalReqs);
+
+    // 3. Product Reports
+    const prodMap: Record<string, {
+      productId: string; name: string;
+      totalReqs: number; completedCount: number; totalRevisions: number;
+    }> = {};
+    reqs.forEach((r) => {
+      if (!r.productId || !r.product) return;
+      const pKey = r.productId;
+      if (!prodMap[pKey]) {
+        prodMap[pKey] = { productId: pKey, name: r.product.name, totalReqs: 0, completedCount: 0, totalRevisions: 0 };
+      }
+      prodMap[pKey].totalReqs++;
+      if (r.status === 'COMPLETED') prodMap[pKey].completedCount++;
+      prodMap[pKey].totalRevisions += r.revisionCount || 0;
+    });
+    const productReports = Object.values(prodMap).sort((a, b) => b.totalReqs - a.totalReqs);
+
+    // 4. Requirement Type Reports
+    const typeMap: Record<string, {
+      type: string; totalReqs: number; completedCount: number; inProgressCount: number; totalRevisions: number;
+    }> = {};
+    reqs.forEach((r) => {
+      const t = r.requirementType || 'Other';
+      if (!typeMap[t]) {
+        typeMap[t] = { type: t, totalReqs: 0, completedCount: 0, inProgressCount: 0, totalRevisions: 0 };
+      }
+      typeMap[t].totalReqs++;
+      if (r.status === 'COMPLETED') typeMap[t].completedCount++;
+      if (r.status === 'IN_PROGRESS') typeMap[t].inProgressCount++;
+      typeMap[t].totalRevisions += r.revisionCount || 0;
+    });
+    const typeReports = Object.values(typeMap).sort((a, b) => b.totalReqs - a.totalReqs);
+
+    // 5. Capacity Reports
+    const capacityReports = {
+      totalRequirements: reqs.length,
+      draftCount: reqs.filter((r) => r.status === 'DRAFT').length,
+      readyCount: reqs.filter((r) => r.status === 'READY').length,
+      assignedCount: reqs.filter((r) => r.status === 'ASSIGNED').length,
+      inProgressCount: reqs.filter((r) => r.status === 'IN_PROGRESS').length,
+      waitingTechnicalReview: reqs.filter((r) => r.status === 'WAITING_FOR_TECHNICAL_REVIEW').length,
+      waitingMediaReview: reqs.filter((r) => r.status === 'WAITING_FOR_MEDIA_REVIEW').length,
+      waitingClientConfirmation: reqs.filter((r) => r.status === 'WAITING_FOR_CLIENT_CONFIRMATION').length,
+      revisionRequested: reqs.filter((r) => r.status === 'CLIENT_REVISION_REQUESTED').length,
+      completedCount: reqs.filter((r) => r.status === 'COMPLETED').length,
+      cancelledCount: reqs.filter((r) => r.status === 'CANCELLED').length,
+    };
+
+    // 6. Revision Reports
+    const totalRevisions = reqs.reduce((acc, r) => acc + (r.revisionCount || 0), 0);
+    const zeroRevisions = reqs.filter((r) => (r.revisionCount || 0) === 0).length;
+    const oneToTwoRevisions = reqs.filter((r) => (r.revisionCount || 0) >= 1 && (r.revisionCount || 0) <= 2).length;
+    const threePlusRevisions = reqs.filter((r) => (r.revisionCount || 0) >= 3).length;
+    const pendingRevisions = reqs.filter((r) => r.status === 'CLIENT_REVISION_REQUESTED').length;
+
+    // Most revised requirements (top 5)
+    const topRevised = [...reqs]
+      .sort((a, b) => (b.revisionCount || 0) - (a.revisionCount || 0))
+      .slice(0, 5)
+      .map((r) => ({ id: r.requirementId, name: r.name, revisions: r.revisionCount || 0, type: r.requirementType }));
+
+    const revisionReports = {
+      totalRevisions,
+      avgRevisionsPerReq: reqs.length > 0 ? (totalRevisions / reqs.length).toFixed(2) : '0',
+      pendingRevisions,
+      distribution: { zeroRevisions, oneToTwoRevisions, threePlusRevisions },
+      topRevised,
+    };
+
+    // 7. Approval Reports
+    const approvalReports = {
+      productionCompleted: reqs.filter((r) => ['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(r.status)).length,
+      technicalApproved: reqs.filter((r) => r.technicalReviewApproved).length,
+      mediaManagerApproved: reqs.filter((r) => r.mediaManagerApproved).length,
+      clientConfirmed: reqs.filter((r) => r.clientConfirmed).length,
+      fullyApproved: reqs.filter((r) => r.technicalReviewApproved && r.mediaManagerApproved && r.clientConfirmed).length,
+      waitingTechnicalReview: reqs.filter((r) => r.status === 'WAITING_FOR_TECHNICAL_REVIEW').length,
+      waitingMediaReview: reqs.filter((r) => r.status === 'WAITING_FOR_MEDIA_REVIEW').length,
+      waitingClientConfirmation: reqs.filter((r) => r.status === 'WAITING_FOR_CLIENT_CONFIRMATION').length,
+    };
+
+    return {
+      summary: {
+        total: reqs.length,
+        completed: reqs.filter((r) => r.status === 'COMPLETED').length,
+        inProgress: reqs.filter((r) => r.status === 'IN_PROGRESS').length,
+        totalRevisions,
+      },
+      employeeProductivity,
+      brandReports,
+      productReports,
+      typeReports,
+      capacityReports,
       revisionReports,
       approvalReports,
     };

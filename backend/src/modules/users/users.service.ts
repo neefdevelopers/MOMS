@@ -13,13 +13,18 @@ export class UsersService {
       where,
       select: {
         id: true,
-        email: true,
         name: true,
         role: true,
         avatarUrl: true,
         createdAt: true,
         employeeProfile: {
-          include: {
+          select: {
+            id: true,
+            designation: true,
+            dailyCapacityHours: true,
+            dailyTarget: true,
+            weeklyTarget: true,
+            monthlyTarget: true,
             department: true,
             skills: { include: { skill: true } },
           },
@@ -34,11 +39,21 @@ export class UsersService {
       where: { id },
       select: {
         id: true,
-        email: true,
         name: true,
         role: true,
         avatarUrl: true,
-        employeeProfile: { include: { department: true, skills: { include: { skill: true } } } },
+        employeeProfile: {
+          select: {
+            id: true,
+            designation: true,
+            dailyCapacityHours: true,
+            dailyTarget: true,
+            weeklyTarget: true,
+            monthlyTarget: true,
+            department: true,
+            skills: { include: { skill: true } },
+          },
+        },
         projectAssignments: { include: { project: true } },
         tasks: { include: { task: true } },
       },
