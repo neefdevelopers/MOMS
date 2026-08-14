@@ -19,7 +19,22 @@ export class CalendarService {
         client: true,
         brand: true,
         product: true,
-        shootProjects: true,
+        shootProjects: {
+          include: {
+            equipmentReservations: {
+              include: {
+                equipment: true,
+                reservedBy: { select: { id: true, name: true, role: true } },
+              },
+            },
+            equipmentRequests: {
+              include: {
+                equipment: true,
+                requestedBy: { select: { id: true, name: true, role: true } },
+              },
+            },
+          },
+        },
       },
       orderBy: { shootDate: 'asc' },
     });
@@ -28,7 +43,27 @@ export class CalendarService {
   async findOne(id: string) {
     const event = await this.prisma.mediaCalendarEvent.findUnique({
       where: { id },
-      include: { client: true, brand: true, product: true, shootProjects: true },
+      include: {
+        client: true,
+        brand: true,
+        product: true,
+        shootProjects: {
+          include: {
+            equipmentReservations: {
+              include: {
+                equipment: true,
+                reservedBy: { select: { id: true, name: true, role: true } },
+              },
+            },
+            equipmentRequests: {
+              include: {
+                equipment: true,
+                requestedBy: { select: { id: true, name: true, role: true } },
+              },
+            },
+          },
+        },
+      },
     });
     if (!event) throw new NotFoundException('Calendar event not found');
     return event;
@@ -160,7 +195,7 @@ export class CalendarService {
   async generateGraphicReq(eventId: string) {
     const event = await this.findOne(eventId);
 
-    let project = event.shootProjects[0];
+    let project: any = event.shootProjects[0];
     if (!project) {
       const projectCount = await this.prisma.shootProject.count();
       const autoProjectId = `SP-${(projectCount + 1).toString().padStart(6, '0')}`;

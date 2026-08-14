@@ -15,6 +15,9 @@ model User {
   password     String
   name         String
   role         String              @default("STAFF") // MEDIA_MANAGER, TECHNICAL_MANAGER, STAFF
+  status       String              @default("ACTIVE") // ACTIVE, INACTIVE, ARCHIVED
+  isArchived   Boolean             @default(false)
+  archivedAt   DateTime?
   avatarUrl    String?
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
@@ -23,7 +26,8 @@ model User {
   tasks              TaskAssignment[]
   createdProjects    ShootProject[]      @relation("ProjectCreator")
   projectAssignments ProjectAssignment[]
-  attendanceRecords  Attendance[]
+  attendanceRecords           Attendance[]        @relation("AttendanceUser")
+  recordedAttendanceRecords   Attendance[]        @relation("AttendanceRecordedBy")
   fileUploads        FileMetadata[]
   communications     Communication[]     @relation("CommunicationSender")
   assignedBlockers   Communication[]     @relation("BlockerAssignedTo")
@@ -75,20 +79,25 @@ model EmployeeSkill {
 }
 
 model EmployeeProfile {
-  id                 String          @id @default(uuid())
-  userId             String          @unique
-  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  phone              String?
-  departmentId       String?
-  department         Department?     @relation(fields: [departmentId], references: [id])
-  dailyCapacityHours Float           @default(8.0)
-  dailyTarget        Float           @default(1.0)
-  weeklyTarget       Float           @default(5.0)
-  monthlyTarget      Float           @default(20.0)
-  designation        String
-  skills             EmployeeSkill[]
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  id                    String          @id @default(uuid())
+  employeeCode          String?         @unique
+  userId                String          @unique
+  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone                 String?         // Mobile Number (Private)
+  departmentId          String?
+  department            Department?     @relation(fields: [departmentId], references: [id])
+  additionalDepartments String?         // Comma-separated or JSON list of additional departments
+  designation           String
+  joiningDate           DateTime?       @default(now())
+  employmentStatus      String          @default("ACTIVE") // ACTIVE, PROBATION, INACTIVE, ARCHIVED
+  dailyCapacityHours    Float           @default(8.0)
+  dailyTarget           Float           @default(1.0)
+  weeklyTarget          Float           @default(5.0)
+  monthlyTarget         Float           @default(20.0)
+  internalNotes         String?         // Administrative notes
+  skills                EmployeeSkill[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 }
 
 model Client {
@@ -644,15 +653,17 @@ model EquipmentDamageReport {
 }
 
 model Attendance {
-  id        String           @id @default(uuid())
-  userId    String
-  date      DateTime
-  status    String           @default("PRESENT") // PRESENT, LATE, HALF_DAY, ABSENT
-  remarks   String?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id           String    @id @default(uuid())
+  userId       String
+  date         DateTime
+  status       String    @default("PRESENT") // PRESENT, LATE, HALF_DAY, ABSENT
+  remarks      String?
+  recordedById String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User      @relation("AttendanceUser", fields: [userId], references: [id], onDelete: Cascade)
+  recordedBy   User?     @relation("AttendanceRecordedBy", fields: [recordedById], references: [id])
 
   @@unique([userId, date])
 }

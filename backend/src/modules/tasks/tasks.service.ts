@@ -153,14 +153,26 @@ export class TasksService {
   }
 
   async getCapacityOverview() {
-    // Fetch all active staff members with their profiles and assigned tasks
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    // Fetch all active staff members with their profiles, assigned projects, and assigned tasks
     const users = await this.prisma.user.findMany({
       where: { role: Role.STAFF },
       include: {
         employeeProfile: { include: { department: true } },
+        projectAssignments: {
+          include: {
+            project: { select: { id: true, name: true, status: true } },
+          },
+        },
         tasks: {
           include: {
-            task: true,
+            task: {
+              include: {
+                project: { select: { id: true, name: true } },
+              },
+            },
           },
         },
       },
@@ -169,9 +181,26 @@ export class TasksService {
     const now = Date.now();
 
     const result = users.map((user) => {
-      const activeTasks = user.tasks
-        .map((t) => t.task)
-        .filter((t) => t && t.status !== TaskStatus.COMPLETED && t.status !== TaskStatus.CANCELLED);
+      const allTasks = user.tasks.map((t) => t.task).filter(Boolean);
+      const activeTasks = allTasks.filter((t) => t.status !== TaskStatus.COMPLETED && t.status !== TaskStatus.CANCELLED);
+
+      // Completed outputs today
+      const completedTasksToday = allTasks.filter((t) => {
+        if (t.status !== TaskStatus.COMPLETED) return false;
+        return new Date(t.updatedAt) >= todayStart;
+      }).length;
+
+      // Unique active projects assigned to employee
+      const activeProjectNamesSet = new Set<string>();
+      user.projectAssignments?.forEach((pa) => {
+        if (pa.project && pa.project.status !== 'ARCHIVED') {
+          activeProjectNamesSet.add(pa.project.name);
+        }
+      });
+      activeTasks.forEach((t) => {
+        if (t.project) activeProjectNamesSet.add(t.project.name);
+      });
+      const currentProjectNames = Array.from(activeProjectNamesSet);
 
       let totalRawRemainingHours = 0;
       let totalWeightedWorkloadHours = 0;
@@ -202,10 +231,15 @@ export class TasksService {
       });
 
       const capacityHours = user.employeeProfile?.dailyCapacityHours || 8.0;
+      const dailyTarget = user.employeeProfile?.dailyTarget || 5.0;
+      const outputProgressPercentage = Math.round((completedTasksToday / dailyTarget) * 100);
       const workloadPercentage = Math.round((totalWeightedWorkloadHours / capacityHours) * 100);
+      const assignedHours = Math.round(totalRawRemainingHours * 10) / 10;
+      const remainingCapacity = Math.max(0, Math.round((capacityHours - totalRawRemainingHours) * 10) / 10);
+      const isOverloaded = assignedHours > capacityHours || workloadPercentage > 100;
 
       let status = 'Available';
-      if (workloadPercentage > 100) {
+      if (isOverloaded) {
         status = 'Overloaded';
       } else if (workloadPercentage >= 75) {
         status = 'Normal';
@@ -217,13 +251,22 @@ export class TasksService {
         avatarUrl: user.avatarUrl,
         designation: user.employeeProfile?.designation || 'Staff Member',
         department: user.employeeProfile?.department?.name || 'General',
+        additionalDepartments: user.employeeProfile?.additionalDepartments || null,
         capacityHours,
-        assignedHours: Math.round(totalRawRemainingHours * 10) / 10,
+        assignedHours,
         weightedWorkloadHours: Math.round(totalWeightedWorkloadHours * 10) / 10,
-        remainingHours: Math.max(0, Math.round((capacityHours - totalRawRemainingHours) * 10) / 10),
+        remainingCapacity,
+        remainingHours: remainingCapacity,
         workloadPercentage,
         status,
+        isOverloaded,
         activeTaskCount: activeTasks.length,
+        taskCount: activeTasks.length,
+        currentProjectsCount: currentProjectNames.length,
+        currentProjects: currentProjectNames,
+        dailyTarget,
+        actualOutputToday: completedTasksToday,
+        outputProgressPercentage,
         urgentTaskCount,
       };
     });
@@ -236,7 +279,11 @@ export class TasksService {
 
     // Fetch candidate staff with complete employee profiles and skills
     const candidateUsers = await this.prisma.user.findMany({
-      where: { role: Role.STAFF },
+      where: {
+        role: Role.STAFF,
+        status: 'ACTIVE',
+        isArchived: false,
+      },
       include: {
         employeeProfile: {
           include: {
@@ -369,7 +416,29 @@ export class TasksService {
     };
   }
 
+  private async validateActiveEmployees(assignedUserIds: string[]) {
+    if (!assignedUserIds || assignedUserIds.length === 0) return;
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: assignedUserIds } },
+      include: { employeeProfile: true },
+    });
+
+    for (const u of users) {
+      const empStatus = u.employeeProfile?.employmentStatus || u.status || 'ACTIVE';
+      if (empStatus !== 'ACTIVE' || u.status !== 'ACTIVE' || u.isArchived) {
+        throw new BadRequestException(
+          `Business Rule Violation: Only Active employees may receive task assignments. Employee "${u.name}" is currently ${empStatus}.`
+        );
+      }
+    }
+  }
+
   async create(data: any, managerUserId: string) {
+    if (data.assignedUserIds && Array.isArray(data.assignedUserIds)) {
+      await this.validateActiveEmployees(data.assignedUserIds);
+    }
+
     // 1. Must belong to exactly one Parent Entity: Shoot Project, Script, or Graphic Requirement
     if (!data.projectId && !data.scriptId && !data.graphicRequirementId) {
       throw new BadRequestException(
@@ -465,6 +534,10 @@ export class TasksService {
   }
 
   async reassign(taskId: string, assignedUserIds: string[], managerUserId: string, reason?: string) {
+    if (assignedUserIds && Array.isArray(assignedUserIds)) {
+      await this.validateActiveEmployees(assignedUserIds);
+    }
+
     const task = await this.findOne(taskId);
 
     const prevNames = task.assignedEmployees.map((a) => a.user?.name || 'Staff Member');

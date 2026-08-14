@@ -17,8 +17,8 @@ export class AuthService {
       include: { employeeProfile: { include: { department: true } } },
     });
 
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+    if (user.status === 'INACTIVE' || user.status === 'SUSPENDED' || user.status === 'ARCHIVED' || user.isArchived) {
+      throw new UnauthorizedException(`Your employee account is ${user.status.toLowerCase()}. Please contact the Media Manager.`);
     }
 
     const isMatch = await bcrypt.compare(loginDto.password, user.password);

@@ -211,26 +211,13 @@ export class EquipmentService {
       );
     }
 
-    // Employees (STAFF) shall not directly check out equipment without approved Equipment Request
-    if (userRole === 'STAFF' && (data.action === EquipmentMovementAction.ISSUED || data.action === EquipmentMovementAction.USED)) {
-      const approvedReq = await this.prisma.equipmentRequest.findFirst({
-        where: {
-          equipmentId: data.equipmentId,
-          requestedById: userId,
-          status: 'APPROVED',
-        },
-      });
-
-      if (!approvedReq) {
+    // Business Rule 11: Only the Media Manager may issue or approve equipment checkout
+    if (data.action === EquipmentMovementAction.ISSUED || data.action === EquipmentMovementAction.USED) {
+      if (userRole !== 'MEDIA_MANAGER') {
         throw new ForbiddenException(
-          'Employees cannot directly check out equipment. Please submit an Equipment Request for manager approval first.'
+          'Business Rule Violation (Rule 11): Only the Media Manager may issue or approve equipment checkout.'
         );
       }
-
-      await this.prisma.equipmentRequest.update({
-        where: { id: approvedReq.id },
-        data: { status: 'CHECKED_OUT' },
-      });
     }
 
     const movement = await this.prisma.equipmentMovement.create({

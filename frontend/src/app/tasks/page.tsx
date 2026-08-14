@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame } from 'lucide-react';
+import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame, Clock } from 'lucide-react';
 
 export default function TasksPage() {
   const { user } = useAuth();
@@ -358,74 +358,138 @@ export default function TasksPage() {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
-          {capacity.map((emp) => (
-            <div
-              key={emp.userId}
-              className={`p-3.5 rounded-lg border space-y-2 relative transition-all ${
-                emp.status === 'Overloaded'
-                  ? 'bg-red-950/40 border-red-800/60 shadow-lg shadow-red-950/40'
-                  : emp.status === 'Normal'
-                  ? 'bg-amber-950/20 border-amber-800/40'
-                  : 'bg-gray-900 border-gray-800'
-              }`}
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-bold text-white text-sm flex items-center gap-1.5">
-                    👤 {emp.name}
-                  </h3>
-                  <span className="text-[10px] text-gray-400">{emp.designation}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  {user?.role === 'MEDIA_MANAGER' && (
-                    <button
-                      onClick={() => {
-                        setEditingCapacityUser(emp);
-                        setEditCapacityHours(emp.capacityHours.toString());
-                      }}
-                      className="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors"
-                      title="Configure Daily Capacity"
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
+          {capacity.map((emp) => {
+            const isOverloaded = emp.isOverloaded || emp.assignedHours > emp.capacityHours || emp.status === 'Overloaded';
+
+            return (
+              <div
+                key={emp.userId}
+                className={`p-4 rounded-xl border space-y-3 relative transition-all shadow-md ${
+                  isOverloaded
+                    ? 'bg-gradient-to-br from-red-950/90 via-zinc-900 to-red-950/70 border-red-500 ring-2 ring-red-500/50 shadow-xl shadow-red-950/60 animate-pulse'
+                    : emp.status === 'Normal'
+                    ? 'bg-gradient-to-br from-amber-950/30 via-zinc-900 to-zinc-900 border-amber-800/60'
+                    : 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-900 border-zinc-800'
+                }`}
+              >
+                {/* Overloaded Alert Header Banner */}
+                {isOverloaded && (
+                  <div className="bg-red-600 text-white font-mono text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded flex items-center justify-between border border-red-400 shadow-sm tracking-wider">
+                    <span className="flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 text-white animate-bounce" /> EXCEEDS CAPACITY
+                    </span>
+                    <span>OVERLOADED</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-bold text-white text-sm flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-blue-400" /> {emp.name}
+                    </h3>
+                    <span className="text-[10px] text-gray-400">{emp.designation}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {user?.role === 'MEDIA_MANAGER' && (
+                      <button
+                        onClick={() => {
+                          setEditingCapacityUser(emp);
+                          setEditCapacityHours(emp.capacityHours.toString());
+                        }}
+                        className="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors"
+                        title="Configure Daily Working Capacity"
+                      >
+                        ⚙️
+                      </button>
+                    )}
+                    <span
+                      className={`text-[9px] font-extrabold px-2 py-0.5 rounded uppercase border font-mono ${
+                        isOverloaded
+                          ? 'bg-red-600 text-white border-red-400'
+                          : emp.status === 'Normal'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-800'
+                          : 'bg-emerald-500/20 text-emerald-400 border-emerald-800'
+                      }`}
                     >
-                      ⚙️
-                    </button>
-                  )}
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                      emp.status === 'Overloaded'
-                        ? 'bg-red-500/20 text-red-400 border-red-800 animate-pulse'
-                        : emp.status === 'Normal'
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-800'
-                        : 'bg-emerald-500/20 text-emerald-400 border-emerald-800'
-                    }`}
-                  >
-                    {emp.status}
-                  </span>
+                      {isOverloaded ? 'OVERLOADED' : emp.status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 6 Mandatory Monitoring Metrics */}
+                <div className="text-[11px] space-y-1.5 font-mono border-t border-gray-800/80 pt-2.5">
+                  {/* 1. Daily Capacity */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-cyan-400" /> 1. Daily Capacity:
+                    </span>
+                    <strong className="text-cyan-300 font-bold bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/50">
+                      {emp.capacityHours} Hours
+                    </strong>
+                  </div>
+
+                  {/* 2. Assigned Hours */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400 flex items-center gap-1">
+                      <Flame className="w-3 h-3 text-amber-400" /> 2. Assigned Hours:
+                    </span>
+                    <strong className={`font-bold px-1.5 py-0.5 rounded border ${
+                      emp.assignedHours > emp.capacityHours
+                        ? 'bg-red-950 text-red-300 border-red-800'
+                        : 'bg-zinc-800 text-white border-zinc-700'
+                    }`}>
+                      {emp.assignedHours} Hours
+                    </strong>
+                  </div>
+
+                  {/* 3. Remaining Capacity */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" /> 3. Remaining Capacity:
+                    </span>
+                    <strong className={`font-bold px-1.5 py-0.5 rounded border ${
+                      (emp.remainingCapacity || emp.remainingHours || 0) <= 0
+                        ? 'bg-red-950 text-red-400 border-red-800'
+                        : 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                    }`}>
+                      {emp.remainingCapacity !== undefined ? emp.remainingCapacity : emp.remainingHours || 0} Hours
+                    </strong>
+                  </div>
+
+                  {/* 4. Current Projects */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400 flex items-center gap-1">
+                      <Building2 className="w-3 h-3 text-purple-400" /> 4. Current Projects:
+                    </span>
+                    <span className="text-purple-300 font-bold text-[10px]" title={emp.currentProjects?.join(', ') || 'No active projects'}>
+                      {emp.currentProjectsCount || emp.currentProjects?.length || 0} Active
+                    </span>
+                  </div>
+
+                  {/* 5. Task Count */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400 flex items-center gap-1">
+                      <Tag className="w-3 h-3 text-blue-400" /> 5. Task Count:
+                    </span>
+                    <span className="text-blue-300 font-bold">
+                      {emp.taskCount !== undefined ? emp.taskCount : emp.activeTaskCount || 0} Tasks
+                    </span>
+                  </div>
+
+                  {/* 6. Output Progress */}
+                  <div className="flex justify-between items-center pt-1 border-t border-gray-800/40">
+                    <span className="text-gray-400 flex items-center gap-1">
+                      <CheckSquare className="w-3 h-3 text-emerald-400" /> 6. Output Progress:
+                    </span>
+                    <span className="text-emerald-400 font-bold">
+                      {emp.actualOutputToday || 0} / {emp.dailyTarget || 5} ({emp.outputProgressPercentage || 0}%)
+                    </span>
+                  </div>
                 </div>
               </div>
-
-              <div className="text-[11px] space-y-1.5 font-mono border-t border-gray-800/60 pt-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Daily Capacity:</span>
-                  <span className="font-bold text-blue-300 bg-blue-950/50 px-1.5 py-0.5 rounded border border-blue-800/50">
-                    {emp.capacityHours} Hours
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Assigned:</span>
-                  <span className={`font-bold ${emp.assignedHours > emp.capacityHours ? 'text-red-400' : 'text-white'}`}>
-                    {emp.assignedHours} Hours
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center text-[10px]">
-                  <span className="text-gray-500">Weighted Workload:</span>
-                  <span className="font-bold text-cyan-300">{emp.weightedWorkloadHours}h ({emp.workloadPercentage}%)</span>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -975,20 +1039,33 @@ export default function TasksPage() {
               <div>
                 <label className="block text-gray-400 font-semibold mb-1 text-[10px]">Assign Employees (One or Multiple)</label>
                 <div className="space-y-1 max-h-32 overflow-y-auto bg-gray-950 border border-gray-700 rounded p-2">
-                  {staffUsersList.map((u) => (
-                    <label key={u.id} className="flex items-center gap-2 text-white text-xs cursor-pointer hover:bg-gray-900 p-1 rounded">
-                      <input
-                        type="checkbox"
-                        checked={assignedStaffIds.includes(u.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) setAssignedStaffIds([...assignedStaffIds, u.id]);
-                          else setAssignedStaffIds(assignedStaffIds.filter((id) => id !== u.id));
-                        }}
-                        className="w-3.5 h-3.5 accent-blue-500 cursor-pointer"
-                      />
-                      <span>{u.name} ({u.role})</span>
-                    </label>
-                  ))}
+                  {staffUsersList.map((u) => {
+                    const empStatus = u.employeeProfile?.employmentStatus || u.status || 'ACTIVE';
+                    const isActive = empStatus === 'ACTIVE' && u.status === 'ACTIVE' && !u.isArchived;
+
+                    return (
+                      <label
+                        key={u.id}
+                        className={`flex items-center gap-2 text-xs p-1 rounded ${
+                          isActive ? 'text-white cursor-pointer hover:bg-gray-900' : 'text-gray-500 bg-gray-950/60 cursor-not-allowed opacity-60'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={!isActive}
+                          checked={assignedStaffIds.includes(u.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) setAssignedStaffIds([...assignedStaffIds, u.id]);
+                            else setAssignedStaffIds(assignedStaffIds.filter((id) => id !== u.id));
+                          }}
+                          className="w-3.5 h-3.5 accent-blue-500 cursor-pointer disabled:cursor-not-allowed"
+                        />
+                        <span>
+                          {u.name} ({u.role}) {!isActive && <span className="text-amber-400 font-bold ml-1 font-mono">({empStatus} - Restricted)</span>}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
 

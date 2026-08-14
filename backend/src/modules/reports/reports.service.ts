@@ -1,9 +1,195 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
+
+  async getPersonalizedDashboard(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { employeeProfile: true },
+    });
+    if (!user) throw new BadRequestException('User profile not found');
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const sevenDaysLater = new Date();
+    sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
+
+    // 1. All Tasks assigned to user
+    const assignedTaskRecords = await this.prisma.taskAssignment.findMany({
+      where: { userId },
+      include: {
+        task: {
+          include: {
+            project: { select: { id: true, name: true, projectId: true } },
+            script: { select: { id: true, name: true, scriptId: true } },
+            graphicRequirement: { select: { id: true, name: true, requirementId: true } },
+          },
+        },
+      },
+    });
+
+    const myTasks = assignedTaskRecords.map((at) => at.task).filter(Boolean);
+
+    // Today's Tasks
+    const todaysTasks = myTasks.filter((t) => {
+      const d = new Date(t.dueDate);
+      return d >= todayStart && d <= todayEnd;
+    });
+
+    // Pending Tasks
+    const pendingTasks = myTasks.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+
+    // 2. Assigned Scripts
+    const scriptAssignments = await this.prisma.scriptAssignment.findMany({
+      where: { userId },
+      include: {
+        script: {
+          include: {
+            project: { select: { id: true, name: true, projectId: true } },
+            brand: { select: { name: true } },
+          },
+        },
+      },
+    });
+    const myScripts = scriptAssignments.map((sa) => sa.script).filter(Boolean);
+
+    // 3. Assigned Graphic Requirements
+    const graphicReqIds = myTasks.map((t) => t.graphicRequirementId).filter(Boolean) as string[];
+    const myGraphicRequirements = await this.prisma.graphicRequirement.findMany({
+      where: {
+        OR: [
+          { id: { in: graphicReqIds } },
+          { project: { assignedTeam: { some: { userId } } } },
+        ],
+      },
+      include: {
+        project: { select: { id: true, name: true, projectId: true } },
+        brand: { select: { name: true } },
+      },
+    });
+
+    // 4. Current Projects
+    const projectAssignments = await this.prisma.projectAssignment.findMany({
+      where: { userId },
+      include: {
+        project: {
+          include: {
+            client: { select: { name: true } },
+            brand: { select: { name: true } },
+          },
+        },
+      },
+    });
+    const myProjects = projectAssignments.map((pa) => pa.project).filter((p) => p && p.status !== 'ARCHIVED');
+
+    // 5. Upcoming Deadlines (within 7 days)
+    const upcomingTaskDeadlines = pendingTasks
+      .filter((t) => new Date(t.dueDate) <= sevenDaysLater)
+      .map((t) => ({ type: 'TASK', id: t.id, title: t.title, code: t.taskId, dueDate: t.dueDate, priority: t.priority }));
+
+    const upcomingScriptDeadlines = myScripts
+      .filter((s) => s.status !== 'COMPLETED')
+      .map((s) => ({ type: 'SCRIPT', id: s.id, title: s.name, code: s.scriptId, dueDate: s.updatedAt, priority: s.priority }));
+
+    const upcomingGraphicDeadlines = myGraphicRequirements
+      .filter((g) => g.status !== 'COMPLETED')
+      .map((g) => ({ type: 'GRAPHIC_REQ', id: g.id, title: g.name, code: g.requirementId, dueDate: g.estimatedCompletion || g.updatedAt, priority: g.priority }));
+
+    const upcomingDeadlines = [...upcomingTaskDeadlines, ...upcomingScriptDeadlines, ...upcomingGraphicDeadlines].sort(
+      (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+    );
+
+    // 6. Recent Communications
+    const recentCommunications = await this.prisma.communication.findMany({
+      where: {
+        OR: [
+          { senderId: userId },
+          { assignedToId: userId },
+        ],
+      },
+      take: 10,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        sender: { select: { id: true, name: true, role: true } },
+        project: { select: { name: true } },
+      },
+    });
+
+    // 7. Notifications
+    const notifications = await this.prisma.notification.findMany({
+      where: { userId },
+      take: 15,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // 8. Personal Calendar Events
+    const myProjectIds = myProjects.map((p) => p.id);
+    const personalCalendar = await this.prisma.mediaCalendarEvent.findMany({
+      where: {
+        OR: [
+          { shootProjects: { some: { id: { in: myProjectIds } } } },
+          { graphicReqs: { some: { id: { in: myGraphicRequirements.map((g) => g.id) } } } },
+        ],
+      },
+      take: 10,
+      orderBy: { shootDate: 'asc' },
+    });
+
+    // 9. Current Workload Calculation
+    const dailyCapacity = user.employeeProfile?.dailyCapacityHours || 8.0;
+    const rawWorkloadHours = pendingTasks.reduce((acc, t) => acc + (t.estimatedHours || 2.0), 0);
+    const weightedWorkloadHours = pendingTasks.reduce((acc, t) => {
+      let multiplier = 1.0;
+      if (t.priority === 'CRITICAL') multiplier = 1.4;
+      else if (t.priority === 'HIGH') multiplier = 1.2;
+      return acc + (t.estimatedHours || 2.0) * multiplier;
+    }, 0);
+
+    const workloadPercentage = Math.min(200, Math.round((weightedWorkloadHours / dailyCapacity) * 100));
+    let workloadStatus = 'Normal';
+    if (workloadPercentage > 100) workloadStatus = 'Overloaded';
+    else if (workloadPercentage < 75) workloadStatus = 'Available';
+
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        designation: user.employeeProfile?.designation || 'Staff Member',
+        dailyCapacityHours: dailyCapacity,
+      },
+      todaysTasks,
+      pendingTasks,
+      upcomingDeadlines,
+      currentProjects: myProjects,
+      assignedScripts: myScripts,
+      assignedGraphicRequirements: myGraphicRequirements,
+      recentCommunications,
+      notifications,
+      personalCalendar: personalCalendar.map((ev) => ({
+        id: ev.id,
+        title: ev.title,
+        startDate: ev.shootDate,
+        eventType: ev.shootType,
+        description: ev.productionNotes,
+      })),
+      currentWorkload: {
+        dailyCapacityHours: dailyCapacity,
+        rawWorkloadHours,
+        weightedWorkloadHours,
+        workloadPercentage,
+        workloadStatus,
+        remainingCapacityHours: Math.max(0, dailyCapacity - rawWorkloadHours),
+      },
+    };
+  }
 
   async getDashboardSummary() {
     const todayStart = new Date();
@@ -27,33 +213,27 @@ export class ReportsService {
     const indoorProjects = activeProjects.filter((p) => p.shootType === 'INDOOR').length;
     const outdoorProjects = activeProjects.filter((p) => p.shootType === 'OUTDOOR').length;
 
-    // 1. Current Progress
     const totalProgressSum = activeProjects.reduce((sum, p) => sum + (p.progressPercentage || 0), 0);
     const currentProgress = totalProjects > 0 ? Math.round(totalProgressSum / totalProjects) : 0;
 
-    // 2. Pending Tasks
     const pendingTasks = await this.prisma.task.count({
       where: { status: { not: 'COMPLETED' } },
     });
 
-    // 3. Pending Scripts
     const pendingScripts = await this.prisma.script.count({
       where: { status: { notIn: ['COMPLETED', 'APPROVED'] } },
     });
 
-    // 4. Pending Requirements
     const pendingRequirements = await this.prisma.graphicRequirement.count({
       where: { status: { notIn: ['COMPLETED', 'APPROVED'] } },
     });
 
-    // 5. Pending Reviews
     const techReviewQueue = activeProjects.filter((p) => p.status === 'WAITING_FOR_TECHNICAL_REVIEW').length;
     const mediaReviewQueue = activeProjects.filter((p) => p.status === 'WAITING_FOR_MEDIA_REVIEW').length;
     const clientQueue = activeProjects.filter((p) => p.status === 'WAITING_FOR_CLIENT_CONFIRMATION').length;
     const revisionQueue = activeProjects.filter((p) => p.status === 'CLIENT_REVISION_REQUESTED').length;
     const pendingReviews = techReviewQueue + mediaReviewQueue + clientQueue;
 
-    // 6. Equipment Status
     const totalEquipment = await this.prisma.equipment.count();
     const availableEquipment = await this.prisma.equipment.count({ where: { availability: 'AVAILABLE' } });
     const reservedEquipment = await this.prisma.equipment.count({ where: { availability: 'RESERVED' } });
@@ -66,39 +246,32 @@ export class ReportsService {
       where: { action: 'RETURNED', timestamp: { gte: recentReturnedDate } },
     });
 
-    // 7. Assigned Employees Count
     const assignedEmployeesCount = await this.prisma.projectAssignment.groupBy({
       by: ['userId'],
     }).then((res) => res.length);
 
-    // 8 & 9. Recent Activity / Timeline
     const recentActivity = await this.prisma.activityLog.findMany({
       take: 10,
       orderBy: { timestamp: 'desc' },
       include: { user: { select: { name: true, role: true } } },
     });
 
-    // 10. Today's Indoor Shoots
     const todayIndoorShoots = activeProjects.filter(
       (p) => p.shootType === 'INDOOR' && new Date(p.shootDate) >= todayStart && new Date(p.shootDate) <= todayEnd,
     );
 
-    // 11. Today's Outdoor Shoots
     const todayOutdoorShoots = activeProjects.filter(
       (p) => p.shootType === 'OUTDOOR' && new Date(p.shootDate) >= todayStart && new Date(p.shootDate) <= todayEnd,
     );
 
-    // 12. Outdoor Shoots Awaiting Permission
     const outdoorAwaitingPermission = await this.prisma.outdoorShootDetails.count({
       where: { permissionStatus: 'PENDING' },
     });
 
-    // 13. Outdoor Shoots Affected by Weather
     const outdoorAffectedByWeather = await this.prisma.outdoorShootDetails.count({
       where: { weatherStatus: { in: ['RISK_RAIN', 'EXTREME_HEAT', 'POOR_LIGHT'] } },
     });
 
-    // 14. Studio Booking Status (Indoor)
     const studioBookingConfirmed = await this.prisma.indoorShootDetails.count({
       where: { studioBookingStatus: 'CONFIRMED' },
     });
@@ -109,7 +282,92 @@ export class ReportsService {
       where: { studioBookingStatus: 'CANCELLED' },
     });
 
+    // Calculate Attendance Metrics
+    const activeUsers = await this.prisma.user.findMany({
+      where: { isArchived: false },
+      include: {
+        attendanceRecords: {
+          where: { date: { gte: todayStart, lte: todayEnd } },
+        },
+        employeeProfile: true,
+        tasks: { include: { task: true } },
+        deliverableUploads: { where: { createdAt: { gte: todayStart, lte: todayEnd } } },
+      },
+    });
+
+    const totalEmployees = activeUsers.length;
+    let presentCount = 0;
+    let lateCount = 0;
+    let halfDayCount = 0;
+    let absentCount = 0;
+    let totalAssignedHours = 0;
+    let totalCapacityHours = 0;
+    let totalDailyOutputsToday = 0;
+    let totalDailyTargetsToday = 0;
+
+    activeUsers.forEach((u) => {
+      const att = u.attendanceRecords[0];
+      if (att) {
+        if (att.status === 'PRESENT') presentCount++;
+        else if (att.status === 'LATE') lateCount++;
+        else if (att.status === 'HALF_DAY') halfDayCount++;
+        else if (att.status === 'ABSENT') absentCount++;
+      }
+
+      const activeTasks = u.tasks.map((t) => t.task).filter((t) => t && t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+      const taskHours = activeTasks.reduce((sum, t) => sum + (t.estimatedHours || 2.0), 0);
+      totalAssignedHours += taskHours;
+
+      const capHours = u.employeeProfile?.dailyCapacityHours || 8.0;
+      totalCapacityHours += capHours;
+
+      const completedToday = u.tasks.map((t) => t.task).filter((t) => t && t.status === 'COMPLETED' && new Date(t.updatedAt) >= todayStart).length;
+      const uploadsToday = u.deliverableUploads.length;
+      totalDailyOutputsToday += Math.max(completedToday, uploadsToday);
+      totalDailyTargetsToday += u.employeeProfile?.dailyTarget || 1.0;
+    });
+
+    const attendancePercentage = totalEmployees > 0 ? Math.round(((presentCount + lateCount + halfDayCount * 0.5) / totalEmployees) * 100) : 100;
+    const capacityUtilizationPercentage = totalCapacityHours > 0 ? Math.round((totalAssignedHours / totalCapacityHours) * 100) : 0;
+    const overallProductivityPercentage = totalDailyTargetsToday > 0 ? Math.round((totalDailyOutputsToday / totalDailyTargetsToday) * 100) : 0;
+    const totalCompletedProjects = await this.prisma.shootProject.count({ where: { status: 'COMPLETED' } });
+
     return {
+      // 10 Mandatory Executive Dashboard Display Metrics
+      totalActiveProjects: activeProjects.filter((p) => p.status !== 'COMPLETED' && p.status !== 'CANCELLED').length,
+      totalCompletedProjects,
+      pendingApprovals: pendingScripts + pendingRequirements + techReviewQueue + mediaReviewQueue,
+      pendingClientConfirmations: clientQueue + revisionQueue,
+      todaysProduction: {
+        actualOutput: totalDailyOutputsToday,
+        targetOutput: totalDailyTargetsToday,
+        achievementPercentage: overallProductivityPercentage,
+      },
+      employeeAttendance: {
+        totalEmployees,
+        presentCount,
+        lateCount,
+        halfDayCount,
+        absentCount,
+        attendancePercentage,
+      },
+      overallProductivity: overallProductivityPercentage,
+      equipmentAvailability: {
+        total: totalEquipment,
+        available: availableEquipment,
+        checkedOut: checkedOutEquipment,
+        underMaintenance: underMaintenanceEquipment,
+        damaged: damagedEquipment,
+        availabilityPercentage: totalEquipment > 0 ? Math.round((availableEquipment / totalEquipment) * 100) : 100,
+      },
+      capacityUtilization: {
+        totalCapacityHours,
+        assignedHours: totalAssignedHours,
+        utilizationPercentage: capacityUtilizationPercentage,
+      },
+      recentActivity,
+
+      // Supporting Breakdowns
       totalProjects,
       indoorProjects,
       outdoorProjects,
@@ -122,15 +380,6 @@ export class ReportsService {
       mediaReviewQueue,
       clientQueue,
       revisionQueue,
-      equipmentStatus: {
-        total: totalEquipment,
-        available: availableEquipment,
-        reserved: reservedEquipment,
-        checkedOut: checkedOutEquipment,
-        underMaintenance: underMaintenanceEquipment,
-        damaged: damagedEquipment,
-        recentReturned: recentReturnedEquipment,
-      },
       assignedEmployeesCount,
       todayIndoorShootsCount: todayIndoorShoots.length,
       todayIndoorShoots,
@@ -143,7 +392,6 @@ export class ReportsService {
         pending: studioBookingPending,
         cancelled: studioBookingCancelled,
       },
-      recentActivity,
     };
   }
 
@@ -194,7 +442,6 @@ export class ReportsService {
 
     const formulas = await this.prisma.outputFormula.findMany();
 
-    // Objective Breakdown for Reporting
     const objectiveCounts: Record<string, number> = {
       'Generate Sales': 0,
       'Increase Awareness': 0,
@@ -225,7 +472,121 @@ export class ReportsService {
     };
   }
 
-  // --- Script Contribution Analytics (8 Specific Reports) ---
+  async getEmployeeProductivityReport() {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const users = await this.prisma.user.findMany({
+      where: { isArchived: false },
+      include: {
+        employeeProfile: { include: { department: true } },
+        tasks: {
+          include: {
+            task: true,
+          },
+        },
+        attendanceRecords: {
+          where: { date: { gte: todayStart, lte: todayEnd } },
+        },
+        deliverableUploads: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return users.map((u) => {
+      const dailyTarget = u.employeeProfile?.dailyTarget || 1.0;
+      const dailyCapacityHours = u.employeeProfile?.dailyCapacityHours || 8.0;
+
+      const assignedTasksCount = u.tasks.length;
+      const completedTasksCount = u.tasks.filter((t) => t.task && t.task.status === 'COMPLETED').length;
+      const pendingTasksCount = u.tasks.filter((t) => t.task && t.task.status !== 'COMPLETED' && t.task.status !== 'CANCELLED').length;
+
+      const completedTasksToday = u.tasks.filter((t) => {
+        if (!t.task || t.task.status !== 'COMPLETED') return false;
+        const compDate = new Date(t.task.updatedAt);
+        return compDate >= todayStart;
+      }).length;
+
+      const completedUploadsToday = u.deliverableUploads.filter((d) => {
+        return new Date(d.createdAt) >= todayStart;
+      }).length;
+
+      const actualDailyOutput = Math.max(completedTasksToday, completedUploadsToday);
+      const targetAchievementPercentage = Math.round((actualDailyOutput / dailyTarget) * 100);
+
+      let status = 'Met Target';
+      if (targetAchievementPercentage > 100) status = 'Exceeded Target';
+      else if (targetAchievementPercentage < 100) status = 'Below Target';
+
+      // Average Completion Time Calculation
+      const completedTaskObjs = u.tasks.filter((t) => t.task && t.task.status === 'COMPLETED').map((t) => t.task);
+      let avgCompletionTimeHours = 0;
+      let avgCompletionTimeFormatted = 'N/A';
+
+      if (completedTaskObjs.length > 0) {
+        const totalDurationMs = completedTaskObjs.reduce((sum, t) => {
+          const created = new Date(t.createdAt).getTime();
+          const updated = new Date(t.updatedAt).getTime();
+          return sum + Math.max(0, updated - created);
+        }, 0);
+        avgCompletionTimeHours = Math.round((totalDurationMs / (1000 * 60 * 60 * completedTaskObjs.length)) * 10) / 10;
+        if (avgCompletionTimeHours >= 24) {
+          avgCompletionTimeFormatted = `${(avgCompletionTimeHours / 24).toFixed(1)} days`;
+        } else {
+          avgCompletionTimeFormatted = `${avgCompletionTimeHours} hrs`;
+        }
+      }
+
+      // Attendance & Revisions Mapping
+      const todayAttRecord = u.attendanceRecords[0];
+      const attendance = todayAttRecord ? todayAttRecord.status : 'NOT_MARKED';
+      const revisionCount = u.deliverableUploads.filter((d) => (d as any).version > 1).length;
+
+      return {
+        userId: u.id,
+        // 1. Employee Name
+        employeeName: u.name,
+        name: u.name,
+        email: u.email,
+        designation: u.employeeProfile?.designation || 'Staff Member',
+        department: u.employeeProfile?.department?.name || 'General Operations',
+        // 2. Attendance
+        attendance,
+        attendanceStatus: attendance,
+        // 3. Assigned Tasks
+        assignedTasks: assignedTasksCount,
+        assignedTasksCount,
+        // 4. Completed Tasks
+        completedTasks: completedTasksCount,
+        completedTasksCount,
+        // 5. Daily Target
+        dailyTarget,
+        weeklyTarget: u.employeeProfile?.weeklyTarget || dailyTarget * 5,
+        monthlyTarget: u.employeeProfile?.monthlyTarget || dailyTarget * 20,
+        // 6. Actual Output
+        actualOutput: actualDailyOutput,
+        actualDailyOutput,
+        // 7. Target Achievement Percentage
+        targetAchievementPercentage,
+        achievementPercentage: targetAchievementPercentage,
+        // 8. Revision Count
+        revisionCount,
+        // 9. Pending Tasks
+        pendingTasks: pendingTasksCount,
+        pendingTasksCount,
+        // 10. Average Completion Time
+        avgCompletionTimeHours,
+        avgCompletionTimeFormatted,
+        averageCompletionTime: avgCompletionTimeFormatted,
+
+        status,
+        dailyCapacityHours,
+      };
+    });
+  }
+
   async getScriptAnalytics() {
     const scripts = await this.prisma.script.findMany({
       include: {
@@ -239,7 +600,6 @@ export class ReportsService {
       },
     });
 
-    // 1. Employee Productivity Reports
     const empMap: Record<string, { userId: string; name: string; role: string; assignedCount: number; completedCount: number; revisionCount: number }> = {};
     scripts.forEach((s) => {
       s.scriptAssignments.forEach((sa) => {
@@ -255,7 +615,6 @@ export class ReportsService {
     });
     const employeeProductivity = Object.values(empMap);
 
-    // 2. Brand Performance Reports
     const brandMap: Record<string, { brandId: string; name: string; shortCode: string; scriptCount: number; completedCount: number; totalRevisions: number; deliverableCount: number }> = {};
     scripts.forEach((s) => {
       const bKey = s.brandId || 'UNBRANDED';
@@ -271,7 +630,6 @@ export class ReportsService {
     });
     const brandPerformance = Object.values(brandMap);
 
-    // 3. Product Performance Reports
     const prodMap: Record<string, { productId: string; name: string; productCode: string; scriptCount: number; completedCount: number; deliverables: Record<string, number> }> = {};
     scripts.forEach((s) => {
       if (!s.product) return;
@@ -287,7 +645,6 @@ export class ReportsService {
     });
     const productPerformance = Object.values(prodMap);
 
-    // 4. Language-wise Reports
     const langMap: Record<string, { language: string; totalScripts: number; completedScripts: number; inProductionScripts: number; draftScripts: number }> = {};
     scripts.forEach((s) => {
       const lang = s.language || 'English';
@@ -301,7 +658,6 @@ export class ReportsService {
     });
     const languageWiseReports = Object.values(langMap);
 
-    // 5. Category-wise Reports
     const catMap: Record<string, { category: string; totalScripts: number; completedScripts: number; totalRevisions: number }> = {};
     scripts.forEach((s) => {
       const cat = s.category || 'Social Media';
@@ -314,48 +670,22 @@ export class ReportsService {
     });
     const categoryWiseReports = Object.values(catMap);
 
-    // 6. Production Capacity Reports
     const deliverablesByType: Record<string, number> = {};
     scripts.forEach((s) => {
       (s.deliverables || []).forEach((d) => {
         deliverablesByType[d.type] = (deliverablesByType[d.type] || 0) + 1;
       });
     });
-    const productionCapacity = {
-      totalPipelineScripts: scripts.length,
-      inProductionCount: scripts.filter((s) => s.status === 'IN_PRODUCTION' || s.status === 'In Production').length,
-      readyCount: scripts.filter((s) => s.status === 'READY' || s.status === 'Ready').length,
-      draftCount: scripts.filter((s) => s.status === 'DRAFT' || s.status === 'Draft').length,
-      completedCount: scripts.filter((s) => s.status === 'COMPLETED' || s.status === 'Completed').length,
-      totalDeliverablesPlanned: Object.values(deliverablesByType).reduce((a, b) => a + b, 0),
-      deliverablesByType,
-    };
 
-    // 7. Revision Reports
-    const totalRevisions = scripts.reduce((acc, s) => acc + (s.revisionCount || 0), 0);
-    const zeroRevisions = scripts.filter((s) => (s.revisionCount || 0) === 0).length;
-    const oneToTwoRevisions = scripts.filter((s) => (s.revisionCount || 0) >= 1 && (s.revisionCount || 0) <= 2).length;
-    const threePlusRevisions = scripts.filter((s) => (s.revisionCount || 0) >= 3).length;
-    const pendingRevisionRequestCount = scripts.filter((s) => s.status?.includes('REVISION')).length;
-
-    const revisionReports = {
-      totalRevisions,
-      avgRevisionsPerScript: scripts.length > 0 ? (totalRevisions / scripts.length).toFixed(2) : '0',
-      pendingRevisionRequestCount,
-      distribution: { zeroRevisions, oneToTwoRevisions, threePlusRevisions },
-    };
-
-    // 8. Approval Reports
-    const approvalReports = {
-      waitingTechnicalReview: scripts.filter((s) => s.status === 'WAITING_FOR_TECHNICAL_REVIEW').length,
-      waitingMediaReview: scripts.filter((s) => s.status === 'WAITING_FOR_MEDIA_REVIEW').length,
-      waitingClientConfirmation: scripts.filter((s) => s.status === 'WAITING_FOR_CLIENT_CONFIRMATION').length,
-      productionCompletedCount: scripts.filter((s) => s.productionCompleted).length,
-      technicalApprovedCount: scripts.filter((s) => s.technicalReviewApproved).length,
-      mediaApprovedCount: scripts.filter((s) => s.mediaManagerReviewApproved).length,
-      clientConfirmedCount: scripts.filter((s) => s.clientConfirmationRecorded).length,
-      fullyApprovedCount: scripts.filter((s) => s.productionCompleted && s.technicalReviewApproved && s.mediaManagerReviewApproved && s.clientConfirmationRecorded).length,
-    };
+    const bottleneckScripts = scripts
+      .filter((s) => (s.revisionCount || 0) > 1 || s.status === 'CLIENT_REVISION_REQUESTED')
+      .map((s) => ({
+        id: s.id,
+        scriptId: s.scriptId,
+        name: s.name,
+        revisionCount: s.revisionCount,
+        status: s.status,
+      }));
 
     return {
       employeeProductivity,
@@ -363,165 +693,1409 @@ export class ReportsService {
       productPerformance,
       languageWiseReports,
       categoryWiseReports,
-      productionCapacity,
-      revisionReports,
-      approvalReports,
+      productionCapacity: deliverablesByType,
+      bottleneckScripts,
+      scriptSummary: {
+        total: scripts.length,
+        completed: scripts.filter((s) => s.status === 'COMPLETED').length,
+        inProduction: scripts.filter((s) => s.status === 'IN_PRODUCTION').length,
+        inRevision: scripts.filter((s) => s.status === 'CLIENT_REVISION_REQUESTED').length,
+      },
     };
   }
 
-  // --- Graphic Requirement Contribution Analytics (7 Report Types) ---
   async getGraphicAnalytics() {
-    const reqs = await this.prisma.graphicRequirement.findMany({
+    const graphicReqs = await this.prisma.graphicRequirement.findMany({
       include: {
         brand: true,
         product: true,
         client: true,
-        project: true,
-        tasks: {
-          include: {
-            assignedEmployees: {
-              include: { user: { select: { id: true, name: true, role: true } } },
-            },
-          },
-        },
+        project: { include: { assignedTeam: { include: { user: { select: { id: true, name: true, role: true } } } } } },
+        files: true,
         timeline: true,
+        remarksHistory: true,
       },
     });
 
-    // 1. Employee Productivity Reports (from graphic requirement task assignments)
-    const empMap: Record<string, {
-      userId: string; name: string; role: string;
-      assignedCount: number; completedCount: number; revisionCount: number; inProgressCount: number;
-    }> = {};
-    reqs.forEach((r) => {
-      r.tasks.forEach((t) => {
-        t.assignedEmployees.forEach((ae) => {
-          if (!ae.user) return;
-          const uid = ae.userId;
-          if (!empMap[uid]) {
-            empMap[uid] = { userId: uid, name: ae.user.name, role: ae.user.role, assignedCount: 0, completedCount: 0, revisionCount: 0, inProgressCount: 0 };
-          }
-          empMap[uid].assignedCount++;
-          if (r.status === 'COMPLETED') empMap[uid].completedCount++;
-          if (r.status === 'IN_PROGRESS') empMap[uid].inProgressCount++;
-          empMap[uid].revisionCount += r.revisionCount || 0;
-        });
+    const reqStatusMap: Record<string, number> = {};
+    graphicReqs.forEach((g) => {
+      reqStatusMap[g.status] = (reqStatusMap[g.status] || 0) + 1;
+    });
+
+    const delivTypeMap: Record<string, number> = {};
+    graphicReqs.forEach((g) => {
+      delivTypeMap[g.requirementType] = (delivTypeMap[g.requirementType] || 0) + 1;
+    });
+
+    const revMap: Record<string, { requirementId: string; name: string; revisionCount: number }> = {};
+    graphicReqs.forEach((g) => {
+      if (g.revisionCount > 0) {
+        revMap[g.id] = { requirementId: g.requirementId, name: g.name, revisionCount: g.revisionCount };
+      }
+    });
+
+    const bottleneckList = graphicReqs
+      .filter((g) => g.revisionCount > 1 || g.status === 'CLIENT_REVISION_REQUESTED')
+      .map((g) => ({
+        id: g.id,
+        requirementId: g.requirementId,
+        name: g.name,
+        revisionCount: g.revisionCount,
+        status: g.status,
+      }));
+
+    const teamMap: Record<string, { userId: string; name: string; role: string; assignedReqsCount: number; completedCount: number; revisionCount: number }> = {};
+    graphicReqs.forEach((g) => {
+      (g.project?.assignedTeam || []).forEach((at) => {
+        if (!at.user) return;
+        const uid = at.userId;
+        if (!teamMap[uid]) {
+          teamMap[uid] = { userId: uid, name: at.user.name, role: at.user.role, assignedReqsCount: 0, completedCount: 0, revisionCount: 0 };
+        }
+        teamMap[uid].assignedReqsCount++;
+        if (g.status === 'COMPLETED') teamMap[uid].completedCount++;
+        teamMap[uid].revisionCount += g.revisionCount || 0;
       });
     });
-    const employeeProductivity = Object.values(empMap).sort((a, b) => b.assignedCount - a.assignedCount);
 
-    // 2. Brand Reports
-    const brandMap: Record<string, {
-      brandId: string; name: string; shortCode: string;
-      totalReqs: number; completedCount: number; inProgressCount: number; totalRevisions: number;
-    }> = {};
-    reqs.forEach((r) => {
-      const bKey = r.brandId || 'UNBRANDED';
-      if (!brandMap[bKey]) {
-        brandMap[bKey] = { brandId: bKey, name: r.brand?.name || 'Unassigned', shortCode: r.brand?.shortCode || 'N/A', totalReqs: 0, completedCount: 0, inProgressCount: 0, totalRevisions: 0 };
+    const turnaroundMap: Record<string, { requirementId: string; name: string; daysToComplete: number }> = {};
+    graphicReqs.forEach((g) => {
+      if (g.status === 'COMPLETED') {
+        const created = new Date(g.createdAt).getTime();
+        const updated = new Date(g.updatedAt).getTime();
+        const diffDays = Math.max(1, Math.round((updated - created) / (1000 * 60 * 60 * 24)));
+        turnaroundMap[g.id] = { requirementId: g.requirementId, name: g.name, daysToComplete: diffDays };
       }
-      brandMap[bKey].totalReqs++;
-      if (r.status === 'COMPLETED') brandMap[bKey].completedCount++;
-      if (r.status === 'IN_PROGRESS') brandMap[bKey].inProgressCount++;
-      brandMap[bKey].totalRevisions += r.revisionCount || 0;
     });
-    const brandReports = Object.values(brandMap).sort((a, b) => b.totalReqs - a.totalReqs);
 
-    // 3. Product Reports
-    const prodMap: Record<string, {
-      productId: string; name: string;
-      totalReqs: number; completedCount: number; totalRevisions: number;
-    }> = {};
-    reqs.forEach((r) => {
-      if (!r.productId || !r.product) return;
-      const pKey = r.productId;
-      if (!prodMap[pKey]) {
-        prodMap[pKey] = { productId: pKey, name: r.product.name, totalReqs: 0, completedCount: 0, totalRevisions: 0 };
+    return {
+      graphicRequirementStatus: reqStatusMap,
+      deliverableTypeBreakdown: delivTypeMap,
+      revisionsPerRequirement: revMap,
+      bottleneckAnalysis: bottleneckList,
+      teamContribution: Object.values(teamMap),
+      turnaroundTimeByDesigner: Object.values(turnaroundMap),
+    };
+  }
+
+  async getEmployeeAnalyticsReport() {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const users = await this.prisma.user.findMany({
+      where: { isArchived: false },
+      include: {
+        employeeProfile: { include: { department: true } },
+        tasks: {
+          include: {
+            task: true,
+          },
+        },
+        attendanceRecords: true,
+        deliverableUploads: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const formulas = await this.prisma.outputFormula.findMany();
+
+    // 1. Employee Productivity Report
+    const employeeProductivityReport = users.map((u) => {
+      const activeTasks = u.tasks.map((t) => t.task).filter((t) => t && t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+      const completedTasks = u.tasks.map((t) => t.task).filter((t) => t && t.status === 'COMPLETED');
+      const completedTasksToday = completedTasks.filter((t) => new Date(t.updatedAt) >= todayStart).length;
+      const completedUploadsToday = u.deliverableUploads.filter((d) => new Date(d.createdAt) >= todayStart).length;
+      const actualDailyOutput = Math.max(completedTasksToday, completedUploadsToday);
+      const dailyTarget = u.employeeProfile?.dailyTarget || 1.0;
+      const productivityPercentage = Math.round((actualDailyOutput / dailyTarget) * 100);
+
+      return {
+        userId: u.id,
+        name: u.name,
+        designation: u.employeeProfile?.designation || 'Staff Member',
+        department: u.employeeProfile?.department?.name || 'General Operations',
+        activeTasksCount: activeTasks.length,
+        completedTasksCount: completedTasks.length,
+        actualDailyOutput,
+        dailyTarget,
+        productivityPercentage,
+      };
+    });
+
+    // 2. Attendance Report
+    const attendanceReport = users.map((u) => {
+      const records = u.attendanceRecords;
+      const totalRecordedDays = records.length;
+      const presentCount = records.filter((r) => r.status === 'PRESENT').length;
+      const lateCount = records.filter((r) => r.status === 'LATE').length;
+      const halfDayCount = records.filter((r) => r.status === 'HALF_DAY').length;
+      const absentCount = records.filter((r) => r.status === 'ABSENT').length;
+      const attendancePercentage = totalRecordedDays > 0 ? Math.round(((presentCount + lateCount + halfDayCount * 0.5) / totalRecordedDays) * 100) : 100;
+
+      return {
+        userId: u.id,
+        name: u.name,
+        department: u.employeeProfile?.department?.name || 'General Operations',
+        totalRecordedDays,
+        presentCount,
+        lateCount,
+        halfDayCount,
+        absentCount,
+        attendancePercentage,
+      };
+    });
+
+    // 3. Target Achievement Report
+    const targetAchievementReport = users.map((u) => {
+      const dailyTarget = u.employeeProfile?.dailyTarget || 1.0;
+      const weeklyTarget = u.employeeProfile?.weeklyTarget || dailyTarget * 5;
+      const monthlyTarget = u.employeeProfile?.monthlyTarget || dailyTarget * 20;
+
+      const completedTasksToday = u.tasks.map((t) => t.task).filter((t) => t && t.status === 'COMPLETED' && new Date(t.updatedAt) >= todayStart).length;
+      const completedUploadsToday = u.deliverableUploads.filter((d) => new Date(d.createdAt) >= todayStart).length;
+      const actualDailyOutput = Math.max(completedTasksToday, completedUploadsToday);
+      const achievementPercentage = Math.round((actualDailyOutput / dailyTarget) * 100);
+
+      let targetStatus = 'Met Target';
+      if (achievementPercentage > 100) targetStatus = 'Exceeded Target';
+      else if (achievementPercentage < 100) targetStatus = 'Below Target';
+
+      return {
+        userId: u.id,
+        name: u.name,
+        designation: u.employeeProfile?.designation || 'Staff Member',
+        department: u.employeeProfile?.department?.name || 'General Operations',
+        dailyTarget,
+        weeklyTarget,
+        monthlyTarget,
+        actualDailyOutput,
+        achievementPercentage,
+        targetStatus,
+      };
+    });
+
+    // 4. Capacity Utilization Report
+    const capacityUtilizationReport = users.map((u) => {
+      const activeTasks = u.tasks.map((t) => t.task).filter((t) => t && t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+      const dailyCapacityHours = u.employeeProfile?.dailyCapacityHours || 8.0;
+      const assignedHours = activeTasks.reduce((sum, t) => sum + (t.estimatedHours || 2.0), 0);
+      const remainingCapacityHours = Math.max(0, dailyCapacityHours - assignedHours);
+      const capacityUtilizationPercentage = Math.round((assignedHours / dailyCapacityHours) * 100);
+
+      return {
+        userId: u.id,
+        name: u.name,
+        dailyCapacityHours,
+        assignedHours,
+        remainingCapacityHours,
+        capacityUtilizationPercentage,
+        isOverloaded: assignedHours > dailyCapacityHours,
+      };
+    });
+
+    // 5. Department Performance Report
+    const deptMap: Record<string, { department: string; headcount: number; totalProductivity: number; totalAttendancePct: number; totalCapacityUtilization: number }> = {};
+    users.forEach((u) => {
+      const dName = u.employeeProfile?.department?.name || 'General Operations';
+      if (!deptMap[dName]) {
+        deptMap[dName] = { department: dName, headcount: 0, totalProductivity: 0, totalAttendancePct: 0, totalCapacityUtilization: 0 };
       }
-      prodMap[pKey].totalReqs++;
-      if (r.status === 'COMPLETED') prodMap[pKey].completedCount++;
-      prodMap[pKey].totalRevisions += r.revisionCount || 0;
-    });
-    const productReports = Object.values(prodMap).sort((a, b) => b.totalReqs - a.totalReqs);
+      deptMap[dName].headcount++;
 
-    // 4. Requirement Type Reports
-    const typeMap: Record<string, {
-      type: string; totalReqs: number; completedCount: number; inProgressCount: number; totalRevisions: number;
-    }> = {};
-    reqs.forEach((r) => {
-      const t = r.requirementType || 'Other';
-      if (!typeMap[t]) {
-        typeMap[t] = { type: t, totalReqs: 0, completedCount: 0, inProgressCount: 0, totalRevisions: 0 };
-      }
-      typeMap[t].totalReqs++;
-      if (r.status === 'COMPLETED') typeMap[t].completedCount++;
-      if (r.status === 'IN_PROGRESS') typeMap[t].inProgressCount++;
-      typeMap[t].totalRevisions += r.revisionCount || 0;
-    });
-    const typeReports = Object.values(typeMap).sort((a, b) => b.totalReqs - a.totalReqs);
+      const completedTasksToday = u.tasks.map((t) => t.task).filter((t) => t && t.status === 'COMPLETED' && new Date(t.updatedAt) >= todayStart).length;
+      const dailyTarget = u.employeeProfile?.dailyTarget || 1.0;
+      const prodPct = Math.round((completedTasksToday / dailyTarget) * 100);
+      deptMap[dName].totalProductivity += prodPct;
 
-    // 5. Capacity Reports
-    const capacityReports = {
-      totalRequirements: reqs.length,
-      draftCount: reqs.filter((r) => r.status === 'DRAFT').length,
-      readyCount: reqs.filter((r) => r.status === 'READY').length,
-      assignedCount: reqs.filter((r) => r.status === 'ASSIGNED').length,
-      inProgressCount: reqs.filter((r) => r.status === 'IN_PROGRESS').length,
-      waitingTechnicalReview: reqs.filter((r) => r.status === 'WAITING_FOR_TECHNICAL_REVIEW').length,
-      waitingMediaReview: reqs.filter((r) => r.status === 'WAITING_FOR_MEDIA_REVIEW').length,
-      waitingClientConfirmation: reqs.filter((r) => r.status === 'WAITING_FOR_CLIENT_CONFIRMATION').length,
-      revisionRequested: reqs.filter((r) => r.status === 'CLIENT_REVISION_REQUESTED').length,
-      completedCount: reqs.filter((r) => r.status === 'COMPLETED').length,
-      cancelledCount: reqs.filter((r) => r.status === 'CANCELLED').length,
+      const records = u.attendanceRecords;
+      const presentCount = records.filter((r) => r.status === 'PRESENT' || r.status === 'LATE').length;
+      const attPct = records.length > 0 ? Math.round((presentCount / records.length) * 100) : 100;
+      deptMap[dName].totalAttendancePct += attPct;
+
+      const activeTasks = u.tasks.map((t) => t.task).filter((t) => t && t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+      const assignedHours = activeTasks.reduce((sum, t) => sum + (t.estimatedHours || 2.0), 0);
+      const capPct = Math.round((assignedHours / (u.employeeProfile?.dailyCapacityHours || 8.0)) * 100);
+      deptMap[dName].totalCapacityUtilization += capPct;
+    });
+
+    const departmentPerformanceReport = Object.values(deptMap).map((d) => ({
+      department: d.department,
+      headcount: d.headcount,
+      avgProductivityPercentage: Math.round(d.totalProductivity / d.headcount),
+      avgAttendancePercentage: Math.round(d.totalAttendancePct / d.headcount),
+      avgCapacityUtilizationPercentage: Math.round(d.totalCapacityUtilization / d.headcount),
+    }));
+
+    // 6. Employee Workload Report
+    const employeeWorkloadReport = users.map((u) => {
+      const activeTasks = u.tasks.map((t) => t.task).filter((t) => t && t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+      const dailyCapacityHours = u.employeeProfile?.dailyCapacityHours || 8.0;
+      const assignedHours = activeTasks.reduce((sum, t) => sum + (t.estimatedHours || 2.0), 0);
+      const weightedWorkloadHours = activeTasks.reduce((sum, t) => {
+        let mult = 1.0;
+        if (t.priority === 'CRITICAL') mult = 1.4;
+        else if (t.priority === 'HIGH') mult = 1.2;
+        return sum + (t.estimatedHours || 2.0) * mult;
+      }, 0);
+
+      const workloadPercentage = Math.round((weightedWorkloadHours / dailyCapacityHours) * 100);
+      let workloadStatus = 'Available';
+      if (u.status !== 'ACTIVE') workloadStatus = 'Offline';
+      else if (workloadPercentage > 100) workloadStatus = 'Overloaded';
+      else if (workloadPercentage >= 75 || activeTasks.length >= 3) workloadStatus = 'Busy';
+
+      return {
+        userId: u.id,
+        name: u.name,
+        designation: u.employeeProfile?.designation || 'Staff Member',
+        activeTaskCount: activeTasks.length,
+        assignedHours,
+        weightedWorkloadHours: Math.round(weightedWorkloadHours * 10) / 10,
+        workloadPercentage,
+        workloadStatus,
+      };
+    });
+
+    // 7. Output Performance Report
+    const totalDailyOutputs = users.reduce((sum, u) => {
+      const completedTasksToday = u.tasks.map((t) => t.task).filter((t) => t && t.status === 'COMPLETED' && new Date(t.updatedAt) >= todayStart).length;
+      return sum + completedTasksToday;
+    }, 0);
+    const totalDailyTargets = users.reduce((sum, u) => sum + (u.employeeProfile?.dailyTarget || 1.0), 0);
+
+    const outputPerformanceReport = {
+      totalEmployees: users.length,
+      totalDailyTargets,
+      totalDailyOutputs,
+      overallAchievementPercentage: totalDailyTargets > 0 ? Math.round((totalDailyOutputs / totalDailyTargets) * 100) : 0,
+      formulas,
     };
 
-    // 6. Revision Reports
-    const totalRevisions = reqs.reduce((acc, r) => acc + (r.revisionCount || 0), 0);
-    const zeroRevisions = reqs.filter((r) => (r.revisionCount || 0) === 0).length;
-    const oneToTwoRevisions = reqs.filter((r) => (r.revisionCount || 0) >= 1 && (r.revisionCount || 0) <= 2).length;
-    const threePlusRevisions = reqs.filter((r) => (r.revisionCount || 0) >= 3).length;
-    const pendingRevisions = reqs.filter((r) => r.status === 'CLIENT_REVISION_REQUESTED').length;
+    // Actionable Insights Engine for Media Manager Decision-Making
+    const overloadedEmployees = capacityUtilizationReport.filter((c) => c.isOverloaded);
+    const underutilizedEmployees = capacityUtilizationReport.filter((c) => c.capacityUtilizationPercentage < 50 && !c.isOverloaded);
+    const belowTargetEmployees = targetAchievementReport.filter((t) => t.targetStatus === 'Below Target');
+    const highPerformers = targetAchievementReport.filter((t) => t.targetStatus === 'Exceeded Target');
 
-    // Most revised requirements (top 5)
-    const topRevised = [...reqs]
-      .sort((a, b) => (b.revisionCount || 0) - (a.revisionCount || 0))
-      .slice(0, 5)
-      .map((r) => ({ id: r.requirementId, name: r.name, revisions: r.revisionCount || 0, type: r.requirementType }));
-
-    const revisionReports = {
-      totalRevisions,
-      avgRevisionsPerReq: reqs.length > 0 ? (totalRevisions / reqs.length).toFixed(2) : '0',
-      pendingRevisions,
-      distribution: { zeroRevisions, oneToTwoRevisions, threePlusRevisions },
-      topRevised,
-    };
-
-    // 7. Approval Reports
-    const approvalReports = {
-      productionCompleted: reqs.filter((r) => ['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(r.status)).length,
-      technicalApproved: reqs.filter((r) => r.technicalReviewApproved).length,
-      mediaManagerApproved: reqs.filter((r) => r.mediaManagerApproved).length,
-      clientConfirmed: reqs.filter((r) => r.clientConfirmed).length,
-      fullyApproved: reqs.filter((r) => r.technicalReviewApproved && r.mediaManagerApproved && r.clientConfirmed).length,
-      waitingTechnicalReview: reqs.filter((r) => r.status === 'WAITING_FOR_TECHNICAL_REVIEW').length,
-      waitingMediaReview: reqs.filter((r) => r.status === 'WAITING_FOR_MEDIA_REVIEW').length,
-      waitingClientConfirmation: reqs.filter((r) => r.status === 'WAITING_FOR_CLIENT_CONFIRMATION').length,
+    const actionableInsights = {
+      executiveSummary: `${overloadedEmployees.length} employee(s) exceed capacity, ${underutilizedEmployees.length} employee(s) have available bandwidth (<50% utilization), and ${belowTargetEmployees.length} employee(s) are below daily target.`,
+      recommendedActions: [
+        overloadedEmployees.length > 0
+          ? `Workload Redistribution: Reassign tasks from overloaded staff (${overloadedEmployees.map((e) => e.name).join(', ')}) to available staff (${underutilizedEmployees.map((e) => e.name).join(', ') || 'Available Pool'}).`
+          : 'Workload Balance: Operational capacity is currently balanced across all active staff.',
+        belowTargetEmployees.length > 0
+          ? `Target Support: Review resource allocation and daily targets for ${belowTargetEmployees.map((e) => e.name).join(', ')}.`
+          : 'Target Achievement: All active staff are meeting or exceeding daily production targets.',
+        highPerformers.length > 0
+          ? `High Performer Recognition: ${highPerformers.map((e) => e.name).join(', ')} exceeded production targets today.`
+          : 'Performance Baseline: Maintain current output velocity across teams.',
+      ],
+      overloadedCount: overloadedEmployees.length,
+      underutilizedCount: underutilizedEmployees.length,
+      belowTargetCount: belowTargetEmployees.length,
+      highPerformerCount: highPerformers.length,
     };
 
     return {
-      summary: {
-        total: reqs.length,
-        completed: reqs.filter((r) => r.status === 'COMPLETED').length,
-        inProgress: reqs.filter((r) => r.status === 'IN_PROGRESS').length,
-        totalRevisions,
+      actionableInsights,
+      employeeProductivityReport,
+      attendanceReport,
+      targetAchievementReport,
+      capacityUtilizationReport,
+      departmentPerformanceReport,
+      employeeWorkloadReport,
+      outputPerformanceReport,
+    };
+  }
+
+  async getBrandPerformanceReports() {
+    const [brands, clients, allProjects, allScripts, allGraphicReqs] = await Promise.all([
+      this.prisma.brand.findMany({ orderBy: { name: 'asc' } }),
+      this.prisma.client.findMany(),
+      this.prisma.shootProject.findMany({ include: { revisions: true } }),
+      this.prisma.script.findMany(),
+      this.prisma.graphicRequirement.findMany(),
+    ]);
+
+    const clientMap = new Map(clients.map((c) => [c.id, c]));
+
+    return brands.map((b) => {
+      const bProjects = allProjects.filter((p) => p.brandId === b.id);
+      const bScripts = allScripts.filter((s) => s.brandId === b.id);
+      const bGraphicReqs = allGraphicReqs.filter((g) => g.brandId === b.id);
+      const client = clientMap.get(b.clientId);
+
+      // 1. Total Projects
+      const totalProjects = bProjects.length;
+
+      // 2. Total Deliverables (Scripts + Graphic Requirements)
+      const totalScripts = bScripts.length;
+      const totalGraphicReqs = bGraphicReqs.length;
+      const totalDeliverables = totalScripts + totalGraphicReqs;
+
+      // 3. Total Outputs (Completed deliverables / files)
+      const completedScripts = bScripts.filter((s) => s.status === 'COMPLETED' || s.status === 'APPROVED').length;
+      const completedGraphicReqs = bGraphicReqs.filter((g) => g.status === 'COMPLETED' || g.status === 'APPROVED').length;
+      const completedProjects = bProjects.filter((p) => p.status === 'COMPLETED').length;
+      const totalOutputs = completedScripts + completedGraphicReqs + completedProjects;
+
+      // 4. Production Status Breakdown
+      const statusCounts: Record<string, number> = {
+        PLANNING: 0,
+        IN_PROGRESS: 0,
+        WAITING_FOR_REVIEW: 0,
+        COMPLETED: 0,
+      };
+      bProjects.forEach((p) => {
+        const st = p.status || 'PLANNING';
+        if (st.includes('WAITING') || st.includes('REVISION')) statusCounts.WAITING_FOR_REVIEW++;
+        else if (st === 'COMPLETED') statusCounts.COMPLETED++;
+        else if (st === 'IN_PROGRESS' || st.includes('SHOOT')) statusCounts.IN_PROGRESS++;
+        else statusCounts.PLANNING++;
+      });
+
+      // 5. Pending Deliverables
+      const pendingScripts = bScripts.filter((s) => s.status !== 'COMPLETED' && s.status !== 'APPROVED').length;
+      const pendingGraphicReqs = bGraphicReqs.filter((g) => g.status !== 'COMPLETED' && g.status !== 'APPROVED').length;
+      const pendingProjects = bProjects.filter((p) => p.status !== 'COMPLETED' && p.status !== 'CANCELLED').length;
+      const pendingDeliverables = pendingScripts + pendingGraphicReqs + pendingProjects;
+
+      // 6. Completion Rate Percentage
+      const grandTotalItems = totalProjects + totalDeliverables;
+      const completionRatePercentage = grandTotalItems > 0 ? Math.round((totalOutputs / grandTotalItems) * 100) : 100;
+
+      // 7. Revision Count
+      const projectRevisions = bProjects.reduce((sum, p) => sum + (p.revisionCount || p.revisions.length || 0), 0);
+      const graphicRevisions = bGraphicReqs.reduce((sum, g) => sum + (g.revisionCount || 0), 0);
+      const revisionCount = projectRevisions + graphicRevisions;
+
+      // 8. Average Delivery Time
+      const completedItems = [
+        ...bProjects.filter((p) => p.status === 'COMPLETED'),
+        ...bGraphicReqs.filter((g) => g.status === 'COMPLETED'),
+      ];
+
+      let avgDeliveryTimeHours = 0;
+      let avgDeliveryTimeFormatted = 'N/A';
+
+      if (completedItems.length > 0) {
+        const totalDurationMs = completedItems.reduce((sum, item) => {
+          const created = new Date(item.createdAt).getTime();
+          const updated = new Date(item.updatedAt).getTime();
+          return sum + Math.max(0, updated - created);
+        }, 0);
+        avgDeliveryTimeHours = Math.round((totalDurationMs / (1000 * 60 * 60 * completedItems.length)) * 10) / 10;
+        if (avgDeliveryTimeHours >= 24) {
+          avgDeliveryTimeFormatted = `${(avgDeliveryTimeHours / 24).toFixed(1)} days`;
+        } else {
+          avgDeliveryTimeFormatted = `${avgDeliveryTimeHours} hrs`;
+        }
+      }
+
+      return {
+        brandId: b.id,
+        brandName: b.name,
+        shortCode: b.shortCode,
+        clientName: client?.name || client?.companyName || 'N/A',
+        // 8 Mandatory Metrics:
+        totalProjects,
+        totalDeliverables,
+        totalOutputs,
+        productionStatus: statusCounts,
+        pendingDeliverables,
+        completionRatePercentage,
+        revisionCount,
+        avgDeliveryTimeFormatted,
+        avgDeliveryTimeHours,
+      };
+    });
+  }
+
+  async getClientPerformanceReports() {
+    const [clients, allProjects, allScripts, allGraphicReqs] = await Promise.all([
+      this.prisma.client.findMany({ orderBy: { name: 'asc' } }),
+      this.prisma.shootProject.findMany({ include: { revisions: true } }),
+      this.prisma.script.findMany(),
+      this.prisma.graphicRequirement.findMany(),
+    ]);
+
+    return clients.map((c) => {
+      const cProjects = allProjects.filter((p) => p.clientId === c.id);
+      const cScripts = allScripts.filter((s) => s.clientId === c.id);
+      const cGraphicReqs = allGraphicReqs.filter((g) => g.clientId === c.id);
+
+      // 1. Total Projects
+      const totalProjects = cProjects.length;
+
+      // 2. Total Deliverables (Scripts + Graphic Requirements)
+      const totalScripts = cScripts.length;
+      const totalGraphicReqs = cGraphicReqs.length;
+      const totalDeliverables = totalScripts + totalGraphicReqs;
+
+      // 3. Pending Approvals (Deliverables/Projects waiting for tech, media, or client review)
+      const pendingProjectsReview = cProjects.filter((p) => p.status?.includes('WAITING') || p.status?.includes('REVISION')).length;
+      const pendingScriptsReview = cScripts.filter((s) => s.status === 'PENDING' || s.status === 'IN_REVIEW').length;
+      const pendingGraphicReqsReview = cGraphicReqs.filter((g) => g.status === 'PENDING' || g.status === 'IN_REVIEW').length;
+      const pendingApprovals = pendingProjectsReview + pendingScriptsReview + pendingGraphicReqsReview;
+
+      // 4. Completed Projects
+      const completedProjects = cProjects.filter((p) => p.status === 'COMPLETED').length;
+
+      // 5. Average Project Duration
+      const finishedProjects = cProjects.filter((p) => p.status === 'COMPLETED');
+      let avgProjectDurationHours = 0;
+      let avgProjectDurationFormatted = 'N/A';
+
+      if (finishedProjects.length > 0) {
+        const totalDurationMs = finishedProjects.reduce((sum, p) => {
+          const created = new Date(p.createdAt).getTime();
+          const updated = new Date(p.updatedAt).getTime();
+          return sum + Math.max(0, updated - created);
+        }, 0);
+        avgProjectDurationHours = Math.round((totalDurationMs / (1000 * 60 * 60 * finishedProjects.length)) * 10) / 10;
+        if (avgProjectDurationHours >= 24) {
+          avgProjectDurationFormatted = `${(avgProjectDurationHours / 24).toFixed(1)} days`;
+        } else {
+          avgProjectDurationFormatted = `${avgProjectDurationHours} hrs`;
+        }
+      }
+
+      // 6. Revision Requests
+      const projectRevisions = cProjects.reduce((sum, p) => sum + (p.revisionCount || p.revisions?.length || 0), 0);
+      const graphicRevisions = cGraphicReqs.reduce((sum, g) => sum + (g.revisionCount || 0), 0);
+      const revisionRequests = projectRevisions + graphicRevisions;
+
+      // 7. Production Summary
+      const productionSummary: Record<string, number> = {
+        PLANNING: 0,
+        IN_PROGRESS: 0,
+        WAITING_FOR_REVIEW: 0,
+        COMPLETED: 0,
+      };
+      cProjects.forEach((p) => {
+        const st = p.status || 'PLANNING';
+        if (st.includes('WAITING') || st.includes('REVISION')) productionSummary.WAITING_FOR_REVIEW++;
+        else if (st === 'COMPLETED') productionSummary.COMPLETED++;
+        else if (st === 'IN_PROGRESS' || st.includes('SHOOT')) productionSummary.IN_PROGRESS++;
+        else productionSummary.PLANNING++;
+      });
+
+      return {
+        clientId: c.id,
+        clientName: c.name,
+        companyName: c.companyName,
+        email: c.email,
+        mobile: c.mobile,
+        status: c.status,
+        // 7 Mandatory Metrics:
+        totalProjects,
+        totalDeliverables,
+        pendingApprovals,
+        completedProjects,
+        avgProjectDurationFormatted,
+        avgProjectDurationHours,
+        revisionRequests,
+        productionSummary,
+      };
+    });
+  }
+
+  async getProductPerformanceReports() {
+    const [products, brands, allProjects, allScripts, allGraphicReqs] = await Promise.all([
+      this.prisma.product.findMany({ orderBy: { name: 'asc' } }),
+      this.prisma.brand.findMany(),
+      this.prisma.shootProject.findMany(),
+      this.prisma.script.findMany(),
+      this.prisma.graphicRequirement.findMany(),
+    ]);
+
+    const brandMap = new Map(brands.map((b) => [b.id, b]));
+
+    return products.map((p) => {
+      const pProjects = allProjects.filter((proj) => proj.productId === p.id);
+      const pScripts = allScripts.filter((s) => s.productId === p.id);
+      const pGraphicReqs = allGraphicReqs.filter((g) => g.productId === p.id);
+      const brand = brandMap.get(p.brandId);
+
+      // 1. Total Productions
+      const totalProductions = pProjects.length + pScripts.length + pGraphicReqs.length;
+
+      // 2. Videos
+      const videoGraphicReqs = pGraphicReqs.filter(
+        (g) => (g.requirementType || '').toUpperCase().includes('VIDEO') || (g.name || '').toUpperCase().includes('VIDEO')
+      ).length;
+      const videos = pProjects.length + pScripts.length + videoGraphicReqs;
+
+      // 3. Posters
+      const posters = pGraphicReqs.filter(
+        (g) => (g.requirementType || '').toUpperCase().includes('POSTER') || (g.name || '').toUpperCase().includes('POSTER')
+      ).length;
+
+      // 4. Carousels
+      const carousels = pGraphicReqs.filter(
+        (g) => (g.requirementType || '').toUpperCase().includes('CAROUSEL') || (g.name || '').toUpperCase().includes('CAROUSEL')
+      ).length;
+
+      // 5. Awareness Campaigns
+      const awarenessProjects = pProjects.filter((proj) => (proj.name || '').toUpperCase().includes('AWARENESS')).length;
+      const awarenessGraphics = pGraphicReqs.filter(
+        (g) => (g.objective || '').toUpperCase().includes('AWARENESS') || (g.name || '').toUpperCase().includes('AWARENESS')
+      ).length;
+      const awarenessCampaigns = awarenessProjects + awarenessGraphics;
+
+      // 6. Advertisement Campaigns
+      const adProjects = pProjects.filter(
+        (proj) => (proj.name || '').toUpperCase().includes('AD') || (proj.name || '').toUpperCase().includes('CAMPAIGN')
+      ).length;
+      const adGraphics = pGraphicReqs.filter(
+        (g) =>
+          (g.objective || '').toUpperCase().includes('AD') ||
+          (g.objective || '').toUpperCase().includes('PROMOTION') ||
+          (g.name || '').toUpperCase().includes('AD')
+      ).length;
+      const advertisementCampaigns = adProjects + adGraphics;
+
+      // 7. Pending Deliverables
+      const pendingProjects = pProjects.filter((proj) => proj.status !== 'COMPLETED').length;
+      const pendingScripts = pScripts.filter((s) => s.status !== 'COMPLETED' && s.status !== 'APPROVED').length;
+      const pendingGraphics = pGraphicReqs.filter((g) => g.status !== 'COMPLETED' && g.status !== 'APPROVED').length;
+      const pendingDeliverables = pendingProjects + pendingScripts + pendingGraphics;
+
+      // 8. Completed Deliverables
+      const completedProjects = pProjects.filter((proj) => proj.status === 'COMPLETED').length;
+      const completedScripts = pScripts.filter((s) => s.status === 'COMPLETED' || s.status === 'APPROVED').length;
+      const completedGraphics = pGraphicReqs.filter((g) => g.status === 'COMPLETED' || g.status === 'APPROVED').length;
+      const completedDeliverables = completedProjects + completedScripts + completedGraphics;
+
+      return {
+        productId: p.id,
+        productName: p.name,
+        productCode: p.productCode,
+        category: p.category || 'General',
+        status: p.status,
+        brandName: brand?.name || 'N/A',
+        // 8 Mandatory Metrics:
+        totalProductions,
+        videos,
+        posters,
+        carousels,
+        awarenessCampaigns,
+        advertisementCampaigns,
+        pendingDeliverables,
+        completedDeliverables,
+      };
+    });
+  }
+
+  async getDepartmentPerformanceReports() {
+    const [departments, employeeProfiles, tasks, deliverableUploads] = await Promise.all([
+      this.prisma.department.findMany({ orderBy: { name: 'asc' } }),
+      this.prisma.employeeProfile.findMany({ include: { user: true } }),
+      this.prisma.task.findMany({ include: { assignedEmployees: true } }),
+      this.prisma.taskDeliverableHistory.findMany(),
+    ]);
+
+    return departments.map((dept) => {
+      // Employees in department
+      const deptEmployees = employeeProfiles.filter((ep) => {
+        if (ep.departmentId === dept.id) return true;
+        if (ep.additionalDepartments) {
+          return ep.additionalDepartments.toLowerCase().includes(dept.name.toLowerCase());
+        }
+        return false;
+      });
+
+      const deptUserIds = new Set(deptEmployees.map((ep) => ep.userId));
+
+      // 1. Total Employees
+      const totalEmployees = deptEmployees.length;
+
+      // Tasks for department users
+      const deptTasks = tasks.filter((t) =>
+        t.assignedEmployees.some((a) => deptUserIds.has(a.userId))
+      );
+
+      // 2. Active Tasks
+      const activeTasks = deptTasks.filter(
+        (t) => t.status === 'IN_PROGRESS' || t.status === 'ASSIGNED' || t.status === 'IN_REVIEW'
+      ).length;
+
+      // 3. Completed Tasks
+      const completedTasks = deptTasks.filter((t) => t.status === 'COMPLETED').length;
+
+      // Deliverable Uploads by dept users
+      const deptUploads = deliverableUploads.filter((d) => deptUserIds.has(d.userId));
+
+      // 4. Total Outputs
+      const totalOutputs = Math.max(completedTasks, deptUploads.length);
+
+      // 5. Capacity Utilization
+      const totalDailyCapacityHours = deptEmployees.reduce((sum, ep) => sum + (ep.dailyCapacityHours || 8.0), 0);
+      const totalActiveTaskEstimatedHours = deptTasks
+        .filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED')
+        .reduce((sum, t) => sum + (t.estimatedHours || 2.0), 0);
+
+      const capacityUtilizationPercentage = totalDailyCapacityHours > 0
+        ? Math.round((totalActiveTaskEstimatedHours / totalDailyCapacityHours) * 100)
+        : 0;
+
+      // 6. Productivity %
+      const totalDailyTarget = deptEmployees.reduce((sum, ep) => sum + (ep.dailyTarget || 1.0), 0);
+      const productivityPercentage = totalDailyTarget > 0
+        ? Math.round((totalOutputs / totalDailyTarget) * 100)
+        : 100;
+
+      // 7. Pending Work
+      const pendingWork = deptTasks.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED').length;
+
+      return {
+        departmentId: dept.id,
+        departmentName: dept.name,
+        description: dept.description,
+        // 7 Mandatory Metrics:
+        totalEmployees,
+        activeTasks,
+        completedTasks,
+        totalOutputs,
+        capacityUtilizationPercentage,
+        productivityPercentage,
+        pendingWork,
+      };
+    });
+  }
+
+  async getProjectPerformanceReports() {
+    const projects = await this.prisma.shootProject.findMany({
+      include: {
+        client: true,
+        brand: true,
+        scripts: true,
+        graphicRequirements: true,
+        assignedTeam: { include: { user: { select: { id: true, name: true, role: true } } } },
+        equipmentReservations: { include: { equipment: true } },
+        equipmentMovements: { include: { equipment: true } },
+        approvals: true,
       },
-      employeeProductivity,
-      brandReports,
-      productReports,
-      typeReports,
-      capacityReports,
-      revisionReports,
-      approvalReports,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return projects.map((p) => {
+      // 1. Project Status
+      const projectStatus = p.status || 'PLANNED';
+
+      // 2. Completion Percentage
+      const completionPercentage = p.progressPercentage || 0;
+
+      // 3. Pending Scripts
+      const pendingScripts = p.scripts.filter(
+        (s) => s.status !== 'COMPLETED' && s.status !== 'APPROVED'
+      ).length;
+
+      // 4. Pending Graphics
+      const pendingGraphics = p.graphicRequirements.filter(
+        (g) => g.status !== 'COMPLETED' && g.status !== 'APPROVED'
+      ).length;
+
+      // 5. Pending Reviews
+      const pendingApprovalsCount = p.approvals.filter((a) => a.status === 'PENDING').length;
+      const pendingScriptReviews = p.scripts.filter(
+        (s) => s.status === 'PENDING' || s.status === 'IN_REVIEW'
+      ).length;
+      const pendingGraphicReviews = p.graphicRequirements.filter(
+        (g) => g.status === 'PENDING' || g.status === 'IN_REVIEW'
+      ).length;
+      const pendingReviews = pendingApprovalsCount + pendingScriptReviews + pendingGraphicReviews;
+
+      // 6. Equipment Used
+      const reservedNames = p.equipmentReservations.map((er) => er.equipment?.name).filter(Boolean);
+      const movementNames = p.equipmentMovements.map((em) => em.equipment?.name).filter(Boolean);
+      const uniqueEquipment = Array.from(new Set([...reservedNames, ...movementNames]));
+      const equipmentUsedCount = uniqueEquipment.length;
+      const equipmentUsedSummary = uniqueEquipment.length > 0 ? uniqueEquipment.slice(0, 3).join(', ') : 'None Reserved';
+
+      // 7. Assigned Employees
+      const assignedStaff = p.assignedTeam.map((at) => ({
+        id: at.user.id,
+        name: at.user.name,
+        role: at.user.role,
+        roleInProject: at.roleInProject,
+      }));
+      const assignedEmployeeNames = assignedStaff.map((s) => s.name).join(', ') || 'Unassigned';
+
+      // 8. Timeline Summary
+      const shootDateStr = p.shootDate ? new Date(p.shootDate).toLocaleDateString() : 'N/A';
+      const estimatedCompStr = p.estimatedCompletionDate ? new Date(p.estimatedCompletionDate).toLocaleDateString() : 'N/A';
+      const timelineSummary = `Shoot Date: ${shootDateStr} | Est. Completion: ${estimatedCompStr}`;
+
+      return {
+        projectId: p.id,
+        projectCode: p.projectId,
+        projectName: p.name,
+        brandName: p.brand?.name || 'N/A',
+        clientName: p.client?.name || 'N/A',
+        shootLocation: p.shootLocation,
+        shootType: p.shootType,
+
+        // 8 Mandatory Metrics:
+        projectStatus,
+        status: projectStatus,
+        completionPercentage,
+        progressPercentage: completionPercentage,
+        pendingScripts,
+        pendingGraphics,
+        pendingReviews,
+        equipmentUsedCount,
+        equipmentUsedSummary,
+        uniqueEquipment,
+        assignedEmployeesCount: assignedStaff.length,
+        assignedEmployeeNames,
+        assignedStaff,
+        timelineSummary,
+        shootDateStr,
+        estimatedCompStr,
+      };
+    });
+  }
+
+  async getAttendanceAnalyticsReport(period = 'monthly', startDateStr?: string, endDateStr?: string) {
+    const now = new Date();
+    let fromDate: Date;
+    let toDate: Date = new Date();
+
+    if (period === 'daily') {
+      fromDate = new Date(now);
+      fromDate.setHours(0, 0, 0, 0);
+    } else if (period === 'weekly') {
+      fromDate = new Date(now);
+      const day = fromDate.getDay();
+      const diff = fromDate.getDate() - day + (day === 0 ? -6 : 1);
+      fromDate.setDate(diff);
+      fromDate.setHours(0, 0, 0, 0);
+    } else if (period === 'custom' && startDateStr) {
+      fromDate = new Date(startDateStr);
+      if (endDateStr) toDate = new Date(endDateStr);
+      toDate.setHours(23, 59, 59, 999);
+    } else {
+      // monthly (default)
+      fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+
+    const [users, attendanceRecords] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { isArchived: false },
+        include: {
+          employeeProfile: { include: { department: true } },
+        },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.attendance.findMany({
+        where: {
+          date: {
+            gte: fromDate,
+            lte: toDate,
+          },
+        },
+      }),
+    ]);
+
+    const report = users.map((u) => {
+      const userRecords = attendanceRecords.filter((a) => a.userId === u.id);
+
+      // 1. Present Days
+      const presentDays = userRecords.filter((a) => a.status === 'PRESENT').length;
+
+      // 2. Absent Days
+      const absentDays = userRecords.filter((a) => a.status === 'ABSENT').length;
+
+      // 3. Half Days
+      const halfDays = userRecords.filter((a) => a.status === 'HALF_DAY').length;
+
+      // 4. Late Entries
+      const lateEntries = userRecords.filter((a) => a.status === 'LATE').length;
+
+      // 5. Attendance Percentage
+      const totalTrackedDays = presentDays + absentDays + halfDays + lateEntries;
+      const attendancePercentage = totalTrackedDays > 0
+        ? Math.round(((presentDays + lateEntries + halfDays * 0.5) / totalTrackedDays) * 100)
+        : 100;
+
+      return {
+        userId: u.id,
+        employeeName: u.name,
+        email: u.email,
+        designation: u.employeeProfile?.designation || 'Staff Member',
+        department: u.employeeProfile?.department?.name || 'General Operations',
+
+        // 5 Mandatory Attendance Metrics:
+        presentDays,
+        absentDays,
+        halfDays,
+        lateEntries,
+        attendancePercentage,
+        totalTrackedDays,
+      };
+    });
+
+    return {
+      period,
+      fromDate: fromDate.toISOString(),
+      toDate: toDate.toISOString(),
+      report,
+    };
+  }
+
+  async getEquipmentPerformanceReports() {
+    const equipments = await this.prisma.equipment.findMany({
+      include: {
+        categoryRef: true,
+        movements: {
+          include: {
+            user: { select: { id: true, name: true } },
+            project: { select: { id: true, name: true, projectId: true } },
+          },
+          orderBy: { timestamp: 'desc' },
+        },
+        damageReports: {
+          include: {
+            reportedBy: { select: { id: true, name: true } },
+          },
+          orderBy: { date: 'desc' },
+        },
+        reservations: {
+          include: {
+            project: { select: { id: true, name: true } },
+          },
+          orderBy: { startDate: 'desc' },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return equipments.map((eq) => {
+      // 1. Equipment Availability
+      const equipmentAvailabilityStatus = eq.availability || eq.status || 'AVAILABLE';
+
+      // 2. Equipment Utilization
+      const totalMovements = eq.movements.length;
+      const totalReservations = eq.reservations.length;
+      const utilizationFactor = totalMovements + totalReservations;
+      const equipmentUtilizationPercentage = Math.min(100, Math.round((utilizationFactor / 15) * 100));
+
+      // 3. Equipment Downtime
+      const openDamageReports = eq.damageReports.filter(
+        (d) => d.repairStatus === 'PENDING' || d.repairStatus === 'IN_REPAIR'
+      );
+      let equipmentDowntimeHours = openDamageReports.length * 24;
+      openDamageReports.forEach((d) => {
+        const daysInRepair = Math.max(1, Math.round((Date.now() - new Date(d.date).getTime()) / (1000 * 60 * 60 * 24)));
+        equipmentDowntimeHours += daysInRepair * 24;
+      });
+      const equipmentDowntimeFormatted = equipmentDowntimeHours > 0 ? `${equipmentDowntimeHours} hrs` : '0 hrs (Operational)';
+
+      // 4. Checkout History
+      const checkoutHistory = eq.movements
+        .filter((m) => m.action === 'ISSUED' || m.action === 'USED' || m.action === 'CHECKOUT')
+        .map((m) => ({
+          movementId: m.id,
+          action: m.action,
+          timestamp: m.timestamp.toISOString(),
+          userName: m.user?.name || 'Staff Member',
+          projectName: m.project?.name || 'Internal Shoot',
+          condition: m.condition || 'Good',
+          expectedReturnDate: m.expectedReturnDate ? m.expectedReturnDate.toISOString() : null,
+        }));
+
+      // 5. Maintenance History
+      const maintenanceHistory = eq.damageReports
+        .filter((d) => d.repairStatus === 'REPAIRED' || d.repairNotes || eq.maintenanceStatus !== 'OPERATIONAL')
+        .map((d) => ({
+          reportId: d.id,
+          date: d.date.toISOString(),
+          repairedAt: d.repairedAt ? d.repairedAt.toISOString() : null,
+          repairStatus: d.repairStatus,
+          repairNotes: d.repairNotes || 'Routine inspection / repair completed',
+          reportedByName: d.reportedBy?.name || 'Technical Manager',
+        }));
+
+      // 6. Damage History
+      const damageHistory = eq.damageReports.map((d) => ({
+        reportId: d.id,
+        date: d.date.toISOString(),
+        description: d.description,
+        severity: d.severity,
+        repairStatus: d.repairStatus,
+        repairNotes: d.repairNotes,
+        reportedByName: d.reportedBy?.name || 'Staff Member',
+      }));
+
+      return {
+        equipmentId: eq.id,
+        name: eq.name,
+        brand: eq.brand,
+        model: eq.model,
+        serialNumber: eq.serialNumber,
+        category: eq.categoryRef?.name || eq.category || 'General Equipment',
+        condition: eq.condition,
+        maintenanceStatus: eq.maintenanceStatus,
+        storageLocation: eq.storageLocation || 'Main Studio Store',
+
+        // 6 Mandatory Metrics / Sections:
+        equipmentAvailabilityStatus,
+        availability: equipmentAvailabilityStatus,
+        equipmentUtilizationPercentage,
+        equipmentDowntimeHours,
+        equipmentDowntimeFormatted,
+        checkoutHistoryCount: checkoutHistory.length,
+        checkoutHistory,
+        maintenanceHistoryCount: maintenanceHistory.length,
+        maintenanceHistory,
+        damageHistoryCount: damageHistory.length,
+        damageHistory,
+      };
+    });
+  }
+
+  async getApprovalPerformanceReports() {
+    const [approvals, clientConfirmations, revisions, scripts, graphicReqs, projects] = await Promise.all([
+      this.prisma.approval.findMany({
+        include: {
+          requestedBy: { select: { id: true, name: true } },
+          reviewer: { select: { id: true, name: true } },
+          project: { select: { id: true, name: true, projectId: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.clientConfirmation.findMany({
+        include: {
+          project: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.revision.findMany({
+        include: {
+          project: { select: { id: true, name: true } },
+        },
+        orderBy: { requestedAt: 'desc' },
+      }),
+      this.prisma.script.findMany(),
+      this.prisma.graphicRequirement.findMany(),
+      this.prisma.shootProject.findMany(),
+    ]);
+
+    // 1. Pending Technical Reviews
+    const pendingTechApprovals = approvals.filter(
+      (a) => a.approvalType === 'TECHNICAL_REVIEW' && a.status === 'PENDING'
+    ).length;
+    const pendingTechScripts = scripts.filter(
+      (s) => !s.technicalReviewApproved && s.status !== 'COMPLETED'
+    ).length;
+    const pendingTechGraphics = graphicReqs.filter(
+      (g) => !g.technicalReviewApproved && g.status !== 'COMPLETED'
+    ).length;
+    const pendingTechnicalReviews = pendingTechApprovals + pendingTechScripts + pendingTechGraphics;
+
+    // 2. Pending Media Reviews
+    const pendingMediaApprovals = approvals.filter(
+      (a) => a.approvalType === 'MEDIA_MANAGER_REVIEW' && a.status === 'PENDING'
+    ).length;
+    const pendingMediaScripts = scripts.filter(
+      (s) => s.technicalReviewApproved && !s.mediaManagerReviewApproved && s.status !== 'COMPLETED'
+    ).length;
+    const pendingMediaGraphics = graphicReqs.filter(
+      (g) => g.technicalReviewApproved && !g.mediaManagerApproved && g.status !== 'COMPLETED'
+    ).length;
+    const pendingMediaReviews = pendingMediaApprovals + pendingMediaScripts + pendingMediaGraphics;
+
+    // 3. Pending Client Confirmations
+    const pendingClientProjects = projects.filter(
+      (p) => p.status === 'POST_PRODUCTION' || p.status === 'WAITING_FOR_REVIEW'
+    ).length;
+    const pendingClientScripts = scripts.filter(
+      (s) => s.mediaManagerReviewApproved && !s.clientConfirmationRecorded && s.status !== 'COMPLETED'
+    ).length;
+    const pendingClientGraphics = graphicReqs.filter(
+      (g) => g.mediaManagerApproved && !g.clientConfirmed && g.status !== 'COMPLETED'
+    ).length;
+    const pendingClientConfirmations = pendingClientProjects + pendingClientScripts + pendingClientGraphics;
+
+    // 4. Average Approval Time
+    const reviewedApprovals = approvals.filter((a) => a.reviewedAt && a.createdAt);
+    let avgApprovalTimeHours = 0;
+    let avgApprovalTimeFormatted = 'N/A';
+
+    if (reviewedApprovals.length > 0) {
+      const totalDurationMs = reviewedApprovals.reduce((sum, a) => {
+        const created = new Date(a.createdAt).getTime();
+        const reviewed = new Date(a.reviewedAt!).getTime();
+        return sum + Math.max(0, reviewed - created);
+      }, 0);
+      avgApprovalTimeHours = Math.round((totalDurationMs / (1000 * 60 * 60 * reviewedApprovals.length)) * 10) / 10;
+      if (avgApprovalTimeHours >= 24) {
+        avgApprovalTimeFormatted = `${(avgApprovalTimeHours / 24).toFixed(1)} days`;
+      } else {
+        avgApprovalTimeFormatted = `${avgApprovalTimeHours} hrs`;
+      }
+    }
+
+    // 5. Approval Success Rate
+    const totalDecided = approvals.filter((a) => a.status !== 'PENDING').length;
+    const approvedCount = approvals.filter((a) => a.status === 'APPROVED').length;
+    const approvalSuccessRatePercentage = totalDecided > 0
+      ? Math.round((approvedCount / totalDecided) * 100)
+      : 100;
+
+    // 6. Revision Requests
+    const changesRequestedCount = approvals.filter(
+      (a) => a.status === 'CHANGES_REQUESTED' || a.status === 'REJECTED'
+    ).length;
+    const clientRevisionRequests = clientConfirmations.filter(
+      (c) => c.decision === 'REVISION_REQUESTED'
+    ).length;
+    const revisionRequests = revisions.length + changesRequestedCount + clientRevisionRequests;
+
+    return {
+      // 6 Mandatory Metrics:
+      pendingTechnicalReviews,
+      pendingMediaReviews,
+      pendingClientConfirmations,
+      avgApprovalTimeHours,
+      avgApprovalTimeFormatted,
+      approvalSuccessRatePercentage,
+      revisionRequests,
+
+      // Detail lists for UI drill-down:
+      recentApprovals: approvals.slice(0, 10),
+      recentClientConfirmations: clientConfirmations.slice(0, 10),
+      recentRevisions: revisions.slice(0, 10),
+    };
+  }
+
+  async getCapacityPerformanceReports() {
+    const users = await this.prisma.user.findMany({
+      where: { isArchived: false },
+      include: {
+        employeeProfile: { include: { department: true } },
+        tasks: {
+          include: {
+            task: true,
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    let totalDailyCapacity = 0;
+    let totalAssignedCapacity = 0;
+    const overloadedEmployeesList: any[] = [];
+    const underutilizedEmployeesList: any[] = [];
+
+    const employeeCapacityDetails = users.map((u) => {
+      const dailyCapacity = u.employeeProfile?.dailyTarget || 5; // Default 5 outputs/day
+      const activeTasks = u.tasks.filter(
+        (t) => t.task.status !== 'COMPLETED' && t.task.status !== 'CANCELLED'
+      );
+      const assignedCapacity = activeTasks.length;
+      const remainingCapacity = Math.max(0, dailyCapacity - assignedCapacity);
+      const utilizationRate = dailyCapacity > 0 ? Math.round((assignedCapacity / dailyCapacity) * 100) : 0;
+
+      const empData = {
+        userId: u.id,
+        employeeName: u.name,
+        email: u.email,
+        designation: u.employeeProfile?.designation || 'Staff Member',
+        department: u.employeeProfile?.department?.name || 'General Operations',
+        dailyCapacity,
+        assignedCapacity,
+        remainingCapacity,
+        utilizationRate,
+        isOverloaded: assignedCapacity > dailyCapacity,
+        isUnderutilized: utilizationRate < 60,
+      };
+
+      totalDailyCapacity += dailyCapacity;
+      totalAssignedCapacity += assignedCapacity;
+
+      if (empData.isOverloaded) {
+        overloadedEmployeesList.push(empData);
+      } else if (empData.isUnderutilized) {
+        underutilizedEmployeesList.push(empData);
+      }
+
+      return empData;
+    });
+
+    const totalRemainingCapacity = Math.max(0, totalDailyCapacity - totalAssignedCapacity);
+
+    return {
+      // 5 Mandatory Indicators:
+      dailyCapacity: totalDailyCapacity,
+      assignedCapacity: totalAssignedCapacity,
+      remainingCapacity: totalRemainingCapacity,
+      overloadedEmployeesCount: overloadedEmployeesList.length,
+      overloadedEmployees: overloadedEmployeesList,
+      underutilizedEmployeesCount: underutilizedEmployeesList.length,
+      underutilizedEmployees: underutilizedEmployeesList,
+
+      // Employee breakdown table:
+      employeeDetails: employeeCapacityDetails,
+    };
+  }
+
+  async getRevisionPerformanceReports() {
+    const [revisions, projects, brands, users, scripts, graphicReqs] = await Promise.all([
+      this.prisma.revision.findMany({
+        include: {
+          project: {
+            include: {
+              brand: true,
+              assignedTeam: { include: { user: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.shootProject.findMany({
+        include: {
+          brand: true,
+          assignedTeam: { include: { user: true } },
+          scripts: true,
+          graphicRequirements: true,
+        },
+      }),
+      this.prisma.brand.findMany(),
+      this.prisma.user.findMany({ where: { isArchived: false } }),
+      this.prisma.script.findMany({ include: { brand: true, project: true } }),
+      this.prisma.graphicRequirement.findMany({ include: { brand: true, project: true } }),
+    ]);
+
+    // 1. Total Revision Requests
+    const projectRevisionsCount = revisions.length;
+    const scriptRevisionsCount = scripts.reduce((sum, s) => sum + (s.revisionCount || 0), 0);
+    const graphicRevisionsCount = graphicReqs.reduce((sum, g) => sum + (g.revisionCount || 0), 0);
+    const totalRevisionRequests = projectRevisionsCount + scriptRevisionsCount + graphicRevisionsCount;
+
+    // 5. Average Revisions per Project
+    const totalProjects = Math.max(1, projects.length);
+    const avgRevisionsPerProject = Math.round((totalRevisionRequests / totalProjects) * 10) / 10;
+
+    // 3. Project Revision Count Breakdown
+    const projectRevisionBreakdown = projects.map((p) => {
+      const pRevs = revisions.filter((r) => r.projectId === p.id).length;
+      const sRevs = (p.scripts || []).reduce((sum, s) => sum + (s.revisionCount || 0), 0);
+      const gRevs = (p.graphicRequirements || []).reduce((sum, g) => sum + (g.revisionCount || 0), 0);
+      const totalProjectRevisions = pRevs + sRevs + gRevs;
+
+      return {
+        projectId: p.id,
+        projectCode: p.projectId,
+        projectName: p.name,
+        brandName: p.brand?.name || 'General Brand',
+        totalRevisions: totalProjectRevisions,
+        revisionDetails: { projectRevisions: pRevs, scriptRevisions: sRevs, graphicRevisions: gRevs },
+      };
+    }).sort((a, b) => b.totalRevisions - a.totalRevisions);
+
+    // 4. Brand Revision Count Breakdown
+    const brandRevisionBreakdown = brands.map((b) => {
+      const bProjects = projects.filter((p) => p.brandId === b.id);
+      const bProjectIds = new Set(bProjects.map((p) => p.id));
+      const bRevs = revisions.filter((r) => bProjectIds.has(r.projectId)).length;
+      const bScriptRevs = scripts.filter((s) => s.brandId === b.id).reduce((sum, s) => sum + (s.revisionCount || 0), 0);
+      const bGraphicRevs = graphicReqs.filter((g) => g.brandId === b.id).reduce((sum, g) => sum + (g.revisionCount || 0), 0);
+      const totalBrandRevisions = bRevs + bScriptRevs + bGraphicRevs;
+
+      return {
+        brandId: b.id,
+        brandName: b.name,
+        shortCode: b.shortCode,
+        totalProjects: bProjects.length,
+        totalRevisions: totalBrandRevisions,
+      };
+    }).sort((a, b) => b.totalRevisions - a.totalRevisions);
+
+    // 2. Employee Revision Count Breakdown
+    const employeeRevisionBreakdown = users.map((u) => {
+      const userRevisionsRequested = revisions.filter((r) => r.requestedBy === u.id || r.requestedBy === u.name).length;
+
+      // Assign employee revisions based on project team assignments
+      let userAssignedProjectRevisions = 0;
+      projects.forEach((p) => {
+        const isAssigned = (p.assignedTeam || []).some((t) => t.userId === u.id);
+        if (isAssigned) {
+          const pRevs = revisions.filter((r) => r.projectId === p.id).length;
+          const sRevs = (p.scripts || []).reduce((sum, s) => sum + (s.revisionCount || 0), 0);
+          const gRevs = (p.graphicRequirements || []).reduce((sum, g) => sum + (g.revisionCount || 0), 0);
+          userAssignedProjectRevisions += pRevs + sRevs + gRevs;
+        }
+      });
+
+      return {
+        userId: u.id,
+        employeeName: u.name,
+        userRevisionsRequested,
+        totalAssignedRevisions: userAssignedProjectRevisions,
+      };
+    }).sort((a, b) => b.totalAssignedRevisions - a.totalAssignedRevisions);
+
+    return {
+      // 5 Mandatory Indicators:
+      totalRevisionRequests,
+      employeeRevisionBreakdown,
+      projectRevisionBreakdown,
+      brandRevisionBreakdown,
+      avgRevisionsPerProject,
+
+      // Summary counts for UI badges:
+      totalProjects,
+      totalBrands: brands.length,
+      totalEmployees: users.length,
+    };
+  }
+
+  async getTimelinePerformanceReports() {
+    const [projects, approvals, equipmentMovements, activityLogs, taskTimelines, scriptTimelines] = await Promise.all([
+      this.prisma.shootProject.findMany({
+        include: {
+          client: true,
+          brand: true,
+          creator: true,
+          assignedTeam: { include: { user: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.approval.findMany({
+        include: {
+          requestedBy: { select: { id: true, name: true } },
+          reviewer: { select: { id: true, name: true } },
+          project: { select: { id: true, name: true, projectId: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.equipmentMovement.findMany({
+        include: {
+          equipment: { select: { id: true, name: true, serialNumber: true } },
+          user: { select: { id: true, name: true } },
+          project: { select: { id: true, name: true } },
+        },
+        orderBy: { timestamp: 'desc' },
+      }),
+      this.prisma.activityLog.findMany({
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 50,
+      }),
+      this.prisma.taskTimeline.findMany({
+        include: {
+          user: { select: { id: true, name: true } },
+          task: { select: { id: true, title: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+      this.prisma.scriptTimeline.findMany({
+        include: {
+          user: { select: { id: true, name: true } },
+          script: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+    ]);
+
+    // 1. Project History
+    const projectHistory = projects.map((p) => ({
+      projectId: p.id,
+      projectCode: p.projectId,
+      projectName: p.name,
+      clientName: p.client?.name || 'General Client',
+      brandName: p.brand?.name || 'General Brand',
+      creatorName: p.creator?.name || 'Media Manager',
+      status: p.status,
+      shootDate: p.shootDate ? p.shootDate.toISOString() : null,
+      shootLocation: p.shootLocation,
+      shootType: p.shootType,
+      estimatedCompletionDate: p.estimatedCompletionDate ? p.estimatedCompletionDate.toISOString() : null,
+      createdAt: p.createdAt.toISOString(),
+    }));
+
+    // 2. Status Changes
+    const statusChanges = [
+      ...taskTimelines.map((tt) => ({
+        id: tt.id,
+        type: 'TASK_STATUS_CHANGE',
+        title: `Task Status Update: ${tt.task?.title || 'Task'}`,
+        previousStatus: tt.previousStatus,
+        newStatus: tt.newStatus,
+        changedByName: tt.user?.name || 'Staff Member',
+        remarks: tt.remarks,
+        timestamp: tt.createdAt.toISOString(),
+      })),
+      ...scriptTimelines.map((st) => ({
+        id: st.id,
+        type: 'SCRIPT_STATUS_CHANGE',
+        title: `Script Status Update: ${st.script?.name || 'Script'}`,
+        previousStatus: st.previousStatus,
+        newStatus: st.newStatus,
+        changedByName: st.user?.name || 'Script Writer',
+        remarks: st.remarks,
+        timestamp: st.createdAt.toISOString(),
+      })),
+    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    // 3. Approval History
+    const approvalHistory = approvals.map((a) => ({
+      approvalId: a.id,
+      approvalType: a.approvalType,
+      entityType: a.entityType,
+      projectName: a.project?.name || 'General Project',
+      projectCode: a.project?.projectId || '',
+      requestedByName: a.requestedBy?.name || 'System User',
+      reviewerName: a.reviewer?.name || 'Pending Reviewer',
+      status: a.status,
+      remarks: a.remarks,
+      requestedAt: a.createdAt.toISOString(),
+      reviewedAt: a.reviewedAt ? a.reviewedAt.toISOString() : null,
+    }));
+
+    // 4. Equipment History
+    const equipmentHistory = equipmentMovements.map((m) => ({
+      movementId: m.id,
+      equipmentName: m.equipment?.name || 'Equipment Asset',
+      serialNumber: m.equipment?.serialNumber || '',
+      action: m.action,
+      handlerName: m.user?.name || 'Staff Member',
+      projectName: m.project?.name || 'Internal Production',
+      condition: m.condition || 'Good',
+      notes: m.notes,
+      timestamp: m.timestamp.toISOString(),
+    }));
+
+    // 5. Employee Activities
+    const employeeActivities = activityLogs.map((log) => ({
+      logId: log.id,
+      userName: log.user?.name || 'System User',
+      action: log.action,
+      entity: log.entity,
+      description: log.description,
+      metadata: log.metadata,
+      timestamp: log.timestamp.toISOString(),
+    }));
+
+    return {
+      // 5 Mandatory Summaries:
+      projectHistory,
+      statusChanges,
+      approvalHistory,
+      equipmentHistory,
+      employeeActivities,
+
+      // Summary counts for UI indicators:
+      totalProjectsLogged: projectHistory.length,
+      totalStatusChangesLogged: statusChanges.length,
+      totalApprovalsLogged: approvalHistory.length,
+      totalEquipmentMovementsLogged: equipmentHistory.length,
+      totalActivitiesLogged: employeeActivities.length,
     };
   }
 }

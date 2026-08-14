@@ -41,9 +41,11 @@ import {
 export default function DashboardPage() {
   const { user } = useAuth();
   const [data, setData] = useState<any>(null);
+  const [myDashboard, setMyDashboard] = useState<any>(null);
   const [capacity, setCapacity] = useState<any[]>([]);
   const [myTasks, setMyTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'PERSONAL' | 'SYSTEM'>('PERSONAL');
 
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
@@ -71,22 +73,20 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadDashboard() {
       try {
-        const [dashRes, capRes, tasksRes, annRes] = await Promise.all([
-          fetchApi('/reports/dashboard'),
-          fetchApi('/tasks/capacity/overview'),
-          fetchApi('/tasks'),
-          fetchApi('/communications/announcements'),
+        const [dashRes, myDashRes, capRes, tasksRes, annRes] = await Promise.all([
+          fetchApi('/reports/dashboard').catch(() => ({})),
+          fetchApi('/reports/my-dashboard').catch(() => null),
+          fetchApi('/tasks/capacity/overview').catch(() => []),
+          fetchApi('/tasks').catch(() => []),
+          fetchApi('/communications/announcements').catch(() => []),
         ]);
         setData(dashRes || {});
+        setMyDashboard(myDashRes);
         setCapacity(Array.isArray(capRes) ? capRes : []);
         setMyTasks(Array.isArray(tasksRes) ? tasksRes : []);
         setAnnouncements(Array.isArray(annRes) ? annRes : []);
       } catch (err) {
         console.error('Failed to load dashboard:', err);
-        setData({});
-        setCapacity([]);
-        setMyTasks([]);
-        setAnnouncements([]);
       } finally {
         setLoading(false);
       }
@@ -202,6 +202,36 @@ export default function DashboardPage() {
           >
             <Calendar className="w-4 h-4" /> Media Calendar
           </Link>
+        </div>
+      </div>
+
+      {/* Dashboard View Switcher */}
+      <div className="flex items-center justify-between bg-card border border-border p-2 rounded-xl">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveTab('PERSONAL')}
+            className={`px-4 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-2 ${
+              activeTab === 'PERSONAL'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+            }`}
+          >
+            <Users className="w-4 h-4 text-blue-300" /> My Personalized Assignment Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab('SYSTEM')}
+            className={`px-4 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-2 ${
+              activeTab === 'SYSTEM'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4 text-emerald-300" /> System Operations Overview
+          </button>
+        </div>
+
+        <div className="text-[11px] text-gray-400 font-mono hidden md:block">
+          Strictly scoped to your assignments ({user?.name})
         </div>
       </div>
 
@@ -356,14 +386,280 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ===== Operational Communication Command Center (6 Mandatory Sections) ===== */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-blue-400" /> Operational Communication Command Center
-          </h2>
-          <Link href="/communication" className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold">View Full Hub →</Link>
+      {/* ===== PERSONALIZED ASSIGNMENT DASHBOARD (10 MANDATORY WIDGETS) ===== */}
+      {activeTab === 'PERSONAL' && (
+        <div className="space-y-6">
+          {/* Workload Metric Header */}
+          {myDashboard?.currentWorkload && (
+            <div className="bg-gray-900 border border-blue-900/40 p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
+              <div className="space-y-1">
+                <div className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-blue-400" /> Current Workload & Daily Capacity Engine
+                </div>
+                <div className="text-xl font-extrabold text-white">
+                  {myDashboard.currentWorkload.workloadPercentage}% Workload Allocated
+                </div>
+                <p className="text-xs text-gray-400">
+                  Daily Working Capacity: <strong className="text-gray-200">{myDashboard.currentWorkload.dailyCapacityHours} Hours/day</strong> | Remaining Capacity: <strong className="text-emerald-400">{myDashboard.currentWorkload.remainingCapacityHours} Hours</strong>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase border ${
+                  myDashboard.currentWorkload.workloadStatus === 'Overloaded'
+                    ? 'bg-red-500/20 text-red-400 border-red-500/40'
+                    : myDashboard.currentWorkload.workloadStatus === 'Available'
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                    : 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                }`}>
+                  {myDashboard.currentWorkload.workloadStatus} Status
+                </span>
+                <Link href="/tasks" className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition-colors">
+                  Manage My Tasks →
+                </Link>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* 1. Today's Tasks */}
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
+                <span className="flex items-center gap-1.5 text-emerald-400"><CheckSquare className="w-4 h-4" /> 1. Today's Tasks</span>
+                <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+                  {myDashboard?.todaysTasks?.length || 0}
+                </span>
+              </h3>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {myDashboard?.todaysTasks?.length > 0 ? (
+                  myDashboard.todaysTasks.map((t: any) => (
+                    <div key={t.id} className="p-2.5 bg-gray-900 rounded-lg border border-gray-800 space-y-1">
+                      <div className="font-bold text-white text-xs">{t.title}</div>
+                      <div className="text-[10px] text-gray-400 flex items-center justify-between font-mono">
+                        <span>Code: {t.taskId}</span>
+                        <span className="text-amber-400 font-bold">{t.priority}</span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-gray-500 text-xs italic">No tasks scheduled for today</div>
+                )}
+              </div>
+            </div>
+
+            {/* 2. Pending Tasks */}
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
+                <span className="flex items-center gap-1.5 text-amber-400"><Clock className="w-4 h-4" /> 2. Pending Tasks</span>
+                <span className="bg-amber-500/20 text-amber-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+                  {myDashboard?.pendingTasks?.length || 0}
+                </span>
+              </h3>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {myDashboard?.pendingTasks?.length > 0 ? (
+                  myDashboard.pendingTasks.map((t: any) => (
+                    <div key={t.id} className="p-2.5 bg-gray-900 rounded-lg border border-gray-800 space-y-1">
+                      <div className="font-bold text-white text-xs">{t.title}</div>
+                      <div className="text-[10px] text-gray-400 flex items-center justify-between">
+                        <span className="text-purple-300 font-mono">{t.status}</span>
+                        <span className="text-gray-500">{new Date(t.dueDate).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-gray-500 text-xs italic">No active pending tasks</div>
+                )}
+              </div>
+            </div>
+
+            {/* 3. Upcoming Deadlines */}
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
+                <span className="flex items-center gap-1.5 text-red-400"><AlertTriangle className="w-4 h-4" /> 3. Upcoming Deadlines</span>
+                <span className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+                  {myDashboard?.upcomingDeadlines?.length || 0}
+                </span>
+              </h3>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {myDashboard?.upcomingDeadlines?.length > 0 ? (
+                  myDashboard.upcomingDeadlines.map((d: any) => (
+                    <div key={d.id} className="p-2.5 bg-gray-900 rounded-lg border border-gray-800 space-y-1">
+                      <div className="font-bold text-white text-xs flex items-center justify-between">
+                        <span>{d.title}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-950 text-red-300 border border-red-800 font-mono">{d.type}</span>
+                      </div>
+                      <div className="text-[10px] text-gray-400 flex items-center justify-between font-mono">
+                        <span>Due: {new Date(d.dueDate).toLocaleDateString()}</span>
+                        <span className="text-red-400 font-bold">{d.priority}</span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-gray-500 text-xs italic">No upcoming deadlines (7 days)</div>
+                )}
+              </div>
+            </div>
+
+            {/* 4. Current Projects */}
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
+                <span className="flex items-center gap-1.5 text-blue-400"><Film className="w-4 h-4" /> 4. Current Projects</span>
+                <span className="bg-blue-500/20 text-blue-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+                  {myDashboard?.currentProjects?.length || 0}
+                </span>
+              </h3>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {myDashboard?.currentProjects?.length > 0 ? (
+                  myDashboard.currentProjects.map((p: any) => (
+                    <Link key={p.id} href={`/projects/${p.id}`} className="block p-2.5 bg-gray-900 hover:bg-gray-800 rounded-lg border border-gray-800 transition-colors">
+                      <div className="font-bold text-white text-xs">{p.name}</div>
+                      <div className="text-[10px] text-gray-400 flex items-center justify-between font-mono mt-1">
+                        <span>ID: {p.projectId}</span>
+                        <span className="text-blue-400 font-bold">{p.status}</span>
+                      </div>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-gray-500 text-xs italic">No current project assignments</div>
+                )}
+              </div>
+            </div>
+
+            {/* 5. Assigned Scripts */}
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
+                <span className="flex items-center gap-1.5 text-purple-400"><FileText className="w-4 h-4" /> 5. Assigned Scripts</span>
+                <span className="bg-purple-500/20 text-purple-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+                  {myDashboard?.assignedScripts?.length || 0}
+                </span>
+              </h3>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {myDashboard?.assignedScripts?.length > 0 ? (
+                  myDashboard.assignedScripts.map((s: any) => (
+                    <Link key={s.id} href="/scripts" className="block p-2.5 bg-gray-900 hover:bg-gray-800 rounded-lg border border-gray-800 transition-colors">
+                      <div className="font-bold text-white text-xs">{s.name}</div>
+                      <div className="text-[10px] text-gray-400 flex items-center justify-between font-mono mt-1">
+                        <span>ID: {s.scriptId}</span>
+                        <span className="text-purple-300 font-semibold">{s.status}</span>
+                      </div>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-gray-500 text-xs italic">No script assignments</div>
+                )}
+              </div>
+            </div>
+
+            {/* 6. Assigned Graphic Requirements */}
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
+                <span className="flex items-center gap-1.5 text-pink-400"><Palette className="w-4 h-4" /> 6. Graphic Requirements</span>
+                <span className="bg-pink-500/20 text-pink-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+                  {myDashboard?.assignedGraphicRequirements?.length || 0}
+                </span>
+              </h3>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {myDashboard?.assignedGraphicRequirements?.length > 0 ? (
+                  myDashboard.assignedGraphicRequirements.map((g: any) => (
+                    <Link key={g.id} href="/graphic-reqs" className="block p-2.5 bg-gray-900 hover:bg-gray-800 rounded-lg border border-gray-800 transition-colors">
+                      <div className="font-bold text-white text-xs">{g.name}</div>
+                      <div className="text-[10px] text-gray-400 flex items-center justify-between font-mono mt-1">
+                        <span>Type: {g.requirementType}</span>
+                        <span className="text-pink-300 font-semibold">{g.status}</span>
+                      </div>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-gray-500 text-xs italic">No graphic requirement assignments</div>
+                )}
+              </div>
+            </div>
+
+            {/* 7. Recent Communications */}
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
+                <span className="flex items-center gap-1.5 text-cyan-400"><MessageSquare className="w-4 h-4" /> 7. Recent Communications</span>
+                <span className="bg-cyan-500/20 text-cyan-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+                  {myDashboard?.recentCommunications?.length || 0}
+                </span>
+              </h3>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {myDashboard?.recentCommunications?.length > 0 ? (
+                  myDashboard.recentCommunications.map((c: any) => (
+                    <div key={c.id} className="p-2.5 bg-gray-900 rounded-lg border border-gray-800 space-y-1">
+                      <div className="font-bold text-white text-xs flex items-center justify-between">
+                        <span>{c.sender?.name || 'System'}</span>
+                        <span className="text-[9px] text-gray-500">{new Date(c.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <p className="text-[11px] text-gray-300 truncate">{c.content}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-gray-500 text-xs italic">No recent messages</div>
+                )}
+              </div>
+            </div>
+
+            {/* 8. Notifications */}
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
+                <span className="flex items-center gap-1.5 text-yellow-400"><Bell className="w-4 h-4" /> 8. Notifications</span>
+                <span className="bg-yellow-500/20 text-yellow-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+                  {myDashboard?.notifications?.length || 0}
+                </span>
+              </h3>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {myDashboard?.notifications?.length > 0 ? (
+                  myDashboard.notifications.map((n: any) => (
+                    <div key={n.id} className="p-2.5 bg-gray-900 rounded-lg border border-gray-800 space-y-1">
+                      <div className="font-bold text-white text-xs">{n.title}</div>
+                      <div className="text-[11px] text-gray-400">{n.message}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-gray-500 text-xs italic">No unread notifications</div>
+                )}
+              </div>
+            </div>
+
+            {/* 9. Personal Calendar */}
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md lg:col-span-3">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
+                <span className="flex items-center gap-1.5 text-indigo-400"><Calendar className="w-4 h-4" /> 9. Personal Calendar & Shoot Schedules</span>
+                <Link href="/calendar" className="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold">
+                  Open Full Calendar →
+                </Link>
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+                {myDashboard?.personalCalendar?.length > 0 ? (
+                  myDashboard.personalCalendar.map((ev: any) => (
+                    <div key={ev.id} className="p-3 bg-gray-900 rounded-lg border border-gray-800 space-y-1">
+                      <div className="font-bold text-white text-xs">{ev.title}</div>
+                      <div className="text-[10px] text-indigo-300 font-mono font-semibold">
+                        {new Date(ev.startDate).toLocaleDateString()}
+                      </div>
+                      <div className="text-[10px] text-gray-400">{ev.description || ev.eventType}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="col-span-full p-4 text-center text-gray-500 text-xs italic">No personal calendar events scheduled</div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
+      )}
+
+      {/* ===== Operational Communication Command Center (System View) ===== */}
+      {(activeTab === 'SYSTEM' || !myDashboard) && (
+        <div className="space-y-6">
+          <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-blue-400" /> Operational Communication Command Center
+            </h2>
+            <Link href="/communication" className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold">View Full Hub →</Link>
+          </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 
@@ -541,64 +837,141 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-
         </div>
       </div>
-      {/* ===== End Operational Communication Command Center ===== */}
-
-      {/* Row 1: Key Operational Indicators (5 Core Metrics) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs">
-        {/* 1. Current Progress */}
-        <div className="bg-card border border-border p-5 rounded-xl space-y-2">
-          <div className="flex items-center justify-between text-gray-400 font-semibold uppercase tracking-wider text-[11px]">
-            <span>Current Progress</span>
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
+      {/* ===== EXECUTIVE DASHBOARD OVERALL OPERATIONAL SUMMARY (10 MANDATORY WIDGETS) ===== */}
+      <div className="space-y-4">
+        <div className="bg-gradient-to-r from-blue-950/60 via-purple-950/40 to-gray-900 border border-blue-900/40 p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+          <div className="space-y-1">
+            <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
+              <Building className="w-5 h-5 text-blue-400" /> Executive Operations Dashboard
+            </h2>
+            <p className="text-xs text-gray-400">
+              Real-time operational summary across projects, production targets, attendance, capacity, equipment, and audit history.
+            </p>
           </div>
-          <div className="text-2xl font-bold text-emerald-400">{data?.currentProgress || 0}%</div>
-          <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
-            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${data?.currentProgress || 0}%` }}></div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="px-3 py-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold font-mono">
+              ⚡ Live Operational Metrics
+            </span>
           </div>
-          <p className="text-[10px] text-gray-400">Avg active completion rate</p>
         </div>
 
-        {/* 2. Pending Tasks */}
-        <div className="bg-card border border-border p-5 rounded-xl space-y-2">
-          <div className="flex items-center justify-between text-gray-400 font-semibold uppercase tracking-wider text-[11px]">
-            <span>Pending Tasks</span>
-            <CheckSquare className="w-4 h-4 text-blue-400" />
+        {/* 10 Operational Metric Display Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 text-xs">
+          {/* 1. Total Active Projects */}
+          <div className="bg-card border border-border p-4 rounded-xl space-y-1.5 shadow-md">
+            <div className="flex items-center justify-between text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+              <span>Active Projects</span>
+              <Film className="w-4 h-4 text-blue-400" />
+            </div>
+            <div className="text-2xl font-extrabold text-white">{data?.totalActiveProjects || 0}</div>
+            <p className="text-[10px] text-blue-400 font-medium">In production pipeline</p>
           </div>
-          <div className="text-2xl font-bold text-blue-400">{data?.pendingTasks || 0}</div>
-          <p className="text-[10px] text-gray-400">Tasks in active pipeline</p>
-        </div>
 
-        {/* 3. Pending Scripts */}
-        <div className="bg-card border border-border p-5 rounded-xl space-y-2">
-          <div className="flex items-center justify-between text-gray-400 font-semibold uppercase tracking-wider text-[11px]">
-            <span>Pending Scripts</span>
-            <FileText className="w-4 h-4 text-purple-400" />
+          {/* 2. Total Completed Projects */}
+          <div className="bg-card border border-border p-4 rounded-xl space-y-1.5 shadow-md">
+            <div className="flex items-center justify-between text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+              <span>Completed Projects</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="text-2xl font-extrabold text-emerald-400">{data?.totalCompletedProjects || 0}</div>
+            <p className="text-[10px] text-emerald-400 font-medium">Fully delivered</p>
           </div>
-          <div className="text-2xl font-bold text-purple-400">{data?.pendingScripts || 0}</div>
-          <p className="text-[10px] text-gray-400">Scripts awaiting sign-off</p>
-        </div>
 
-        {/* 4. Pending Requirements */}
-        <div className="bg-card border border-border p-5 rounded-xl space-y-2">
-          <div className="flex items-center justify-between text-gray-400 font-semibold uppercase tracking-wider text-[11px]">
-            <span>Pending Reqs</span>
-            <Palette className="w-4 h-4 text-cyan-400" />
+          {/* 3. Pending Approvals */}
+          <div className="bg-card border border-border p-4 rounded-xl space-y-1.5 shadow-md">
+            <div className="flex items-center justify-between text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+              <span>Pending Approvals</span>
+              <Clock className="w-4 h-4 text-purple-400" />
+            </div>
+            <div className="text-2xl font-extrabold text-purple-400">{data?.pendingApprovals || 0}</div>
+            <p className="text-[10px] text-purple-400 font-medium">Scripts & reqs sign-off</p>
           </div>
-          <div className="text-2xl font-bold text-cyan-400">{data?.pendingRequirements || 0}</div>
-          <p className="text-[10px] text-gray-400">Graphics & design deliverables</p>
-        </div>
 
-        {/* 5. Pending Reviews */}
-        <div className="bg-card border border-border p-5 rounded-xl space-y-2">
-          <div className="flex items-center justify-between text-gray-400 font-semibold uppercase tracking-wider text-[11px]">
-            <span>Pending Reviews</span>
-            <Clock className="w-4 h-4 text-amber-400" />
+          {/* 4. Pending Client Confirmations */}
+          <div className="bg-card border border-border p-4 rounded-xl space-y-1.5 shadow-md">
+            <div className="flex items-center justify-between text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+              <span>Client Confirmations</span>
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="text-2xl font-extrabold text-amber-400">{data?.pendingClientConfirmations || 0}</div>
+            <p className="text-[10px] text-amber-400 font-medium">Awaiting feedback</p>
           </div>
-          <div className="text-2xl font-bold text-amber-400">{data?.pendingReviews || 0}</div>
-          <p className="text-[10px] text-gray-400">Tech & Media review queue</p>
+
+          {/* 5. Today's Production */}
+          <div className="bg-card border border-border p-4 rounded-xl space-y-1.5 shadow-md">
+            <div className="flex items-center justify-between text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+              <span>Today's Production</span>
+              <CheckSquare className="w-4 h-4 text-cyan-400" />
+            </div>
+            <div className="text-2xl font-extrabold text-cyan-400 font-mono">
+              {data?.todaysProduction?.actualOutput || 0} / {data?.todaysProduction?.targetOutput || 0}
+            </div>
+            <p className="text-[10px] text-cyan-400 font-medium">{data?.todaysProduction?.achievementPercentage || 0}% target rate</p>
+          </div>
+
+          {/* 6. Employee Attendance */}
+          <div className="bg-card border border-border p-4 rounded-xl space-y-1.5 shadow-md">
+            <div className="flex items-center justify-between text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+              <span>Attendance</span>
+              <Users className="w-4 h-4 text-pink-400" />
+            </div>
+            <div className="text-2xl font-extrabold text-pink-400 font-mono">
+              {data?.employeeAttendance?.attendancePercentage || 0}%
+            </div>
+            <p className="text-[10px] text-pink-400 font-medium">
+              {data?.employeeAttendance?.presentCount || 0} Present, {data?.employeeAttendance?.absentCount || 0} Absent
+            </p>
+          </div>
+
+          {/* 7. Overall Productivity */}
+          <div className="bg-card border border-border p-4 rounded-xl space-y-1.5 shadow-md">
+            <div className="flex items-center justify-between text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+              <span>Overall Productivity</span>
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="text-2xl font-extrabold text-emerald-400 font-mono">
+              {data?.overallProductivity || 0}%
+            </div>
+            <p className="text-[10px] text-emerald-400 font-medium">Daily output efficiency</p>
+          </div>
+
+          {/* 8. Equipment Availability */}
+          <div className="bg-card border border-border p-4 rounded-xl space-y-1.5 shadow-md">
+            <div className="flex items-center justify-between text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+              <span>Equipment</span>
+              <Camera className="w-4 h-4 text-cyan-400" />
+            </div>
+            <div className="text-2xl font-extrabold text-cyan-400 font-mono">
+              {data?.equipmentAvailability?.available || 0} / {data?.equipmentAvailability?.total || 0}
+            </div>
+            <p className="text-[10px] text-cyan-400 font-medium">{data?.equipmentAvailability?.availabilityPercentage || 0}% available</p>
+          </div>
+
+          {/* 9. Capacity Utilization */}
+          <div className="bg-card border border-border p-4 rounded-xl space-y-1.5 shadow-md">
+            <div className="flex items-center justify-between text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+              <span>Capacity Util.</span>
+              <Clock className="w-4 h-4 text-indigo-400" />
+            </div>
+            <div className="text-2xl font-extrabold text-indigo-400 font-mono">
+              {data?.capacityUtilization?.utilizationPercentage || 0}%
+            </div>
+            <p className="text-[10px] text-indigo-400 font-medium">{data?.capacityUtilization?.assignedHours || 0}h assigned</p>
+          </div>
+
+          {/* 10. Recent Activity Summary */}
+          <div className="bg-card border border-border p-4 rounded-xl space-y-1.5 shadow-md">
+            <div className="flex items-center justify-between text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+              <span>Recent Activity</span>
+              <Radio className="w-4 h-4 text-rose-400 animate-pulse" />
+            </div>
+            <div className="text-2xl font-extrabold text-rose-400 font-mono">
+              {data?.recentActivity?.length || 0} Events
+            </div>
+            <p className="text-[10px] text-rose-400 font-medium">Audit feed active</p>
+          </div>
         </div>
       </div>
 
@@ -1094,6 +1467,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      </div>
+      )}
     </div>
   );
 }

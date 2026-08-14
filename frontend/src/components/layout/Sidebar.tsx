@@ -46,7 +46,7 @@ const navItems: NavItem[] = [
   { name: 'Approvals', href: '/approvals', icon: CheckCircle2, roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'] },
   { name: 'Equipment', href: '/equipment', icon: Camera, roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'] },
   { name: 'Attendance', href: '/attendance', icon: UserCheck, roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'] },
-  { name: 'Staff', href: '/staff', icon: Users, roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'] },
+  { name: 'Staff', href: '/staff', icon: Users },
   { name: 'Communication', href: '/communication', icon: MessageSquare },
   { name: 'Reports', href: '/reports', icon: BarChart3, roles: ['MEDIA_MANAGER'] },
   { name: 'Activity Center', href: '/activity', icon: Activity, roles: ['MEDIA_MANAGER'] },

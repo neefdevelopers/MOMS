@@ -11,18 +11,23 @@ import { Role, AttendanceStatus } from '../../common/enums';
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
-  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER)
+  @Get('dashboard')
+  getDashboardSummary(@Query('month') month?: string) {
+    return this.attendanceService.getDashboardSummary(month);
+  }
+
   @Get()
   findAll(@Query('date') date?: string) {
     return this.attendanceService.findAll(date);
   }
 
+  // Business Rule: Attendance shall be recorded manually by the Media Manager. Employees shall not mark their own attendance.
   @Roles(Role.MEDIA_MANAGER)
   @Post()
   markAttendance(
     @Body() data: { userId: string; date: string; status: AttendanceStatus; remarks?: string },
-    @CurrentUser('id') managerUserId: string,
+    @CurrentUser() user: any,
   ) {
-    return this.attendanceService.markAttendance(data, managerUserId);
+    return this.attendanceService.markAttendance(data, user);
   }
 }

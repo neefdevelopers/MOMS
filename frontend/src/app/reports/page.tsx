@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import {
   BarChart3, TrendingUp, PieChart, Layers, ShieldCheck, Users, Building2, RotateCcw,
-  Palette, Tag, Zap, Package,
+  Palette, Tag, Zap, Package, CheckCircle2,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -14,20 +14,73 @@ export default function ReportsPage() {
   const [data, setData] = useState<any>(null);
   const [scriptAnalytics, setScriptAnalytics] = useState<any>(null);
   const [graphicAnalytics, setGraphicAnalytics] = useState<any>(null);
+  const [employeeReports, setEmployeeReports] = useState<any[]>([]);
+  const [brandReports, setBrandReports] = useState<any[]>([]);
+  const [clientReports, setClientReports] = useState<any[]>([]);
+  const [productReports, setProductReports] = useState<any[]>([]);
+  const [deptReports, setDeptReports] = useState<any[]>([]);
+  const [projectReports, setProjectReports] = useState<any[]>([]);
+  const [equipmentReports, setEquipmentReports] = useState<any[]>([]);
+  const [approvalReports, setApprovalReports] = useState<any>(null);
+  const [capacityReports, setCapacityReports] = useState<any>(null);
+  const [revisionReports, setRevisionReports] = useState<any>(null);
+  const [timelineReports, setTimelineReports] = useState<any>(null);
+  const [attendanceData, setAttendanceData] = useState<any>(null);
+  const [attendancePeriod, setAttendancePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('monthly');
+  const [attStartDate, setAttStartDate] = useState('');
+  const [attEndDate, setAttEndDate] = useState('');
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'scripts' | 'graphics'>('scripts');
+  const [activeTab, setActiveTab] = useState<'timelines' | 'revisions' | 'capacity' | 'approvals' | 'equipment' | 'attendance' | 'projects' | 'departments' | 'products' | 'clients' | 'brands' | 'employee' | 'scripts' | 'graphics'>('timelines');
+
+  const fetchAttendance = async (period: string, sDate?: string, eDate?: string) => {
+    try {
+      let url = `/reports/attendance-analytics?period=${period}`;
+      if (period === 'custom' && sDate) {
+        url += `&startDate=${sDate}`;
+        if (eDate) url += `&endDate=${eDate}`;
+      }
+      const res = await fetchApi(url);
+      setAttendanceData(res);
+    } catch (err) {
+      console.error('Error fetching attendance analytics:', err);
+    }
+  };
 
   useEffect(() => {
     async function load() {
       try {
-        const [resProd, resScript, resGraphic] = await Promise.all([
+        const [resProd, resScript, resGraphic, resEmp, resBrand, resClient, resProduct, resDept, resProjects, resAtt, resEq, resApp, resCap, resRev, resTime] = await Promise.all([
           fetchApi('/reports/production'),
           fetchApi('/reports/script-analytics'),
           fetchApi('/reports/graphic-analytics'),
+          fetchApi('/reports/productivity'),
+          fetchApi('/reports/brands'),
+          fetchApi('/reports/clients'),
+          fetchApi('/reports/products'),
+          fetchApi('/reports/departments'),
+          fetchApi('/reports/projects'),
+          fetchApi('/reports/attendance-analytics?period=monthly'),
+          fetchApi('/reports/equipment'),
+          fetchApi('/reports/approvals'),
+          fetchApi('/reports/capacity'),
+          fetchApi('/reports/revisions'),
+          fetchApi('/reports/timelines'),
         ]);
         setData(resProd);
         setScriptAnalytics(resScript);
         setGraphicAnalytics(resGraphic);
+        setEmployeeReports(Array.isArray(resEmp) ? resEmp : []);
+        setBrandReports(Array.isArray(resBrand) ? resBrand : []);
+        setClientReports(Array.isArray(resClient) ? resClient : []);
+        setProductReports(Array.isArray(resProduct) ? resProduct : []);
+        setDeptReports(Array.isArray(resDept) ? resDept : []);
+        setProjectReports(Array.isArray(resProjects) ? resProjects : []);
+        setAttendanceData(resAtt);
+        setEquipmentReports(Array.isArray(resEq) ? resEq : []);
+        setApprovalReports(resApp);
+        setCapacityReports(resCap);
+        setRevisionReports(resRev);
+        setTimelineReports(resTime);
       } catch (err) {
         console.error(err);
       } finally {
@@ -40,6 +93,10 @@ export default function ReportsPage() {
   if (loading) return <div className="p-8 text-center text-gray-400">Loading Operational Reports...</div>;
 
   const gr = graphicAnalytics;
+  const app = approvalReports;
+  const cap = capacityReports;
+  const rev = revisionReports;
+  const time = timelineReports;
   const typeChartData = (gr?.typeReports || []).map((t: any, i: number) => ({
     name: t.type,
     total: t.totalReqs,
@@ -53,32 +110,104 @@ export default function ReportsPage() {
       <div className="bg-card border border-border p-6 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-blue-400" /> Operational Analytics Reports
+            <BarChart3 className="w-5 h-5 text-blue-400" /> Timeline, Revision &amp; Operational Analytics
           </h1>
-          <p className="text-xs text-gray-400 mt-1">Comprehensive performance analytics — Scripts &amp; Graphic Requirements</p>
+          <p className="text-xs text-gray-400 mt-1">Project history, status changes, approval logs, equipment movements, employee activities</p>
         </div>
         <div className="flex gap-3 flex-wrap">
           <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-center">
-            <div className="text-[10px] text-gray-500 uppercase font-bold">Graphic Reqs</div>
-            <div className="text-lg font-mono font-bold text-amber-400">{gr?.summary?.total || 0}</div>
+            <div className="text-[10px] text-gray-500 uppercase font-bold">Projects Logged</div>
+            <div className="text-lg font-mono font-bold text-blue-400">{time?.totalProjectsLogged || 0}</div>
           </div>
           <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-center">
-            <div className="text-[10px] text-gray-500 uppercase font-bold">Completed</div>
-            <div className="text-lg font-mono font-bold text-emerald-400">{gr?.summary?.completed || 0}</div>
+            <div className="text-[10px] text-gray-500 uppercase font-bold">Status Changes</div>
+            <div className="text-lg font-mono font-bold text-purple-400">{time?.totalStatusChangesLogged || 0}</div>
           </div>
           <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-center">
-            <div className="text-[10px] text-gray-500 uppercase font-bold">In Progress</div>
-            <div className="text-lg font-mono font-bold text-yellow-400">{gr?.summary?.inProgress || 0}</div>
+            <div className="text-[10px] text-gray-500 uppercase font-bold">Approvals Logged</div>
+            <div className="text-lg font-mono font-bold text-amber-400">{time?.totalApprovalsLogged || 0}</div>
           </div>
           <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-center">
-            <div className="text-[10px] text-gray-500 uppercase font-bold">Revisions</div>
-            <div className="text-lg font-mono font-bold text-red-400">{gr?.summary?.totalRevisions || 0}</div>
+            <div className="text-[10px] text-gray-500 uppercase font-bold">Activities Logged</div>
+            <div className="text-lg font-mono font-bold text-emerald-400">{time?.totalActivitiesLogged || 0}</div>
           </div>
         </div>
       </div>
 
       {/* Tab Switcher */}
-      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit">
+      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit flex-wrap">
+        <button
+          onClick={() => setActiveTab('timelines')}
+          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'timelines' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+        >
+          <BarChart3 className="w-3.5 h-3.5" /> Timeline Reports
+        </button>
+        <button
+          onClick={() => setActiveTab('revisions')}
+          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'revisions' ? 'bg-rose-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+        >
+          <RotateCcw className="w-3.5 h-3.5" /> Revision Reports
+        </button>
+        <button
+          onClick={() => setActiveTab('capacity')}
+          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'capacity' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+        >
+          <TrendingUp className="w-3.5 h-3.5" /> Capacity Reports
+        </button>
+        <button
+          onClick={() => setActiveTab('approvals')}
+          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'approvals' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+        >
+          <CheckCircle2 className="w-3.5 h-3.5" /> Approval Reports
+        </button>
+        <button
+          onClick={() => setActiveTab('equipment')}
+          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'equipment' ? 'bg-cyan-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+        >
+          <Zap className="w-3.5 h-3.5" /> Equipment Reports
+        </button>
+        <button
+          onClick={() => setActiveTab('attendance')}
+          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'attendance' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5" /> Attendance Reports
+        </button>
+        <button
+          onClick={() => setActiveTab('projects')}
+          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'projects' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+        >
+          <Layers className="w-3.5 h-3.5" /> Project Reports
+        </button>
+        <button
+          onClick={() => setActiveTab('departments')}
+          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'departments' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+        >
+          <Building2 className="w-3.5 h-3.5" /> Department Reports
+        </button>
+        <button
+          onClick={() => setActiveTab('products')}
+          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'products' ? 'bg-rose-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+        >
+          <Package className="w-3.5 h-3.5" /> Product Reports
+        </button>
+        <button
+          onClick={() => setActiveTab('clients')}
+          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'clients' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+        >
+          <Building2 className="w-3.5 h-3.5" /> Client Reports
+        </button>
+        <button
+          onClick={() => setActiveTab('brands')}
+          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'brands' ? 'bg-cyan-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+        >
+          <Tag className="w-3.5 h-3.5" /> Brand Performance Reports
+        </button>
+        <button
+          onClick={() => setActiveTab('employee')}
+          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'employee' ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
+        >
+          <Users className="w-3.5 h-3.5" /> Employee Performance
+        </button>
         <button
           onClick={() => setActiveTab('scripts')}
           className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'scripts' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
@@ -92,6 +221,1083 @@ export default function ReportsPage() {
           <Palette className="w-3.5 h-3.5" /> Graphic Req Analytics
         </button>
       </div>
+
+      {/* REVISION PERFORMANCE REPORTS TAB */}
+      {activeTab === 'revisions' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-6 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <RotateCcw className="w-4 h-4 text-rose-400" /> Operational Rework &amp; Revision Analytics Matrix
+            </h2>
+            <span className="text-[11px] text-rose-300 font-mono font-bold">
+              5 Mandatory Revision Indicators Enforced
+            </span>
+          </div>
+
+          {/* 5 Mandatory Indicators Summary Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {/* 1. Total Revision Requests */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">1. Total Revision Requests</div>
+              <div className="text-xl font-mono font-bold text-rose-400">{rev?.totalRevisionRequests || 0}</div>
+              <p className="text-[9px] text-gray-400">Total project, script &amp; graphic reworks</p>
+            </div>
+
+            {/* 2. Employee Revision Count */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">2. Staff Tracked</div>
+              <div className="text-xl font-mono font-bold text-purple-400">{rev?.totalEmployees || 0} Staff</div>
+              <p className="text-[9px] text-gray-400">Employee revision distribution</p>
+            </div>
+
+            {/* 3. Project Revision Count */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">3. Projects Reworked</div>
+              <div className="text-xl font-mono font-bold text-blue-400">{rev?.totalProjects || 0} Projects</div>
+              <p className="text-[9px] text-gray-400">Project revision counts</p>
+            </div>
+
+            {/* 4. Brand Revision Count */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">4. Brands Tracked</div>
+              <div className="text-xl font-mono font-bold text-cyan-400">{rev?.totalBrands || 0} Brands</div>
+              <p className="text-[9px] text-gray-400">Brand revision counts</p>
+            </div>
+
+            {/* 5. Average Revisions per Project */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">5. Avg / Project</div>
+              <div className="text-xl font-mono font-bold text-amber-400">{rev?.avgRevisionsPerProject || 0}</div>
+              <p className="text-[9px] text-gray-400">Average revisions per project</p>
+            </div>
+          </div>
+
+          {/* Breakdown Tables Grid: Project Revision Count & Brand Revision Count */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 3. Project Revision Count Table */}
+            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3">
+              <h3 className="text-xs font-bold text-white flex items-center gap-2">
+                <Layers className="w-3.5 h-3.5 text-blue-400" /> Project Revision Breakdown
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                      <th className="p-2">Project</th>
+                      <th className="p-2">Brand</th>
+                      <th className="p-2 text-center">Total Revisions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800/60 font-medium">
+                    {!rev?.projectRevisionBreakdown || rev.projectRevisionBreakdown.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="p-4 text-center text-gray-500 italic">No project revision data available.</td>
+                      </tr>
+                    ) : (
+                      rev.projectRevisionBreakdown.slice(0, 10).map((p: any) => (
+                        <tr key={p.projectId} className="hover:bg-gray-900/50">
+                          <td className="p-2 font-bold text-white">
+                            <span className="text-blue-400">{p.projectName}</span>
+                            <span className="text-[10px] text-gray-500 ml-1">[{p.projectCode}]</span>
+                          </td>
+                          <td className="p-2 text-gray-400">{p.brandName}</td>
+                          <td className="p-2 text-center font-mono font-bold text-rose-400">{p.totalRevisions}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 4. Brand Revision Count Table */}
+            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3">
+              <h3 className="text-xs font-bold text-white flex items-center gap-2">
+                <Tag className="w-3.5 h-3.5 text-cyan-400" /> Brand Revision Breakdown
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                      <th className="p-2">Brand Name</th>
+                      <th className="p-2 text-center">Projects</th>
+                      <th className="p-2 text-center">Total Revisions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800/60 font-medium">
+                    {!rev?.brandRevisionBreakdown || rev.brandRevisionBreakdown.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="p-4 text-center text-gray-500 italic">No brand revision data available.</td>
+                      </tr>
+                    ) : (
+                      rev.brandRevisionBreakdown.slice(0, 10).map((b: any) => (
+                        <tr key={b.brandId} className="hover:bg-gray-900/50">
+                          <td className="p-2 font-bold text-white">
+                            <span className="text-cyan-300">{b.brandName}</span>
+                            <span className="text-[10px] text-gray-500 ml-1">({b.shortCode})</span>
+                          </td>
+                          <td className="p-2 text-center font-mono text-gray-300">{b.totalProjects}</td>
+                          <td className="p-2 text-center font-mono font-bold text-amber-400">{b.totalRevisions}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CAPACITY PERFORMANCE REPORTS TAB */}
+      {activeTab === 'capacity' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-6 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-indigo-400" /> Operational Workload Capacity &amp; Resource Utilization Matrix
+            </h2>
+            <span className="text-[11px] text-indigo-300 font-mono font-bold">
+              5 Mandatory Capacity Indicators Enforced
+            </span>
+          </div>
+
+          {/* 5 Mandatory Indicators Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {/* 1. Daily Capacity */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">1. Daily Capacity</div>
+              <div className="text-xl font-mono font-bold text-indigo-400">{cap?.dailyCapacity || 0} pts</div>
+              <p className="text-[9px] text-gray-400">Total daily output target</p>
+            </div>
+
+            {/* 2. Assigned Capacity */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">2. Assigned Capacity</div>
+              <div className="text-xl font-mono font-bold text-blue-400">{cap?.assignedCapacity || 0} pts</div>
+              <p className="text-[9px] text-gray-400">Allocated active workload</p>
+            </div>
+
+            {/* 3. Remaining Capacity */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">3. Remaining Capacity</div>
+              <div className="text-xl font-mono font-bold text-emerald-400">{cap?.remainingCapacity || 0} pts</div>
+              <p className="text-[9px] text-gray-400">Unallocated available capacity</p>
+            </div>
+
+            {/* 4. Overloaded Employees */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">4. Overloaded Staff</div>
+              <div className="text-xl font-mono font-bold text-rose-400">{cap?.overloadedEmployeesCount || 0} Staff</div>
+              <p className="text-[9px] text-gray-400">Workload &gt; 100% capacity</p>
+            </div>
+
+            {/* 5. Underutilized Employees */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">5. Underutilized Staff</div>
+              <div className="text-xl font-mono font-bold text-amber-400">{cap?.underutilizedEmployeesCount || 0} Staff</div>
+              <p className="text-[9px] text-gray-400">Workload &lt; 60% capacity</p>
+            </div>
+          </div>
+
+          {/* Employee Capacity Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                  <th className="p-3">Employee Name</th>
+                  <th className="p-3 text-center">Daily Capacity Target</th>
+                  <th className="p-3 text-center">Assigned Capacity</th>
+                  <th className="p-3 text-center">Remaining Capacity</th>
+                  <th className="p-3 text-center">Capacity Utilization %</th>
+                  <th className="p-3 text-center">Workload Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/60 font-medium">
+                {!cap?.employeeDetails || cap.employeeDetails.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-6 text-center text-gray-500 italic">No capacity records available.</td>
+                  </tr>
+                ) : (
+                  cap.employeeDetails.map((emp: any) => (
+                    <tr key={emp.userId} className="hover:bg-gray-900/50 transition-colors">
+                      <td className="p-3 font-bold text-white">
+                        <div>{emp.employeeName}</div>
+                        <div className="text-[10px] text-gray-400 font-normal">{emp.designation} • {emp.department}</div>
+                      </td>
+
+                      {/* 1. Daily Capacity */}
+                      <td className="p-3 text-center font-mono font-bold text-indigo-300">{emp.dailyCapacity} pts</td>
+
+                      {/* 2. Assigned Capacity */}
+                      <td className="p-3 text-center font-mono font-bold text-blue-400">{emp.assignedCapacity} pts</td>
+
+                      {/* 3. Remaining Capacity */}
+                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{emp.remainingCapacity} pts</td>
+
+                      {/* Utilization % */}
+                      <td className="p-3 text-center font-mono font-bold">
+                        <div className="flex flex-col items-center gap-1">
+                          <span>{emp.utilizationRate}%</span>
+                          <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                emp.isOverloaded ? 'bg-rose-500' : emp.isUnderutilized ? 'bg-amber-500' : 'bg-emerald-500'
+                              }`}
+                              style={{ width: `${Math.min(100, emp.utilizationRate)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* 4 & 5. Overloaded / Underutilized Status */}
+                      <td className="p-3 text-center">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          emp.isOverloaded
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                            : emp.isUnderutilized
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        }`}>
+                          {emp.isOverloaded ? 'OVERLOADED' : emp.isUnderutilized ? 'UNDERUTILIZED' : 'BALANCED'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* APPROVAL PERFORMANCE REPORTS TAB */}
+      {activeTab === 'approvals' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-6 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-amber-400" /> Operational Approvals &amp; Quality Governance Matrix
+            </h2>
+            <span className="text-[11px] text-amber-300 font-mono font-bold">
+              6 Mandatory Approval Indicators Enforced
+            </span>
+          </div>
+
+          {/* 6 Mandatory Indicator Cards Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {/* 1. Pending Technical Reviews */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">Pending Tech Reviews</div>
+              <div className="text-xl font-mono font-bold text-amber-400">{app?.pendingTechnicalReviews || 0}</div>
+              <p className="text-[9px] text-gray-400">Technical manager queue</p>
+            </div>
+
+            {/* 2. Pending Media Reviews */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">Pending Media Reviews</div>
+              <div className="text-xl font-mono font-bold text-purple-400">{app?.pendingMediaReviews || 0}</div>
+              <p className="text-[9px] text-gray-400">Media manager queue</p>
+            </div>
+
+            {/* 3. Pending Client Confirmations */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">Pending Client Confirm</div>
+              <div className="text-xl font-mono font-bold text-emerald-400">{app?.pendingClientConfirmations || 0}</div>
+              <p className="text-[9px] text-gray-400">Deliverables awaiting client</p>
+            </div>
+
+            {/* 4. Average Approval Time */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">Avg Approval Time</div>
+              <div className="text-xl font-mono font-bold text-cyan-300">{app?.avgApprovalTimeFormatted || 'N/A'}</div>
+              <p className="text-[9px] text-gray-400">Request to decision duration</p>
+            </div>
+
+            {/* 5. Approval Success Rate */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">Approval Success Rate</div>
+              <div className="text-xl font-mono font-bold text-emerald-400">{app?.approvalSuccessRatePercentage || 100}%</div>
+              <p className="text-[9px] text-gray-400">Approved vs total decided</p>
+            </div>
+
+            {/* 6. Revision Requests */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-gray-500 uppercase font-bold">Revision Requests</div>
+              <div className="text-xl font-mono font-bold text-rose-400">{app?.revisionRequests || 0}</div>
+              <p className="text-[9px] text-gray-400">Rejections &amp; modifications</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EQUIPMENT PERFORMANCE REPORTS TAB */}
+      {activeTab === 'equipment' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Zap className="w-4 h-4 text-cyan-400" /> Equipment Asset Performance, History &amp; Utilization Matrix
+            </h2>
+            <span className="text-[11px] text-cyan-300 font-mono font-bold">
+              6 Mandatory Equipment Indicators Enforced
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                  <th className="p-3">Equipment Name &amp; Category</th>
+                  <th className="p-3">Equipment Availability</th>
+                  <th className="p-3 text-center">Equipment Utilization</th>
+                  <th className="p-3 text-center">Equipment Downtime</th>
+                  <th className="p-3 text-center">Checkout History</th>
+                  <th className="p-3 text-center">Maintenance History</th>
+                  <th className="p-3 text-center">Damage History</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/60 font-medium">
+                {equipmentReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-6 text-center text-gray-500 italic">No equipment performance records available.</td>
+                  </tr>
+                ) : (
+                  equipmentReports.map((eq) => (
+                    <tr key={eq.equipmentId} className="hover:bg-gray-900/50 transition-colors">
+                      {/* Equipment Name & Category */}
+                      <td className="p-3 font-bold text-white">
+                        <div className="text-cyan-400 font-bold flex items-center gap-1.5">
+                          {eq.name}
+                          <span className="text-[10px] text-gray-500 font-mono">[{eq.serialNumber}]</span>
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-normal">{eq.brand} {eq.model} • Category: {eq.category}</div>
+                      </td>
+
+                      {/* 1. Equipment Availability */}
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          eq.equipmentAvailabilityStatus === 'AVAILABLE'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            : eq.equipmentAvailabilityStatus === 'ISSUED' || eq.equipmentAvailabilityStatus === 'RESERVED'
+                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                            : eq.equipmentAvailabilityStatus === 'MAINTENANCE' || eq.equipmentAvailabilityStatus === 'DAMAGED'
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                            : 'bg-gray-800 text-gray-400'
+                        }`}>
+                          {eq.equipmentAvailabilityStatus}
+                        </span>
+                      </td>
+
+                      {/* 2. Equipment Utilization */}
+                      <td className="p-3 text-center font-mono font-bold">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-cyan-300">{eq.equipmentUtilizationPercentage}%</span>
+                          <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${eq.equipmentUtilizationPercentage}%` }}></div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* 3. Equipment Downtime */}
+                      <td className="p-3 text-center font-mono font-bold text-indigo-300">
+                        {eq.equipmentDowntimeFormatted}
+                      </td>
+
+                      {/* 4. Checkout History */}
+                      <td className="p-3 text-center font-mono font-bold">
+                        <span className="px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800 text-[11px]">
+                          {eq.checkoutHistoryCount} Checkouts
+                        </span>
+                      </td>
+
+                      {/* 5. Maintenance History */}
+                      <td className="p-3 text-center font-mono font-bold">
+                        <span className="px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 text-[11px]">
+                          {eq.maintenanceHistoryCount} Records
+                        </span>
+                      </td>
+
+                      {/* 6. Damage History */}
+                      <td className="p-3 text-center font-mono font-bold">
+                        <span className={`px-2 py-0.5 rounded text-[11px] ${
+                          eq.damageHistoryCount > 0
+                            ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                            : 'bg-gray-900 text-gray-400 border border-gray-800'
+                        }`}>
+                          {eq.damageHistoryCount} Reports
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ATTENDANCE PERFORMANCE REPORTS TAB */}
+      {activeTab === 'attendance' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-border pb-3">
+            <div>
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" /> Staff Attendance Analytics &amp; Timeframe Matrix
+              </h2>
+              <p className="text-[11px] text-gray-400 mt-0.5">Filter attendance by Daily, Weekly, Monthly, or Custom Date Range</p>
+            </div>
+
+            {/* Timeframe Filter Switcher */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex bg-gray-900 border border-gray-800 rounded-lg p-0.5 text-xs font-medium">
+                {(['daily', 'weekly', 'monthly', 'custom'] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => {
+                      setAttendancePeriod(p);
+                      if (p !== 'custom') fetchAttendance(p);
+                    }}
+                    className={`px-3 py-1 rounded-md capitalize transition-all ${
+                      attendancePeriod === p ? 'bg-emerald-600 text-white font-bold' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Date Range Picker */}
+              {attendancePeriod === 'custom' && (
+                <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-800 p-1 rounded-lg">
+                  <input
+                    type="date"
+                    value={attStartDate}
+                    onChange={(e) => setAttStartDate(e.target.value)}
+                    className="bg-gray-800 text-white text-xs px-2 py-1 rounded border border-gray-700 focus:outline-none"
+                  />
+                  <span className="text-gray-500">to</span>
+                  <input
+                    type="date"
+                    value={attEndDate}
+                    onChange={(e) => setAttEndDate(e.target.value)}
+                    className="bg-gray-800 text-white text-xs px-2 py-1 rounded border border-gray-700 focus:outline-none"
+                  />
+                  <button
+                    onClick={() => fetchAttendance('custom', attStartDate, attEndDate)}
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-xs transition-colors"
+                  >
+                    Apply
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                  <th className="p-3">Employee Name</th>
+                  <th className="p-3 text-center">Present Days</th>
+                  <th className="p-3 text-center">Absent Days</th>
+                  <th className="p-3 text-center">Half Days</th>
+                  <th className="p-3 text-center">Late Entries</th>
+                  <th className="p-3 text-center">Attendance %</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/60 font-medium">
+                {!attendanceData?.report || attendanceData.report.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-6 text-center text-gray-500 italic">No attendance records found for this timeframe.</td>
+                  </tr>
+                ) : (
+                  attendanceData.report.map((emp: any) => (
+                    <tr key={emp.userId} className="hover:bg-gray-900/50 transition-colors">
+                      {/* Employee Name */}
+                      <td className="p-3 font-bold text-white">
+                        <div>{emp.employeeName}</div>
+                        <div className="text-[10px] text-gray-400 font-normal">{emp.designation} • {emp.department}</div>
+                      </td>
+
+                      {/* 1. Present Days */}
+                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{emp.presentDays}</td>
+
+                      {/* 2. Absent Days */}
+                      <td className="p-3 text-center font-mono font-bold text-rose-400">{emp.absentDays}</td>
+
+                      {/* 3. Half Days */}
+                      <td className="p-3 text-center font-mono font-bold text-cyan-300">{emp.halfDays}</td>
+
+                      {/* 4. Late Entries */}
+                      <td className="p-3 text-center font-mono font-bold text-amber-300">{emp.lateEntries}</td>
+
+                      {/* 5. Attendance Percentage */}
+                      <td className="p-3 text-center font-mono font-bold">
+                        <span className={`px-2 py-0.5 rounded text-[11px] ${
+                          emp.attendancePercentage >= 90
+                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                            : emp.attendancePercentage >= 75
+                            ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                            : 'bg-rose-950 text-rose-300 border border-rose-800'
+                        }`}>
+                          {emp.attendancePercentage}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* PROJECT PERFORMANCE REPORTS TAB */}
+      {activeTab === 'projects' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Layers className="w-4 h-4 text-blue-400" /> Project Operational Status &amp; Timeline Matrix
+            </h2>
+            <span className="text-[11px] text-blue-300 font-mono font-bold">
+              8 Mandatory Project Indicators Enforced
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                  <th className="p-3">Project &amp; Client</th>
+                  <th className="p-3">Project Status</th>
+                  <th className="p-3 text-center">Completion %</th>
+                  <th className="p-3 text-center">Pending Scripts</th>
+                  <th className="p-3 text-center">Pending Graphics</th>
+                  <th className="p-3 text-center">Pending Reviews</th>
+                  <th className="p-3">Equipment Used</th>
+                  <th className="p-3">Assigned Employees</th>
+                  <th className="p-3">Timeline Summary</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/60 font-medium">
+                {projectReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="p-6 text-center text-gray-500 italic">No project performance records available.</td>
+                  </tr>
+                ) : (
+                  projectReports.map((p) => (
+                    <tr key={p.projectId} className="hover:bg-gray-900/50 transition-colors">
+                      {/* Project & Client */}
+                      <td className="p-3 font-bold text-white">
+                        <div className="text-blue-400 font-bold flex items-center gap-1.5">
+                          {p.projectName}
+                          <span className="text-[10px] text-gray-500 font-mono">[{p.projectCode}]</span>
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-normal">Brand: {p.brandName} • Client: {p.clientName}</div>
+                      </td>
+
+                      {/* 1. Project Status */}
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          p.projectStatus === 'COMPLETED'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            : p.projectStatus === 'IN_PROGRESS' || p.projectStatus === 'POST_PRODUCTION'
+                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                            : p.projectStatus?.includes('WAITING') || p.projectStatus?.includes('REVISION')
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            : 'bg-gray-800 text-gray-400'
+                        }`}>
+                          {p.projectStatus}
+                        </span>
+                      </td>
+
+                      {/* 2. Completion Percentage */}
+                      <td className="p-3 text-center font-mono font-bold">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-emerald-400">{p.completionPercentage}%</span>
+                          <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${p.completionPercentage}%` }}></div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* 3. Pending Scripts */}
+                      <td className="p-3 text-center font-mono font-bold text-purple-300">{p.pendingScripts}</td>
+
+                      {/* 4. Pending Graphics */}
+                      <td className="p-3 text-center font-mono font-bold text-amber-300">{p.pendingGraphics}</td>
+
+                      {/* 5. Pending Reviews */}
+                      <td className="p-3 text-center font-mono font-bold text-rose-400">{p.pendingReviews}</td>
+
+                      {/* 6. Equipment Used */}
+                      <td className="p-3 text-gray-300">
+                        <div className="font-semibold text-cyan-300">{p.equipmentUsedCount} Items</div>
+                        <div className="text-[10px] text-gray-500 truncate max-w-[120px]">{p.equipmentUsedSummary}</div>
+                      </td>
+
+                      {/* 7. Assigned Employees */}
+                      <td className="p-3 text-gray-300">
+                        <div className="font-semibold text-indigo-300">{p.assignedEmployeesCount} Staff</div>
+                        <div className="text-[10px] text-gray-500 truncate max-w-[120px]">{p.assignedEmployeeNames}</div>
+                      </td>
+
+                      {/* 8. Timeline Summary */}
+                      <td className="p-3 text-gray-300">
+                        <div className="text-[10px] font-mono text-gray-300">{p.timelineSummary}</div>
+                        <div className="text-[9px] text-gray-500 font-normal">Location: {p.shootLocation} ({p.shootType})</div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* DEPARTMENT PERFORMANCE REPORTS TAB */}
+      {activeTab === 'departments' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-indigo-400" /> Department Operational Performance &amp; Capacity Matrix
+            </h2>
+            <span className="text-[11px] text-indigo-300 font-mono font-bold">
+              7 Mandatory Department Indicators Enforced
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                  <th className="p-3">Department Name</th>
+                  <th className="p-3 text-center">Total Employees</th>
+                  <th className="p-3 text-center">Active Tasks</th>
+                  <th className="p-3 text-center">Completed Tasks</th>
+                  <th className="p-3 text-center">Total Outputs</th>
+                  <th className="p-3 text-center">Capacity Utilization</th>
+                  <th className="p-3 text-center">Productivity</th>
+                  <th className="p-3 text-center">Pending Work</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/60 font-medium">
+                {deptReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-6 text-center text-gray-500 italic">No department performance records available.</td>
+                  </tr>
+                ) : (
+                  deptReports.map((d) => (
+                    <tr key={d.departmentId} className="hover:bg-gray-900/50 transition-colors">
+                      {/* Department Name */}
+                      <td className="p-3 font-bold text-white">
+                        <div className="text-indigo-400 font-bold">{d.departmentName}</div>
+                        <div className="text-[10px] text-gray-400 font-normal">{d.description || 'Media Operations Division'}</div>
+                      </td>
+
+                      {/* 1. Total Employees */}
+                      <td className="p-3 text-center font-mono font-bold text-blue-300">{d.totalEmployees}</td>
+
+                      {/* 2. Active Tasks */}
+                      <td className="p-3 text-center font-mono font-bold text-purple-300">{d.activeTasks}</td>
+
+                      {/* 3. Completed Tasks */}
+                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{d.completedTasks}</td>
+
+                      {/* 4. Total Outputs */}
+                      <td className="p-3 text-center font-mono font-bold text-cyan-300">{d.totalOutputs}</td>
+
+                      {/* 5. Capacity Utilization */}
+                      <td className="p-3 text-center font-mono font-bold">
+                        <span className={`px-2 py-0.5 rounded text-[11px] ${
+                          d.capacityUtilizationPercentage > 100
+                            ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                            : d.capacityUtilizationPercentage < 50
+                            ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                            : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                        }`}>
+                          {d.capacityUtilizationPercentage}%
+                        </span>
+                      </td>
+
+                      {/* 6. Productivity */}
+                      <td className="p-3 text-center font-mono font-bold">
+                        <span className={`px-2 py-0.5 rounded text-[11px] ${
+                          d.productivityPercentage >= 100
+                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                            : 'bg-amber-950 text-amber-300 border border-amber-800'
+                        }`}>
+                          {d.productivityPercentage}%
+                        </span>
+                      </td>
+
+                      {/* 7. Pending Work */}
+                      <td className="p-3 text-center font-mono font-bold text-amber-300">{d.pendingWork}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* PRODUCT PERFORMANCE REPORTS TAB */}
+      {activeTab === 'products' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Package className="w-4 h-4 text-rose-400" /> Product Performance &amp; Media Output Matrix
+            </h2>
+            <span className="text-[11px] text-rose-300 font-mono font-bold">
+              8 Mandatory Product Indicators Enforced
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                  <th className="p-3">Product Name &amp; Brand</th>
+                  <th className="p-3 text-center">Total Productions</th>
+                  <th className="p-3 text-center">Videos</th>
+                  <th className="p-3 text-center">Posters</th>
+                  <th className="p-3 text-center">Carousels</th>
+                  <th className="p-3 text-center">Awareness Campaigns</th>
+                  <th className="p-3 text-center">Advertisement Campaigns</th>
+                  <th className="p-3 text-center">Pending Deliverables</th>
+                  <th className="p-3 text-center">Completed Deliverables</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/60 font-medium">
+                {productReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="p-6 text-center text-gray-500 italic">No product performance records available.</td>
+                  </tr>
+                ) : (
+                  productReports.map((p) => (
+                    <tr key={p.productId} className="hover:bg-gray-900/50 transition-colors">
+                      {/* Product Name & Brand */}
+                      <td className="p-3 font-bold text-white">
+                        <div className="text-rose-400 font-bold flex items-center gap-1.5">
+                          {p.productName}
+                          <span className="text-[10px] text-gray-500 font-mono">[{p.productCode}]</span>
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-normal">Brand: {p.brandName} • Category: {p.category}</div>
+                      </td>
+
+                      {/* 1. Total Productions */}
+                      <td className="p-3 text-center font-mono font-bold text-blue-300">{p.totalProductions}</td>
+
+                      {/* 2. Videos */}
+                      <td className="p-3 text-center font-mono font-bold text-purple-300">{p.videos}</td>
+
+                      {/* 3. Posters */}
+                      <td className="p-3 text-center font-mono font-bold text-amber-300">{p.posters}</td>
+
+                      {/* 4. Carousels */}
+                      <td className="p-3 text-center font-mono font-bold text-cyan-300">{p.carousels}</td>
+
+                      {/* 5. Awareness Campaigns */}
+                      <td className="p-3 text-center font-mono font-bold text-indigo-300">{p.awarenessCampaigns}</td>
+
+                      {/* 6. Advertisement Campaigns */}
+                      <td className="p-3 text-center font-mono font-bold text-rose-300">{p.advertisementCampaigns}</td>
+
+                      {/* 7. Pending Deliverables */}
+                      <td className="p-3 text-center font-mono font-bold text-amber-400">{p.pendingDeliverables}</td>
+
+                      {/* 8. Completed Deliverables */}
+                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{p.completedDeliverables}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* CLIENT PERFORMANCE REPORTS TAB */}
+      {activeTab === 'clients' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-emerald-400" /> Client Operational Performance &amp; Production Matrix
+            </h2>
+            <span className="text-[11px] text-emerald-300 font-mono font-bold">
+              7 Mandatory Client Indicators Enforced
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                  <th className="p-3">Client &amp; Company</th>
+                  <th className="p-3 text-center">Total Projects</th>
+                  <th className="p-3 text-center">Total Deliverables</th>
+                  <th className="p-3 text-center">Pending Approvals</th>
+                  <th className="p-3 text-center">Completed Projects</th>
+                  <th className="p-3 text-center">Avg Project Duration</th>
+                  <th className="p-3 text-center">Revision Requests</th>
+                  <th className="p-3">Production Summary</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/60 font-medium">
+                {clientReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-6 text-center text-gray-500 italic">No client performance records available.</td>
+                  </tr>
+                ) : (
+                  clientReports.map((c) => (
+                    <tr key={c.clientId} className="hover:bg-gray-900/50 transition-colors">
+                      {/* Client & Company */}
+                      <td className="p-3 font-bold text-white">
+                        <div className="text-emerald-400 font-bold">{c.clientName}</div>
+                        <div className="text-[10px] text-gray-400 font-normal">{c.companyName} • {c.email}</div>
+                      </td>
+
+                      {/* 1. Total Projects */}
+                      <td className="p-3 text-center font-mono font-bold text-blue-300">{c.totalProjects}</td>
+
+                      {/* 2. Total Deliverables */}
+                      <td className="p-3 text-center font-mono font-bold text-purple-300">{c.totalDeliverables}</td>
+
+                      {/* 3. Pending Approvals */}
+                      <td className="p-3 text-center font-mono font-bold text-amber-300">{c.pendingApprovals}</td>
+
+                      {/* 4. Completed Projects */}
+                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{c.completedProjects}</td>
+
+                      {/* 5. Average Project Duration */}
+                      <td className="p-3 text-center font-mono font-bold text-indigo-300">
+                        {c.avgProjectDurationFormatted || 'N/A'}
+                      </td>
+
+                      {/* 6. Revision Requests */}
+                      <td className="p-3 text-center font-mono font-bold text-rose-400">{c.revisionRequests || 0}x</td>
+
+                      {/* 7. Production Summary */}
+                      <td className="p-3">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className="px-1.5 py-0.5 bg-blue-950 text-blue-300 border border-blue-800 rounded text-[9px]">
+                            Prog: {c.productionSummary?.IN_PROGRESS || 0}
+                          </span>
+                          <span className="px-1.5 py-0.5 bg-amber-950 text-amber-300 border border-amber-800 rounded text-[9px]">
+                            Review: {c.productionSummary?.WAITING_FOR_REVIEW || 0}
+                          </span>
+                          <span className="px-1.5 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded text-[9px]">
+                            Done: {c.productionSummary?.COMPLETED || 0}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* BRAND INDEPENDENT PERFORMANCE REPORTS TAB */}
+      {activeTab === 'brands' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Tag className="w-4 h-4 text-cyan-400" /> Independent Brand Performance &amp; Production Matrix
+            </h2>
+            <span className="text-[11px] text-cyan-300 font-mono font-bold">
+              8 Mandatory Brand Indicators Enforced
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                  <th className="p-3">Brand &amp; Client</th>
+                  <th className="p-3 text-center">Total Projects</th>
+                  <th className="p-3 text-center">Total Deliverables</th>
+                  <th className="p-3 text-center">Total Outputs</th>
+                  <th className="p-3">Production Status</th>
+                  <th className="p-3 text-center">Pending Deliverables</th>
+                  <th className="p-3 text-center">Completion Rate</th>
+                  <th className="p-3 text-center">Revision Count</th>
+                  <th className="p-3 text-center">Avg Delivery Time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/60 font-medium">
+                {brandReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="p-6 text-center text-gray-500 italic">No brand performance records available.</td>
+                  </tr>
+                ) : (
+                  brandReports.map((b) => (
+                    <tr key={b.brandId} className="hover:bg-gray-900/50 transition-colors">
+                      {/* Brand & Client */}
+                      <td className="p-3 font-bold text-white">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-cyan-400 font-bold">{b.brandName}</span>
+                          <span className="text-[10px] text-gray-500 font-mono">[{b.shortCode}]</span>
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-normal">Client: {b.clientName}</div>
+                      </td>
+
+                      {/* 1. Total Projects */}
+                      <td className="p-3 text-center font-mono font-bold text-blue-300">{b.totalProjects}</td>
+
+                      {/* 2. Total Deliverables */}
+                      <td className="p-3 text-center font-mono font-bold text-purple-300">{b.totalDeliverables}</td>
+
+                      {/* 3. Total Outputs */}
+                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{b.totalOutputs}</td>
+
+                      {/* 4. Production Status */}
+                      <td className="p-3">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className="px-1.5 py-0.5 bg-blue-950 text-blue-300 border border-blue-800 rounded text-[9px]">
+                            Prog: {b.productionStatus?.IN_PROGRESS || 0}
+                          </span>
+                          <span className="px-1.5 py-0.5 bg-amber-950 text-amber-300 border border-amber-800 rounded text-[9px]">
+                            Review: {b.productionStatus?.WAITING_FOR_REVIEW || 0}
+                          </span>
+                          <span className="px-1.5 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded text-[9px]">
+                            Done: {b.productionStatus?.COMPLETED || 0}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* 5. Pending Deliverables */}
+                      <td className="p-3 text-center font-mono font-bold text-amber-300">{b.pendingDeliverables}</td>
+
+                      {/* 6. Completion Rate */}
+                      <td className="p-3 text-center font-mono font-bold">
+                        <span className={`px-2 py-0.5 rounded text-[11px] ${
+                          b.completionRatePercentage >= 75
+                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                            : 'bg-amber-950 text-amber-300 border border-amber-800'
+                        }`}>
+                          {b.completionRatePercentage}%
+                        </span>
+                      </td>
+
+                      {/* 7. Revision Count */}
+                      <td className="p-3 text-center font-mono font-bold text-rose-400">{b.revisionCount || 0}x</td>
+
+                      {/* 8. Average Delivery Time */}
+                      <td className="p-3 text-center font-mono font-bold text-indigo-300">
+                        {b.avgDeliveryTimeFormatted || 'N/A'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* EMPLOYEE-WISE PERFORMANCE REPORTS TAB */}
+      {activeTab === 'employee' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Users className="w-4 h-4 text-purple-400" /> Employee-Wise Operational Performance Matrix
+            </h2>
+            <span className="text-[11px] text-purple-300 font-mono font-bold">
+              10 Mandatory Operational Indicators Enforced
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                  <th className="p-3">Employee Name</th>
+                  <th className="p-3">Today's Attendance</th>
+                  <th className="p-3 text-center">Assigned Tasks</th>
+                  <th className="p-3 text-center">Completed Tasks</th>
+                  <th className="p-3 text-center">Pending Tasks</th>
+                  <th className="p-3 text-center">Daily Target</th>
+                  <th className="p-3 text-center">Actual Output</th>
+                  <th className="p-3 text-center">Achievement %</th>
+                  <th className="p-3 text-center">Revision Count</th>
+                  <th className="p-3 text-center">Avg Completion Time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/60 font-medium">
+                {employeeReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="p-6 text-center text-gray-500 italic">No employee performance data available.</td>
+                  </tr>
+                ) : (
+                  employeeReports.map((emp) => (
+                    <tr key={emp.userId} className="hover:bg-gray-900/50 transition-colors">
+                      {/* 1. Employee Name */}
+                      <td className="p-3 font-bold text-white">
+                        <div>{emp.employeeName || emp.name}</div>
+                        <div className="text-[10px] text-gray-400 font-normal">{emp.designation} • {emp.department}</div>
+                      </td>
+
+                      {/* 2. Attendance */}
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          emp.attendance === 'PRESENT'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            : emp.attendance === 'LATE'
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            : emp.attendance === 'HALF_DAY'
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                            : emp.attendance === 'ABSENT'
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                            : 'bg-gray-800 text-gray-400'
+                        }`}>
+                          {emp.attendance || 'NOT MARKED'}
+                        </span>
+                      </td>
+
+                      {/* 3. Assigned Tasks */}
+                      <td className="p-3 text-center font-mono font-bold text-blue-300">{emp.assignedTasksCount ?? emp.assignedTasks}</td>
+
+                      {/* 4. Completed Tasks */}
+                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{emp.completedTasksCount ?? emp.completedTasks}</td>
+
+                      {/* 9. Pending Tasks */}
+                      <td className="p-3 text-center font-mono font-bold text-amber-300">{emp.pendingTasksCount ?? emp.pendingTasks}</td>
+
+                      {/* 5. Daily Target */}
+                      <td className="p-3 text-center font-mono text-gray-300">{emp.dailyTarget}</td>
+
+                      {/* 6. Actual Output */}
+                      <td className="p-3 text-center font-mono font-bold text-cyan-300">{emp.actualDailyOutput ?? emp.actualOutput}</td>
+
+                      {/* 7. Target Achievement Percentage */}
+                      <td className="p-3 text-center font-mono font-bold">
+                        <span className={`px-2 py-0.5 rounded text-[11px] ${
+                          (emp.targetAchievementPercentage ?? emp.achievementPercentage) >= 100
+                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                            : 'bg-amber-950 text-amber-300 border border-amber-800'
+                        }`}>
+                          {emp.targetAchievementPercentage ?? emp.achievementPercentage}%
+                        </span>
+                      </td>
+
+                      {/* 8. Revision Count */}
+                      <td className="p-3 text-center font-mono font-bold text-rose-400">{emp.revisionCount || 0}x</td>
+
+                      {/* 10. Average Completion Time */}
+                      <td className="p-3 text-center font-mono font-bold text-indigo-300 font-mono">
+                        {emp.avgCompletionTimeFormatted || emp.averageCompletionTime || 'N/A'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* SCRIPT ANALYTICS TAB */}
       {activeTab === 'scripts' && (

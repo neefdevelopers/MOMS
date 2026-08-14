@@ -496,6 +496,21 @@ export default function CalendarPage() {
                 </div>
               )}
 
+              {/* Integrated Equipment Reservations (Business Rule 10) */}
+              {eventItem.shootProjects?.[0]?.equipmentReservations?.length > 0 && (
+                <div className="p-2 bg-purple-950/30 border border-purple-800/40 rounded text-[11px] text-purple-300 space-y-1">
+                  <div className="font-bold text-purple-400 flex items-center gap-1 text-[10px] uppercase">
+                    <Camera className="w-3 h-3 text-purple-400" /> Reserved Equipment
+                  </div>
+                  {eventItem.shootProjects[0].equipmentReservations.map((res: any) => (
+                    <div key={res.id} className="flex justify-between items-center text-[10px] text-gray-300">
+                      <span>📷 {res.equipment?.name || 'Equipment'}</span>
+                      <span className="text-purple-400 font-mono">({res.status})</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Action buttons */}
               <div className="flex items-center justify-between pt-3 border-t border-border text-xs">
                 {eventItem.shootProjects?.length > 0 ? (
