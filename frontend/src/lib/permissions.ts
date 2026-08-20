@@ -1,0 +1,351 @@
+export type Role =
+  | 'MEDIA_MANAGER'
+  | 'TECHNICAL_MANAGER'
+  | 'STAFF'
+  | 'HR_MANAGER'
+  | 'FINANCE_MANAGER'
+  | 'MARKETING_MANAGER'
+  | 'SALES_MANAGER'
+  | 'CLIENT_COORDINATOR'
+  | 'ADMINISTRATOR'
+  | 'ADMIN';
+
+export type PermissionType =
+  | 'VIEW'
+  | 'CREATE'
+  | 'EDIT'
+  | 'DELETE'
+  | 'APPROVE'
+  | 'ASSIGN'
+  | 'CONFIGURE'
+  | 'EXPORT'
+  | 'ARCHIVE'
+  | 'RESTORE';
+
+export type ModuleType =
+  | 'DASHBOARD'
+  | 'PROJECTS'
+  | 'SCRIPTS'
+  | 'GRAPHIC_REQUIREMENTS'
+  | 'TASKS'
+  | 'EQUIPMENT'
+  | 'CLIENTS'
+  | 'BRANDS'
+  | 'PRODUCTS'
+  | 'STAFF'
+  | 'REPORTS'
+  | 'CALENDAR'
+  | 'COMMUNICATIONS'
+  | 'ACTIVITY_LOGS'
+  | 'SETTINGS';
+
+export interface PermissionMeta {
+  type: PermissionType;
+  label: string;
+  description: string;
+  iconName: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+}
+
+export const PERMISSION_TYPES_CONFIG: Record<PermissionType, PermissionMeta> = {
+  VIEW: {
+    type: 'VIEW',
+    label: 'View',
+    description: 'Read and browse module records, details, and metadata',
+    iconName: 'Eye',
+    badgeBg: 'bg-blue-950/60',
+    badgeText: 'text-blue-400',
+    badgeBorder: 'border-blue-800/60',
+  },
+  CREATE: {
+    type: 'CREATE',
+    label: 'Create',
+    description: 'Initiate and submit new records, briefs, and orders',
+    iconName: 'Plus',
+    badgeBg: 'bg-emerald-950/60',
+    badgeText: 'text-emerald-400',
+    badgeBorder: 'border-emerald-800/60',
+  },
+  EDIT: {
+    type: 'EDIT',
+    label: 'Edit',
+    description: 'Modify existing records, fields, notes, and workflows',
+    iconName: 'Pencil',
+    badgeBg: 'bg-amber-950/60',
+    badgeText: 'text-amber-400',
+    badgeBorder: 'border-amber-800/60',
+  },
+  DELETE: {
+    type: 'DELETE',
+    label: 'Delete',
+    description: 'Permanently remove unauthorized or obsolete records',
+    iconName: 'Trash2',
+    badgeBg: 'bg-red-950/60',
+    badgeText: 'text-red-400',
+    badgeBorder: 'border-red-800/60',
+  },
+  APPROVE: {
+    type: 'APPROVE',
+    label: 'Approve',
+    description: 'Grant managerial, technical, and client sign-offs',
+    iconName: 'CheckCircle2',
+    badgeBg: 'bg-purple-950/60',
+    badgeText: 'text-purple-400',
+    badgeBorder: 'border-purple-800/60',
+  },
+  ASSIGN: {
+    type: 'ASSIGN',
+    label: 'Assign',
+    description: 'Delegate tasks, allocate equipment, and designate roles',
+    iconName: 'UserCheck',
+    badgeBg: 'bg-indigo-950/60',
+    badgeText: 'text-indigo-400',
+    badgeBorder: 'border-indigo-800/60',
+  },
+  CONFIGURE: {
+    type: 'CONFIGURE',
+    label: 'Configure',
+    description: 'Adjust system parameters, formulas, settings, and equipment categories',
+    iconName: 'Sliders',
+    badgeBg: 'bg-cyan-950/60',
+    badgeText: 'text-cyan-400',
+    badgeBorder: 'border-cyan-800/60',
+  },
+  EXPORT: {
+    type: 'EXPORT',
+    label: 'Export',
+    description: 'Download reports, data summaries, and logs in CSV, Excel, or PDF',
+    iconName: 'Download',
+    badgeBg: 'bg-teal-950/60',
+    badgeText: 'text-teal-400',
+    badgeBorder: 'border-teal-800/60',
+  },
+  ARCHIVE: {
+    type: 'ARCHIVE',
+    label: 'Archive',
+    description: 'Move inactive records to read-only historical cold storage',
+    iconName: 'Archive',
+    badgeBg: 'bg-slate-900',
+    badgeText: 'text-slate-300',
+    badgeBorder: 'border-slate-700',
+  },
+  RESTORE: {
+    type: 'RESTORE',
+    label: 'Restore',
+    description: 'Recover archived or deleted operational items back to active state',
+    iconName: 'RotateCcw',
+    badgeBg: 'bg-lime-950/60',
+    badgeText: 'text-lime-400',
+    badgeBorder: 'border-lime-800/60',
+  },
+};
+
+/**
+ * Declares which permission types each module implements based on operational requirements.
+ */
+export const MODULE_SUPPORTED_PERMISSIONS: Record<ModuleType, PermissionType[]> = {
+  DASHBOARD: ['VIEW', 'CONFIGURE', 'EXPORT'],
+  PROJECTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+  SCRIPTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+  GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+  TASKS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+  EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+  CLIENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+  BRANDS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+  PRODUCTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+  STAFF: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+  REPORTS: ['VIEW', 'EXPORT', 'CONFIGURE'],
+  CALENDAR: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
+  COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'ARCHIVE', 'RESTORE'],
+  ACTIVITY_LOGS: ['VIEW', 'EXPORT'],
+  SETTINGS: ['VIEW', 'EDIT', 'CONFIGURE'],
+};
+
+/**
+ * Standard Role-Based Permission Matrix
+ * Supports all operational roles and future modular roles.
+ */
+export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionType[]>> = {
+  MEDIA_MANAGER: {
+    DASHBOARD: ['VIEW', 'CONFIGURE', 'EXPORT'],
+    PROJECTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    SCRIPTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    TASKS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    CLIENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    BRANDS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    PRODUCTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    STAFF: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    REPORTS: ['VIEW', 'EXPORT', 'CONFIGURE'],
+    CALENDAR: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
+    COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'ARCHIVE', 'RESTORE'],
+    ACTIVITY_LOGS: ['VIEW', 'EXPORT'],
+    SETTINGS: ['VIEW', 'EDIT', 'CONFIGURE'],
+  },
+  TECHNICAL_MANAGER: {
+    DASHBOARD: ['VIEW', 'CONFIGURE', 'EXPORT'],
+    PROJECTS: ['VIEW', 'EDIT', 'APPROVE', 'EXPORT'],
+    SCRIPTS: ['VIEW', 'EDIT', 'APPROVE', 'EXPORT'],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'EDIT', 'APPROVE', 'EXPORT'],
+    TASKS: ['VIEW', 'EDIT', 'ASSIGN', 'EXPORT'],
+    EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    CLIENTS: ['VIEW', 'EXPORT'],
+    BRANDS: ['VIEW', 'EXPORT'],
+    PRODUCTS: ['VIEW', 'EXPORT'],
+    STAFF: ['VIEW', 'EXPORT'],
+    REPORTS: ['VIEW', 'EXPORT'],
+    CALENDAR: ['VIEW', 'EXPORT'],
+    COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT', 'ASSIGN'],
+    ACTIVITY_LOGS: ['VIEW', 'EXPORT'],
+    SETTINGS: ['VIEW'],
+  },
+  STAFF: {
+    DASHBOARD: ['VIEW'],
+    PROJECTS: ['VIEW'],
+    SCRIPTS: ['VIEW', 'EDIT'],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'EDIT'],
+    TASKS: ['VIEW', 'EDIT'],
+    EQUIPMENT: ['VIEW'],
+    CLIENTS: ['VIEW'],
+    BRANDS: ['VIEW'],
+    PRODUCTS: ['VIEW'],
+    STAFF: ['VIEW'],
+    REPORTS: ['VIEW'],
+    CALENDAR: ['VIEW'],
+    COMMUNICATIONS: ['VIEW', 'CREATE'],
+    ACTIVITY_LOGS: ['VIEW'],
+    SETTINGS: [],
+  },
+  HR_MANAGER: {
+    DASHBOARD: ['VIEW', 'EXPORT'],
+    PROJECTS: ['VIEW', 'EXPORT'],
+    SCRIPTS: ['VIEW'],
+    GRAPHIC_REQUIREMENTS: ['VIEW'],
+    TASKS: ['VIEW', 'ASSIGN', 'EXPORT'],
+    EQUIPMENT: ['VIEW', 'EXPORT'],
+    CLIENTS: ['VIEW'],
+    BRANDS: ['VIEW'],
+    PRODUCTS: ['VIEW'],
+    STAFF: [
+      'VIEW',
+      'CREATE',
+      'EDIT',
+      'DELETE',
+      'ASSIGN',
+      'CONFIGURE',
+      'EXPORT',
+      'ARCHIVE',
+      'RESTORE',
+    ],
+    REPORTS: ['VIEW', 'EXPORT'],
+    CALENDAR: ['VIEW', 'EXPORT'],
+    COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT', 'ASSIGN'],
+    ACTIVITY_LOGS: ['VIEW', 'EXPORT'],
+    SETTINGS: ['VIEW'],
+  },
+  FINANCE_MANAGER: {
+    DASHBOARD: ['VIEW', 'CONFIGURE', 'EXPORT'],
+    PROJECTS: ['VIEW', 'APPROVE', 'EXPORT'],
+    SCRIPTS: ['VIEW', 'EXPORT'],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'EXPORT'],
+    TASKS: ['VIEW', 'EXPORT'],
+    EQUIPMENT: ['VIEW', 'EXPORT'],
+    CLIENTS: ['VIEW', 'EXPORT'],
+    BRANDS: ['VIEW', 'EXPORT'],
+    PRODUCTS: ['VIEW', 'EXPORT'],
+    STAFF: ['VIEW', 'EXPORT'],
+    REPORTS: ['VIEW', 'EXPORT', 'CONFIGURE'],
+    CALENDAR: ['VIEW', 'EXPORT'],
+    COMMUNICATIONS: ['VIEW', 'CREATE'],
+    ACTIVITY_LOGS: ['VIEW', 'EXPORT'],
+    SETTINGS: ['VIEW', 'EDIT', 'CONFIGURE'],
+  },
+  MARKETING_MANAGER: {
+    DASHBOARD: ['VIEW', 'EXPORT'],
+    PROJECTS: ['VIEW', 'CREATE', 'EDIT', 'APPROVE', 'EXPORT'],
+    SCRIPTS: ['VIEW', 'CREATE', 'EDIT', 'APPROVE', 'EXPORT'],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT', 'APPROVE', 'EXPORT'],
+    TASKS: ['VIEW', 'CREATE', 'EDIT', 'ASSIGN', 'EXPORT'],
+    EQUIPMENT: ['VIEW', 'EXPORT'],
+    CLIENTS: ['VIEW', 'EXPORT'],
+    BRANDS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    PRODUCTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    STAFF: ['VIEW', 'EXPORT'],
+    REPORTS: ['VIEW', 'EXPORT'],
+    CALENDAR: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
+    COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT', 'ASSIGN'],
+    ACTIVITY_LOGS: ['VIEW', 'EXPORT'],
+    SETTINGS: ['VIEW'],
+  },
+  SALES_MANAGER: {
+    DASHBOARD: ['VIEW', 'EXPORT'],
+    PROJECTS: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
+    SCRIPTS: ['VIEW', 'EXPORT'],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'EXPORT'],
+    TASKS: ['VIEW', 'EXPORT'],
+    EQUIPMENT: ['VIEW', 'EXPORT'],
+    CLIENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    BRANDS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    PRODUCTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    STAFF: ['VIEW', 'EXPORT'],
+    REPORTS: ['VIEW', 'EXPORT'],
+    CALENDAR: ['VIEW', 'EXPORT'],
+    COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT'],
+    ACTIVITY_LOGS: ['VIEW', 'EXPORT'],
+    SETTINGS: ['VIEW'],
+  },
+  CLIENT_COORDINATOR: {
+    DASHBOARD: ['VIEW'],
+    PROJECTS: ['VIEW', 'EDIT', 'APPROVE', 'EXPORT'],
+    SCRIPTS: ['VIEW', 'EDIT', 'APPROVE', 'EXPORT'],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'EDIT', 'APPROVE', 'EXPORT'],
+    TASKS: ['VIEW', 'EDIT', 'EXPORT'],
+    EQUIPMENT: ['VIEW'],
+    CLIENTS: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
+    BRANDS: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
+    PRODUCTS: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
+    STAFF: ['VIEW'],
+    REPORTS: ['VIEW', 'EXPORT'],
+    CALENDAR: ['VIEW', 'EXPORT'],
+    COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT', 'ASSIGN'],
+    ACTIVITY_LOGS: ['VIEW'],
+    SETTINGS: [],
+  },
+  ADMINISTRATOR: {
+    DASHBOARD: ['VIEW', 'CONFIGURE', 'EXPORT'],
+    PROJECTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    SCRIPTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    TASKS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    CLIENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    BRANDS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    PRODUCTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    STAFF: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    REPORTS: ['VIEW', 'EXPORT', 'CONFIGURE'],
+    CALENDAR: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
+    COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'ARCHIVE', 'RESTORE'],
+    ACTIVITY_LOGS: ['VIEW', 'EXPORT'],
+    SETTINGS: ['VIEW', 'EDIT', 'CONFIGURE'],
+  },
+  ADMIN: {
+    DASHBOARD: ['VIEW', 'CONFIGURE', 'EXPORT'],
+    PROJECTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    SCRIPTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    TASKS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    CLIENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    BRANDS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    PRODUCTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    STAFF: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    REPORTS: ['VIEW', 'EXPORT', 'CONFIGURE'],
+    CALENDAR: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
+    COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'ARCHIVE', 'RESTORE'],
+    ACTIVITY_LOGS: ['VIEW', 'EXPORT'],
+    SETTINGS: ['VIEW', 'EDIT', 'CONFIGURE'],
+  },
+};

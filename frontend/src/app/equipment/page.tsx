@@ -25,6 +25,11 @@ import {
   CalendarDays,
   Receipt,
 } from 'lucide-react';
+import { SortSelector } from '@/components/common/TableSortHeader';
+import { PaginationControls } from '@/components/common/PaginationControls';
+import { recordRecentAccess } from '@/lib/recent-access';
+import { usePagination } from '@/lib/usePagination';
+import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 
 export default function EquipmentPage() {
   const { user } = useAuth();
@@ -32,6 +37,13 @@ export default function EquipmentPage() {
   const [archivedEquipment, setArchivedEquipment] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
+
+  // Pagination Hook
+  const { currentPage, setCurrentPage, pageSize, setPageSize, paginate } = usePagination();
+
+  // Sorting State
+  const [sortBy, setSortBy] = useState<SortField | string>('createdAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -522,6 +534,16 @@ export default function EquipmentPage() {
             >
               <SlidersHorizontal className="w-3.5 h-3.5 text-purple-400" /> Advanced Filters
             </button>
+
+            <SortSelector
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortChange={(f, o) => {
+                setSortBy(f);
+                setSortOrder(o);
+              }}
+            />
+
             {(searchQuery || categoryFilter !== 'ALL' || availabilityFilter !== 'ALL' || maintenanceFilter !== 'ALL') && (
               <button
                 onClick={() => { setSearchQuery(''); setCategoryFilter('ALL'); setAvailabilityFilter('ALL'); setMaintenanceFilter('ALL'); }}
@@ -593,9 +615,23 @@ export default function EquipmentPage() {
           No active equipment found matching your filters.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredEquipment.map((eqp) => (
-            <div key={eqp.id} className="bg-card border border-border p-5 rounded-xl space-y-3 shadow-md hover:border-cyan-500/40 transition-all">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {paginate(sortData(filteredEquipment, sortBy, sortOrder)).map((eqp) => (
+            <div
+              key={eqp.id}
+              onClick={() => {
+                recordRecentAccess({
+                  entityType: 'EQUIPMENT',
+                  entityId: eqp.id,
+                  title: eqp.name,
+                  code: eqp.equipmentId,
+                  url: '/equipment',
+                  metadata: { category: eqp.category, availability: eqp.availability },
+                });
+              }}
+              className="bg-card border border-border p-5 rounded-xl space-y-3 shadow-md hover:border-cyan-500/40 transition-all cursor-pointer"
+            >
 
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-cyan-400 px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/30 rounded">
@@ -785,6 +821,15 @@ export default function EquipmentPage() {
               )}
             </div>
           ))}
+          </div>
+
+          <PaginationControls
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredEquipment.length}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 

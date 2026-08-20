@@ -5,6 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import ActivityCommunicationThread from '@/components/communications/ActivityCommunicationThread';
+import { useBreadcrumbs } from '@/lib/breadcrumbs-context';
+import { FavoriteButton } from '@/components/common/FavoriteButton';
+import { recordRecentAccess } from '@/lib/recent-access';
 import {
   Film,
   FileText,
@@ -31,12 +34,14 @@ export default function ProjectDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { setBreadcrumbs } = useBreadcrumbs();
   const [project, setProject] = useState<any>(null);
   const [filesTree, setFilesTree] = useState<any>(null);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [allEquipment, setAllEquipment] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Overview');
+  const [selectedScriptRecord, setSelectedScriptRecord] = useState<any>(null);
 
   // Interactive Form States
   const [commentText, setCommentText] = useState('');
@@ -78,6 +83,17 @@ export default function ProjectDetailPage() {
       setFilesTree(treeRes);
       setAllUsers(Array.isArray(usersRes) ? usersRes : []);
       setAllEquipment(Array.isArray(eqpRes) ? eqpRes : []);
+
+      if (projRes) {
+        recordRecentAccess({
+          entityType: 'PROJECT',
+          entityId: projRes.id,
+          title: projRes.name,
+          code: projRes.projectId,
+          url: `/projects/${projRes.id}`,
+          metadata: { client: projRes.client?.name, brand: projRes.brand?.name, status: projRes.status },
+        });
+      }
     } catch (err) {
       console.error('Failed to load project details:', err);
     } finally {
@@ -88,6 +104,47 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (id) loadProject();
   }, [id]);
+
+  // Synchronize dynamic hierarchical breadcrumbs (Dashboard -> Projects -> ProjectID -> Tab -> Record)
+  useEffect(() => {
+    if (!project) return;
+
+    const projectDisplay = project.projectId || project.name;
+    const crumbs: any[] = [
+      { label: 'Dashboard', href: '/' },
+      { label: 'Projects', href: '/projects' },
+      {
+        label: projectDisplay,
+        href: activeTab === 'Overview' && !selectedScriptRecord ? undefined : `/projects/${project.id}`,
+        onClick:
+          activeTab === 'Overview' && !selectedScriptRecord
+            ? undefined
+            : () => {
+                setActiveTab('Overview');
+                setSelectedScriptRecord(null);
+              },
+        isCurrent: activeTab === 'Overview' && !selectedScriptRecord,
+      },
+    ];
+
+    if (activeTab !== 'Overview') {
+      crumbs.push({
+        label: activeTab,
+        href: selectedScriptRecord ? `/projects/${project.id}` : undefined,
+        onClick: selectedScriptRecord ? () => setSelectedScriptRecord(null) : undefined,
+        isCurrent: !selectedScriptRecord,
+      });
+    }
+
+    if (selectedScriptRecord) {
+      crumbs.push({
+        label: selectedScriptRecord.scriptId || selectedScriptRecord.name,
+        isCurrent: true,
+      });
+    }
+
+    setBreadcrumbs(crumbs);
+  }, [project, activeTab, selectedScriptRecord, setBreadcrumbs]);
 
   const handleToggleTeamUser = async (targetUserId: string) => {
     const currentTeamUserIds = (project.assignedTeam || []).map((t: any) => t.userId);
@@ -271,6 +328,15 @@ export default function ProjectDetailPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
+              <FavoriteButton
+                entityType="PROJECT"
+                entityId={project.id}
+                title={project.name}
+                code={project.projectId}
+                url={`/projects/${project.id}`}
+                metadata={{ client: project.client?.name, brand: project.brand?.name, status: project.status }}
+                size="md"
+              />
               <span className="font-mono text-xs font-bold text-blue-400 px-2.5 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded">
                 {project.projectId}
               </span>
@@ -752,18 +818,37 @@ export default function ProjectDetailPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {project.scripts?.map((s: any) => (
-                  <div key={s.id} className="p-4 bg-gray-900 border border-gray-800 rounded-xl space-y-2">
+                  <div
+                    key={s.id}
+                    onClick={() =>
+                      setSelectedScriptRecord(
+                        selectedScriptRecord?.id === s.id ? null : s
+                      )
+                    }
+                    className={`p-4 bg-gray-900 border rounded-xl space-y-2 cursor-pointer transition-all ${
+                      selectedScriptRecord?.id === s.id
+                        ? 'border-purple-500 ring-1 ring-purple-500/50 bg-purple-950/20 shadow-lg'
+                        : 'border-gray-800 hover:border-purple-500/40'
+                    }`}
+                  >
                     <div className="flex justify-between font-mono font-bold text-blue-400">
-                      <span>{s.scriptId}</span>
+                      <span className="flex items-center gap-1.5">
+                        {selectedScriptRecord?.id === s.id && (
+                          <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                        )}
+                        {s.scriptId}
+                      </span>
                       <span className="text-purple-300 text-[10px] bg-purple-950/50 px-2 py-0.5 rounded border border-purple-800/40">
                         {s.language || 'English'}
                       </span>
                     </div>
                     <h4 className="font-bold text-white text-sm font-mono">{s.name}</h4>
                     <p className="text-gray-400 text-xs">{s.objective || s.description || 'No detailed objective provided'}</p>
-                    <div className="text-[10px] text-gray-500 pt-1 border-t border-gray-800 flex justify-between">
+                    <div className="text-[10px] text-gray-500 pt-1 border-t border-gray-800 flex justify-between items-center">
                       <span>Status: <strong className="text-amber-400">{s.status}</strong></span>
-                      <span>Created: {new Date(s.createdAt).toLocaleDateString()}</span>
+                      <span className="text-gray-500 font-mono text-[9px]">
+                        {selectedScriptRecord?.id === s.id ? 'Active in Breadcrumbs' : 'Click to inspect'}
+                      </span>
                     </div>
                   </div>
                 ))}

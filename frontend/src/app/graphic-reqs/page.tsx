@@ -4,6 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { Palette, Plus, Search, Layers, Calendar, Building2, Tag, CheckSquare, FileText, AlertCircle, ShieldAlert, SlidersHorizontal, RotateCcw, X, Flame, User } from 'lucide-react';
+import { SortSelector } from '@/components/common/TableSortHeader';
+import { PaginationControls } from '@/components/common/PaginationControls';
+import { FavoriteButton } from '@/components/common/FavoriteButton';
+import { usePagination } from '@/lib/usePagination';
+import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 
 const DEFAULT_REQUIREMENT_TYPES = [
   'Poster',
@@ -118,6 +123,13 @@ export default function GraphicReqsPage() {
   const [showAddCustomType, setShowAddCustomType] = useState(false);
   const [customTypeName, setCustomTypeName] = useState('');
 
+  // Pagination Hook
+  const { currentPage, setCurrentPage, pageSize, setPageSize, paginate } = usePagination();
+
+  // Sorting State
+  const [sortBy, setSortBy] = useState<SortField | string>('createdAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
   // Filtration States (Project-Style Filtration)
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -151,23 +163,31 @@ export default function GraphicReqsPage() {
   const [remarks, setRemarks] = useState('');
   const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
 
-  const loadData = async () => {
+  const loadReferenceData = async () => {
     try {
-      const [dataReqs, dataProjects, dataClients, dataBrands, dataProducts, dataUsers] = await Promise.all([
-        fetchApi('/graphic-reqs').catch(() => []),
+      const [dataProjects, dataClients, dataBrands, dataProducts, dataUsers] = await Promise.all([
         fetchApi('/projects').catch(() => []),
         fetchApi('/clients').catch(() => []),
         fetchApi('/brands').catch(() => []),
         fetchApi('/products').catch(() => []),
         fetchApi('/users').catch(() => []),
       ]);
-      const loadedReqs = Array.isArray(dataReqs) ? dataReqs : [];
-      setReqs(loadedReqs);
       setProjectsList(Array.isArray(dataProjects) ? dataProjects : []);
       setClientsList(Array.isArray(dataClients) ? dataClients : []);
       setBrandsList(Array.isArray(dataBrands) ? dataBrands : []);
       setProductsList(Array.isArray(dataProducts) ? dataProducts : []);
       setUsersList(Array.isArray(dataUsers) ? dataUsers : []);
+    } catch (err) {
+      console.error('Failed to load graphic requirements reference metadata:', err);
+    }
+  };
+
+  const loadGraphicReqs = async () => {
+    setLoading(true);
+    try {
+      const dataReqs = await fetchApi('/graphic-reqs').catch(() => []);
+      const loadedReqs = Array.isArray(dataReqs) ? dataReqs : [];
+      setReqs(loadedReqs);
 
       // Merge standard requirement types with any custom types from database records
       const existingTypes = loadedReqs.map((r: any) => r.requirementType).filter(Boolean);
@@ -179,6 +199,13 @@ export default function GraphicReqsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadReferenceData();
+    loadGraphicReqs();
+  }, []);
+
+  const loadData = loadGraphicReqs;
 
   const handleAddCustomType = () => {
     const trimmed = customTypeName.trim();
@@ -315,7 +342,7 @@ export default function GraphicReqsPage() {
       formData.append('attachmentCategory', categoryKey);
 
       const token = localStorage.getItem('moms_token');
-      const res = await fetch('http://localhost:4000/api/files/upload', {
+      const res = await fetch('http://localhost:4000/api/v1/files/upload', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -513,6 +540,15 @@ export default function GraphicReqsPage() {
                 </span>
               )}
             </button>
+
+            <SortSelector
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortChange={(f, o) => {
+                setSortBy(f);
+                setSortOrder(o);
+              }}
+            />
 
             {(searchQuery || statusFilter !== 'ALL' || selectedClient || selectedBrand || selectedProduct || selectedProject || selectedEmployee || selectedType || selectedPriority || dateFrom || dateTo) && (
               <button
@@ -769,12 +805,22 @@ export default function GraphicReqsPage() {
           <p className="text-gray-400 font-medium">No graphic requirements found matching your criteria.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredReqs.map((g) => (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {paginate(sortData(filteredReqs, sortBy, sortOrder)).map((g) => (
             <div key={g.id} className="bg-card border border-border p-5 rounded-xl space-y-4 shadow-md hover:border-amber-500/40 transition-colors">
               <div className="flex justify-between items-start">
                 <div>
                   <div className="flex items-center gap-2">
+                    <FavoriteButton
+                      entityType="GRAPHIC_REQUIREMENT"
+                      entityId={g.id}
+                      title={g.name}
+                      code={g.requirementId}
+                      url={`/projects/${g.projectId}?tab=Graphic+Requirements`}
+                      metadata={{ project: g.project?.name, client: g.client?.name, brand: g.brand?.name, type: g.requirementType, status: g.status }}
+                      size="sm"
+                    />
                     <span className="font-mono font-bold text-amber-400 text-xs">{g.requirementId}</span>
                     <span className="px-2 py-0.5 bg-gray-900 border border-gray-800 text-gray-300 rounded font-semibold text-[10px]">
                       {g.requirementType}
@@ -867,6 +913,15 @@ export default function GraphicReqsPage() {
               </div>
             </div>
           ))}
+          </div>
+
+          <PaginationControls
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredReqs.length}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 

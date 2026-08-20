@@ -38,8 +38,24 @@ export class CommunicationsController {
   }
 
   @Get('announcements')
-  getAnnouncements() {
-    return this.communicationsService.getAnnouncements();
+  getAnnouncements(@Query('includeExpired') includeExpired?: string) {
+    return this.communicationsService.getAnnouncements(includeExpired === 'true');
+  }
+
+  @Post('announcements')
+  publishAnnouncement(
+    @Body()
+    dto: {
+      title: string;
+      description: string;
+      priority?: string;
+      publishDate?: string;
+      expiryDate?: string | null;
+      attachments?: any[];
+    },
+    @CurrentUser() user: any
+  ) {
+    return this.communicationsService.publishAnnouncement(dto, user);
   }
 
   @Get('entities')

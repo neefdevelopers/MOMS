@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -25,6 +25,28 @@ export class UsersController {
   @Get('departments')
   getDepartments() {
     return this.usersService.getDepartments();
+  }
+
+  @Roles(Role.MEDIA_MANAGER)
+  @Post('departments')
+  createDepartment(@Body('name') name: string, @Body('description') description?: string) {
+    return this.usersService.createDepartment(name, description);
+  }
+
+  @Roles(Role.MEDIA_MANAGER)
+  @Put('departments/:id')
+  updateDepartment(
+    @Param('id') id: string,
+    @Body('name') name: string,
+    @Body('description') description?: string,
+  ) {
+    return this.usersService.updateDepartment(id, name, description);
+  }
+
+  @Roles(Role.MEDIA_MANAGER)
+  @Delete('departments/:id')
+  deleteDepartment(@Param('id') id: string) {
+    return this.usersService.deleteDepartment(id);
   }
 
   @Get('capabilities')

@@ -39,8 +39,34 @@ export class ScriptsController {
   }
 
   @Get()
-  findAll(@Query('projectId') projectId?: string, @Query('search') search?: string) {
-    return this.scriptsService.findAll(projectId, search);
+  findAll(
+    @Query('projectId') projectId?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('priority') priority?: string,
+    @Query('clientId') clientId?: string,
+    @Query('brandId') brandId?: string,
+    @Query('productId') productId?: string,
+    @Query('employeeId') employeeId?: string,
+    @Query('language') language?: string,
+    @Query('date') date?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.scriptsService.findAll({
+      projectId,
+      search,
+      status,
+      priority,
+      clientId,
+      brandId,
+      productId,
+      employeeId,
+      language,
+      date,
+      dateFrom,
+      dateTo,
+    });
   }
 
   @Get(':id')

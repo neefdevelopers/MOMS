@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -20,6 +21,13 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ReportsModule } from './modules/reports/reports.module';
 import { ActivityModule } from './modules/activity/activity.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { SearchModule } from './modules/search/search.module';
+import { FavoritesModule } from './modules/favorites/favorites.module';
+import { RecentAccessModule } from './modules/recent-access/recent-access.module';
+import { PermissionsModule } from './modules/permissions/permissions.module';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
+import { PermissionsGuard } from './common/permissions/permissions.guard';
 
 @Module({
   imports: [
@@ -44,6 +52,20 @@ import { SettingsModule } from './modules/settings/settings.module';
     ReportsModule,
     ActivityModule,
     SettingsModule,
+    SearchModule,
+    FavoritesModule,
+    RecentAccessModule,
+    PermissionsModule,
+  ],
+  providers: [
+    // Global Guard Chain - executed in strict order on every request:
+    // 1. JwtAuthGuard: Validates Bearer token → 401 if missing/invalid
+    // 2. RolesGuard:   Validates @Roles() metadata → 403 if role insufficient
+    // 3. PermissionsGuard: Validates @RequirePermission() metadata → 403 if permission absent
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
 })
 export class AppModule {}
+

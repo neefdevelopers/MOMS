@@ -164,6 +164,25 @@ export class UsersService {
     });
   }
 
+  async createDepartment(name: string, description?: string) {
+    return this.prisma.department.create({
+      data: { name, description: description || null },
+    });
+  }
+
+  async updateDepartment(id: string, name: string, description?: string) {
+    return this.prisma.department.update({
+      where: { id },
+      data: { name, description: description || null },
+    });
+  }
+
+  async deleteDepartment(id: string) {
+    return this.prisma.department.delete({
+      where: { id },
+    });
+  }
+
   async getCapabilities() {
     const standardCapabilities = [
       { name: 'Video Editing', category: 'Post-Production' },

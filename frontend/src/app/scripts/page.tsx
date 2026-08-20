@@ -4,6 +4,12 @@ import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { FileText, UserPlus, X, MessageSquare, Send, Search, Filter, RotateCcw, SlidersHorizontal, Building2, Users, Layers, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { SortSelector } from '@/components/common/TableSortHeader';
+import { PaginationControls } from '@/components/common/PaginationControls';
+import { FavoriteButton } from '@/components/common/FavoriteButton';
+import { recordRecentAccess } from '@/lib/recent-access';
+import { usePagination } from '@/lib/usePagination';
+import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 
 export default function ScriptsPage() {
   const { user } = useAuth();
@@ -11,6 +17,13 @@ export default function ScriptsPage() {
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Pagination Hook
+  const { currentPage, setCurrentPage, pageSize, setPageSize, paginate } = usePagination();
+
+  // Sorting State
+  const [sortBy, setSortBy] = useState<SortField | string>('createdAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
   // Assignment Panel State
   const [assignUserId, setAssignUserId] = useState('');
@@ -71,15 +84,13 @@ export default function ScriptsPage() {
   const [newStatus, setNewStatus] = useState('DRAFT');
   const [newRemarks, setNewRemarks] = useState('');
 
-  const loadScripts = async () => {
+  const loadReferenceData = async () => {
     try {
-      const [resScripts, resProjects, resUsers, resClients] = await Promise.all([
-        fetchApi('/scripts'),
+      const [resProjects, resUsers, resClients] = await Promise.all([
         fetchApi('/projects'),
         fetchApi('/users'),
         fetchApi('/clients'),
       ]);
-      setScripts(Array.isArray(resScripts) ? resScripts : []);
       const projs = Array.isArray(resProjects) ? resProjects : [];
       setProjectsList(projs);
       setUsersList(Array.isArray(resUsers) ? resUsers : []);
@@ -88,11 +99,26 @@ export default function ScriptsPage() {
         setNewProjectId(projs[0].id);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load scripts reference metadata:', err);
+    }
+  };
+
+  const loadScripts = async () => {
+    setLoading(true);
+    try {
+      const resScripts = await fetchApi('/scripts');
+      setScripts(Array.isArray(resScripts) ? resScripts : []);
+    } catch (err) {
+      console.error('Failed to load scripts list:', err);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadReferenceData();
+    loadScripts();
+  }, []);
 
   const handleAssignEmployee = async () => {
     if (!selectedScript || !assignUserId) return;
@@ -246,6 +272,14 @@ export default function ScriptsPage() {
 
   const openInspector = (s: any) => {
     setSelectedScript(s);
+    recordRecentAccess({
+      entityType: 'SCRIPT',
+      entityId: s.id,
+      title: s.name,
+      code: s.scriptId,
+      url: `/projects/${s.projectId}?tab=Scripts`,
+      metadata: { project: s.project?.name, client: s.client?.name, brand: s.brand?.name, language: s.language, status: s.status },
+    });
     setEditDescription(s.description || '');
     setEditDuration(s.estimatedDuration || '30s');
     setEditRemarks(s.remarks || '');
@@ -283,6 +317,29 @@ export default function ScriptsPage() {
       setSaving(false);
     }
   };
+
+  // Keyboard Shortcuts Save & Cancel Listeners
+  useEffect(() => {
+    const handleGlobalSave = () => {
+      if (selectedScript) {
+        handleSaveScript();
+      }
+    };
+    const handleGlobalCancel = () => {
+      if (selectedScript) {
+        setSelectedScript(null);
+      } else if (showCreateModal) {
+        setShowCreateModal(false);
+      }
+    };
+
+    window.addEventListener('moms:save', handleGlobalSave);
+    window.addEventListener('moms:cancel', handleGlobalCancel);
+    return () => {
+      window.removeEventListener('moms:save', handleGlobalSave);
+      window.removeEventListener('moms:cancel', handleGlobalCancel);
+    };
+  }, [selectedScript, showCreateModal, editDescription, editDuration, editRemarks, editStatus, editPriority, prodComp, techAppr, mediaAppr, clientConf]);
 
   const filteredScripts = scripts.filter((s) => {
     if (searchQuery.trim()) {
@@ -410,6 +467,15 @@ export default function ScriptsPage() {
                 </span>
               )}
             </button>
+
+            <SortSelector
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortChange={(f, o) => {
+                setSortBy(f);
+                setSortOrder(o);
+              }}
+            />
 
             {(searchQuery || filterClient !== 'ALL' || filterProject !== 'ALL' || filterBrand !== 'ALL' || filterProduct !== 'ALL' || filterLanguage !== 'ALL' || filterCategory !== 'ALL' || filterEmployee !== 'ALL' || filterStatus !== 'ALL' || filterPriority !== 'ALL' || filterDate) && (
               <button
@@ -654,8 +720,9 @@ export default function ScriptsPage() {
           <p className="text-gray-500 text-xs">Try clearing search filters or searching for a different keyword.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {filteredScripts.map((s) => {
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {paginate(sortData(filteredScripts, sortBy, sortOrder)).map((s) => {
             const assignedStaffNames = Array.from(
               new Set(
                 (s.tasks || [])
@@ -672,9 +739,20 @@ export default function ScriptsPage() {
               >
                 <div className="space-y-2">
                   <div className="flex justify-between items-start font-mono text-xs">
-                    <span className="px-2.5 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded font-bold">
-                      {s.scriptId}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <FavoriteButton
+                        entityType="SCRIPT"
+                        entityId={s.id}
+                        title={s.name}
+                        code={s.scriptId}
+                        url={`/projects/${s.projectId}?tab=Scripts`}
+                        metadata={{ project: s.project?.name, client: s.client?.name, brand: s.brand?.name, language: s.language, status: s.status }}
+                        size="sm"
+                      />
+                      <span className="px-2.5 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded font-bold">
+                        {s.scriptId}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-950 text-purple-300 border border-purple-800 rounded uppercase">
                         {s.language || 'English'}
@@ -729,6 +807,15 @@ export default function ScriptsPage() {
               </div>
             );
           })}
+          </div>
+
+          <PaginationControls
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredScripts.length}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 

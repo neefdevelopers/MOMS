@@ -38,11 +38,6 @@ export class EquipmentController {
     return this.equipmentService.getDashboardStats();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.equipmentService.findOne(id);
-  }
-
   // ─── Business Rule 1 & 2: Create with company ownership + inventory record ─
   @Roles(Role.MEDIA_MANAGER)
   @Post()
@@ -169,6 +164,11 @@ export class EquipmentController {
   @Post('categories')
   createCategory(@Body('name') name: string, @CurrentUser('id') userId: string) {
     return this.equipmentService.createCategory(name, userId);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.equipmentService.findOne(id);
   }
   @Roles(Role.TECHNICAL_MANAGER, Role.MEDIA_MANAGER)
   @Patch(':id/maintenance')

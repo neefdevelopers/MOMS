@@ -6,13 +6,19 @@ import { AttendanceStatus } from '../../common/enums';
 export class AttendanceService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(dateStr?: string) {
+  async findAll(dateStr?: string, currentUser?: any) {
     const targetDate = dateStr ? new Date(dateStr) : new Date();
     const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 86400000);
 
+    const userWhere: any = { isArchived: false };
+    // Rule: Staff members shall not view other employees' attendance records
+    if (currentUser?.role === 'STAFF') {
+      userWhere.id = currentUser.id;
+    }
+
     const users = await this.prisma.user.findMany({
-      where: { isArchived: false },
+      where: userWhere,
       select: {
         id: true,
         name: true,
@@ -62,19 +68,28 @@ export class AttendanceService {
   }
 
   // Dashboard endpoint displaying Today's Attendance, Absent, Late, Half Day, Attendance %, and Monthly Summary
-  async getDashboardSummary(monthStr?: string) {
+  async getDashboardSummary(monthStr?: string, currentUser?: any) {
     const today = new Date();
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 86400000);
 
-    const totalEmployees = await this.prisma.user.count({
-      where: { status: 'ACTIVE', isArchived: false },
-    });
+    const isStaff = currentUser?.role === 'STAFF';
+
+    const totalEmployees = isStaff
+      ? 1
+      : await this.prisma.user.count({
+          where: { status: 'ACTIVE', isArchived: false },
+        });
+
+    const todayWhere: any = {
+      date: { gte: startOfDay, lt: endOfDay },
+    };
+    if (isStaff) {
+      todayWhere.userId = currentUser.id;
+    }
 
     const todayRecords = await this.prisma.attendance.findMany({
-      where: {
-        date: { gte: startOfDay, lt: endOfDay },
-      },
+      where: todayWhere,
       include: {
         user: {
           select: {
@@ -111,10 +126,15 @@ export class AttendanceService {
     const monthStart = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), 1);
     const monthEnd = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0, 23, 59, 59);
 
+    const monthlyWhere: any = {
+      date: { gte: monthStart, lte: monthEnd },
+    };
+    if (isStaff) {
+      monthlyWhere.userId = currentUser.id;
+    }
+
     const monthlyRecords = await this.prisma.attendance.findMany({
-      where: {
-        date: { gte: monthStart, lte: monthEnd },
-      },
+      where: monthlyWhere,
       include: {
         user: { select: { id: true, name: true, employeeProfile: { include: { department: true } } } },
       },
@@ -178,8 +198,9 @@ export class AttendanceService {
       },
     });
 
+    let record;
     if (existing) {
-      return this.prisma.attendance.update({
+      record = await this.prisma.attendance.update({
         where: { id: existing.id },
         data: {
           status: data.status,
@@ -192,21 +213,52 @@ export class AttendanceService {
           },
         },
       });
+    } else {
+      record = await this.prisma.attendance.create({
+        data: {
+          userId: data.userId,
+          date: startOfDay,
+          status: data.status,
+          remarks: data.remarks || null,
+          recordedById: operatorUser.id,
+        },
+        include: {
+          recordedBy: {
+            select: { id: true, name: true, role: true },
+          },
+        },
+      });
     }
 
-    return this.prisma.attendance.create({
-      data: {
-        userId: data.userId,
-        date: startOfDay,
-        status: data.status,
-        remarks: data.remarks || null,
-        recordedById: operatorUser.id,
-      },
-      include: {
-        recordedBy: {
-          select: { id: true, name: true, role: true },
+    // Operational Event Notification referencing originating ATTENDANCE entity
+    if (data.status === 'LATE' || data.status === 'ABSENT' || data.status === 'HALF_DAY') {
+      await this.prisma.notification.create({
+        data: {
+          userId: data.userId,
+          title: `Attendance Status: ${data.status}`,
+          message: `Your attendance for ${data.date} has been marked as ${data.status.replace('_', ' ')}${data.remarks ? ` (${data.remarks})` : ''}`,
+          type: data.status === 'ABSENT' ? 'WARNING' : 'INFO',
+          linkUrl: '/attendance',
+          eventType: data.status === 'LATE' ? 'ATTENDANCE_LATE_FLAGGED' : 'ATTENDANCE_MARKED',
+          entityType: 'ATTENDANCE',
+          entityId: record.id,
+          attendanceId: record.id,
         },
+      });
+    }
+
+    // Permission-sensitive action: Attendance Update permanent audit record
+    await this.prisma.activityLog.create({
+      data: {
+        userId: operatorUser.id,
+        action: 'ATTENDANCE_UPDATE',
+        entity: 'Attendance',
+        entityId: record.id,
+        description: `Attendance marked as ${data.status} for user ${data.userId} on ${data.date}.`,
+        metadata: JSON.stringify({ targetUserId: data.userId, status: data.status, date: data.date, remarks: data.remarks }),
       },
     });
+
+    return record;
   }
 }

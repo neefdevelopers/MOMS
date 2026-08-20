@@ -1,6 +1,6 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ShootType, ProjectStatus, Priority, PermissionStatus, WeatherStatus, StudioBookingStatus, EquipmentAvailability, TaskStatus } from '../../common/enums';
+import { ShootType, ProjectStatus, Priority, PermissionStatus, WeatherStatus, StudioBookingStatus, EquipmentAvailability, TaskStatus, Role } from '../../common/enums';
 
 @Injectable()
 export class ProjectsService {
@@ -87,9 +87,11 @@ export class ProjectsService {
 
     // Role filtering for STAFF: only projects they are assigned to
     if (params.role === 'STAFF' && params.userId) {
-      where.assignedTeam = {
-        some: { userId: params.userId },
-      };
+      where.OR = [
+        { assignedTeam: { some: { userId: params.userId } } },
+        { tasks: { some: { assignedEmployees: { some: { userId: params.userId } } } } },
+        { scripts: { some: { assignedEmployeeId: params.userId } } },
+      ];
     }
 
     return this.prisma.shootProject.findMany({
@@ -114,7 +116,7 @@ export class ProjectsService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, currentUser?: any) {
     const project = await this.prisma.shootProject.findUnique({
       where: { id },
       include: {
@@ -139,6 +141,23 @@ export class ProjectsService {
       },
     });
     if (!project) throw new NotFoundException('Project not found');
+
+    // Rule: Staff members shall not view projects unrelated to their assignments
+    if (currentUser?.role === 'STAFF') {
+      const isTeamMember = project.assignedTeam?.some((t) => t.userId === currentUser.id);
+      const isTaskAssignee = project.tasks?.some((task) =>
+        task.assignedEmployees?.some((e) => e.userId === currentUser.id),
+      );
+      const isScriptAssignee = project.scripts?.some(
+        (script) => (script as any).assignedEmployeeId === currentUser.id,
+      );
+
+      if (!isTeamMember && !isTaskAssignee && !isScriptAssignee) {
+        throw new ForbiddenException(
+          'Staff members shall not view projects unrelated to their assignments.',
+        );
+      }
+    }
 
     const activityLogs = await this.prisma.activityLog.findMany({
       where: {
@@ -220,7 +239,7 @@ export class ProjectsService {
       throw new BadRequestException('Active brand is required to create a shoot project');
     }
 
-    // 2. Generate Next Project ID (SP-00000X if not manually specified)
+    // 2. Generate Next Project ID (SP-00000X if not manually specified) with sequence collision resolution
     let finalProjectId = data.projectId?.trim();
     if (!finalProjectId) {
       const count = await this.prisma.shootProject.count();
@@ -228,14 +247,38 @@ export class ProjectsService {
       finalProjectId = `SP-${nextSeq}`;
     }
 
-    // 3. Automated Naming Rule
+    // Check manual entry vs auto-gen collision
+    const existingProject = await this.prisma.shootProject.findUnique({
+      where: { projectId: finalProjectId },
+    });
+    if (existingProject) {
+      if (data.projectId?.trim()) {
+        throw new ConflictException(`Project ID '${finalProjectId}' is already taken. Manual duplicates are not permitted.`);
+      } else {
+        let seq = 1;
+        while (await this.prisma.shootProject.findUnique({ where: { projectId: `${finalProjectId}_${seq}` } })) {
+          seq++;
+        }
+        finalProjectId = `${finalProjectId}_${seq}`;
+      }
+    }
+
+    // 3. Automated Naming Rule based on Configured Conventions
     const dateFormatted = new Date(data.shootDate).toISOString().slice(2, 10).replace(/-/g, '');
     const influencerTag = data.influencerTalent ? data.influencerTalent.split(' ')[0].toUpperCase() : 'SHOOT';
-    const defaultName = `${brand.shortCode}-${dateFormatted}-${influencerTag}`;
+    let baseName = data.name?.trim() || `${brand.shortCode}-${dateFormatted}-${influencerTag}`;
+
+    // Auto-append sequence suffix if generated/provided project name collides
+    let finalName = baseName;
+    let nameSeq = 1;
+    while (await this.prisma.shootProject.findFirst({ where: { name: finalName } })) {
+      finalName = `${baseName} (${nameSeq})`;
+      nameSeq++;
+    }
 
     const projectData: any = {
       projectId: finalProjectId,
-      name: data.name?.trim() || defaultName,
+      name: finalName,
       clientId: data.clientId,
       brandId: data.brandId,
       productId: data.productId || null,
@@ -303,13 +346,29 @@ export class ProjectsService {
         await this.prisma.projectAssignment.create({
           data: { projectId: project.id, userId: tUserId },
         });
+
+        // Operational Event Notification referencing originating PROJECT entity
+        await this.prisma.notification.create({
+          data: {
+            userId: tUserId,
+            title: 'Assigned to Shoot Project',
+            message: `You were assigned to project ${project.projectId}: ${project.name}`,
+            type: 'INFO',
+            linkUrl: `/projects?projectId=${project.id}`,
+            eventType: 'PROJECT_TEAM_ASSIGNED',
+            entityType: 'PROJECT',
+            entityId: project.id,
+            entityCode: project.projectId,
+            projectId: project.id,
+          },
+        });
       }
     }
 
     // 6. Reserve / Assign Equipment if provided
     if (data.equipmentIds && Array.isArray(data.equipmentIds)) {
       for (const eqId of data.equipmentIds) {
-        await this.prisma.equipmentReservation.create({
+        const res = await this.prisma.equipmentReservation.create({
           data: {
             projectId: project.id,
             equipmentId: eqId,
@@ -318,10 +377,29 @@ export class ProjectsService {
             status: 'RESERVED',
           },
         });
-        await this.prisma.equipment.update({
+        const eq = await this.prisma.equipment.update({
           where: { id: eqId },
           data: { availability: EquipmentAvailability.RESERVED },
         });
+
+        // Operational Event Notification referencing originating EQUIPMENT entity
+        if (userId) {
+          await this.prisma.notification.create({
+            data: {
+              userId,
+              title: 'Equipment Reserved for Shoot',
+              message: `Equipment ${eq.equipmentId || eq.name} reserved for project ${project.projectId}`,
+              type: 'INFO',
+              linkUrl: `/equipment`,
+              eventType: 'EQUIPMENT_RESERVED',
+              entityType: 'EQUIPMENT',
+              entityId: eq.id,
+              entityCode: eq.equipmentId,
+              equipmentId: eq.id,
+              projectId: project.id,
+            },
+          });
+        }
       }
     }
 

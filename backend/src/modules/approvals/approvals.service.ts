@@ -35,6 +35,28 @@ export class ApprovalsService {
     };
   }
 
+  async findAll(status?: string, approvalType?: string, projectId?: string) {
+    const where: any = {};
+    if (status && status !== 'ALL') {
+      where.status = status;
+    }
+    if (approvalType && approvalType !== 'ALL') {
+      where.approvalType = approvalType;
+    }
+    if (projectId && projectId !== 'ALL') {
+      where.projectId = projectId;
+    }
+
+    return this.prisma.approval.findMany({
+      where,
+      include: {
+        project: { include: { client: true, brand: true } },
+        reviewer: { select: { id: true, name: true, email: true, role: true } },
+      },
+      orderBy: { reviewedAt: 'desc' },
+    });
+  }
+
   async submitTechnicalReview(data: { projectId: string; status: 'APPROVED' | 'REJECTED'; remarks?: string }, reviewerId: string) {
     const project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
     if (!project) throw new NotFoundException('Project not found');

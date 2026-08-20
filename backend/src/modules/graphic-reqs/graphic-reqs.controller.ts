@@ -12,8 +12,32 @@ export class GraphicReqsController {
   constructor(private readonly graphicReqsService: GraphicReqsService) {}
 
   @Get()
-  findAll(@Query('projectId') projectId?: string) {
-    return this.graphicReqsService.findAll(projectId);
+  findAll(
+    @Query('projectId') projectId?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('priority') priority?: string,
+    @Query('clientId') clientId?: string,
+    @Query('brandId') brandId?: string,
+    @Query('productId') productId?: string,
+    @Query('employeeId') employeeId?: string,
+    @Query('date') date?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.graphicReqsService.findAll({
+      projectId,
+      search,
+      status,
+      priority,
+      clientId,
+      brandId,
+      productId,
+      employeeId,
+      date,
+      dateFrom,
+      dateTo,
+    });
   }
 
   @Get(':id')

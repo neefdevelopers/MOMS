@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { ApprovalsService } from './approvals.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -10,6 +10,15 @@ import { Role, ClientDecision } from '../../common/enums';
 @Controller('approvals')
 export class ApprovalsController {
   constructor(private readonly approvalsService: ApprovalsService) {}
+
+  @Get()
+  findAll(
+    @Query('status') status?: string,
+    @Query('approvalType') approvalType?: string,
+    @Query('projectId') projectId?: string,
+  ) {
+    return this.approvalsService.findAll(status, approvalType, projectId);
+  }
 
   @Get('queue')
   getApprovalQueue() {

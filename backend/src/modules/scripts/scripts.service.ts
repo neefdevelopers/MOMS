@@ -5,12 +5,50 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class ScriptsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(projectId?: string, search?: string) {
+  async findAll(params?: {
+    projectId?: string;
+    search?: string;
+    status?: string;
+    priority?: string;
+    clientId?: string;
+    brandId?: string;
+    productId?: string;
+    employeeId?: string;
+    language?: string;
+    date?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  } | string) {
     const where: any = {};
-    if (projectId) where.projectId = projectId;
+    const p: any = typeof params === 'string' ? { projectId: params } : params || {};
 
-    if (search && search.trim()) {
-      const q = search.trim();
+    if (p.projectId) where.projectId = p.projectId;
+    if (p.clientId) where.clientId = p.clientId;
+    if (p.brandId) where.brandId = p.brandId;
+    if (p.productId) where.productId = p.productId;
+    if (p.status && p.status !== 'ALL') where.status = p.status;
+    if (p.priority && p.priority !== 'ALL') where.priority = p.priority;
+    if (p.language && p.language !== 'ALL') where.language = { contains: p.language };
+
+    if (p.employeeId) {
+      where.scriptAssignments = {
+        some: { userId: p.employeeId },
+      };
+    }
+
+    if (p.date) {
+      const d = new Date(p.date);
+      const nextD = new Date(d);
+      nextD.setDate(d.getDate() + 1);
+      where.createdAt = { gte: d, lt: nextD };
+    } else if (p.dateFrom || p.dateTo) {
+      where.createdAt = {};
+      if (p.dateFrom) where.createdAt.gte = new Date(p.dateFrom);
+      if (p.dateTo) where.createdAt.lte = new Date(p.dateTo);
+    }
+
+    if (p.search && p.search.trim()) {
+      const q = p.search.trim();
       where.OR = [
         { name: { contains: q } },
         { scriptId: { contains: q } },
@@ -78,7 +116,7 @@ export class ScriptsService {
   }
 
   async assignEmployee(scriptId: string, userId: string, responsibility: string) {
-    await this.findOne(scriptId);
+    const script = await this.findOne(scriptId);
     const result = await this.prisma.scriptAssignment.upsert({
       where: { scriptId_userId_responsibility: { scriptId, userId, responsibility } },
       create: { scriptId, userId, responsibility },
@@ -86,6 +124,24 @@ export class ScriptsService {
       include: { user: { select: { id: true, name: true, role: true } } },
     });
     await this.logTimeline(scriptId, 'ASSIGNED', `Assigned as ${responsibility}: ${result.user?.name}`, userId);
+
+    // Operational Event Notification referencing originating SCRIPT entity
+    await this.prisma.notification.create({
+      data: {
+        userId,
+        title: 'Assigned to Script',
+        message: `You were assigned as ${responsibility} on script ${script.scriptId}: ${script.name}`,
+        type: 'INFO',
+        linkUrl: `/scripts`,
+        eventType: 'SCRIPT_ASSIGNED',
+        entityType: 'SCRIPT',
+        entityId: script.id,
+        entityCode: script.scriptId,
+        scriptId: script.id,
+        projectId: script.projectId || null,
+      },
+    });
+
     return result;
   }
 

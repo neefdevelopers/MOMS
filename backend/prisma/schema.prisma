@@ -32,7 +32,8 @@ model User {
   communications     Communication[]     @relation("CommunicationSender")
   assignedBlockers   Communication[]     @relation("BlockerAssignedTo")
   resolvedBlockers   Communication[]     @relation("BlockerResolvedBy")
-  notifications      Notification[]
+  notifications      Notification[]      @relation("NotificationRecipient")
+  notificationsRead  Notification[]      @relation("NotificationReadBy")
   activityLogs       ActivityLog[]
   approvalsRequested Approval[]          @relation("ApprovalRequester")
   approvalsReviewed  Approval[]          @relation("Approver")
@@ -761,6 +762,8 @@ model Communication {
   deliveredAt          DateTime?
   readAt               DateTime?
   closedAt             DateTime?
+  publishDate          DateTime          @default(now())
+  expiryDate           DateTime?
   createdAt            DateTime          @default(now())
 }
 
@@ -776,15 +779,44 @@ model CommunicationAttachment {
 }
 
 model Notification {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String
-  message   String
-  type      String   @default("INFO")
-  isRead    Boolean  @default(false)
-  linkUrl   String?
-  createdAt DateTime @default(now())
+  id                    String   @id @default(uuid())
+  userId                String
+  user                  User     @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  title                 String
+  message               String
+  type                  String   @default("INFO") // INFO, WARNING, SUCCESS, ALERT, ERROR
+  category              String   @default("INFORMATION") // 14 Standard Notification Categories
+  priority              String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status                String   @default("UNREAD") // UNREAD, READ, ARCHIVED (Business Rule: Never deleted)
+  isRead                Boolean  @default(false)
+  linkUrl               String?
+
+  // ── Audit Records & Timestamp History (Business Rules) ──
+  deliveredAt           DateTime @default(now())
+  readAt                DateTime?
+  readById              String?
+  readBy                User?    @relation("NotificationReadBy", fields: [readById], references: [id])
+  archivedAt            DateTime?
+
+  // ── Operational Event & Originating Entity Mandatory References (Business Rule) ──
+  eventType             String   @default("GENERAL_EVENT") // e.g. PROJECT_CREATED, TASK_ASSIGNED, SCRIPT_APPROVED, etc.
+  entityType            String   @default("SYSTEM")        // PROJECT, TASK, SCRIPT, GRAPHIC_REQUIREMENT, EQUIPMENT, ATTENDANCE, CALENDAR_EVENT, APPROVAL, COMMUNICATION
+  entityId              String   @default("")              // ID of originating entity
+  entityCode            String?                            // e.g. SP-000001, TSK-000001, GR-000001, EQ-000001, SC-000001
+  metadata              String?                            // JSON metadata describing the event snapshot
+
+  // Foreign keys linking to specific operational entities
+  projectId             String?
+  taskId                String?
+  scriptId              String?
+  graphicRequirementId String?
+  equipmentId           String?
+  attendanceId          String?
+  calendarEventId       String?
+  approvalId            String?
+  communicationId       String?
+
+  createdAt             DateTime @default(now())
 }
 
 model ActivityLog {
@@ -824,4 +856,52 @@ model EquipmentCategory {
   createdBy   User?    @relation("CreatedByUser", fields: [createdById], references: [id])
   equipments   Equipment[]
 }
+
+model SavedFilter {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  icon        String?
+  module      String   @default("ALL")
+  filters     String   // JSON serialized filter criteria
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Favorite {
+  id          String   @id @default(uuid())
+  userId      String
+  entityType  String   // PROJECT, SCRIPT, GRAPHIC_REQUIREMENT, TASK, REPORT
+  entityId    String
+  title       String
+  code        String?
+  url         String
+  metadata    String?  // JSON string for additional context (e.g. status, brand, priority)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, entityType, entityId])
+  @@index([userId])
+  @@index([userId, entityType])
+}
+
+model RecentAccess {
+  id          String   @id @default(uuid())
+  userId      String
+  entityType  String   // PROJECT, SCRIPT, REPORT, EQUIPMENT, GRAPHIC_REQUIREMENT, TASK
+  entityId    String
+  title       String
+  code        String?
+  url         String
+  metadata    String?  // JSON string for additional context (e.g. status, location, category)
+  accessedAt  DateTime @default(now())
+
+  @@unique([userId, entityType, entityId])
+  @@index([userId])
+  @@index([userId, accessedAt])
+}
+
 

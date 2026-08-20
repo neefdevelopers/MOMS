@@ -245,6 +245,18 @@ export class EquipmentService {
       },
     });
 
+    // Permission-sensitive action: Equipment Issue / Return permanent audit record
+    await this.prisma.activityLog.create({
+      data: {
+        userId,
+        action: data.action === EquipmentMovementAction.RETURNED ? 'EQUIPMENT_RETURN' : 'EQUIPMENT_ISSUE',
+        entity: 'Equipment',
+        entityId: data.equipmentId,
+        description: `Equipment ${data.equipmentId} movement: ${data.action}${data.notes ? ` (${data.notes})` : ''}`,
+        metadata: JSON.stringify({ equipmentId: data.equipmentId, projectId: data.projectId, action: data.action, currentHolder: data.currentHolder }),
+      },
+    });
+
     return movement;
   }
 

@@ -12,13 +12,13 @@ export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
   @Get('dashboard')
-  getDashboardSummary(@Query('month') month?: string) {
-    return this.attendanceService.getDashboardSummary(month);
+  getDashboardSummary(@Query('month') month?: string, @CurrentUser() user?: any) {
+    return this.attendanceService.getDashboardSummary(month, user);
   }
 
   @Get()
-  findAll(@Query('date') date?: string) {
-    return this.attendanceService.findAll(date);
+  findAll(@Query('date') date?: string, @CurrentUser() user?: any) {
+    return this.attendanceService.findAll(date, user);
   }
 
   // Business Rule: Attendance shall be recorded manually by the Media Manager. Employees shall not mark their own attendance.

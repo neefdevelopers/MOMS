@@ -48,8 +48,8 @@ export class ProjectsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.projectsService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.projectsService.findOne(id, user);
   }
 
   @Roles(Role.MEDIA_MANAGER)

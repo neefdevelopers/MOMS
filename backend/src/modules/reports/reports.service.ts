@@ -3,9 +3,118 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class ReportsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async getPersonalizedDashboard(userId: string) {
+  async logDataExport(userId: string, reportType: string, format: string, recordCount?: number, filters?: any) {
+    return this.prisma.activityLog.create({
+      data: {
+        userId,
+        action: 'DATA_EXPORT',
+        entity: 'Report',
+        entityId: reportType || 'OperationalReport',
+        description: `Exported ${reportType || 'Report'} in ${format} format (${recordCount || 0} records).`,
+        metadata: JSON.stringify({ reportType, format, recordCount, filters }),
+      },
+    });
+  }
+
+  public getDateRangeHelper(period?: string, startDate?: string, endDate?: string) {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+
+    if (period === 'yesterday') {
+      start.setDate(start.getDate() - 1);
+      end.setDate(end.getDate() - 1);
+    } else if (period === 'this_week') {
+      const day = start.getDay();
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+      start.setDate(diff);
+    } else if (period === 'last_week') {
+      const day = start.getDay();
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1) - 7;
+      start.setDate(diff);
+      end.setDate(diff + 6);
+    } else if (period === 'this_month') {
+      start.setDate(1);
+    } else if (period === 'last_month') {
+      start.setMonth(start.getMonth() - 1);
+      start.setDate(1);
+      end.setDate(0);
+    } else if (period === 'custom' && startDate) {
+      const customStart = new Date(startDate);
+      customStart.setHours(0, 0, 0, 0);
+      return { start: customStart, end: endDate ? new Date(new Date(endDate).setHours(23, 59, 59, 999)) : end };
+    }
+    return { start, end };
+  }
+
+  public inMemoryFilter(data: any[], type: 'projects' | 'tasks' | 'users' | 'scripts' | 'graphics' | 'equipments', filters: any): any[] {
+    const { clientId, brandId, productId, departmentId, employeeId, projectId, status, search } = filters;
+    const q = search ? search.toLowerCase() : '';
+    return data.filter(item => {
+      if (type === 'projects') {
+        if (clientId && item.clientId !== clientId) return false;
+        if (brandId && item.brandId !== brandId) return false;
+        if (productId && item.productId !== productId) return false;
+        if (status && item.status !== status) return false;
+        if (q) {
+          const match = item.name?.toLowerCase().includes(q) || 
+                        item.client?.name?.toLowerCase().includes(q) || 
+                        item.brand?.name?.toLowerCase().includes(q) || 
+                        item.product?.name?.toLowerCase().includes(q);
+          if (!match) return false;
+        }
+      } else if (type === 'tasks') {
+        if (projectId && item.projectId !== projectId) return false;
+        if (status && item.status !== status) return false;
+        if (employeeId && !item.assignedEmployees?.some((e: any) => e.userId === employeeId)) return false;
+        if (clientId && item.project?.clientId !== clientId) return false;
+        if (brandId && item.project?.brandId !== brandId) return false;
+        if (productId && item.project?.productId !== productId) return false;
+        if (departmentId && !item.assignedEmployees?.some((e: any) => e.user?.employeeProfile?.departmentId === departmentId)) return false;
+        if (q) {
+          const match = item.project?.name?.toLowerCase().includes(q) ||
+                        item.project?.client?.name?.toLowerCase().includes(q) ||
+                        item.project?.brand?.name?.toLowerCase().includes(q) ||
+                        item.project?.product?.name?.toLowerCase().includes(q) ||
+                        item.assignedEmployees?.some((e: any) => e.user?.name?.toLowerCase().includes(q));
+          if (!match) return false;
+        }
+      } else if (type === 'users') {
+        if (employeeId && item.id !== employeeId) return false;
+        if (departmentId && item.employeeProfile?.departmentId !== departmentId) return false;
+        if (q && !item.name?.toLowerCase().includes(q)) return false;
+      } else if (type === 'scripts' || type === 'graphics') {
+        if (projectId && item.projectId !== projectId) return false;
+        if (status && item.status !== status) return false;
+        if (clientId && item.project?.clientId !== clientId) return false;
+        if (brandId && item.project?.brandId !== brandId) return false;
+        if (productId && item.project?.productId !== productId) return false;
+        if (q) {
+          const match = item.project?.name?.toLowerCase().includes(q) ||
+                        item.project?.client?.name?.toLowerCase().includes(q) ||
+                        item.project?.brand?.name?.toLowerCase().includes(q) ||
+                        item.project?.product?.name?.toLowerCase().includes(q);
+          if (!match) return false;
+        }
+      } else if (type === 'equipments') {
+        if (status && item.status !== status) return false;
+        if (q) {
+          const match = item.name?.toLowerCase().includes(q) ||
+                        item.model?.toLowerCase().includes(q) ||
+                        item.serialNumber?.toLowerCase().includes(q) ||
+                        item.categoryRef?.name?.toLowerCase().includes(q);
+          if (!match) return false;
+        }
+      }
+      return true;
+    });
+  }
+
+
+  async getPersonalizedDashboard(userId: string, period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { employeeProfile: true },
@@ -191,11 +300,9 @@ export class ReportsService {
     };
   }
 
-  async getDashboardSummary() {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+  async getDashboardSummary(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start: todayStart, end: todayEnd } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
 
     const activeProjects = await this.prisma.shootProject.findMany({
       where: { status: { not: 'ARCHIVED' } },
@@ -327,7 +434,7 @@ export class ReportsService {
       totalDailyTargetsToday += u.employeeProfile?.dailyTarget || 1.0;
     });
 
-    const attendancePercentage = totalEmployees > 0 ? Math.round(((presentCount + lateCount + halfDayCount * 0.5) / totalEmployees) * 100) : 100;
+    const attendancePercentage = totalEmployees > 0 ? Math.round(((presentCount + lateCount + halfDayCount * 0.5) / totalEmployees) * 100) : 0;
     const capacityUtilizationPercentage = totalCapacityHours > 0 ? Math.round((totalAssignedHours / totalCapacityHours) * 100) : 0;
     const overallProductivityPercentage = totalDailyTargetsToday > 0 ? Math.round((totalDailyOutputsToday / totalDailyTargetsToday) * 100) : 0;
     const totalCompletedProjects = await this.prisma.shootProject.count({ where: { status: 'COMPLETED' } });
@@ -426,7 +533,7 @@ export class ReportsService {
     };
   }
 
-  async getProductionReports() {
+  async getProductionReports(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
     const [projects, scripts] = await Promise.all([
       this.prisma.shootProject.findMany({
         include: { client: true, brand: true, product: true, revisions: true },
@@ -472,14 +579,19 @@ export class ReportsService {
     };
   }
 
-  async getEmployeeProductivityReport() {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+  async getEmployeeProductivityReport(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start: todayStart, end: todayEnd } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
 
-    const users = await this.prisma.user.findMany({
-      where: { isArchived: false },
+    // Load configurable output formulas from DB
+    const formulas = await this.prisma.outputFormula.findMany();
+    const formulaMap = new Map<string, number>();
+    formulas.forEach((f) => {
+      formulaMap.set(f.deliverableType.toUpperCase(), f.outputValue);
+    });
+
+    // Query users including historical contributors
+    const usersRaw = await this.prisma.user.findMany({
       include: {
         employeeProfile: { include: { department: true } },
         tasks: {
@@ -489,11 +601,15 @@ export class ReportsService {
         },
         attendanceRecords: {
           where: { date: { gte: todayStart, lte: todayEnd } },
+          orderBy: { date: 'desc' },
         },
-        deliverableUploads: true,
+        deliverableUploads: {
+          where: { createdAt: { gte: todayStart, lte: todayEnd } }
+        },
       },
       orderBy: { name: 'asc' },
     });
+    const users = this.inMemoryFilter(usersRaw, 'users', filtersObj);
 
     return users.map((u) => {
       const dailyTarget = u.employeeProfile?.dailyTarget || 1.0;
@@ -506,19 +622,27 @@ export class ReportsService {
       const completedTasksToday = u.tasks.filter((t) => {
         if (!t.task || t.task.status !== 'COMPLETED') return false;
         const compDate = new Date(t.task.updatedAt);
-        return compDate >= todayStart;
+        return compDate >= todayStart && compDate <= todayEnd;
       }).length;
 
-      const completedUploadsToday = u.deliverableUploads.filter((d) => {
-        return new Date(d.createdAt) >= todayStart;
-      }).length;
+      // Calculate configurable formula weighted output
+      let weightedUploads = 0;
+      u.deliverableUploads.forEach((d: any) => {
+        const fileType = (d.fileType || d.type || 'DEFAULT').toUpperCase();
+        const weight = formulaMap.get(fileType) ?? formulaMap.get('DEFAULT') ?? 1.0;
+        weightedUploads += weight;
+      });
 
-      const actualDailyOutput = Math.max(completedTasksToday, completedUploadsToday);
+      const weightedTasks = completedTasksToday * (formulaMap.get('TASK') ?? 1.0);
+      const actualDailyOutput = Math.round(Math.max(weightedTasks, weightedUploads, completedTasksToday) * 10) / 10;
       const targetAchievementPercentage = Math.round((actualDailyOutput / dailyTarget) * 100);
 
-      let status = 'Met Target';
-      if (targetAchievementPercentage > 100) status = 'Exceeded Target';
-      else if (targetAchievementPercentage < 100) status = 'Below Target';
+      let targetStatus = 'Met Target';
+      if (targetAchievementPercentage > 100) targetStatus = 'Exceeded Target';
+      else if (targetAchievementPercentage < 100) targetStatus = 'Below Target';
+
+      // Completion Rate
+      const completionRatePercentage = assignedTasksCount > 0 ? Math.round((completedTasksCount / assignedTasksCount) * 100) : (actualDailyOutput > 0 ? 100 : 0);
 
       // Average Completion Time Calculation
       const completedTaskObjs = u.tasks.filter((t) => t.task && t.task.status === 'COMPLETED').map((t) => t.task);
@@ -541,8 +665,26 @@ export class ReportsService {
 
       // Attendance & Revisions Mapping
       const todayAttRecord = u.attendanceRecords[0];
-      const attendance = todayAttRecord ? todayAttRecord.status : 'NOT_MARKED';
+      let attendance = todayAttRecord ? todayAttRecord.status : 'NOT_MARKED';
+      if (!todayAttRecord && period === 'today') {
+        attendance = 'NOT_MARKED';
+      }
+
       const revisionCount = u.deliverableUploads.filter((d) => (d as any).version > 1).length;
+
+      // Overall Score Calculation (Configurable equivalent)
+      let attScore = 0;
+      if (attendance === 'PRESENT') attScore = 100;
+      else if (attendance === 'LATE') attScore = 75;
+      else if (attendance === 'HALF_DAY') attScore = 50;
+
+      const achievementScore = Math.min(targetAchievementPercentage, 100);
+      const revPenalty = Math.min(revisionCount * 5, 20); // Max 20% penalty
+      const pendingPenalty = Math.min(pendingTasksCount * 2, 10); // Max 10% penalty
+
+      let overallProductivityScore = Math.round((attScore * 0.2) + (achievementScore * 0.3) + (completionRatePercentage * 0.5) - revPenalty - pendingPenalty);
+      if (overallProductivityScore < 0) overallProductivityScore = 0;
+      if (overallProductivityScore > 100) overallProductivityScore = 100;
 
       return {
         userId: u.id,
@@ -576,18 +718,26 @@ export class ReportsService {
         // 9. Pending Tasks
         pendingTasks: pendingTasksCount,
         pendingTasksCount,
-        // 10. Average Completion Time
+        // 10. Completion Rate
+        completionRatePercentage,
+        completionRate: completionRatePercentage,
+        // 11. Overall Score
+        overallProductivityScore,
+        // 12. Average Completion Time
         avgCompletionTimeHours,
         avgCompletionTimeFormatted,
         averageCompletionTime: avgCompletionTimeFormatted,
 
-        status,
+        status: targetStatus,
         dailyCapacityHours,
       };
     });
   }
 
-  async getScriptAnalytics() {
+  async getScriptAnalytics(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
+
     const scripts = await this.prisma.script.findMany({
       include: {
         brand: true,
@@ -704,7 +854,10 @@ export class ReportsService {
     };
   }
 
-  async getGraphicAnalytics() {
+  async getGraphicAnalytics(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
+
     const graphicReqs = await this.prisma.graphicRequirement.findMany({
       include: {
         brand: true,
@@ -778,11 +931,14 @@ export class ReportsService {
     };
   }
 
-  async getEmployeeAnalyticsReport() {
+  async getEmployeeAnalyticsReport(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
+
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    const users = await this.prisma.user.findMany({
+    const usersRaw = await this.prisma.user.findMany({
       where: { isArchived: false },
       include: {
         employeeProfile: { include: { department: true } },
@@ -796,16 +952,29 @@ export class ReportsService {
       },
       orderBy: { name: 'asc' },
     });
+    const users = this.inMemoryFilter(usersRaw, 'users', filtersObj);
 
     const formulas = await this.prisma.outputFormula.findMany();
+    const formulaMap = new Map<string, number>();
+    formulas.forEach((f) => {
+      formulaMap.set(f.deliverableType.toUpperCase(), f.outputValue);
+    });
 
     // 1. Employee Productivity Report
     const employeeProductivityReport = users.map((u) => {
       const activeTasks = u.tasks.map((t) => t.task).filter((t) => t && t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
       const completedTasks = u.tasks.map((t) => t.task).filter((t) => t && t.status === 'COMPLETED');
       const completedTasksToday = completedTasks.filter((t) => new Date(t.updatedAt) >= todayStart).length;
-      const completedUploadsToday = u.deliverableUploads.filter((d) => new Date(d.createdAt) >= todayStart).length;
-      const actualDailyOutput = Math.max(completedTasksToday, completedUploadsToday);
+      
+      let weightedUploads = 0;
+      u.deliverableUploads.filter((d) => new Date(d.createdAt) >= todayStart).forEach((d: any) => {
+        const fileType = (d.fileType || d.type || 'DEFAULT').toUpperCase();
+        const weight = formulaMap.get(fileType) ?? formulaMap.get('DEFAULT') ?? 1.0;
+        weightedUploads += weight;
+      });
+
+      const weightedTasks = completedTasksToday * (formulaMap.get('TASK') ?? 1.0);
+      const actualDailyOutput = Math.round(Math.max(weightedTasks, weightedUploads, completedTasksToday) * 10) / 10;
       const dailyTarget = u.employeeProfile?.dailyTarget || 1.0;
       const productivityPercentage = Math.round((actualDailyOutput / dailyTarget) * 100);
 
@@ -830,7 +999,7 @@ export class ReportsService {
       const lateCount = records.filter((r) => r.status === 'LATE').length;
       const halfDayCount = records.filter((r) => r.status === 'HALF_DAY').length;
       const absentCount = records.filter((r) => r.status === 'ABSENT').length;
-      const attendancePercentage = totalRecordedDays > 0 ? Math.round(((presentCount + lateCount + halfDayCount * 0.5) / totalRecordedDays) * 100) : 100;
+      const attendancePercentage = totalRecordedDays > 0 ? Math.round(((presentCount + lateCount + halfDayCount * 0.5) / totalRecordedDays) * 100) : 0;
 
       return {
         userId: u.id,
@@ -909,7 +1078,7 @@ export class ReportsService {
 
       const records = u.attendanceRecords;
       const presentCount = records.filter((r) => r.status === 'PRESENT' || r.status === 'LATE').length;
-      const attPct = records.length > 0 ? Math.round((presentCount / records.length) * 100) : 100;
+      const attPct = records.length > 0 ? Math.round((presentCount / records.length) * 100) : 0;
       deptMap[dName].totalAttendancePct += attPct;
 
       const activeTasks = u.tasks.map((t) => t.task).filter((t) => t && t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
@@ -1008,7 +1177,10 @@ export class ReportsService {
     };
   }
 
-  async getBrandPerformanceReports() {
+  async getBrandPerformanceReports(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
+
     const [brands, clients, allProjects, allScripts, allGraphicReqs] = await Promise.all([
       this.prisma.brand.findMany({ orderBy: { name: 'asc' } }),
       this.prisma.client.findMany(),
@@ -1111,7 +1283,10 @@ export class ReportsService {
     });
   }
 
-  async getClientPerformanceReports() {
+  async getClientPerformanceReports(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
+
     const [clients, allProjects, allScripts, allGraphicReqs] = await Promise.all([
       this.prisma.client.findMany({ orderBy: { name: 'asc' } }),
       this.prisma.shootProject.findMany({ include: { revisions: true } }),
@@ -1200,7 +1375,10 @@ export class ReportsService {
     });
   }
 
-  async getProductPerformanceReports() {
+  async getProductPerformanceReports(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
+
     const [products, brands, allProjects, allScripts, allGraphicReqs] = await Promise.all([
       this.prisma.product.findMany({ orderBy: { name: 'asc' } }),
       this.prisma.brand.findMany(),
@@ -1287,7 +1465,10 @@ export class ReportsService {
     });
   }
 
-  async getDepartmentPerformanceReports() {
+  async getDepartmentPerformanceReports(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
+
     const [departments, employeeProfiles, tasks, deliverableUploads] = await Promise.all([
       this.prisma.department.findMany({ orderBy: { name: 'asc' } }),
       this.prisma.employeeProfile.findMany({ include: { user: true } }),
@@ -1364,7 +1545,10 @@ export class ReportsService {
     });
   }
 
-  async getProjectPerformanceReports() {
+  async getProjectPerformanceReports(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
+
     const projects = await this.prisma.shootProject.findMany({
       include: {
         client: true,
@@ -1517,7 +1701,7 @@ export class ReportsService {
       const totalTrackedDays = presentDays + absentDays + halfDays + lateEntries;
       const attendancePercentage = totalTrackedDays > 0
         ? Math.round(((presentDays + lateEntries + halfDays * 0.5) / totalTrackedDays) * 100)
-        : 100;
+          : 0;
 
       return {
         userId: u.id,
@@ -1544,13 +1728,16 @@ export class ReportsService {
     };
   }
 
-  async getEquipmentPerformanceReports() {
-    const equipments = await this.prisma.equipment.findMany({
+  async getEquipmentPerformanceReports(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
+
+    const equipmentsRaw = await this.prisma.equipment.findMany({
       include: {
         categoryRef: true,
         movements: {
           include: {
-            user: { select: { id: true, name: true } },
+            
             project: { select: { id: true, name: true, projectId: true } },
           },
           orderBy: { timestamp: 'desc' },
@@ -1570,6 +1757,7 @@ export class ReportsService {
       },
       orderBy: { name: 'asc' },
     });
+    const equipments = this.inMemoryFilter(equipmentsRaw, 'equipments', filtersObj);
 
     return equipments.map((eq) => {
       // 1. Equipment Availability
@@ -1655,7 +1843,10 @@ export class ReportsService {
     });
   }
 
-  async getApprovalPerformanceReports() {
+  async getApprovalPerformanceReports(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
+
     const [approvals, clientConfirmations, revisions, scripts, graphicReqs, projects] = await Promise.all([
       this.prisma.approval.findMany({
         include: {
@@ -1770,8 +1961,11 @@ export class ReportsService {
     };
   }
 
-  async getCapacityPerformanceReports() {
-    const users = await this.prisma.user.findMany({
+  async getCapacityPerformanceReports(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
+
+    const usersRaw = await this.prisma.user.findMany({
       where: { isArchived: false },
       include: {
         employeeProfile: { include: { department: true } },
@@ -1783,6 +1977,7 @@ export class ReportsService {
       },
       orderBy: { name: 'asc' },
     });
+    const users = this.inMemoryFilter(usersRaw, 'users', filtersObj);
 
     let totalDailyCapacity = 0;
     let totalAssignedCapacity = 0;
@@ -1841,7 +2036,10 @@ export class ReportsService {
     };
   }
 
-  async getRevisionPerformanceReports() {
+  async getRevisionPerformanceReports(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
+
     const [revisions, projects, brands, users, scripts, graphicReqs] = await Promise.all([
       this.prisma.revision.findMany({
         include: {
@@ -1951,13 +2149,16 @@ export class ReportsService {
     };
   }
 
-  async getTimelinePerformanceReports() {
+  async getTimelinePerformanceReports(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
+    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
+    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
+
     const [projects, approvals, equipmentMovements, activityLogs, taskTimelines, scriptTimelines] = await Promise.all([
       this.prisma.shootProject.findMany({
         include: {
           client: true,
           brand: true,
-          creator: true,
+          
           assignedTeam: { include: { user: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -1973,7 +2174,7 @@ export class ReportsService {
       this.prisma.equipmentMovement.findMany({
         include: {
           equipment: { select: { id: true, name: true, serialNumber: true } },
-          user: { select: { id: true, name: true } },
+          
           project: { select: { id: true, name: true } },
         },
         orderBy: { timestamp: 'desc' },
@@ -1987,7 +2188,7 @@ export class ReportsService {
       }),
       this.prisma.taskTimeline.findMany({
         include: {
-          user: { select: { id: true, name: true } },
+          
           task: { select: { id: true, title: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -1995,7 +2196,7 @@ export class ReportsService {
       }),
       this.prisma.scriptTimeline.findMany({
         include: {
-          user: { select: { id: true, name: true } },
+          
           script: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -2004,7 +2205,7 @@ export class ReportsService {
     ]);
 
     // 1. Project History
-    const projectHistory = projects.map((p) => ({
+    const projectHistory = projects.map((p: any) => ({
       projectId: p.id,
       projectCode: p.projectId,
       projectName: p.name,
@@ -2021,7 +2222,7 @@ export class ReportsService {
 
     // 2. Status Changes
     const statusChanges = [
-      ...taskTimelines.map((tt) => ({
+      ...taskTimelines.map((tt: any) => ({
         id: tt.id,
         type: 'TASK_STATUS_CHANGE',
         title: `Task Status Update: ${tt.task?.title || 'Task'}`,
@@ -2031,7 +2232,7 @@ export class ReportsService {
         remarks: tt.remarks,
         timestamp: tt.createdAt.toISOString(),
       })),
-      ...scriptTimelines.map((st) => ({
+      ...scriptTimelines.map((st: any) => ({
         id: st.id,
         type: 'SCRIPT_STATUS_CHANGE',
         title: `Script Status Update: ${st.script?.name || 'Script'}`,
@@ -2064,7 +2265,7 @@ export class ReportsService {
       equipmentName: m.equipment?.name || 'Equipment Asset',
       serialNumber: m.equipment?.serialNumber || '',
       action: m.action,
-      handlerName: m.user?.name || 'Staff Member',
+      handlerName: (m as any).user?.name || 'Staff Member',
       projectName: m.project?.name || 'Internal Production',
       condition: m.condition || 'Good',
       notes: m.notes,

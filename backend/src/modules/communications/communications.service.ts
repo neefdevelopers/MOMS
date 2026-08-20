@@ -1,10 +1,14 @@
 import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CommunicationType } from '../../common/enums';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CommunicationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationsService: NotificationsService,
+  ) {}
 
   async findByEntity(
     entityType?: string,
@@ -260,23 +264,140 @@ export class CommunicationsService {
     return this.getCommunicationTypes();
   }
 
-  async getAnnouncements() {
+  async getAnnouncements(includeExpired = false) {
+    const now = new Date();
+    const where: any = {
+      OR: [
+        { type: 'ANNOUNCEMENT' },
+        { isAnnouncement: true },
+      ],
+    };
+
+    if (!includeExpired) {
+      where.AND = [
+        {
+          OR: [
+            { expiryDate: null },
+            { expiryDate: { gte: now } },
+          ],
+        },
+      ];
+    }
+
     return (this.prisma.communication as any).findMany({
-      where: {
-        OR: [
-          { type: 'ANNOUNCEMENT' },
-          { isAnnouncement: true },
-        ],
-      },
+      where,
       include: {
         sender: { select: { id: true, name: true, role: true, avatarUrl: true } },
         attachments: true,
       },
       orderBy: [
         { priority: 'desc' },
+        { publishDate: 'desc' },
         { createdAt: 'desc' },
       ],
     });
+  }
+
+  /**
+   * Business Rule Enforcement:
+   * "The Media Manager may publish organization-wide announcements.
+   * Each announcement shall include:
+   * ● Title
+   * ● Description
+   * ● Priority
+   * ● Publish Date
+   * ● Expiry Date (Optional)
+   * Announcements shall appear in every employee dashboard."
+   */
+  async publishAnnouncement(
+    dto: {
+      title: string;
+      description: string;
+      priority?: string;
+      publishDate?: string | Date;
+      expiryDate?: string | Date | null;
+      attachments?: { fileName: string; fileUrl: string; fileType: string; fileSize?: number }[];
+    },
+    user: { id: string; role: string; name: string }
+  ) {
+    if (user.role !== 'MEDIA_MANAGER') {
+      throw new ForbiddenException(
+        'Business Rule Violation: Only the Media Manager may publish organization-wide announcements.'
+      );
+    }
+
+    if (!dto.title || !dto.title.trim()) {
+      throw new BadRequestException('Announcement title is required.');
+    }
+    if (!dto.description || !dto.description.trim()) {
+      throw new BadRequestException('Announcement description is required.');
+    }
+
+    const priority = dto.priority && ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL', 'HIGH_PRIORITY', 'NORMAL_PRIORITY'].includes(dto.priority.toUpperCase())
+      ? dto.priority.toUpperCase()
+      : 'NORMAL_PRIORITY';
+
+    const publishDate = dto.publishDate ? new Date(dto.publishDate) : new Date();
+    const expiryDate = dto.expiryDate ? new Date(dto.expiryDate) : null;
+
+    if (expiryDate && expiryDate < publishDate) {
+      throw new BadRequestException('Announcement expiry date cannot be earlier than the publish date.');
+    }
+
+    // 1. Create Organization-Wide Communication Announcement
+    const announcement = await (this.prisma.communication as any).create({
+      data: {
+        entityType: 'ORGANIZATION',
+        entityId: 'ORG-WIDE',
+        senderId: user.id,
+        isAnnouncement: true,
+        type: 'ANNOUNCEMENT',
+        subject: dto.title.trim(),
+        content: dto.description.trim(),
+        priority,
+        publishDate,
+        expiryDate,
+        recipients: 'Entire Organization',
+        status: 'SENT',
+        attachments: dto.attachments && dto.attachments.length > 0
+          ? {
+              create: dto.attachments.map((att) => ({
+                fileName: att.fileName,
+                fileUrl: att.fileUrl,
+                fileType: att.fileType || 'DOCUMENT',
+                fileSize: att.fileSize,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        sender: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        attachments: true,
+      },
+    });
+
+    // 2. Broadcast Operational Notification to Every Employee in the Entire Organization
+    const notifPriority = priority === 'CRITICAL' || priority === 'HIGH_PRIORITY'
+      ? 'HIGH'
+      : priority === 'LOW'
+      ? 'LOW'
+      : 'MEDIUM';
+
+    await this.notificationsService.notifyEntireOrganization({
+      title: `📢 Announcement: ${dto.title.trim()}`,
+      message: dto.description.trim().substring(0, 180),
+      category: 'ANNOUNCEMENT',
+      priority: notifPriority,
+      eventType: 'ANNOUNCEMENT_PUBLISHED',
+      entityType: 'COMMUNICATION',
+      entityId: announcement.id,
+      entityCode: `ANN-${announcement.id.substring(0, 6).toUpperCase()}`,
+      linkUrl: `/`,
+    }).catch((err) => {
+      console.warn('Failed to broadcast announcement notifications:', err);
+    });
+
+    return announcement;
   }
 
   async create(
@@ -432,6 +553,11 @@ export class CommunicationsService {
                   : `New company-wide announcement published by ${senderName}`,
                 type: isHigh ? 'WARNING' : 'INFO',
                 linkUrl: '/dashboard',
+                eventType: 'COMMUNICATION_ANNOUNCEMENT_PUBLISHED',
+                entityType: 'COMMUNICATION',
+                entityId: createdComm.id,
+                communicationId: createdComm.id,
+                projectId: resolvedProjectId || null,
               },
             });
           }
@@ -468,6 +594,11 @@ export class CommunicationsService {
                 }"`,
                 type: 'MENTION',
                 linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
+                eventType: 'COMMUNICATION_MESSAGE_RECEIVED',
+                entityType: 'COMMUNICATION',
+                entityId: createdComm.id,
+                communicationId: createdComm.id,
+                projectId: resolvedProjectId || null,
               },
             });
           }
@@ -484,7 +615,7 @@ export class CommunicationsService {
         const targetRole = data.targetRole || 'TECHNICAL_MANAGER';
         const approvalType = targetRole === 'MEDIA_MANAGER' ? 'MEDIA_MANAGER_REVIEW' : 'TECHNICAL_REVIEW';
 
-        await this.prisma.approval.create({
+        const approvalRecord = await this.prisma.approval.create({
           data: {
             projectId: resolvedProjectId || null,
             entityType: data.entityType,
@@ -510,6 +641,11 @@ export class CommunicationsService {
               message: `${senderName} submitted an approval request: "${data.subject || data.content.substring(0, 80)}"`,
               type: 'APPROVAL_REQUEST',
               linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
+              eventType: 'APPROVAL_REQUESTED',
+              entityType: 'APPROVAL',
+              entityId: approvalRecord.id,
+              approvalId: approvalRecord.id,
+              projectId: resolvedProjectId || null,
             },
           });
         }
@@ -536,6 +672,11 @@ export class CommunicationsService {
               }"`,
               type: 'INFO',
               linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
+              eventType: 'COMMUNICATION_MESSAGE_RECEIVED',
+              entityType: 'COMMUNICATION',
+              entityId: createdComm.id,
+              communicationId: createdComm.id,
+              projectId: resolvedProjectId || null,
             },
           });
         }
@@ -555,6 +696,11 @@ export class CommunicationsService {
               message: `${senderName} assigned an operational blocker to you (${blockerReason?.replace(/_/g, ' ')}): "${createdComm.subject}"`,
               type: 'WARNING',
               linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
+              eventType: 'COMMUNICATION_BLOCKER_RAISED',
+              entityType: 'COMMUNICATION',
+              entityId: createdComm.id,
+              communicationId: createdComm.id,
+              projectId: resolvedProjectId || null,
             },
           });
         }
@@ -577,6 +723,11 @@ export class CommunicationsService {
                 message: `${senderName} reported a blocker (${blockerReason?.replace(/_/g, ' ')}): "${createdComm.subject}"`,
                 type: 'WARNING',
                 linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
+                eventType: 'COMMUNICATION_BLOCKER_RAISED',
+                entityType: 'COMMUNICATION',
+                entityId: createdComm.id,
+                communicationId: createdComm.id,
+                projectId: resolvedProjectId || null,
               },
             });
           }
@@ -667,6 +818,11 @@ export class CommunicationsService {
           message: `Your reported blocker "${comm.subject}" has been resolved: "${resolutionNotes || 'Resolved'}"`,
           type: 'INFO',
           linkUrl: comm.projectId ? `/projects/${comm.projectId}` : '/communication',
+          eventType: 'COMMUNICATION_BLOCKER_RESOLVED',
+          entityType: 'COMMUNICATION',
+          entityId: comm.id,
+          communicationId: comm.id,
+          projectId: comm.projectId || null,
         },
       });
     }

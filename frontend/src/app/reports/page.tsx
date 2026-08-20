@@ -1,11 +1,14 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { exportToExcel, exportToCSV, exportToPDF, ExportColumn } from '@/utils/exportUtils';
 import { fetchApi } from '@/lib/api';
 import {
   BarChart3, TrendingUp, PieChart, Layers, ShieldCheck, Users, Building2, RotateCcw,
-  Palette, Tag, Zap, Package, CheckCircle2,
+  Palette, Tag, Zap, Package, CheckCircle2, Download,
 } from 'lucide-react';
+import { FavoriteButton } from '@/components/common/FavoriteButton';
+import { recordRecentAccess } from '@/lib/recent-access';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 const BRAND_COLORS = ['#a78bfa', '#34d399', '#60a5fa', '#fbbf24', '#f87171', '#38bdf8', '#fb923c'];
@@ -26,11 +29,214 @@ export default function ReportsPage() {
   const [revisionReports, setRevisionReports] = useState<any>(null);
   const [timelineReports, setTimelineReports] = useState<any>(null);
   const [attendanceData, setAttendanceData] = useState<any>(null);
-  const [attendancePeriod, setAttendancePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('monthly');
-  const [attStartDate, setAttStartDate] = useState('');
-  const [attEndDate, setAttEndDate] = useState('');
+  const [globalPeriod, setGlobalPeriod] = useState<'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'custom'>('this_month');
+  const [attendancePeriod, setAttendancePeriod] = useState('this_month');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [brandId, setBrandId] = useState('');
+  const [productId, setProductId] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [status, setStatus] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const [clients, setClients] = useState<any[]>([]);
+  const [brands, setBrands] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [projectsList, setProjectsList] = useState<any[]>([]);
+
   const [loading, setLoading] = useState(true);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'timelines' | 'revisions' | 'capacity' | 'approvals' | 'equipment' | 'attendance' | 'projects' | 'departments' | 'products' | 'clients' | 'brands' | 'employee' | 'scripts' | 'graphics'>('timelines');
+
+  
+  const handleExport = (format: 'csv' | 'xlsx' | 'pdf') => {
+    let exportData: any[] = [];
+    let columns: ExportColumn[] = [];
+    let filename = `MOMS_Report_${activeTab}_${globalPeriod}`;
+
+    const metadata = [
+      `Report: ${activeTab.toUpperCase()}`,
+      `Period: ${globalPeriod}`,
+      `Generated: ${new Date().toLocaleString()}`
+    ];
+
+    if (clientId) metadata.push(`Client: ${clients.find(c => c.id === clientId)?.name || clientId}`);
+    if (brandId) metadata.push(`Brand: ${brands.find(b => b.id === brandId)?.name || brandId}`);
+    if (departmentId) metadata.push(`Department: ${departments.find(d => d.id === departmentId)?.name || departmentId}`);
+
+    switch (activeTab) {
+      case 'employee':
+        exportData = employeeReports.map(emp => ({
+          ...emp,
+          employeeName: emp.employeeName || emp.name || 'Unknown',
+          attendance: emp.attendance || 'NOT MARKED',
+          assignedTasks: emp.assignedTasksCount ?? emp.assignedTasks ?? 0,
+          completedTasks: emp.completedTasksCount ?? emp.completedTasks ?? 0,
+          pendingTasks: emp.pendingTasksCount ?? emp.pendingTasks ?? 0,
+        }));
+        columns = [
+          { header: 'Employee Name', key: 'employeeName' },
+          { header: 'Designation', key: 'designation' },
+          { header: 'Department', key: 'department' },
+          { header: 'Attendance', key: 'attendance' },
+          { header: 'Assigned', key: 'assignedTasks' },
+          { header: 'Completed', key: 'completedTasks' },
+          { header: 'Pending', key: 'pendingTasks' },
+          { header: 'Target', key: 'dailyTarget' },
+          { header: 'Actual Output', key: 'actualDailyOutput' },
+          { header: 'Achievement %', key: 'achievementPercentage' },
+          { header: 'Revisions', key: 'revisionCount' },
+          { header: 'Completion %', key: 'completionRatePercentage' },
+          { header: 'Overall Score', key: 'overallProductivityScore' }
+        ];
+        break;
+        case 'attendance':
+          exportData = (attendanceData?.report || []).map((emp: any) => ({
+            ...emp,
+            employeeName: emp.employeeName || emp.name || 'Unknown',
+          }));
+          columns = [
+          { header: 'Employee Name', key: 'employeeName' },
+          { header: 'Department', key: 'department' },
+          { header: 'Present Days', key: 'presentDays' },
+          { header: 'Absent Days', key: 'absentDays' },
+          { header: 'Half Days', key: 'halfDays' },
+          { header: 'Late Entries', key: 'lateEntries' },
+          { header: 'Tracked Days', key: 'totalTrackedDays' },
+          { header: 'Attendance %', key: 'attendancePercentage' }
+        ];
+        break;
+        case 'projects':
+          exportData = projectReports.map(p => ({
+            ...p,
+            projectName: p.projectName || p.name || 'Unknown',
+            projectCode: p.projectCode || p.shortCode || 'N/A',
+            clientName: p.clientName || p.client?.name || 'N/A',
+            brandName: p.brandName || p.brand?.name || 'N/A',
+            productName: p.productName || p.product?.name || 'N/A',
+          }));
+          columns = [
+          { header: 'Project Name', key: 'projectName' },
+          { header: 'Code', key: 'projectCode' },
+          { header: 'Status', key: 'status' },
+          { header: 'Client', key: 'clientName' },
+          { header: 'Brand', key: 'brandName' },
+          { header: 'Product', key: 'productName' },
+          { header: 'Assigned Staff', key: 'assignedEmployeesCount' },
+          { header: 'Timeline Summary', key: 'timelineSummary' }
+        ];
+        break;
+      case 'departments':
+          exportData = deptReports.map(d => ({
+            ...d,
+            department: d.departmentName || d.name || 'Unknown',
+            headcount: d.totalEmployees ?? d.headcount ?? 0,
+            avgProductivityPercentage: d.avgProductivityPercentage ?? 0,
+            avgAttendancePercentage: d.avgAttendancePercentage ?? 0,
+            avgCapacityUtilizationPercentage: d.avgCapacityUtilizationPercentage ?? 0,
+          }));
+          columns = [
+            { header: 'Department', key: 'department' },
+            { header: 'Headcount', key: 'headcount' },
+            { header: 'Avg Productivity %', key: 'avgProductivityPercentage' },
+            { header: 'Avg Attendance %', key: 'avgAttendancePercentage' },
+            { header: 'Avg Capacity Utilization %', key: 'avgCapacityUtilizationPercentage' }
+          ];
+          break;
+        case 'clients':
+          exportData = clientReports.map(c => ({
+            ...c,
+            name: c.name || c.clientName || 'Unknown',
+            shortCode: c.shortCode || 'N/A',
+            projectCount: c.projectCount ?? 0,
+            completedCount: c.completedCount ?? 0,
+            scriptCount: c.scriptCount ?? 0,
+            graphicCount: c.graphicCount ?? 0,
+          }));
+          columns = [
+            { header: 'Client Name', key: 'name' },
+            { header: 'Code', key: 'shortCode' },
+            { header: 'Total Projects', key: 'projectCount' },
+            { header: 'Completed Projects', key: 'completedCount' },
+            { header: 'Total Scripts', key: 'scriptCount' },
+            { header: 'Graphic Reqs', key: 'graphicCount' }
+          ];
+          break;
+        case 'brands':
+          exportData = brandReports.map(b => ({
+            ...b,
+            name: b.name || b.brandName || 'Unknown',
+            clientName: b.clientName || b.client?.name || 'N/A',
+            shortCode: b.shortCode || 'N/A',
+            projectCount: b.projectCount ?? 0,
+            completedCount: b.completedCount ?? 0,
+            scriptCount: b.scriptCount ?? 0,
+          }));
+          columns = [
+            { header: 'Brand Name', key: 'name' },
+            { header: 'Client', key: 'clientName' },
+            { header: 'Code', key: 'shortCode' },
+            { header: 'Total Projects', key: 'projectCount' },
+            { header: 'Completed Projects', key: 'completedCount' },
+            { header: 'Total Scripts', key: 'scriptCount' }
+          ];
+          break;
+        case 'scripts':
+          exportData = (scriptAnalytics?.employeeProductivity || []).map((s: any) => ({
+            ...s,
+            name: s.name || s.employeeName || 'Unknown',
+            role: s.role || 'N/A',
+            assignedCount: s.assignedCount ?? 0,
+            completedCount: s.completedCount ?? 0,
+            revisionCount: s.revisionCount ?? 0,
+          }));
+          columns = [
+            { header: 'Name', key: 'name' },
+            { header: 'Role', key: 'role' },
+            { header: 'Assigned', key: 'assignedCount' },
+            { header: 'Completed', key: 'completedCount' },
+            { header: 'Revisions', key: 'revisionCount' }
+          ];
+          break;
+        case 'graphics':
+          exportData = (graphicAnalytics?.employeeProductivity || []).map((g: any) => ({
+            ...g,
+            name: g.name || g.employeeName || 'Unknown',
+            role: g.role || 'N/A',
+            assignedCount: g.assignedCount ?? 0,
+            inProgressCount: g.inProgressCount ?? 0,
+            completedCount: g.completedCount ?? 0,
+            revisionCount: g.revisionCount ?? 0,
+          }));
+          columns = [
+            { header: 'Name', key: 'name' },
+            { header: 'Role', key: 'role' },
+            { header: 'Assigned', key: 'assignedCount' },
+            { header: 'In Progress', key: 'inProgressCount' },
+            { header: 'Completed', key: 'completedCount' },
+            { header: 'Revisions', key: 'revisionCount' }
+          ];
+          break;
+      default:
+        alert('Exporting for this tab is not fully configured yet. Try Employee or Attendance.');
+        return;
+    }
+
+    if (exportData.length === 0) {
+      alert('No data available to export for the current filters.');
+      return;
+    }
+
+    if (format === 'csv') exportToCSV({ data: exportData, columns, filename, metadata });
+    if (format === 'xlsx') exportToExcel({ data: exportData, columns, filename, metadata });
+    if (format === 'pdf') exportToPDF({ data: exportData, columns, filename, metadata });
+  };
 
   const fetchAttendance = async (period: string, sDate?: string, eDate?: string) => {
     try {
@@ -47,24 +253,59 @@ export default function ReportsPage() {
   };
 
   useEffect(() => {
+    async function loadRefs() {
+      try {
+        const [c, b, p, d, e, pr] = await Promise.all([
+          fetchApi('/clients').catch(() => []),
+          fetchApi('/brands').catch(() => []),
+          fetchApi('/products').catch(() => []),
+          fetchApi('/users/departments').catch(() => []),
+          fetchApi('/users').catch(() => []),
+          fetchApi('/projects').catch(() => []),
+        ]);
+        setClients(c);
+        setBrands(b);
+        setProducts(p);
+        setDepartments(d);
+        setEmployees(e);
+        setProjectsList(pr);
+      } catch (err) {
+        console.error('Failed to load refs', err);
+      }
+    }
+    loadRefs();
+  }, []);
+
+  useEffect(() => {
     async function load() {
       try {
+        setLoading(true);
+        let query = `?period=${globalPeriod}${globalPeriod === 'custom' && startDate ? `&startDate=${startDate}` : ''}${globalPeriod === 'custom' && endDate ? `&endDate=${endDate}` : ''}`;
+        if (clientId) query += `&clientId=${clientId}`;
+        if (brandId) query += `&brandId=${brandId}`;
+        if (productId) query += `&productId=${productId}`;
+        if (departmentId) query += `&departmentId=${departmentId}`;
+        if (employeeId) query += `&employeeId=${employeeId}`;
+        if (projectId) query += `&projectId=${projectId}`;
+        if (status) query += `&status=${status}`;
+        if (searchQuery) query += `&search=${encodeURIComponent(searchQuery)}`;
+        
         const [resProd, resScript, resGraphic, resEmp, resBrand, resClient, resProduct, resDept, resProjects, resAtt, resEq, resApp, resCap, resRev, resTime] = await Promise.all([
-          fetchApi('/reports/production'),
-          fetchApi('/reports/script-analytics'),
-          fetchApi('/reports/graphic-analytics'),
-          fetchApi('/reports/productivity'),
-          fetchApi('/reports/brands'),
-          fetchApi('/reports/clients'),
-          fetchApi('/reports/products'),
-          fetchApi('/reports/departments'),
-          fetchApi('/reports/projects'),
-          fetchApi('/reports/attendance-analytics?period=monthly'),
-          fetchApi('/reports/equipment'),
-          fetchApi('/reports/approvals'),
-          fetchApi('/reports/capacity'),
-          fetchApi('/reports/revisions'),
-          fetchApi('/reports/timelines'),
+          fetchApi(`/reports/production${query}`),
+          fetchApi(`/reports/script-analytics${query}`),
+          fetchApi(`/reports/graphic-analytics${query}`),
+          fetchApi(`/reports/productivity${query}`),
+          fetchApi(`/reports/brands${query}`),
+          fetchApi(`/reports/clients${query}`),
+          fetchApi(`/reports/products${query}`),
+          fetchApi(`/reports/departments${query}`),
+          fetchApi(`/reports/projects${query}`),
+          fetchApi(`/reports/attendance-analytics${query}`),
+          fetchApi(`/reports/equipment${query}`),
+          fetchApi(`/reports/approvals${query}`),
+          fetchApi(`/reports/capacity${query}`),
+          fetchApi(`/reports/revisions${query}`),
+          fetchApi(`/reports/timelines${query}`),
         ]);
         setData(resProd);
         setScriptAnalytics(resScript);
@@ -81,6 +322,14 @@ export default function ReportsPage() {
         setCapacityReports(resCap);
         setRevisionReports(resRev);
         setTimelineReports(resTime);
+
+        recordRecentAccess({
+          entityType: 'REPORT',
+          entityId: 'operational-reports',
+          title: 'Timeline, Revision & Operational Analytics',
+          code: 'RPT-ANALYTICS',
+          url: '/reports',
+        });
       } catch (err) {
         console.error(err);
       } finally {
@@ -88,9 +337,9 @@ export default function ReportsPage() {
       }
     }
     load();
-  }, []);
+  }, [globalPeriod, startDate, endDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, searchQuery]);
 
-  if (loading) return <div className="p-8 text-center text-gray-400">Loading Operational Reports...</div>;
+  if (loading && !data) return <div className="p-8 text-center text-gray-400">Loading Operational Reports...</div>;
 
   const gr = graphicAnalytics;
   const app = approvalReports;
@@ -106,10 +355,160 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6 text-xs">
+      {/* Compact Controls Bar */}
+      <div className="bg-card border border-border rounded-xl px-4 py-3 flex flex-wrap items-center gap-2">
+        {/* Period */}
+        <select
+          className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs"
+          value={globalPeriod}
+          onChange={(e) => setGlobalPeriod(e.target.value as any)}
+        >
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="this_week">This Week</option>
+          <option value="last_week">Last Week</option>
+          <option value="this_month">This Month</option>
+          <option value="last_month">Last Month</option>
+          <option value="custom">Custom</option>
+        </select>
+        {globalPeriod === 'custom' && (
+          <>
+            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-white text-xs" />
+            <span className="text-gray-500 text-xs">→</span>
+            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-white text-xs" />
+          </>
+        )}
+
+        <div className="w-px h-5 bg-gray-700 mx-1" />
+
+        {/* Filters Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setFilterMenuOpen(o => !o)}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 border rounded-lg font-medium transition-colors ${
+              (clientId || brandId || departmentId || employeeId || status || searchQuery)
+                ? 'bg-indigo-900/50 border-indigo-600 text-indigo-300'
+                : 'bg-gray-800 hover:bg-gray-700 border-gray-600 text-white'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 010 2H4a1 1 0 01-1-1zM6 10h12M9 16h6" /></svg>
+            Filters
+            {(clientId || brandId || departmentId || employeeId || status) && (
+              <span className="ml-0.5 bg-indigo-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                {[clientId, brandId, departmentId, employeeId, status].filter(Boolean).length}
+              </span>
+            )}
+            <span className="text-gray-400 ml-0.5">▾</span>
+          </button>
+          {filterMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setFilterMenuOpen(false)} />
+              <div className="absolute left-0 top-full mt-1.5 z-20 bg-gray-900 border border-gray-700 rounded-xl shadow-xl p-4 min-w-[280px] space-y-3">
+                <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Filter Reports</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <select className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 text-xs" value={clientId} onChange={e => setClientId(e.target.value)}>
+                    <option value="">All Clients</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <select className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 text-xs" value={brandId} onChange={e => setBrandId(e.target.value)}>
+                    <option value="">All Brands</option>
+                    {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                  <select className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 text-xs" value={departmentId} onChange={e => setDepartmentId(e.target.value)}>
+                    <option value="">All Depts</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                  <select className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 text-xs" value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
+                    <option value="">All Employees</option>
+                    {employees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                  <select className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 text-xs col-span-2" value={status} onChange={e => setStatus(e.target.value)}>
+                    <option value="">All Statuses</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="CANCELLED">Cancelled</option>
+                  </select>
+                </div>
+                {(clientId || brandId || departmentId || employeeId || status) && (
+                  <button
+                    onClick={() => { setClientId(''); setBrandId(''); setProductId(''); setProjectId(''); setDepartmentId(''); setEmployeeId(''); setStatus(''); setSearchQuery(''); }}
+                    className="w-full text-xs text-rose-400 hover:text-rose-300 py-1 border border-rose-900/50 rounded-lg hover:bg-rose-950/30 transition-colors"
+                  >✕ Clear All Filters</button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Search Bar - always visible */}
+        <div className="relative flex items-center">
+          <svg className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" /></svg>
+          <input
+            type="text"
+            placeholder="Search reports..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="bg-gray-900 border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-gray-300 placeholder-gray-600 text-xs w-44 focus:outline-none focus:border-gray-500"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-2 text-gray-500 hover:text-gray-300 text-xs">✕</button>
+          )}
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Export Dropdown */}
+        <div className="relative border-l border-gray-700 pl-3">
+          <button
+            onClick={() => setExportMenuOpen(o => !o)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg text-white font-medium transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export
+            <span className="text-gray-400 ml-0.5">▾</span>
+          </button>
+          {exportMenuOpen && (
+            <>
+              {/* Backdrop */}
+              <div className="fixed inset-0 z-10" onClick={() => setExportMenuOpen(false)} />
+              {/* Menu */}
+              <div className="absolute right-0 top-full mt-1.5 z-20 bg-gray-900 border border-gray-700 rounded-xl shadow-xl min-w-[140px] overflow-hidden">
+                <button
+                  onClick={() => { handleExport('csv'); setExportMenuOpen(false); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                >
+                  <span className="text-gray-400">📄</span> CSV
+                </button>
+                <button
+                  onClick={() => { handleExport('xlsx'); setExportMenuOpen(false); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-emerald-400 hover:bg-gray-800 hover:text-emerald-300 transition-colors"
+                >
+                  <span>📊</span> Excel
+                </button>
+                <button
+                  onClick={() => { handleExport('pdf'); setExportMenuOpen(false); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-rose-400 hover:bg-gray-800 hover:text-rose-300 transition-colors"
+                >
+                  <span>📑</span> PDF
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Header */}
       <div className="bg-card border border-border p-6 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
+            <FavoriteButton
+              entityType="REPORT"
+              entityId="operational-reports"
+              title="Timeline, Revision & Operational Analytics"
+              code="RPT-ANALYTICS"
+              url="/reports"
+              size="md"
+            />
             <BarChart3 className="w-5 h-5 text-blue-400" /> Timeline, Revision &amp; Operational Analytics
           </h1>
           <p className="text-xs text-gray-400 mt-1">Project history, status changes, approval logs, equipment movements, employee activities</p>
@@ -134,93 +533,215 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Tab Switcher */}
-      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit flex-wrap">
-        <button
-          onClick={() => setActiveTab('timelines')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'timelines' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <BarChart3 className="w-3.5 h-3.5" /> Timeline Reports
-        </button>
-        <button
-          onClick={() => setActiveTab('revisions')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'revisions' ? 'bg-rose-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <RotateCcw className="w-3.5 h-3.5" /> Revision Reports
-        </button>
-        <button
-          onClick={() => setActiveTab('capacity')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'capacity' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <TrendingUp className="w-3.5 h-3.5" /> Capacity Reports
-        </button>
-        <button
-          onClick={() => setActiveTab('approvals')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'approvals' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <CheckCircle2 className="w-3.5 h-3.5" /> Approval Reports
-        </button>
-        <button
-          onClick={() => setActiveTab('equipment')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'equipment' ? 'bg-cyan-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <Zap className="w-3.5 h-3.5" /> Equipment Reports
-        </button>
-        <button
-          onClick={() => setActiveTab('attendance')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'attendance' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <ShieldCheck className="w-3.5 h-3.5" /> Attendance Reports
-        </button>
-        <button
-          onClick={() => setActiveTab('projects')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'projects' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <Layers className="w-3.5 h-3.5" /> Project Reports
-        </button>
-        <button
-          onClick={() => setActiveTab('departments')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'departments' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <Building2 className="w-3.5 h-3.5" /> Department Reports
-        </button>
-        <button
-          onClick={() => setActiveTab('products')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'products' ? 'bg-rose-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <Package className="w-3.5 h-3.5" /> Product Reports
-        </button>
-        <button
-          onClick={() => setActiveTab('clients')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'clients' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <Building2 className="w-3.5 h-3.5" /> Client Reports
-        </button>
-        <button
-          onClick={() => setActiveTab('brands')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'brands' ? 'bg-cyan-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <Tag className="w-3.5 h-3.5" /> Brand Performance Reports
-        </button>
-        <button
-          onClick={() => setActiveTab('employee')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'employee' ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <Users className="w-3.5 h-3.5" /> Employee Performance
-        </button>
-        <button
-          onClick={() => setActiveTab('scripts')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'scripts' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <BarChart3 className="w-3.5 h-3.5" /> Script Analytics
-        </button>
-        <button
-          onClick={() => setActiveTab('graphics')}
-          className={`px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'graphics' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-        >
-          <Palette className="w-3.5 h-3.5" /> Graphic Req Analytics
-        </button>
+      {/* Report Selector */}
+      <div className="bg-card border border-border rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-1 gap-y-2">
+        {/* Group: Operations */}
+        <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Operations</span>
+        {([
+          { id: 'timelines', label: 'Timelines', color: 'blue' },
+          { id: 'revisions', label: 'Revisions', color: 'rose' },
+          { id: 'capacity', label: 'Capacity', color: 'indigo' },
+          { id: 'approvals', label: 'Approvals', color: 'amber' },
+          { id: 'attendance', label: 'Attendance', color: 'emerald' },
+          { id: 'equipment', label: 'Equipment', color: 'cyan' },
+        ] as const).map(t => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+              activeTab === t.id
+                ? `bg-${t.color}-600/20 text-${t.color}-300 border border-${t.color}-600/50`
+                : 'text-gray-500 hover:text-gray-300 border border-transparent'
+            }`}
+          >{t.label}</button>
+        ))}
+
+        <div className="w-px h-4 bg-gray-700 mx-2" />
+
+        {/* Group: Business */}
+        <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Business</span>
+        {([
+          { id: 'projects', label: 'Projects', color: 'blue' },
+          { id: 'departments', label: 'Departments', color: 'indigo' },
+          { id: 'clients', label: 'Clients', color: 'emerald' },
+          { id: 'brands', label: 'Brands', color: 'cyan' },
+          { id: 'products', label: 'Products', color: 'rose' },
+        ] as const).map(t => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+              activeTab === t.id
+                ? `bg-${t.color}-600/20 text-${t.color}-300 border border-${t.color}-600/50`
+                : 'text-gray-500 hover:text-gray-300 border border-transparent'
+            }`}
+          >{t.label}</button>
+        ))}
+
+        <div className="w-px h-4 bg-gray-700 mx-2" />
+
+        {/* Group: Performance */}
+        <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Performance</span>
+        {([
+          { id: 'employee', label: 'Employees', color: 'purple' },
+          { id: 'scripts', label: 'Scripts', color: 'blue' },
+          { id: 'graphics', label: 'Graphics', color: 'amber' },
+        ] as const).map(t => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+              activeTab === t.id
+                ? `bg-${t.color}-600/20 text-${t.color}-300 border border-${t.color}-600/50`
+                : 'text-gray-500 hover:text-gray-300 border border-transparent'
+            }`}
+          >{t.label}</button>
+        ))}
       </div>
+
+      {/* TIMELINE PERFORMANCE REPORTS TAB */}
+      {activeTab === 'timelines' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-6 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-blue-400" /> Operational Timeline &amp; History Analytics Matrix
+            </h2>
+            <span className="text-[11px] text-blue-300 font-mono font-bold">
+              5 Mandatory Timeline Indicators Enforced
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 1. Project History */}
+            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
+              <h3 className="text-xs font-bold text-white flex items-center gap-2 sticky top-0 bg-gray-900/60 backdrop-blur-md pb-2">
+                <Layers className="w-3.5 h-3.5 text-blue-400" /> Project History
+              </h3>
+              <div className="space-y-2">
+                {time?.projectHistory?.length === 0 ? (
+                  <p className="text-gray-500 italic text-[10px]">No project history available.</p>
+                ) : (
+                  time?.projectHistory?.map((p: any) => (
+                    <div key={p.projectId} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
+                      <div className="flex justify-between items-start mb-1">
+                        <div>
+                          <span className="text-blue-300 font-bold text-xs">{p.projectName}</span>
+                          <span className="text-gray-500 text-[10px] ml-1">[{p.projectCode}]</span>
+                        </div>
+                        <span className="text-[9px] text-gray-400">{new Date(p.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <div className="text-[10px] text-gray-400">Client: <span className="text-emerald-400">{p.clientName}</span> | Brand: <span className="text-cyan-400">{p.brandName}</span></div>
+                      <div className="text-[10px] text-gray-400">Status: <span className="text-amber-300">{p.status}</span> | Creator: <span className="text-purple-300">{p.creatorName}</span></div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* 2. Status Changes */}
+            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
+              <h3 className="text-xs font-bold text-white flex items-center gap-2 sticky top-0 bg-gray-900/60 backdrop-blur-md pb-2">
+                <TrendingUp className="w-3.5 h-3.5 text-purple-400" /> Status Changes
+              </h3>
+              <div className="space-y-2">
+                {!time?.statusChanges || time?.statusChanges?.length === 0 ? (
+                  <p className="text-gray-500 italic text-[10px]">No status changes available.</p>
+                ) : (
+                  time?.statusChanges?.map((s: any) => (
+                    <div key={s.id} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg border-l-2 border-l-purple-500">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-white font-bold text-[11px]">{s.title}</span>
+                        <span className="text-[9px] text-gray-400">{new Date(s.timestamp).toLocaleString()}</span>
+                      </div>
+                      <div className="text-[10px] text-gray-400">Event: <span className="text-purple-300 font-mono">{s.event}</span></div>
+                      <div className="text-[10px] text-gray-400">Changed by: <span className="text-blue-300">{s.changedByName}</span></div>
+                      <p className="text-[10px] text-gray-500 italic mt-1">{s.description}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* 3. Approval History */}
+            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
+              <h3 className="text-xs font-bold text-white flex items-center gap-2 sticky top-0 bg-gray-900/60 backdrop-blur-md pb-2">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Approval History
+              </h3>
+              <div className="space-y-2">
+                {!time?.approvalHistory || time?.approvalHistory?.length === 0 ? (
+                  <p className="text-gray-500 italic text-[10px]">No approval history available.</p>
+                ) : (
+                  time?.approvalHistory?.map((a: any) => (
+                    <div key={a.approvalId} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
+                      <div className="flex justify-between items-start mb-1">
+                        <div>
+                          <span className="text-emerald-300 font-bold text-xs">{a.approvalType}</span>
+                          <span className="text-gray-500 text-[10px] ml-1">({a.entityType})</span>
+                        </div>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${a.status === 'APPROVED' ? 'bg-emerald-950 text-emerald-400' : a.status === 'REJECTED' ? 'bg-rose-950 text-rose-400' : 'bg-amber-950 text-amber-400'}`}>{a.status}</span>
+                      </div>
+                      <div className="text-[10px] text-gray-400">Project: <span className="text-white">{a.projectName}</span></div>
+                      <div className="flex justify-between text-[10px] mt-1 pt-1 border-t border-gray-800 text-gray-500">
+                        <span>Req: {a.requestedByName}</span>
+                        <span>Rev: {a.reviewerName}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* 4. Equipment History */}
+            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
+              <h3 className="text-xs font-bold text-white flex items-center gap-2 sticky top-0 bg-gray-900/60 backdrop-blur-md pb-2">
+                <Zap className="w-3.5 h-3.5 text-cyan-400" /> Equipment History
+              </h3>
+              <div className="space-y-2">
+                {!time?.equipmentHistory || time?.equipmentHistory?.length === 0 ? (
+                  <p className="text-gray-500 italic text-[10px]">No equipment history available.</p>
+                ) : (
+                  time?.equipmentHistory?.map((e: any) => (
+                    <div key={e.movementId} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-cyan-300 font-bold text-xs">{e.equipmentName}</span>
+                        <span className="text-[9px] text-gray-400">{new Date(e.timestamp).toLocaleDateString()}</span>
+                      </div>
+                      <div className="text-[10px] text-gray-400">Action: <span className="text-amber-300 font-bold">{e.action}</span> | Handler: <span className="text-blue-300">{e.handlerName}</span></div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">Project: {e.projectName}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* 5. Employee Activities */}
+            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto lg:col-span-2">
+              <h3 className="text-xs font-bold text-white flex items-center gap-2 sticky top-0 bg-gray-900/60 backdrop-blur-md pb-2">
+                <Users className="w-3.5 h-3.5 text-amber-400" /> Employee Activities
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {!time?.employeeActivities || time?.employeeActivities?.length === 0 ? (
+                  <p className="text-gray-500 italic text-[10px]">No employee activities available.</p>
+                ) : (
+                  time?.employeeActivities?.map((act: any) => (
+                    <div key={act.logId} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg flex gap-2 items-start">
+                      <div className="w-1.5 h-full min-h-8 bg-gray-700 rounded-full"></div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <span className="text-amber-300 font-bold text-xs">{act.userName}</span>
+                          <span className="text-[9px] text-gray-400">{new Date(act.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div className="text-[10px] text-white my-0.5">{act.description}</div>
+                        <div className="text-[9px] text-gray-500 font-mono">Action: {act.action} | Entity: {act.entity}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* REVISION PERFORMANCE REPORTS TAB */}
       {activeTab === 'revisions' && (
@@ -669,19 +1190,19 @@ export default function ReportsPage() {
                 <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-800 p-1 rounded-lg">
                   <input
                     type="date"
-                    value={attStartDate}
-                    onChange={(e) => setAttStartDate(e.target.value)}
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
                     className="bg-gray-800 text-white text-xs px-2 py-1 rounded border border-gray-700 focus:outline-none"
                   />
                   <span className="text-gray-500">to</span>
                   <input
                     type="date"
-                    value={attEndDate}
-                    onChange={(e) => setAttEndDate(e.target.value)}
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
                     className="bg-gray-800 text-white text-xs px-2 py-1 rounded border border-gray-700 focus:outline-none"
                   />
                   <button
-                    onClick={() => fetchAttendance('custom', attStartDate, attEndDate)}
+                    onClick={() => fetchAttendance('custom', startDate, endDate)}
                     className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-xs transition-colors"
                   >
                     Apply
@@ -1223,7 +1744,8 @@ export default function ReportsPage() {
                   <th className="p-3 text-center">Actual Output</th>
                   <th className="p-3 text-center">Achievement %</th>
                   <th className="p-3 text-center">Revision Count</th>
-                  <th className="p-3 text-center">Avg Completion Time</th>
+                  <th className="p-3 text-center">Completion Rate %</th>
+                  <th className="p-3 text-center">Overall Score</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60 font-medium">
@@ -1286,9 +1808,20 @@ export default function ReportsPage() {
                       {/* 8. Revision Count */}
                       <td className="p-3 text-center font-mono font-bold text-rose-400">{emp.revisionCount || 0}x</td>
 
-                      {/* 10. Average Completion Time */}
+                      {/* 10. Completion Rate */}
                       <td className="p-3 text-center font-mono font-bold text-indigo-300 font-mono">
-                        {emp.avgCompletionTimeFormatted || emp.averageCompletionTime || 'N/A'}
+                        {emp.completionRatePercentage || emp.completionRate || 0}%
+                      </td>
+
+                      {/* 11. Overall Score */}
+                      <td className="p-3 text-center font-mono font-bold">
+                        <span className={`px-2 py-0.5 rounded text-[11px] ${
+                          emp.overallProductivityScore >= 80 ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
+                          emp.overallProductivityScore >= 50 ? 'bg-amber-950 text-amber-400 border border-amber-800' :
+                          'bg-rose-950 text-rose-400 border border-rose-800'
+                        }`}>
+                          {emp.overallProductivityScore}
+                        </span>
                       </td>
                     </tr>
                   ))

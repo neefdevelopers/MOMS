@@ -6,7 +6,7 @@ import { ClientStatus } from '../../common/enums';
 export class ClientsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(search?: string, status?: string) {
+  async findAll(search?: string, status?: string, page?: number, limit?: number) {
     const where: any = {};
     if (status) where.status = status;
     if (search) {
@@ -18,20 +18,43 @@ export class ClientsService {
         { mobile: { contains: search } },
       ];
     }
-    return this.prisma.client.findMany({
-      where,
-      include: {
-        brands: {
-          include: {
-            products: true,
+
+    const take = limit ? Number(limit) : undefined;
+    const skip = page && limit ? (Number(page) - 1) * Number(limit) : undefined;
+
+    const [data, total] = await Promise.all([
+      this.prisma.client.findMany({
+        where,
+        take,
+        skip,
+        include: {
+          brands: {
+            include: {
+              products: true,
+            },
+          },
+          _count: {
+            select: { projects: true, calendarEvents: true },
           },
         },
-        _count: {
-          select: { projects: true, calendarEvents: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.client.count({ where }),
+    ]);
+
+    if (page || limit) {
+      return {
+        data,
+        meta: {
+          total,
+          page: Number(page) || 1,
+          limit: Number(limit) || total,
+          totalPages: limit ? Math.ceil(total / Number(limit)) : 1,
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+      };
+    }
+
+    return data;
   }
 
   async findOne(id: string) {
@@ -159,4 +182,26 @@ export class ClientsService {
       },
     });
   }
+
+  async remove(id: string) {
+    // Guard: ensure the client exists first
+    await this.findOne(id);
+
+    // Cascade protection: block deletion if there are active (non-ARCHIVED) projects
+    const activeProjects = await this.prisma.shootProject.count({
+      where: { clientId: id, NOT: { status: 'ARCHIVED' } },
+    });
+    if (activeProjects > 0) {
+      throw new BadRequestException(
+        `Cannot delete client with ${activeProjects} active project(s). Archive or reassign projects first.`,
+      );
+    }
+
+    // Soft-delete: set status to ARCHIVED instead of a hard delete
+    return this.prisma.client.update({
+      where: { id },
+      data: { status: ClientStatus.ARCHIVED },
+    });
+  }
 }
+

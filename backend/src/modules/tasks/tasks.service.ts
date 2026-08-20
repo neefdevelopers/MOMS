@@ -9,12 +9,18 @@ export class TasksService {
   async findAll(params: {
     search?: string;
     status?: string;
+    priority?: string;
     projectId?: string;
     scriptId?: string;
     clientId?: string;
     brandId?: string;
     productId?: string;
     employeeId?: string;
+    departmentId?: string;
+    date?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    createdById?: string;
     userId?: string;
     role?: Role;
   }) {
@@ -26,6 +32,24 @@ export class TasksService {
     if (params.brandId) where.brandId = params.brandId;
     if (params.productId) where.productId = params.productId;
     if (params.status && params.status !== 'ALL') where.status = params.status;
+    if (params.priority && params.priority !== 'ALL') where.priority = params.priority;
+
+    if (params.departmentId && params.departmentId !== 'ALL') {
+      where.assignedEmployees = {
+        some: { user: { employeeProfile: { departmentId: params.departmentId } } },
+      };
+    }
+
+    if (params.date) {
+      const d = new Date(params.date);
+      const nextD = new Date(d);
+      nextD.setDate(d.getDate() + 1);
+      where.dueDate = { gte: d, lt: nextD };
+    } else if (params.dateFrom || params.dateTo) {
+      where.dueDate = {};
+      if (params.dateFrom) where.dueDate.gte = new Date(params.dateFrom);
+      if (params.dateTo) where.dueDate.lte = new Date(params.dateTo);
+    }
 
     // RBAC: Staff only see their assigned tasks
     if (params.role === Role.STAFF || params.employeeId) {
@@ -127,14 +151,15 @@ export class TasksService {
     type: string,
     targetUserIds?: string[],
   ) {
-    let recipientIds = targetUserIds;
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      include: { assignedEmployees: true },
+    });
+    if (!task) return;
 
+    let recipientIds = targetUserIds;
     if (!recipientIds || recipientIds.length === 0) {
-      const task = await this.prisma.task.findUnique({
-        where: { id: taskId },
-        include: { assignedEmployees: true },
-      });
-      recipientIds = task?.assignedEmployees.map((a) => a.userId) || [];
+      recipientIds = task.assignedEmployees.map((a) => a.userId) || [];
     }
 
     const uniqueIds = Array.from(new Set(recipientIds.filter(Boolean)));
@@ -145,8 +170,14 @@ export class TasksService {
           userId: uId,
           title,
           message,
-          type,
+          type: type || 'INFO',
           linkUrl: `/tasks`,
+          eventType: type || 'TASK_STATUS_CHANGED',
+          entityType: 'TASK',
+          entityId: task.id,
+          entityCode: task.taskId,
+          taskId: task.id,
+          projectId: task.projectId,
         },
       });
     }
@@ -509,7 +540,7 @@ export class TasksService {
           data: { taskId: task.id, userId: uId },
         });
 
-        // Send notification to assigned staff
+        // Send notification to assigned staff referencing originating TASK entity
         await this.prisma.notification.create({
           data: {
             userId: uId,
@@ -517,6 +548,12 @@ export class TasksService {
             message: `You were assigned task ${task.taskId}: ${task.title}`,
             type: 'TASK_ASSIGNED',
             linkUrl: `/tasks`,
+            eventType: 'TASK_ASSIGNED',
+            entityType: 'TASK',
+            entityId: task.id,
+            entityCode: task.taskId,
+            taskId: task.id,
+            projectId: task.projectId,
           },
         });
       }
@@ -558,6 +595,12 @@ export class TasksService {
           message: `Task ${task.taskId}: ${task.title} has been reassigned to you.`,
           type: 'TASK_REASSIGNED',
           linkUrl: `/tasks`,
+          eventType: 'TASK_REASSIGNED',
+          entityType: 'TASK',
+          entityId: task.id,
+          entityCode: task.taskId,
+          taskId: task.id,
+          projectId: task.projectId,
         },
       });
     }

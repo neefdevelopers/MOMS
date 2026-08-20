@@ -23,6 +23,11 @@ import {
   Search,
   Building2,
 } from 'lucide-react';
+import { SortSelector } from '@/components/common/TableSortHeader';
+import { PaginationControls } from '@/components/common/PaginationControls';
+import { FavoriteButton } from '@/components/common/FavoriteButton';
+import { usePagination } from '@/lib/usePagination';
+import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 
 export default function ProjectsPage() {
   const { user } = useAuth();
@@ -33,6 +38,13 @@ export default function ProjectsPage() {
   const [usersList, setUsersList] = useState<any[]>([]);
   const [equipmentList, setEquipmentList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Pagination Hook
+  const { currentPage, setCurrentPage, pageSize, setPageSize, paginate } = usePagination();
+
+  // Sorting State
+  const [sortBy, setSortBy] = useState<SortField | string>('createdAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
   // Filters (11 Parameters)
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -88,7 +100,27 @@ export default function ProjectsPage() {
   const [travelNotes, setTravelNotes] = useState('');
   const [droneRequirement, setDroneRequirement] = useState(false);
 
-  const loadData = async () => {
+  const loadReferenceData = async () => {
+    try {
+      const [resClients, resBrands, resProducts, resUsers, resEqp] = await Promise.all([
+        fetchApi('/clients'),
+        fetchApi('/brands'),
+        fetchApi('/products'),
+        fetchApi('/users'),
+        fetchApi('/equipment'),
+      ]);
+      setClients(Array.isArray(resClients) ? resClients : []);
+      setBrands(Array.isArray(resBrands) ? resBrands : []);
+      setProducts(Array.isArray(resProducts) ? resProducts : []);
+      setUsersList(Array.isArray(resUsers) ? resUsers : []);
+      setEquipmentList(Array.isArray(resEqp) ? resEqp : []);
+    } catch (err) {
+      console.error('Failed to load reference metadata:', err);
+    }
+  };
+
+  const loadProjects = async () => {
+    setLoading(true);
     try {
       let query = '?';
       if (search) query += `search=${encodeURIComponent(search)}&`;
@@ -104,29 +136,21 @@ export default function ProjectsPage() {
       if (selectedEmployee) query += `assignedUserId=${selectedEmployee}&`;
       if (selectedLocation) query += `location=${encodeURIComponent(selectedLocation)}&`;
 
-      const [resProjects, resClients, resBrands, resProducts, resUsers, resEqp] = await Promise.all([
-        fetchApi(`/projects${query}`),
-        fetchApi('/clients'),
-        fetchApi('/brands'),
-        fetchApi('/products'),
-        fetchApi('/users'),
-        fetchApi('/equipment'),
-      ]);
+      const resProjects = await fetchApi(`/projects${query}`);
       setProjects(Array.isArray(resProjects) ? resProjects : []);
-      setClients(Array.isArray(resClients) ? resClients : []);
-      setBrands(Array.isArray(resBrands) ? resBrands : []);
-      setProducts(Array.isArray(resProducts) ? resProducts : []);
-      setUsersList(Array.isArray(resUsers) ? resUsers : []);
-      setEquipmentList(Array.isArray(resEqp) ? resEqp : []);
     } catch (err) {
-      console.error('Failed to load project data:', err);
+      console.error('Failed to load project list:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadReferenceData();
+  }, []);
+
+  useEffect(() => {
+    loadProjects();
   }, [
     search,
     selectedClient,
@@ -257,7 +281,7 @@ export default function ProjectsPage() {
       });
 
       setShowModal(false);
-      loadData();
+      loadProjects();
     } catch (err: any) {
       alert(err.message || 'Failed to create shoot project');
     }
@@ -350,6 +374,15 @@ export default function ProjectsPage() {
                 </span>
               )}
             </button>
+
+            <SortSelector
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortChange={(f, o) => {
+                setSortBy(f);
+                setSortOrder(o);
+              }}
+            />
 
             {(search || selectedClient || selectedBrand || selectedProduct || selectedType || selectedStatus || selectedPriority || selectedDate || selectedMediaManager || selectedTechManager || selectedEmployee || selectedLocation) && (
               <button
@@ -594,8 +627,9 @@ export default function ProjectsPage() {
           No shoot projects found matching criteria.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {projects.map((proj) => (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {paginate(sortData(projects, sortBy, sortOrder)).map((proj) => (
             <div
               key={proj.id}
               className={`bg-card border p-5 rounded-xl space-y-4 relative flex flex-col justify-between transition-all hover:border-gray-700 ${
@@ -610,17 +644,28 @@ export default function ProjectsPage() {
                     <h3 className="text-base font-bold text-white leading-snug">{proj.name}</h3>
                   </div>
 
-                  <span
-                    className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${
-                      proj.status === 'COMPLETED'
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : proj.status === 'CLIENT_REVISION_REQUESTED'
-                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                        : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                    }`}
-                  >
-                    {proj.status ? proj.status.replace(/_/g, ' ') : 'PLANNED'}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <FavoriteButton
+                      entityType="PROJECT"
+                      entityId={proj.id}
+                      title={proj.name}
+                      code={proj.projectId}
+                      url={`/projects/${proj.id}`}
+                      metadata={{ client: proj.client?.name, brand: proj.brand?.name, status: proj.status }}
+                      size="sm"
+                    />
+                    <span
+                      className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${
+                        proj.status === 'COMPLETED'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : proj.status === 'CLIENT_REVISION_REQUESTED'
+                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                          : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                      }`}
+                    >
+                      {proj.status ? proj.status.replace(/_/g, ' ') : 'PLANNED'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Parent Client & Brand */}
@@ -727,6 +772,15 @@ export default function ProjectsPage() {
               </div>
             </div>
           ))}
+          </div>
+
+          <PaginationControls
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalItems={projects.length}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 

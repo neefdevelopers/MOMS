@@ -4,6 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { Building2, Search, Plus, Filter, Edit, Eye, CheckCircle, Clock, AlertTriangle, Archive } from 'lucide-react';
+import { TableSortHeader, SortSelector } from '@/components/common/TableSortHeader';
+import { PaginationControls } from '@/components/common/PaginationControls';
+import { ConfirmationModal } from '@/components/common/ConfirmationModal';
+import { usePagination } from '@/lib/usePagination';
+import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 
 export default function ClientsPage() {
   const { user } = useAuth();
@@ -11,6 +16,22 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+
+  // Pagination Hook
+  const { currentPage, setCurrentPage, pageSize, setPageSize, paginate } = usePagination();
+
+  // Sorting State
+  const [sortBy, setSortBy] = useState<SortField | string>('name');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+
+  const handleSort = (field: SortField | string) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  };
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -79,6 +100,29 @@ export default function ClientsPage() {
       loadClients();
     } catch (err: any) {
       alert(err.message || 'Failed to save client');
+    }
+  };
+
+  const [archiveTargetClient, setArchiveTargetClient] = useState<any>(null);
+  const [archiving, setArchiving] = useState(false);
+
+  const handleArchiveClient = (client: any) => {
+    setArchiveTargetClient(client);
+  };
+
+  const confirmArchiveClient = async () => {
+    if (!archiveTargetClient) return;
+    setArchiving(true);
+    try {
+      await fetchApi(`/clients/${archiveTargetClient.id}`, {
+        method: 'DELETE',
+      });
+      setArchiveTargetClient(null);
+      loadClients();
+    } catch (err: any) {
+      alert(err.message || 'Failed to archive client');
+    } finally {
+      setArchiving(false);
     }
   };
 
@@ -182,6 +226,15 @@ export default function ClientsPage() {
             <option value="INACTIVE">INACTIVE</option>
             <option value="ARCHIVED">ARCHIVED</option>
           </select>
+
+          <SortSelector
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSortChange={(f, o) => {
+              setSortBy(f);
+              setSortOrder(o);
+            }}
+          />
         </div>
       </div>
 
@@ -197,62 +250,124 @@ export default function ClientsPage() {
           <table className="w-full text-left text-xs">
             <thead className="bg-gray-900 text-gray-400 uppercase text-[10px] border-b border-border">
               <tr>
-                <th className="p-4">Client / Company Name</th>
-                <th className="p-4">Primary Contact</th>
-                <th className="p-4">Contact Info</th>
-                <th className="p-4">Status</th>
-                <th className="p-4">Brands</th>
-                <th className="p-4">Projects</th>
+                <th className="p-4">
+                  <TableSortHeader
+                    label="Client Name"
+                    field="name"
+                    currentSort={sortBy}
+                    currentOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className="p-4">
+                  <TableSortHeader
+                    label="Contact Person"
+                    field="contactPerson"
+                    currentSort={sortBy}
+                    currentOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className="p-4">Active Brands</th>
+                <th className="p-4">
+                  <TableSortHeader
+                    label="Status"
+                    field="status"
+                    currentSort={sortBy}
+                    currentOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className="p-4">
+                  <TableSortHeader
+                    label="Created Date"
+                    field="createdAt"
+                    currentSort={sortBy}
+                    currentOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
                 <th className="p-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800 text-gray-200">
-              {clients.map((client) => (
-                <tr key={client.id} className="hover:bg-gray-900/50 transition-colors">
-                  <td className="p-4">
-                    <span className="font-bold text-white block">{client.name}</span>
-                    <span className="text-[10px] text-gray-400">{client.companyName}</span>
-                  </td>
+              {paginate(sortData(clients, sortBy, sortOrder)).map((client) => {
+                const createdDateStr = client.createdAt
+                  ? new Date(client.createdAt).toLocaleDateString()
+                  : 'N/A';
+                const activeBrandsCount = (client.brands || []).filter(
+                  (b: any) => b?.status === 'ACTIVE'
+                ).length;
 
-                  <td className="p-4">
-                    <span className="font-medium text-gray-200">{client.contactPerson}</span>
-                  </td>
+                return (
+                  <tr key={client.id} className="hover:bg-gray-900/50 transition-colors">
+                    <td className="p-4">
+                      <span className="font-bold text-white block">{client.name}</span>
+                      <span className="text-[10px] text-gray-400">{client.companyName}</span>
+                    </td>
 
-                  <td className="p-4 text-gray-400 space-y-0.5 font-mono">
-                    <div>{client.mobile}</div>
-                    <div className="text-[10px] text-gray-500 font-sans">{client.email}</div>
-                  </td>
+                    <td className="p-4">
+                      <span className="font-medium text-gray-200 block">{client.contactPerson}</span>
+                      <span className="text-[10px] text-gray-400 font-mono">{client.mobile}</span>
+                    </td>
 
-                  <td className="p-4">{getStatusBadge(client.status)}</td>
+                    <td className="p-4">
+                      <span className="font-mono font-bold text-blue-400">
+                        {activeBrandsCount} Active Brand{activeBrandsCount !== 1 ? 's' : ''}
+                      </span>
+                    </td>
 
-                  <td className="p-4 font-mono font-bold text-blue-400">
-                    {client.brands?.length || 0} Brands
-                  </td>
+                    <td className="p-4">{getStatusBadge(client.status)}</td>
 
-                  <td className="p-4 font-mono font-bold text-emerald-400">
-                    {client._count?.projects || 0} Projects
-                  </td>
+                    <td className="p-4 font-mono text-gray-400 text-[11px]">
+                      {createdDateStr}
+                    </td>
 
-                  <td className="p-4 text-right space-x-2">
-                    <button
-                      onClick={() => setViewingClient(client)}
-                      className="px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded font-semibold text-[11px] inline-flex items-center gap-1"
-                    >
-                      <Eye className="w-3 h-3" /> View
-                    </button>
-                    {user?.role === 'MEDIA_MANAGER' && (
+                    <td className="p-4 text-right space-x-1.5">
+                      {/* View Action */}
                       <button
-                        onClick={() => openEdit(client)}
-                        className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded font-semibold text-[11px] inline-flex items-center gap-1"
+                        onClick={() => setViewingClient(client)}
+                        className="px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded font-semibold text-[11px] inline-flex items-center gap-1"
+                        title="View Client Inspector"
                       >
-                        <Edit className="w-3 h-3" /> Edit
+                        <Eye className="w-3 h-3" /> View
                       </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+
+                      {/* Edit Action */}
+                      {user?.role === 'MEDIA_MANAGER' && (
+                        <button
+                          onClick={() => openEdit(client)}
+                          className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded font-semibold text-[11px] inline-flex items-center gap-1"
+                          title="Edit Client Record"
+                        >
+                          <Edit className="w-3 h-3" /> Edit
+                        </button>
+                      )}
+
+                      {/* Archive Action */}
+                      {user?.role === 'MEDIA_MANAGER' && client.status !== 'ARCHIVED' && (
+                        <button
+                          onClick={() => handleArchiveClient(client)}
+                          className="px-2 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded font-semibold text-[11px] inline-flex items-center gap-1"
+                          title="Archive Client Record"
+                        >
+                          <Archive className="w-3 h-3" /> Archive
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+
+          <PaginationControls
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalItems={clients.length}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 
@@ -473,6 +588,19 @@ export default function ClientsPage() {
           </div>
         </div>
       )}
+
+      {/* Archive Client Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={!!archiveTargetClient}
+        onClose={() => setArchiveTargetClient(null)}
+        onConfirm={confirmArchiveClient}
+        type="ARCHIVE_PROJECT"
+        title={`Archive Client '${archiveTargetClient?.name}'?`}
+        description={`Are you sure you want to archive client record '${archiveTargetClient?.name}' (${archiveTargetClient?.companyName})?`}
+        consequences="Consequence: The client status will be set to ARCHIVED. Existing active projects must be completed or reassigned. No new projects can be assigned to archived clients."
+        confirmLabel="Archive Client"
+        loading={archiving}
+      />
     </div>
   );
 }

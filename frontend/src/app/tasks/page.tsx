@@ -3,13 +3,34 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame, Clock } from 'lucide-react';
+import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame, Clock, ArrowUpDown } from 'lucide-react';
+import { TableSortHeader, SortSelector } from '@/components/common/TableSortHeader';
+import { PaginationControls } from '@/components/common/PaginationControls';
+import { FavoriteButton } from '@/components/common/FavoriteButton';
+import { usePagination } from '@/lib/usePagination';
+import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 
 export default function TasksPage() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<any[]>([]);
   const [capacity, setCapacity] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Pagination Hook (Uses system default page size from settings)
+  const { currentPage, setCurrentPage, pageSize, setPageSize, paginate } = usePagination();
+
+  // Sorting State
+  const [sortBy, setSortBy] = useState<SortField | string>('createdAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  const handleSort = (field: SortField | string) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  };
 
   // Filtration States (Project-Style Filtration Control Panel)
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,7 +83,33 @@ export default function TasksPage() {
   const [staffUsersList, setStaffUsersList] = useState<any[]>([]);
   const [creating, setCreating] = useState(false);
 
-  const loadData = async () => {
+  const loadReferenceData = async () => {
+    try {
+      const [resCap, resProj, resScripts, resGraphic, resUsers, resClients, resBrands, resProducts] = await Promise.all([
+        fetchApi('/tasks/capacity/overview'),
+        fetchApi('/projects'),
+        fetchApi('/scripts'),
+        fetchApi('/graphic-reqs'),
+        fetchApi('/users'),
+        fetchApi('/clients'),
+        fetchApi('/brands'),
+        fetchApi('/products'),
+      ]);
+      setCapacity(Array.isArray(resCap) ? resCap : []);
+      setProjectsList(Array.isArray(resProj) ? resProj : []);
+      setScriptsList(Array.isArray(resScripts) ? resScripts : []);
+      setGraphicReqsList(Array.isArray(resGraphic) ? resGraphic : []);
+      setStaffUsersList(Array.isArray(resUsers) ? resUsers : []);
+      setClientsList(Array.isArray(resClients) ? resClients : []);
+      setBrandsList(Array.isArray(resBrands) ? resBrands : []);
+      setProductsList(Array.isArray(resProducts) ? resProducts : []);
+    } catch (err) {
+      console.error('Failed to load tasks reference metadata:', err);
+    }
+  };
+
+  const loadTasks = async () => {
+    setLoading(true);
     try {
       let query = '?';
       if (searchQuery.trim()) query += `search=${encodeURIComponent(searchQuery.trim())}&`;
@@ -73,36 +120,24 @@ export default function TasksPage() {
       if (selectedProject) query += `projectId=${selectedProject}&`;
       if (selectedEmployee) query += `employeeId=${selectedEmployee}&`;
 
-      const [resTasks, resCap, resProj, resScripts, resGraphic, resUsers, resClients, resBrands, resProducts] = await Promise.all([
-        fetchApi(`/tasks${query}`),
-        fetchApi('/tasks/capacity/overview'),
-        fetchApi('/projects'),
-        fetchApi('/scripts'),
-        fetchApi('/graphic-reqs'),
-        fetchApi('/users'),
-        fetchApi('/clients'),
-        fetchApi('/brands'),
-        fetchApi('/products'),
-      ]);
+      const resTasks = await fetchApi(`/tasks${query}`);
       setTasks(Array.isArray(resTasks) ? resTasks : []);
-      setCapacity(Array.isArray(resCap) ? resCap : []);
-      setProjectsList(Array.isArray(resProj) ? resProj : []);
-      setScriptsList(Array.isArray(resScripts) ? resScripts : []);
-      setGraphicReqsList(Array.isArray(resGraphic) ? resGraphic : []);
-      setStaffUsersList(Array.isArray(resUsers) ? resUsers : []);
-      setClientsList(Array.isArray(resClients) ? resClients : []);
-      setBrandsList(Array.isArray(resBrands) ? resBrands : []);
-      setProductsList(Array.isArray(resProducts) ? resProducts : []);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load tasks list:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadReferenceData();
+  }, []);
+
+  useEffect(() => {
+    loadTasks();
   }, [searchQuery, statusFilter, selectedClient, selectedBrand, selectedProduct, selectedProject, selectedEmployee, selectedPriority]);
+
+  const loadData = loadTasks;
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -536,6 +571,15 @@ export default function TasksPage() {
               )}
             </button>
 
+            <SortSelector
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortChange={(f, o) => {
+                setSortBy(f);
+                setSortOrder(o);
+              }}
+            />
+
             {(searchQuery || statusFilter !== 'ALL' || selectedClient || selectedBrand || selectedProduct || selectedProject || selectedEmployee || selectedPriority) && (
               <button
                 onClick={() => {
@@ -735,23 +779,81 @@ export default function TasksPage() {
           <table className="w-full text-left text-xs">
             <thead className="bg-gray-900 text-gray-400 uppercase text-[10px] border-b border-border">
               <tr>
-                <th className="p-4">Task ID &amp; Title</th>
-                <th className="p-4">Parent Entity</th>
-                <th className="p-4">Assigned Staff</th>
+                <th className="p-4">
+                  <TableSortHeader
+                    label="Task ID & Title"
+                    field="name"
+                    currentSort={sortBy}
+                    currentOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className="p-4">
+                  <TableSortHeader
+                    label="Parent Entity"
+                    field="project"
+                    currentSort={sortBy}
+                    currentOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className="p-4">
+                  <TableSortHeader
+                    label="Assigned Staff"
+                    field="employee"
+                    currentSort={sortBy}
+                    currentOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
                 <th className="p-4">Hours</th>
-                <th className="p-4">Progress</th>
-                <th className="p-4">Status (1 Active)</th>
+                <th className="p-4">
+                  <TableSortHeader
+                    label="Deadline"
+                    field="deadline"
+                    currentSort={sortBy}
+                    currentOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className="p-4">
+                  <TableSortHeader
+                    label="Status"
+                    field="status"
+                    currentSort={sortBy}
+                    currentOrder={sortOrder}
+                    onSort={handleSort}
+                  />
+                </th>
                 <th className="p-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800 text-gray-200">
-              {tasks
-                .filter((t) => statusFilter === 'ALL' || t.status === statusFilter)
-                .map((task) => (
+              {(() => {
+                const filteredAndSorted = sortData(
+                  tasks.filter((t) => statusFilter === 'ALL' || t.status === statusFilter),
+                  sortBy,
+                  sortOrder
+                );
+                const paginated = paginate(filteredAndSorted);
+                return paginated.map((task) => (
                 <tr key={task.id} className="hover:bg-gray-900/50 transition-colors">
                   <td className="p-4">
-                    <span className="font-mono text-blue-400 font-bold block">{task.taskId}</span>
-                    <span className="font-bold text-white">{task.title}</span>
+                    <div className="flex items-center gap-2">
+                      <FavoriteButton
+                        entityType="TASK"
+                        entityId={task.id}
+                        title={task.title}
+                        code={task.taskId}
+                        url="/tasks"
+                        metadata={{ status: task.status, priority: task.priority, brand: task.brand?.name }}
+                        size="sm"
+                      />
+                      <div>
+                        <span className="font-mono text-blue-400 font-bold block">{task.taskId}</span>
+                        <span className="font-bold text-white">{task.title}</span>
+                      </div>
+                    </div>
                   </td>
 
                   <td className="p-4 text-xs">
@@ -872,9 +974,18 @@ export default function TasksPage() {
                     )}
                   </td>
                 </tr>
-              ))}
+                ));
+              })()}
             </tbody>
           </table>
+
+          <PaginationControls
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalItems={tasks.filter((t) => statusFilter === 'ALL' || t.status === statusFilter).length}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 
