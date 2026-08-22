@@ -20,11 +20,12 @@ export class EquipmentController {
   // ─── List active equipment (archived excluded by default) ──────────────────
   @Get()
   findAll(
+    @CurrentUser() user: any,
     @Query('category') category?: string,
     @Query('availability') availability?: EquipmentAvailability,
     @Query('includeArchived') includeArchived?: string,
   ) {
-    return this.equipmentService.findAll(category, availability, includeArchived === 'true');
+    return this.equipmentService.findAll(category, availability, includeArchived === 'true', user?.id, user?.role);
   }
 
   // ─── Business Rule 4: Separate endpoint for archived/retired inventory ─────

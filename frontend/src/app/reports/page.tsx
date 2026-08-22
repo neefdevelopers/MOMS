@@ -341,20 +341,6 @@ export default function ReportsPage() {
     load();
   }, [globalPeriod, startDate, endDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, searchQuery]);
 
-  if (loading && !data) return <div className="p-8 text-center text-gray-400">Loading Operational Reports...</div>;
-
-  const gr = graphicAnalytics;
-  const app = approvalReports;
-  const cap = capacityReports;
-  const rev = revisionReports;
-  const time = timelineReports;
-  const typeChartData = (gr?.typeReports || []).map((t: any, i: number) => ({
-    name: t.type,
-    total: t.totalReqs,
-    completed: t.completedCount,
-    fill: BRAND_COLORS[i % BRAND_COLORS.length],
-  }));
-
   const isMediaManager = user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN';
   const isTechnicalManager = user?.role === 'TECHNICAL_MANAGER';
   const isStaff = user?.role === 'STAFF';
@@ -377,6 +363,20 @@ export default function ReportsPage() {
       setActiveTab('employee');
     }
   }, [user?.role]);
+
+  if (loading && !data) return <div className="p-8 text-center text-gray-400 font-mono">Loading Operational Reports...</div>;
+
+  const gr = graphicAnalytics;
+  const app = approvalReports;
+  const cap = capacityReports;
+  const rev = revisionReports;
+  const time = timelineReports;
+  const typeChartData = (gr?.typeReports || []).map((t: any, i: number) => ({
+    name: t.type,
+    total: t.totalReqs,
+    completed: t.completedCount,
+    fill: BRAND_COLORS[i % BRAND_COLORS.length],
+  }));
 
   return (
     <div className="space-y-6 text-xs">

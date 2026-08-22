@@ -18,6 +18,8 @@ export class ScriptsService {
     date?: string;
     dateFrom?: string;
     dateTo?: string;
+    userId?: string;
+    role?: string;
   } | string) {
     const where: any = {};
     const p: any = typeof params === 'string' ? { projectId: params } : params || {};
@@ -47,9 +49,18 @@ export class ScriptsService {
       if (p.dateTo) where.createdAt.lte = new Date(p.dateTo);
     }
 
+    // Role-based query filtering for STAFF: only assigned scripts, tasks, or projects
+    if (p.role === 'STAFF' && p.userId) {
+      where.OR = [
+        { scriptAssignments: { some: { userId: p.userId } } },
+        { tasks: { some: { assignedEmployees: { some: { userId: p.userId } } } } },
+        { project: { assignedTeam: { some: { userId: p.userId } } } },
+      ];
+    }
+
     if (p.search && p.search.trim()) {
       const q = p.search.trim();
-      where.OR = [
+      const searchConditions = [
         { name: { contains: q } },
         { scriptId: { contains: q } },
         { language: { contains: q } },
@@ -61,6 +72,13 @@ export class ScriptsService {
         { product: { name: { contains: q } } },
         { scriptAssignments: { some: { user: { name: { contains: q } } } } },
       ];
+
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, { OR: searchConditions }];
+        delete where.OR;
+      } else {
+        where.OR = searchConditions;
+      }
     }
 
     return this.prisma.script.findMany({

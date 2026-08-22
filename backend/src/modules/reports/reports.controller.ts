@@ -37,6 +37,11 @@ export class ReportsController {
     return this.reportsService.getPersonalizedDashboard(user.id, period, startDate, endDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, search);
   }
 
+  @Get('technical-dashboard')
+  getTechnicalDashboard(@CurrentUser() user: any) {
+    return this.reportsService.getTechnicalManagerDashboard(user.id);
+  }
+
   @Get('dashboard')
   getDashboardSummary(
     @CurrentUser() user: any,
@@ -54,6 +59,9 @@ export class ReportsController {
   ) {
     if (user?.role === 'STAFF') {
       return this.reportsService.getPersonalizedDashboard(user.id, period, startDate, endDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, search);
+    }
+    if (user?.role === 'TECHNICAL_MANAGER') {
+      return this.reportsService.getTechnicalManagerDashboard(user.id);
     }
     return this.reportsService.getDashboardSummary(period, startDate, endDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, search);
   }

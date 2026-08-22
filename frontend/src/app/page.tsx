@@ -44,7 +44,13 @@ import {
 } from 'lucide-react';
 import ConfigureWidgetsModal from '@/components/dashboard/ConfigureWidgetsModal';
 import { ReassignmentRecommendationsModal } from '@/components/dashboard/ReassignmentRecommendationsModal';
+import ExceptionalOperationalConditionsModal from '@/components/dashboard/ExceptionalOperationalConditionsModal';
+import RecentOperationalActivityWidget from '@/components/dashboard/RecentOperationalActivityWidget';
+import PermanentActivityHistoryModal from '@/components/dashboard/PermanentActivityHistoryModal';
 import { RecentlyAccessedWidget } from '@/components/dashboard/RecentlyAccessedWidget';
+import MyFavoritesWidget from '@/components/dashboard/MyFavoritesWidget';
+import StaffPersonalizedDashboard from '@/components/dashboard/StaffPersonalizedDashboard';
+import TechnicalManagerDashboard from '@/components/dashboard/TechnicalManagerDashboard';
 import {
   DashboardWidgetConfig,
   DEFAULT_DASHBOARD_WIDGETS,
@@ -100,6 +106,8 @@ export default function DashboardPage() {
   const [notifSummaries, setNotifSummaries] = useState<any>(null);
   const [systemAlerts, setSystemAlerts] = useState<any>(null);
   const [scanningAlerts, setScanningAlerts] = useState(false);
+  const [showOperationalConditionsModal, setShowOperationalConditionsModal] = useState(false);
+  const [showPermanentActivityHistoryModal, setShowPermanentActivityHistoryModal] = useState(false);
 
   const loadAnnouncements = async () => {
     try {
@@ -259,8 +267,16 @@ export default function DashboardPage() {
     );
   }
 
-  const role = user?.role || 'STAFF';
+  const role = (user?.role || 'STAFF') as string;
   const safeCapacity = Array.isArray(capacity) ? capacity : [];
+
+  if (role === 'TECHNICAL_MANAGER') {
+    return <TechnicalManagerDashboard user={user} />;
+  }
+
+  if (role === 'STAFF') {
+    return <StaffPersonalizedDashboard user={user} />;
+  }
 
   return (
     <div className="space-y-6">
@@ -335,7 +351,7 @@ export default function DashboardPage() {
       )}
 
       {/* Technical Manager Quick Actions Bar */}
-      {role === 'TECHNICAL_MANAGER' && (
+      {(role as string) === 'TECHNICAL_MANAGER' && (
         <div className="bg-card border border-cyan-900/40 p-4 rounded-xl space-y-2 shadow-md">
           <div className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-cyan-400">
@@ -461,7 +477,7 @@ export default function DashboardPage() {
               <Users className="w-4 h-4 text-emerald-400" />
               <span>Personalized Assignment Dashboard</span>
             </div>
-          ) : role === 'TECHNICAL_MANAGER' ? (
+          ) : (role as string) === 'TECHNICAL_MANAGER' ? (
             <>
               <button
                 onClick={() => setActiveTab('TECHNICAL')}
@@ -518,34 +534,51 @@ export default function DashboardPage() {
       </div>
 
       {/* Exceptional Operational Conditions (Requires Administrative Attention) */}
-      {(role === 'MEDIA_MANAGER' || role === 'TECHNICAL_MANAGER' || (role as string) === 'ADMIN') && (
+      {(role === 'MEDIA_MANAGER' || (role as string) === 'TECHNICAL_MANAGER' || (role as string) === 'ADMIN') && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-red-400 animate-pulse" /> Exceptional Operational Conditions (
-              {systemAlerts?.totalActiveAlerts || 0}) — Requires Administrative Attention
-            </h3>
-            <button
-              onClick={handleScanSystemAlerts}
-              disabled={scanningAlerts}
-              className="text-[11px] text-red-300 hover:text-red-200 bg-red-950/40 hover:bg-red-900/50 border border-red-800/60 px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-bold transition-all disabled:opacity-50"
-            >
-              <RotateCcw className={`w-3 h-3 ${scanningAlerts ? 'animate-spin' : ''}`} />
-              {scanningAlerts ? 'Diagnosing Operations...' : 'Run Operational Diagnostic Scan'}
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-red-400 animate-pulse" /> Exceptional Operational Conditions (
+                {systemAlerts?.totalActiveAlerts || 0}) — Requires Administrative Attention
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowOperationalConditionsModal(true)}
+                className="text-[11px] text-white bg-red-600 hover:bg-red-500 border border-red-400 px-3 py-1 rounded-lg flex items-center gap-1.5 font-bold transition-all shadow-md"
+              >
+                <ShieldAlert className="w-3.5 h-3.5" />
+                Operational Command Center
+              </button>
+              <button
+                onClick={handleScanSystemAlerts}
+                disabled={scanningAlerts}
+                className="text-[11px] text-red-300 hover:text-red-200 bg-red-950/40 hover:bg-red-900/50 border border-red-800/60 px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-bold transition-all disabled:opacity-50"
+              >
+                <RotateCcw className={`w-3 h-3 ${scanningAlerts ? 'animate-spin' : ''}`} />
+                {scanningAlerts ? 'Diagnosing Operations...' : 'Diagnostic Scan'}
+              </button>
+            </div>
           </div>
 
           {systemAlerts?.alerts?.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {systemAlerts.alerts.map((alertItem: any) => {
                 const isCrit = alertItem.severity === 'CRITICAL';
+                const isResolved = alertItem.resolved;
+                const isAck = alertItem.acknowledged;
+
                 return (
                   <div
                     key={alertItem.id}
                     className={`p-4 rounded-xl border space-y-2.5 transition-all ${
-                      isCrit
-                        ? 'bg-red-950/40 border-red-600/80 shadow-lg shadow-red-950/40 ring-1 ring-red-500/40'
-                        : 'bg-amber-950/30 border-amber-500/60 shadow-md shadow-amber-950/30 ring-1 ring-amber-500/30'
+                      isResolved
+                        ? 'bg-zinc-900/40 border-zinc-800 opacity-65'
+                        : isCrit
+                        ? 'bg-gradient-to-br from-red-950/50 via-zinc-900 to-zinc-950 border-red-600/80 shadow-lg shadow-red-950/40 ring-1 ring-red-500/40'
+                        : 'bg-gradient-to-br from-amber-950/40 via-zinc-900 to-zinc-950 border-amber-500/60 shadow-md shadow-amber-950/30 ring-1 ring-amber-500/30'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -560,23 +593,51 @@ export default function DashboardPage() {
                           {isCrit ? '🚨 CRITICAL ALERT' : '⚡ HIGH ALERT'}
                         </span>
                         {alertItem.entityCode && (
-                          <span className="text-[9px] font-mono font-bold bg-gray-800 text-gray-300 border border-gray-700 px-1.5 py-0.5 rounded">
+                          <span className="text-[9px] font-mono font-bold bg-zinc-800 text-zinc-300 border border-zinc-700 px-1.5 py-0.5 rounded">
                             {alertItem.entityCode}
                           </span>
                         )}
                       </div>
-                      <span className="text-[9px] font-mono bg-red-900/30 text-red-300 border border-red-800 px-1.5 py-0.5 rounded font-bold">
-                        Admin Action Required
+                      <span className="text-[9px] font-mono bg-red-900/40 text-red-300 border border-red-800 px-1.5 py-0.5 rounded font-bold uppercase">
+                        {isResolved ? 'Resolved' : isAck ? 'Acknowledged' : 'Admin Action Required'}
                       </span>
                     </div>
 
                     <h4 className="font-bold text-white text-xs leading-snug">{alertItem.title}</h4>
-                    <p className="text-[11px] text-gray-300 leading-relaxed">{alertItem.description}</p>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed">{alertItem.description}</p>
 
-                    <div className="pt-1 border-t border-white/10 flex items-center justify-between">
-                      <span className="text-[9px] text-gray-400 font-mono capitalize">
-                        {alertItem.type?.toLowerCase().replace(/_/g, ' ')}
-                      </span>
+                    {/* Quick Metrics preview */}
+                    {alertItem.metrics && (
+                      <div className="p-2 bg-zinc-950 border border-zinc-800/80 rounded-lg text-[10px] font-mono text-zinc-400">
+                        {alertItem.category === 'STAFF_CAPACITY' && (
+                          <span>Active Tasks: <strong className="text-amber-300">{alertItem.metrics.activeTaskCount}</strong> (Limit: 5)</span>
+                        )}
+                        {alertItem.category === 'EQUIPMENT_CONFLICT' && (
+                          <span>Gear: <strong className="text-red-300">{alertItem.metrics.equipmentName}</strong></span>
+                        )}
+                        {alertItem.category === 'CALENDAR_CONFLICT' && (
+                          <span>Location: <strong className="text-amber-300">{alertItem.metrics.location}</strong></span>
+                        )}
+                        {alertItem.category === 'STORAGE_WARNING' && (
+                          <span>Space: <strong className="text-amber-300">{alertItem.metrics.totalGB} GB / {alertItem.metrics.quotaGB} GB</strong> ({alertItem.metrics.usagePercentage}%)</span>
+                        )}
+                        {alertItem.category === 'BACKUP_FAILURE' && (
+                          <span className="text-red-400 font-bold">Status: {alertItem.metrics.status}</span>
+                        )}
+                        {alertItem.category === 'CONNECTIVITY_ISSUE' && (
+                          <span className="text-red-400 font-bold">Latency: {alertItem.metrics.latencyMs} ms</span>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="pt-1.5 border-t border-white/10 flex items-center justify-between">
+                      <button
+                        onClick={() => setShowOperationalConditionsModal(true)}
+                        className="text-[10px] font-bold text-zinc-400 hover:text-white flex items-center gap-1"
+                      >
+                        <ShieldAlert className="w-3 h-3 text-red-400" /> Admin Command Center →
+                      </button>
+
                       {alertItem.actionUrl && (
                         <Link
                           href={alertItem.actionUrl}
@@ -592,11 +653,19 @@ export default function DashboardPage() {
               })}
             </div>
           ) : (
-            <div className="p-3 bg-emerald-950/20 border border-emerald-800/40 rounded-xl text-emerald-300 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>
-                All operational subsystems healthy. No active exceptional conditions (capacity, gear conflicts, studio conflicts, or storage warnings) detected.
-              </span>
+            <div className="p-3.5 bg-emerald-950/20 border border-emerald-800/40 rounded-xl text-emerald-300 text-xs flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  All operational subsystems healthy. No active exceptional conditions (capacity, gear conflicts, studio conflicts, storage, backups, or connectivity) detected.
+                </span>
+              </div>
+              <button
+                onClick={() => setShowOperationalConditionsModal(true)}
+                className="text-[11px] font-bold text-emerald-300 hover:text-white bg-emerald-900/40 border border-emerald-700/60 px-2.5 py-1 rounded-lg whitespace-nowrap ml-2"
+              >
+                Inspect Command Center
+              </button>
             </div>
           )}
         </div>
@@ -687,6 +756,17 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* My Starred Favorites Widget (User-Specific: Projects, Scripts, Graphic Reqs, Tasks, Reports) */}
+      <MyFavoritesWidget />
+
+      {/* Recently Accessed Records Widget (Projects, Scripts, Reports & Equipment) */}
+      <RecentlyAccessedWidget />
+
+      {/* Recent Operational Activity Stream (Visible on Main Dashboard) */}
+      <RecentOperationalActivityWidget
+        onOpenHistoryModal={() => setShowPermanentActivityHistoryModal(true)}
+      />
 
       {/* Publish Announcement Modal (Media Manager Only) */}
       {showAnnouncementModal && (
@@ -2504,6 +2584,28 @@ export default function DashboardPage() {
           fetchApi('/tasks/capacity/overview').then((res) => setCapacity(Array.isArray(res) ? res : []));
           fetchApi('/reports/dashboard').then((res) => setData(res || {}));
         }}
+      />
+
+      {/* Exceptional Operational Conditions Command Center Modal (Media Manager) */}
+      <ExceptionalOperationalConditionsModal
+        isOpen={showOperationalConditionsModal}
+        onClose={() => setShowOperationalConditionsModal(false)}
+        systemAlertsData={systemAlerts}
+        onRefresh={handleScanSystemAlerts}
+        onOpenReassignmentModal={() => {
+          setShowOperationalConditionsModal(false);
+          // Pick first active user or open generic
+          const firstOverload = systemAlerts?.alerts?.find((a: any) => a.category === 'STAFF_CAPACITY');
+          if (firstOverload?.metrics?.employeeId) {
+            setSelectedOverloadedUserId(firstOverload.metrics.employeeId);
+          }
+        }}
+      />
+
+      {/* Permanent Operational Activity History Center Modal */}
+      <PermanentActivityHistoryModal
+        isOpen={showPermanentActivityHistoryModal}
+        onClose={() => setShowPermanentActivityHistoryModal(false)}
       />
     </div>
   );

@@ -214,6 +214,10 @@ export function getNotificationActionLabel(
   eventType?: string,
   category?: string
 ): string {
+  if (eventType === 'ALERT_EMPLOYEE_OVER_CAPACITY' || category === 'STAFF_CAPACITY') {
+    return 'Rebalance Workload';
+  }
+
   switch (entityType?.toUpperCase()) {
     case 'PROJECT':
       return 'Open Project';
@@ -253,8 +257,12 @@ export function getNotificationActionLabel(
 export function getNotificationNavigationUrl(
   linkUrl?: string | null,
   entityType?: string,
-  entityId?: string
+  entityId?: string,
+  eventType?: string
 ): string {
+  if (eventType === 'ALERT_EMPLOYEE_OVER_CAPACITY' && entityId) {
+    return `/tasks?reassignUser=${encodeURIComponent(entityId)}`;
+  }
   if (linkUrl && linkUrl !== '#' && linkUrl.trim()) {
     return linkUrl;
   }
@@ -276,8 +284,8 @@ export function getNotificationNavigationUrl(
     case 'CALENDAR_EVENT':
       return entityId ? `/calendar?eventId=${encodeURIComponent(entityId)}` : '/calendar';
     case 'ATTENDANCE':
-      return '/attendance';
+      return entityId ? `/tasks?reassignUser=${encodeURIComponent(entityId)}` : '/tasks';
     default:
-      return '/';
+      return '/dashboard';
   }
 }

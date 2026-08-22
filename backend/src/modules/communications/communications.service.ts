@@ -22,8 +22,19 @@ export class CommunicationsService {
     date?: string,
     type?: string,
     status?: string,
+    userId?: string,
+    role?: string,
   ) {
     const where: any = {};
+
+    // STAFF role filtering: only authorized communications sent by or assigned to user
+    if (role === 'STAFF' && userId) {
+      where.OR = [
+        { senderId: userId },
+        { assignedToId: userId },
+        { project: { assignedTeam: { some: { userId } } } },
+      ];
+    }
     if (entityType && entityType !== 'ALL') {
       where.entityType = entityType;
     }
@@ -735,6 +746,33 @@ export class CommunicationsService {
       }
     } catch (err) {
       console.error('Failed to trigger blocker notifications:', err);
+    }
+
+    // ── Log Permanent Activity History Record ──
+    try {
+      await this.prisma.activityLog.create({
+        data: {
+          userId: senderId,
+          action: isAnnouncement
+            ? 'ANNOUNCEMENT_PUBLISHED'
+            : isRemark
+            ? 'COMMUNICATION_REMARK_ADDED'
+            : 'COMMUNICATION_ADDED',
+          entity: data.entityType || 'COMMUNICATION',
+          entityId: createdComm.id,
+          description: `Communication '${createdComm.subject || 'Operational Note'}' added for ${data.entityType || 'SYSTEM'} record.`,
+          metadata: JSON.stringify({
+            subject: createdComm.subject,
+            entityType: data.entityType,
+            entityId: data.entityId,
+            type: data.type,
+            isRemark,
+            isAnnouncement,
+          }),
+        },
+      });
+    } catch (err) {
+      console.warn('Failed to log permanent activity for communication:', err);
     }
 
     return createdComm;

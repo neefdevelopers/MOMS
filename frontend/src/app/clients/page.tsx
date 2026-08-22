@@ -7,10 +7,19 @@ import { Building2, Search, Plus, Filter, Edit, Eye, CheckCircle, Clock, AlertTr
 import { TableSortHeader, SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
 import { ConfirmationModal } from '@/components/common/ConfirmationModal';
+import { RouteGuard } from '@/components/common/RouteGuard';
 import { usePagination } from '@/lib/usePagination';
 import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 
 export default function ClientsPage() {
+  return (
+    <RouteGuard module="CLIENTS">
+      <ClientsContent />
+    </RouteGuard>
+  );
+}
+
+function ClientsContent() {
   const { user } = useAuth();
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +58,7 @@ export default function ClientsPage() {
     gstNumber: '',
     website: '',
     status: 'ACTIVE',
+    onboardingDate: new Date().toISOString().split('T')[0],
     internalNotes: '',
   });
 
@@ -138,6 +148,7 @@ export default function ClientsPage() {
       gstNumber: client.gstNumber || '',
       website: client.website || '',
       status: client.status || 'ACTIVE',
+      onboardingDate: client.onboardingDate ? new Date(client.onboardingDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       internalNotes: client.internalNotes || '',
     });
     setShowAddModal(true);
@@ -154,6 +165,7 @@ export default function ClientsPage() {
       gstNumber: '',
       website: '',
       status: 'ACTIVE',
+      onboardingDate: new Date().toISOString().split('T')[0],
       internalNotes: '',
     });
   };
@@ -474,6 +486,16 @@ export default function ClientsPage() {
                   onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                   placeholder="https://..."
                   className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-gray-400 block mb-1 font-semibold">Onboarding Date</label>
+                <input
+                  type="date"
+                  value={formData.onboardingDate}
+                  onChange={(e) => setFormData({ ...formData, onboardingDate: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono"
                 />
               </div>
             </div>

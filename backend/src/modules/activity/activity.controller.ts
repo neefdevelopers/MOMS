@@ -20,4 +20,19 @@ export class ActivityController {
     const limitNum = limit ? parseInt(limit, 10) || 200 : 200;
     return this.activityService.findAll(entity, userId, action, startDate, endDate, search, limitNum);
   }
+
+  @Get('feed')
+  getDashboardFeed(
+    @Query('category') category?: string,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const limitNum = limit ? parseInt(limit, 10) || 50 : 50;
+    return this.activityService.getDashboardFeed(category, search, limitNum);
+  }
+
+  @Get('stats')
+  getActivityStats() {
+    return this.activityService.getActivityStats();
+  }
 }

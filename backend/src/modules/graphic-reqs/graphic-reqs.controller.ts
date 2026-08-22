@@ -13,6 +13,7 @@ export class GraphicReqsController {
 
   @Get()
   findAll(
+    @CurrentUser() user: any,
     @Query('projectId') projectId?: string,
     @Query('search') search?: string,
     @Query('status') status?: string,
@@ -37,6 +38,8 @@ export class GraphicReqsController {
       date,
       dateFrom,
       dateTo,
+      userId: user?.id,
+      role: user?.role,
     });
   }
 

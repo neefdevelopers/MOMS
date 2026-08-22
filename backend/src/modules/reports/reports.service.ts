@@ -522,6 +522,250 @@ export class ReportsService {
     };
   }
 
+  /**
+   * Dedicated Role Dashboard for Technical Managers
+   * Gives Technical Managers a quick, focused workspace view of work requiring technical attention.
+   */
+  async getTechnicalManagerDashboard(userId: string) {
+    const now = new Date();
+    const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
+
+    const [
+      pendingApprovals,
+      scriptsAwaiting,
+      graphicReqsAwaiting,
+      activeProjects,
+      technicalTasks,
+      notifications,
+      recentActivity,
+      equipmentAlerts,
+    ] = await Promise.all([
+      // 1. Pending Technical Reviews / Approvals
+      this.prisma.approval.findMany({
+        where: {
+          status: 'PENDING',
+          OR: [
+            { targetRole: 'TECHNICAL_MANAGER' },
+            { approvalType: 'TECHNICAL_REVIEW' },
+          ],
+        },
+        include: {
+          project: { select: { id: true, projectId: true, name: true, shootDate: true, status: true } },
+          requestedBy: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+
+      // 2. Scripts Awaiting Technical Review
+      this.prisma.script.findMany({
+        where: {
+          status: { in: ['WAITING_FOR_TECHNICAL_REVIEW', 'SUBMITTED_FOR_REVIEW', 'TECHNICAL_REVIEW_PENDING', 'PENDING'] },
+        },
+        include: {
+          project: { select: { id: true, projectId: true, name: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
+
+      // 3. Graphic Requirements Awaiting Technical Review
+      this.prisma.graphicRequirement.findMany({
+        where: {
+          status: { in: ['WAITING_FOR_TECHNICAL_REVIEW', 'PENDING_REVIEW', 'SUBMITTED_FOR_REVIEW', 'PENDING'] },
+        },
+        include: {
+          project: { select: { id: true, projectId: true, name: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
+
+      // 4. Projects Requiring Technical Attention (Read-only Technical Status & Progress)
+      this.prisma.shootProject.findMany({
+        where: {
+          lifecycle: { not: 'ARCHIVED' },
+          status: { in: ['PLANNED', 'IN_PROGRESS', 'TECHNICAL_REVIEW', 'WAITING_FOR_TECHNICAL_REVIEW'] },
+        },
+        include: {
+          client: { select: { name: true } },
+          tasks: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              dueDate: true,
+              assignedEmployees: { select: { user: { select: { name: true, role: true } } } },
+            },
+          },
+          approvals: { select: { id: true, approvalType: true, status: true } },
+          scripts: { select: { id: true, name: true, status: true } },
+          graphicRequirements: { select: { id: true, name: true, status: true } },
+        },
+        orderBy: { shootDate: 'asc' },
+        take: 20,
+      }),
+
+      // 5. Technical-Related Tasks
+      this.prisma.task.findMany({
+        where: {
+          status: { notIn: ['COMPLETED', 'CANCELLED'] },
+        },
+        include: {
+          assignedEmployees: {
+            include: {
+              user: { select: { id: true, name: true, role: true, avatarUrl: true } },
+            },
+          },
+          project: { select: { id: true, projectId: true, name: true } },
+        },
+        orderBy: { dueDate: 'asc' },
+        take: 25,
+      }),
+
+      // 6. Relevant Notifications (Strictly Technical Notifications only; exclude administrative workload/capacity alerts)
+      this.prisma.notification.findMany({
+        where: {
+          userId,
+          status: { not: 'ARCHIVED' },
+          eventType: { notIn: ['ALERT_EMPLOYEE_OVER_CAPACITY', 'STAFF_CAPACITY'] },
+          entityType: { notIn: ['ATTENDANCE'] },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+
+      // 7. Recent Technical Activity
+      this.prisma.activityLog.findMany({
+        where: {
+          OR: [
+            { entity: { in: ['SCRIPT', 'GRAPHIC_REQ', 'EQUIPMENT', 'APPROVAL', 'REVIEW'] } },
+            { action: { contains: 'TECHNICAL' } },
+            { action: { contains: 'REVIEW' } },
+            { action: { contains: 'EQUIPMENT' } },
+          ],
+        },
+        include: {
+          user: { select: { id: true, name: true, role: true } },
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 15,
+      }),
+
+      // Equipment items needing technical service
+      this.prisma.equipment.findMany({
+        where: {
+          isArchived: false,
+          OR: [
+            { availability: 'MAINTENANCE' },
+            { availability: 'DAMAGED' },
+            { maintenanceStatus: { in: ['NEEDS_SERVICE', 'UNDER_REPAIR'] } },
+          ],
+        },
+        select: { id: true, equipmentId: true, name: true, availability: true, maintenanceStatus: true },
+      }),
+    ]);
+
+    // Filter upcoming technical deadlines (due in <= 7 days)
+    const upcomingTechnicalDeadlines = activeProjects
+      .filter((p) => p.shootDate && new Date(p.shootDate) <= sevenDaysLater)
+      .map((p) => ({
+        id: p.id,
+        code: p.projectId,
+        title: p.name,
+        type: 'PROJECT_SHOOT_DATE',
+        dueDate: p.shootDate,
+        clientName: p.client?.name,
+        status: p.status,
+      }));
+
+    // Filter & Map projects specifically needing technical attention with full read-only technical metrics
+    const projectsRequiringAttention = activeProjects.map((p: any) => {
+      const totalTasks = p.tasks?.length || 0;
+      const completedTasks = p.tasks?.filter((t: any) => t.status === 'COMPLETED').length || 0;
+      const progressPercentage =
+        totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : p.status === 'COMPLETED' ? 100 : 35;
+
+      const activeTechnicalTasks = (p.tasks || [])
+        .filter((t: any) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED')
+        .map((t: any) => t.title);
+
+      const hasPendingTechApproval = p.approvals?.some(
+        (a: any) => a.approvalType === 'TECHNICAL_REVIEW' && a.status === 'PENDING',
+      );
+
+      const technicalReviewStatus = hasPendingTechApproval
+        ? 'WAITING_FOR_TECHNICAL_REVIEW'
+        : p.status === 'TECHNICAL_REVIEW' || p.status === 'WAITING_FOR_TECHNICAL_REVIEW'
+        ? 'TECHNICAL_REVIEW_IN_PROGRESS'
+        : 'TECHNICAL_READINESS_OK';
+
+      return {
+        id: p.id,
+        projectId: p.projectId,
+        name: p.name,
+        clientName: p.client?.name || 'Internal',
+        status: p.status,
+        shootDate: p.shootDate,
+        estimatedCompletionDate: p.estimatedCompletionDate,
+        progressPercentage,
+        activeTechnicalTasksCount: activeTechnicalTasks.length,
+        assignedTechnicalWork: activeTechnicalTasks.slice(0, 4),
+        technicalReviewStatus,
+        hasPendingTechApproval,
+      };
+    });
+
+    // Map Graphic Requirements with explicit 5-stage workflow metadata
+    const enrichedGraphicReqs = graphicReqsAwaiting.map((gr: any) => ({
+      ...gr,
+      currentStageIndex: 2,
+      currentStageName: 'Technical Review',
+      workflowStages: [
+        { index: 1, name: 'Production', status: 'COMPLETED' },
+        { index: 2, name: 'Technical Review', status: 'ACTIVE' },
+        { index: 3, name: 'Media Manager Review', status: 'PENDING' },
+        { index: 4, name: 'Client Confirmation', status: 'PENDING' },
+        { index: 5, name: 'Completed', status: 'PENDING' },
+      ],
+    }));
+
+    const totalWaitingForTechnicalReviewCount =
+      pendingApprovals.length + scriptsAwaiting.length + graphicReqsAwaiting.length;
+
+    return {
+      status: 'SUCCESS',
+      roleScope: 'TECHNICAL_MANAGER',
+      evaluatedAt: now.toISOString(),
+
+      // Metrics Bar
+      metricsSummary: {
+        totalWaitingForTechnicalReviewCount,
+        pendingReviewsCount: pendingApprovals.length,
+        scriptsAwaitingCount: scriptsAwaiting.length,
+        graphicsAwaitingCount: graphicReqsAwaiting.length,
+        projectsAttentionCount: projectsRequiringAttention.length,
+        upcomingDeadlinesCount: upcomingTechnicalDeadlines.length,
+        activeTechnicalTasksCount: technicalTasks.length,
+        equipmentMaintenanceCount: equipmentAlerts.length,
+      },
+
+      // Section Data Arrays
+      waitingForTechnicalReviewHub: {
+        totalCount: totalWaitingForTechnicalReviewCount,
+        pendingApprovals,
+        scriptsAwaiting,
+        graphicRequirementsAwaiting: enrichedGraphicReqs,
+      },
+      pendingTechnicalReviews: pendingApprovals,
+      scriptsAwaitingTechnicalReview: scriptsAwaiting,
+      graphicRequirementsAwaitingTechnicalReview: enrichedGraphicReqs,
+      projectsRequiringTechnicalAttention: projectsRequiringAttention,
+      upcomingTechnicalDeadlines,
+      technicalTasks,
+      relevantNotifications: notifications,
+      recentTechnicalActivity: recentActivity,
+      equipmentMaintenanceAlerts: equipmentAlerts,
+    };
+  }
+
   async getGlobalSearch(query: string) {
     if (!query || query.trim().length === 0) return { results: [] };
     const q = query.trim();

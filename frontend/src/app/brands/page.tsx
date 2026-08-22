@@ -5,7 +5,17 @@ import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { Tag, Plus, Edit, Filter, CheckCircle, AlertTriangle, Archive, Building2, Search } from 'lucide-react';
 
+import { RouteGuard } from '@/components/common/RouteGuard';
+
 export default function BrandsPage() {
+  return (
+    <RouteGuard module="BRANDS">
+      <BrandsContent />
+    </RouteGuard>
+  );
+}
+
+function BrandsContent() {
   const { user } = useAuth();
   const [brands, setBrands] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
@@ -25,6 +35,7 @@ export default function BrandsPage() {
     clientId: '',
     name: '',
     shortCode: '',
+    logoUrl: '',
     description: '',
     industry: '',
     primaryColor: '#3B82F6',
@@ -86,6 +97,7 @@ export default function BrandsPage() {
       clientId: brand.clientId || '',
       name: brand.name || '',
       shortCode: brand.shortCode || '',
+      logoUrl: brand.logoUrl || '',
       description: brand.description || '',
       industry: brand.industry || '',
       primaryColor: brand.primaryColor || '#3B82F6',
@@ -96,9 +108,10 @@ export default function BrandsPage() {
 
   const resetForm = () => {
     setFormData({
-      clientId: clients[0]?.id || '',
+      clientId: '',
       name: '',
       shortCode: '',
+      logoUrl: '',
       description: '',
       industry: '',
       primaryColor: '#3B82F6',
@@ -302,6 +315,17 @@ export default function BrandsPage() {
                   value={formData.industry}
                   onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
                   placeholder="e.g. Health & Skincare"
+                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-gray-400 block mb-1 font-semibold">Brand Logo URL</label>
+                <input
+                  type="text"
+                  value={formData.logoUrl}
+                  onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
+                  placeholder="https://..."
                   className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
                 />
               </div>

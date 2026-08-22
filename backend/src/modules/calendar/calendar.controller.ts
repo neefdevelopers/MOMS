@@ -5,6 +5,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums';
 
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('calendar')
 export class CalendarController {
@@ -12,12 +14,13 @@ export class CalendarController {
 
   @Get()
   findAll(
+    @CurrentUser() user: any,
     @Query('clientId') clientId?: string,
     @Query('brandId') brandId?: string,
     @Query('shootType') shootType?: string,
     @Query('status') status?: string,
   ) {
-    return this.calendarService.findAll(clientId, brandId, shootType, status);
+    return this.calendarService.findAll(clientId, brandId, shootType, status, user?.id, user?.role);
   }
 
   @Get(':id')

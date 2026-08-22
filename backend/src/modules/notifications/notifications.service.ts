@@ -416,7 +416,15 @@ export class NotificationsService {
       take?: number;
     }
   ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+
     const where: any = { userId };
+
+    // Strict Role-Based Notification Filtering: Non-Media Managers cannot view administrative workload rebalancing alerts
+    if (user?.role === 'TECHNICAL_MANAGER' || user?.role === 'STAFF') {
+      where.eventType = { notIn: ['ALERT_EMPLOYEE_OVER_CAPACITY', 'STAFF_CAPACITY'] };
+      where.entityType = { notIn: ['ATTENDANCE'] };
+    }
 
     // 1. Status Filter (Unread / Read / Archived / All)
     if (options?.status && options.status !== 'ALL') {
@@ -865,8 +873,15 @@ export class NotificationsService {
    * 7. New Announcements
    */
   async getDashboardNotificationSummaries(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    const whereClause: any = { userId, status: { in: ['UNREAD', 'READ'] } };
+    if (user?.role === 'TECHNICAL_MANAGER' || user?.role === 'STAFF') {
+      whereClause.eventType = { notIn: ['ALERT_EMPLOYEE_OVER_CAPACITY', 'STAFF_CAPACITY'] };
+      whereClause.entityType = { notIn: ['ATTENDANCE'] };
+    }
+
     const unreadNotifications = await this.prisma.notification.findMany({
-      where: { userId, status: { in: ['UNREAD', 'READ'] } },
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
@@ -1186,9 +1201,9 @@ export class NotificationsService {
    * 5. Backup Failure
    * 6. Server Connectivity Issue
    * 
-   * System alerts shall require administrative attention.
+   * System alerts require administrative attention.
    */
-  async checkOperationalAlerts() {
+  async checkOperationalAlerts(targetUserId?: string) {
     const now = new Date();
     const frequencyHours = 4;
     const frequencyCutoff = new Date(now.getTime() - frequencyHours * 3600 * 1000);
@@ -1207,6 +1222,36 @@ export class NotificationsService {
       return count > 0;
     };
 
+    // Helper to check if an alert has been manually resolved by an admin
+    const getAlertResolution = async (alertId: string) => {
+      const resSetting = await this.prisma.systemSetting.findUnique({
+        where: { key: `RESOLVED_ALERT_${alertId}` },
+      });
+      if (resSetting && resSetting.value) {
+        try {
+          return JSON.parse(resSetting.value);
+        } catch {
+          return { resolved: true, resolvedAt: resSetting.updatedAt };
+        }
+      }
+      return null;
+    };
+
+    // Helper to check if an alert has been acknowledged by an admin
+    const getAlertAck = async (alertId: string) => {
+      const ackSetting = await this.prisma.systemSetting.findUnique({
+        where: { key: `ACK_ALERT_${alertId}` },
+      });
+      if (ackSetting && ackSetting.value) {
+        try {
+          return JSON.parse(ackSetting.value);
+        } catch {
+          return { acknowledged: true, ackAt: ackSetting.updatedAt };
+        }
+      }
+      return null;
+    };
+
     // ── 1. Employee Over Capacity ──
     const employees = await this.prisma.user.findMany({
       where: { isArchived: false, status: 'ACTIVE' },
@@ -1222,21 +1267,37 @@ export class NotificationsService {
       const activeTasks = emp.tasks.filter((t) => !['COMPLETED', 'CANCELLED'].includes(t.task.status));
       const taskCount = activeTasks.length;
       if (taskCount >= 5) {
+        const alertId = `OVER_CAPACITY_${emp.id}`;
+        const resolution = await getAlertResolution(alertId);
+        const ack = await getAlertAck(alertId);
+
         activeAlerts.push({
-          id: `OVER_CAPACITY_${emp.id}`,
+          id: alertId,
           type: 'EMPLOYEE_OVER_CAPACITY',
+          category: 'STAFF_CAPACITY',
           severity: taskCount >= 7 ? 'CRITICAL' : 'HIGH',
-          title: `⚠️ Over Capacity: ${emp.name}`,
-          description: `${emp.name} is currently assigned to ${taskCount} concurrent active tasks, exceeding the standard workload capacity threshold.`,
-          entityType: 'ATTENDANCE',
+          title: `⚠️ Employee Over Capacity: ${emp.name}`,
+          description: `${emp.name} is currently assigned to ${taskCount} concurrent active tasks, exceeding the standard workload capacity threshold (max 5).`,
+          entityType: 'TASK',
           entityId: emp.id,
           entityCode: `EMP-${emp.name.replace(/\s+/g, '').substring(0, 4).toUpperCase()}`,
           actionUrl: `/tasks`,
           actionLabel: 'Rebalance Workload',
           requiresAdminAttention: true,
+          metrics: {
+            employeeId: emp.id,
+            employeeName: emp.name,
+            activeTaskCount: taskCount,
+            threshold: 5,
+            taskTitles: activeTasks.slice(0, 3).map((t) => t.task?.title).filter(Boolean),
+          },
+          acknowledged: !!ack,
+          acknowledgedInfo: ack,
+          resolved: !!resolution,
+          resolutionInfo: resolution,
         });
 
-        if (!(await hasRecentAlert('ATTENDANCE', emp.id, 'ALERT_EMPLOYEE_OVER_CAPACITY'))) {
+        if (!(await hasRecentAlert('TASK', emp.id, 'ALERT_EMPLOYEE_OVER_CAPACITY'))) {
           await this.notifyMediaManagers({
             title: `⚠️ Employee Over Capacity: ${emp.name}`,
             message: `${emp.name} is handling ${taskCount} active operational tasks. Administrative workload rebalancing required.`,
@@ -1244,7 +1305,7 @@ export class NotificationsService {
             category: 'WARNING',
             priority: taskCount >= 7 ? 'CRITICAL' : 'HIGH',
             eventType: 'ALERT_EMPLOYEE_OVER_CAPACITY',
-            entityType: 'ATTENDANCE',
+            entityType: 'TASK',
             entityId: emp.id,
             entityCode: `EMP-${emp.name.replace(/\s+/g, '').substring(0, 4).toUpperCase()}`,
             linkUrl: `/tasks`,
@@ -1281,18 +1342,36 @@ export class NotificationsService {
 
             if (startA < endB && startB < endA) {
               const equip = resList[i].equipment;
+              const alertId = `EQUIP_CONFLICT_${equipId}_${resList[i].id}`;
+              const resolution = await getAlertResolution(alertId);
+              const ack = await getAlertAck(alertId);
+
               activeAlerts.push({
-                id: `EQUIP_CONFLICT_${equipId}_${resList[i].id}`,
+                id: alertId,
                 type: 'EQUIPMENT_CONFLICT',
+                category: 'EQUIPMENT_CONFLICT',
                 severity: 'CRITICAL',
-                title: `🚨 Equipment Conflict: ${equip.name}`,
-                description: `Overlapping reservation conflict detected between Project '${resList[i].project?.name}' and '${resList[j].project?.name}' for gear item ${equip.equipmentId}.`,
+                title: `🚨 Equipment Reservation Conflict: ${equip.name}`,
+                description: `Overlapping reservation conflict detected between Project '${resList[i].project?.name || 'Project A'}' and '${resList[j].project?.name || 'Project B'}' for gear item ${equip.equipmentId}.`,
                 entityType: 'EQUIPMENT',
                 entityId: equip.id,
                 entityCode: equip.equipmentId,
                 actionUrl: `/equipment?equipmentId=${equip.id}`,
                 actionLabel: 'Resolve Gear Conflict',
                 requiresAdminAttention: true,
+                metrics: {
+                  equipmentId: equip.id,
+                  equipmentName: equip.name,
+                  equipmentCode: equip.equipmentId,
+                  conflictingProjects: [
+                    { id: resList[i].projectId, name: resList[i].project?.name },
+                    { id: resList[j].projectId, name: resList[j].project?.name },
+                  ],
+                },
+                acknowledged: !!ack,
+                acknowledgedInfo: ack,
+                resolved: !!resolution,
+                resolutionInfo: resolution,
               });
 
               if (!(await hasRecentAlert('EQUIPMENT', equip.id, 'ALERT_EQUIPMENT_CONFLICT'))) {
@@ -1335,18 +1414,33 @@ export class NotificationsService {
           const d2 = new Date(p2.shootDate).toDateString();
 
           if (d1 === d2) {
+            const alertId = `CALENDAR_CONFLICT_${p1.id}_${p2.id}`;
+            const resolution = await getAlertResolution(alertId);
+            const ack = await getAlertAck(alertId);
+
             activeAlerts.push({
-              id: `CALENDAR_CONFLICT_${p1.id}_${p2.id}`,
+              id: alertId,
               type: 'CALENDAR_CONFLICT',
+              category: 'CALENDAR_CONFLICT',
               severity: 'HIGH',
-              title: `📅 Studio Location Conflict: ${p1.shootLocation}`,
-              description: `Simultaneous shoot scheduled at location '${p1.shootLocation}' on ${d1} for Project '${p1.name}' and '${p2.name}'.`,
+              title: `📅 Studio Location Booking Conflict: ${p1.shootLocation}`,
+              description: `Simultaneous shoot scheduled at studio location '${p1.shootLocation}' on ${d1} for Project '${p1.name}' and '${p2.name}'.`,
               entityType: 'CALENDAR_EVENT',
               entityId: p1.id,
               entityCode: p1.projectId,
               actionUrl: `/calendar`,
               actionLabel: 'Adjust Shoot Calendar',
               requiresAdminAttention: true,
+              metrics: {
+                location: p1.shootLocation,
+                shootDate: d1,
+                project1: { id: p1.id, name: p1.name },
+                project2: { id: p2.id, name: p2.name },
+              },
+              acknowledged: !!ack,
+              acknowledgedInfo: ack,
+              resolved: !!resolution,
+              resolutionInfo: resolution,
             });
 
             if (!(await hasRecentAlert('CALENDAR_EVENT', p1.id, 'ALERT_CALENDAR_CONFLICT'))) {
@@ -1379,18 +1473,33 @@ export class NotificationsService {
     const storageUsagePercent = (totalGB / storageLimitGB) * 100;
 
     if (storageUsagePercent > 80 || fileCount > 150) {
+      const alertId = 'STORAGE_CAPACITY_WARNING';
+      const resolution = await getAlertResolution(alertId);
+      const ack = await getAlertAck(alertId);
+
       activeAlerts.push({
-        id: 'STORAGE_CAPACITY_WARNING',
+        id: alertId,
         type: 'STORAGE_CAPACITY_WARNING',
+        category: 'STORAGE_WARNING',
         severity: storageUsagePercent > 90 ? 'CRITICAL' : 'HIGH',
         title: `💾 Storage Capacity Warning (${storageUsagePercent.toFixed(1)}% Used)`,
-        description: `Operational media repository has reached ${totalGB.toFixed(2)} GB of ${storageLimitGB} GB quota (${fileCount} total files).`,
+        description: `Operational media repository has reached ${totalGB.toFixed(2)} GB of ${storageLimitGB} GB quota (${fileCount} total files stored).`,
         entityType: 'SYSTEM',
         entityId: 'STORAGE_SUBSYSTEM',
         entityCode: 'SYS-STORAGE',
         actionUrl: `/settings`,
         actionLabel: 'Manage Storage Quota',
         requiresAdminAttention: true,
+        metrics: {
+          totalGB: parseFloat(totalGB.toFixed(2)),
+          quotaGB: storageLimitGB,
+          usagePercentage: parseFloat(storageUsagePercent.toFixed(1)),
+          totalFileCount: fileCount,
+        },
+        acknowledged: !!ack,
+        acknowledgedInfo: ack,
+        resolved: !!resolution,
+        resolutionInfo: resolution,
       });
 
       if (!(await hasRecentAlert('SYSTEM', 'STORAGE_SUBSYSTEM', 'ALERT_STORAGE_CAPACITY_WARNING'))) {
@@ -1413,9 +1522,14 @@ export class NotificationsService {
     // ── 5. Backup Failure Diagnostic ──
     const backupHealthy = await this.getSettingBoolean('LAST_BACKUP_STATUS_HEALTHY', true);
     if (!backupHealthy) {
+      const alertId = 'BACKUP_FAILURE_ALERT';
+      const resolution = await getAlertResolution(alertId);
+      const ack = await getAlertAck(alertId);
+
       activeAlerts.push({
-        id: 'BACKUP_FAILURE_ALERT',
+        id: alertId,
         type: 'BACKUP_FAILURE',
+        category: 'BACKUP_FAILURE',
         severity: 'CRITICAL',
         title: '🚨 Automated Backup Failure',
         description: 'The automated snapshot and database backup pipeline reported a verification failure. Data redundancy is currently degraded.',
@@ -1425,6 +1539,15 @@ export class NotificationsService {
         actionUrl: `/settings`,
         actionLabel: 'Inspect Backup Logs',
         requiresAdminAttention: true,
+        metrics: {
+          lastAttempt: new Date().toISOString(),
+          status: 'VERIFICATION_FAILED',
+          pipeline: 'PostgreSQL Automated Nightly Snapshot',
+        },
+        acknowledged: !!ack,
+        acknowledgedInfo: ack,
+        resolved: !!resolution,
+        resolutionInfo: resolution,
       });
 
       if (!(await hasRecentAlert('SYSTEM', 'BACKUP_PIPELINE', 'ALERT_BACKUP_FAILURE'))) {
@@ -1447,32 +1570,169 @@ export class NotificationsService {
     // ── 6. Server Connectivity & Latency Issue ──
     const serverLatency = await this.getSettingNumber('SIMULATED_SERVER_LATENCY_MS', 15);
     if (serverLatency > 500) {
+      const alertId = 'SERVER_CONNECTIVITY_ISSUE';
+      const resolution = await getAlertResolution(alertId);
+      const ack = await getAlertAck(alertId);
+
       activeAlerts.push({
-        id: 'SERVER_CONNECTIVITY_ISSUE',
+        id: alertId,
         type: 'SERVER_CONNECTIVITY_ISSUE',
+        category: 'CONNECTIVITY_ISSUE',
         severity: 'CRITICAL',
         title: '🌐 Server Connectivity / Latency Degradation',
-        description: `Operational API latency is elevated at ${serverLatency}ms. Cloud services communication degraded.`,
+        description: `Operational API response latency is elevated at ${serverLatency}ms. Cloud services communication is degraded.`,
         entityType: 'SYSTEM',
         entityId: 'SERVER_GATEWAY',
         entityCode: 'SYS-SERVER',
         actionUrl: `/settings`,
-        actionLabel: 'Diagnostics',
+        actionLabel: 'System Diagnostics',
         requiresAdminAttention: true,
+        metrics: {
+          latencyMs: serverLatency,
+          thresholdMs: 500,
+          gatewayStatus: 'DEGRADED',
+        },
+        acknowledged: !!ack,
+        acknowledgedInfo: ack,
+        resolved: !!resolution,
+        resolutionInfo: resolution,
+      });
+    }
+
+    // Role-Based Operational Alert Filtering: Non-Media Managers cannot manage employee capacity rebalancing
+    let filteredAlerts = activeAlerts;
+    if (targetUserId) {
+      const user = await this.prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } });
+      if (user?.role === 'TECHNICAL_MANAGER' || user?.role === 'STAFF') {
+        filteredAlerts = activeAlerts.filter(
+          (a) => a.type !== 'EMPLOYEE_OVER_CAPACITY' && a.category !== 'STAFF_CAPACITY'
+        );
+      }
+    }
+
+    // Separate active unresolved alerts from total alerts
+    const unresolvedAlerts = filteredAlerts.filter((a) => !a.resolved);
+    const criticalCount = unresolvedAlerts.filter((a) => a.severity === 'CRITICAL').length;
+    const highCount = unresolvedAlerts.filter((a) => a.severity === 'HIGH').length;
+
+    return {
+      status: 'SUCCESS',
+      alertsCreated,
+      totalActiveAlerts: unresolvedAlerts.length,
+      totalAllAlerts: filteredAlerts.length,
+      criticalCount,
+      highCount,
+      alerts: filteredAlerts,
+      evaluatedAt: now.toISOString(),
+    };
+  }
+
+  async getSystemAlerts(userId?: string) {
+    return this.checkOperationalAlerts(userId);
+  }
+
+  /**
+   * Allows Media Managers / Admins to acknowledge an operational alert.
+   */
+  async acknowledgeOperationalAlert(alertId: string, userId: string, notes?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, role: true },
+    });
+
+    const ackPayload = {
+      acknowledged: true,
+      acknowledgedAt: new Date().toISOString(),
+      acknowledgedBy: user?.name || userId,
+      acknowledgedByRole: user?.role || 'MEDIA_MANAGER',
+      notes: notes || 'Acknowledged by Media Manager',
+    };
+
+    await this.prisma.systemSetting.upsert({
+      where: { key: `ACK_ALERT_${alertId}` },
+      update: { value: JSON.stringify(ackPayload) },
+      create: {
+        key: `ACK_ALERT_${alertId}`,
+        value: JSON.stringify(ackPayload),
+        description: `Alert Acknowledgment ${alertId}`,
+      },
+    });
+
+    return {
+      status: 'SUCCESS',
+      alertId,
+      ackPayload,
+    };
+  }
+
+  /**
+   * Allows Media Managers / Admins to resolve an operational condition with administrative action notes.
+   */
+  async resolveOperationalAlert(alertId: string, userId: string, actionNotes?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, role: true },
+    });
+
+    const resPayload = {
+      resolved: true,
+      resolvedAt: new Date().toISOString(),
+      resolvedBy: user?.name || userId,
+      resolvedByRole: user?.role || 'MEDIA_MANAGER',
+      actionNotes: actionNotes || 'Resolved by administrative action',
+    };
+
+    await this.prisma.systemSetting.upsert({
+      where: { key: `RESOLVED_ALERT_${alertId}` },
+      update: { value: JSON.stringify(resPayload) },
+      create: {
+        key: `RESOLVED_ALERT_${alertId}`,
+        value: JSON.stringify(resPayload),
+        description: `Alert Resolution ${alertId}`,
+      },
+    });
+
+    // Auto-reset simulated condition triggers if applicable
+    if (alertId === 'BACKUP_FAILURE_ALERT') {
+      await this.prisma.systemSetting.upsert({
+        where: { key: 'LAST_BACKUP_STATUS_HEALTHY' },
+        update: { value: 'true' },
+        create: { key: 'LAST_BACKUP_STATUS_HEALTHY', value: 'true', description: 'Backup Health Status' },
+      });
+    } else if (alertId === 'SERVER_CONNECTIVITY_ISSUE') {
+      await this.prisma.systemSetting.upsert({
+        where: { key: 'SIMULATED_SERVER_LATENCY_MS' },
+        update: { value: '15' },
+        create: { key: 'SIMULATED_SERVER_LATENCY_MS', value: '15', description: 'Server Latency (ms)' },
       });
     }
 
     return {
       status: 'SUCCESS',
-      alertsCreated,
-      totalActiveAlerts: activeAlerts.length,
-      alerts: activeAlerts,
-      evaluatedAt: now.toISOString(),
+      alertId,
+      resPayload,
     };
   }
 
-  async getSystemAlerts() {
-    const checkResult = await this.checkOperationalAlerts();
-    return checkResult;
+  /**
+   * Test endpoint to toggle simulated conditions for administrative testing.
+   */
+  async triggerOperationalDiagnosticTest(type: string, trigger: boolean) {
+    if (type === 'BACKUP_FAILURE') {
+      await this.prisma.systemSetting.upsert({
+        where: { key: 'LAST_BACKUP_STATUS_HEALTHY' },
+        update: { value: trigger ? 'false' : 'true' },
+        create: { key: 'LAST_BACKUP_STATUS_HEALTHY', value: trigger ? 'false' : 'true', description: 'Backup Health Status' },
+      });
+    } else if (type === 'SERVER_CONNECTIVITY') {
+      await this.prisma.systemSetting.upsert({
+        where: { key: 'SIMULATED_SERVER_LATENCY_MS' },
+        update: { value: trigger ? '850' : '15' },
+        create: { key: 'SIMULATED_SERVER_LATENCY_MS', value: trigger ? '850' : '15', description: 'Server Latency (ms)' },
+      });
+    }
+
+    return this.checkOperationalAlerts();
   }
 }
+

@@ -22,7 +22,6 @@ import {
   CheckCircle2,
   UserCheck,
   MessageSquare,
-  Archive,
   Tv,
   Shield,
   Loader2,
@@ -33,11 +32,14 @@ export interface NavItem {
   href: string;
   icon: React.ElementType;
   roles?: ('MEDIA_MANAGER' | 'TECHNICAL_MANAGER' | 'STAFF')[];
+  staffName?: string;
+  techName?: string;
   badge?: string;
 }
 
 export interface NavSection {
   title: string;
+  roles?: ('MEDIA_MANAGER' | 'TECHNICAL_MANAGER' | 'STAFF')[];
   items: NavItem[];
 }
 
@@ -47,12 +49,16 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
     items: [
       {
         name: 'Dashboard',
+        staffName: 'Dashboard',
+        techName: 'Technical Dashboard',
         href: '/',
         icon: LayoutDashboard,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
       },
       {
         name: 'Media Calendar',
+        staffName: 'My Calendar',
+        techName: 'Media Calendar',
         href: '/calendar',
         icon: Calendar,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
@@ -64,24 +70,32 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
     items: [
       {
         name: 'Projects',
+        staffName: 'My Projects',
+        techName: 'Projects',
         href: '/projects',
         icon: Film,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
       },
       {
         name: 'Scripts',
+        staffName: 'My Scripts',
+        techName: 'Scripts (Tech Review)',
         href: '/scripts',
         icon: FileText,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
       },
       {
         name: 'Graphic Requirements',
+        staffName: 'My Graphic Reqs',
+        techName: 'Graphic Reqs (Tech Review)',
         href: '/graphic-reqs',
         icon: Palette,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
       },
       {
         name: 'Tasks',
+        staffName: 'My Tasks',
+        techName: 'Tasks',
         href: '/tasks',
         icon: CheckSquare,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
@@ -117,6 +131,8 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       },
       {
         name: 'Equipment',
+        staffName: 'My Equipment',
+        techName: 'Equipment Technical',
         href: '/equipment',
         icon: Camera,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
@@ -130,37 +146,42 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         name: 'Staff',
         href: '/staff',
         icon: Users,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER'],
       },
       {
         name: 'Attendance',
+        staffName: 'My Attendance',
         href: '/attendance',
         icon: UserCheck,
         roles: ['MEDIA_MANAGER', 'STAFF'],
       },
       {
         name: 'Communication',
+        staffName: 'My Communication',
+        techName: 'Communication',
         href: '/communication',
         icon: MessageSquare,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
       },
       {
         name: 'Reports & Analytics',
+        staffName: 'My Reports',
+        techName: 'Technical Reports',
         href: '/reports',
         icon: BarChart3,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
       },
       {
         name: 'Activity Center',
         href: '/activity',
         icon: Activity,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
+        roles: ['MEDIA_MANAGER'],
       },
       {
         name: 'Settings & Formulas',
         href: '/settings',
         icon: Settings,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
+        roles: ['MEDIA_MANAGER'],
       },
     ],
   },
@@ -175,7 +196,6 @@ export function Sidebar() {
 
   const userRole = (user?.role || 'STAFF') as 'MEDIA_MANAGER' | 'TECHNICAL_MANAGER' | 'STAFF';
 
-  // Sync optimistic path when route changes
   useEffect(() => {
     setOptimisticPath(pathname);
   }, [pathname]);
@@ -185,13 +205,13 @@ export function Sidebar() {
   const handleNavClick = (href: string) => {
     setOptimisticPath(href);
     startTransition(() => {
-      // Transition wrapper allows smooth non-blocking updates
+      // Smooth non-blocking transition
     });
   };
 
   return (
     <aside className="w-64 bg-card border-r border-border flex flex-col h-full shrink-0 z-30 select-none">
-      {/* Brand Logo */}
+      {/* Brand Logo Header */}
       <div className="p-4 border-b border-border flex items-center gap-3">
         <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 flex items-center justify-center text-white font-bold shadow-lg shadow-blue-600/30">
           <Tv className="w-5 h-5" />
@@ -226,7 +246,7 @@ export function Sidebar() {
         </span>
       </div>
 
-      {/* Primary Navigation Sections */}
+      {/* Role-Specific Navigation Links */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-5 scrollbar-thin scrollbar-thumb-gray-800">
         {NAVIGATION_SECTIONS.map((section) => {
           const visibleItems = section.items.filter(
@@ -238,7 +258,15 @@ export function Sidebar() {
           return (
             <div key={section.title} className="space-y-1">
               <div className="px-3 pb-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                {section.title}
+                {userRole === 'STAFF' && section.title === 'Overview'
+                  ? 'My Workspace'
+                  : userRole === 'STAFF' && section.title === 'Production'
+                  ? 'My Production Work'
+                  : userRole === 'STAFF' && section.title === 'Operations & Assets'
+                  ? 'My Equipment & Assets'
+                  : userRole === 'STAFF' && section.title === 'Workforce & Logs'
+                  ? 'My Logs & Reports'
+                  : section.title}
               </div>
 
               {visibleItems.map((item) => {
@@ -249,8 +277,10 @@ export function Sidebar() {
                 const isItemNavigating = isPending && optimisticPath === item.href;
 
                 const displayName =
-                  item.href === '/' && userRole === 'TECHNICAL_MANAGER'
-                    ? 'Technical Dashboard'
+                  userRole === 'STAFF' && item.staffName
+                    ? item.staffName
+                    : userRole === 'TECHNICAL_MANAGER' && item.techName
+                    ? item.techName
                     : item.name;
 
                 return (
@@ -294,7 +324,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* User Info footer */}
+      {/* User Footer */}
       {user && (
         <div className="p-3 border-t border-border bg-gray-900/60 flex items-center gap-3">
           <div className="relative">

@@ -5,7 +5,17 @@ import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { Package, Plus, Edit, Filter, Tag, Search } from 'lucide-react';
 
+import { RouteGuard } from '@/components/common/RouteGuard';
+
 export default function ProductsPage() {
+  return (
+    <RouteGuard module="PRODUCTS">
+      <ProductsContent />
+    </RouteGuard>
+  );
+}
+
+function ProductsContent() {
   const { user } = useAuth();
   const [products, setProducts] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);

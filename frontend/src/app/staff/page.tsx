@@ -34,7 +34,17 @@ import {
   EyeOff,
 } from 'lucide-react';
 
+import { RouteGuard } from '@/components/common/RouteGuard';
+
 export default function StaffPage() {
+  return (
+    <RouteGuard module="STAFF">
+      <StaffContent />
+    </RouteGuard>
+  );
+}
+
+function StaffContent() {
   const { user } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);

@@ -6,12 +6,28 @@ import { ShootType, Priority } from '../../common/enums';
 export class CalendarService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(clientId?: string, brandId?: string, shootType?: string, status?: string) {
+  async findAll(
+    clientId?: string,
+    brandId?: string,
+    shootType?: string,
+    status?: string,
+    userId?: string,
+    role?: string,
+  ) {
     const where: any = {};
     if (clientId) where.clientId = clientId;
     if (brandId) where.brandId = brandId;
     if (shootType) where.shootType = shootType;
     if (status) where.status = status;
+
+    // STAFF role filtering: only assigned shoot events or project events
+    if (role === 'STAFF' && userId) {
+      where.OR = [
+        { shootProjects: { some: { assignedTeam: { some: { userId } } } } },
+        { shootProjects: { some: { tasks: { some: { assignedEmployees: { some: { userId } } } } } } },
+        { graphicReqs: { some: { tasks: { some: { assignedEmployees: { some: { userId } } } } } } },
+      ];
+    }
 
     return this.prisma.mediaCalendarEvent.findMany({
       where,
@@ -70,6 +86,9 @@ export class CalendarService {
   }
 
   async create(data: any) {
+    if (!data.title?.trim()) {
+      throw new BadRequestException('Event / Project Name is required.');
+    }
     const client = await this.prisma.client.findUnique({ where: { id: data.clientId } });
     if (!client || client.status !== 'ACTIVE') {
       throw new BadRequestException('Calendar event requires an active client.');
@@ -77,6 +96,57 @@ export class CalendarService {
     const brand = await this.prisma.brand.findUnique({ where: { id: data.brandId } });
     if (!brand || brand.status !== 'ACTIVE') {
       throw new BadRequestException('Calendar event requires an active brand.');
+    }
+    if (brand.clientId !== client.id) {
+      throw new BadRequestException('Selected brand does not belong to the selected client.');
+    }
+    if (data.productId) {
+      const product = await this.prisma.product.findUnique({ where: { id: data.productId } });
+      if (!product || product.brandId !== brand.id) {
+        throw new BadRequestException('Selected product does not belong to the selected brand.');
+      }
+    }
+
+    // Equipment Availability & Conflict Check
+    if (data.equipmentIds && Array.isArray(data.equipmentIds) && data.equipmentIds.length > 0) {
+      const busyEquipment = await this.prisma.equipment.findMany({
+        where: {
+          id: { in: data.equipmentIds },
+          OR: [
+            { availability: { in: ['UNDER_MAINTENANCE', 'DAMAGED', 'LOST', 'RETIRED'] } },
+            { isArchived: true },
+          ],
+        },
+      });
+      if (busyEquipment.length > 0) {
+        throw new BadRequestException(
+          `Equipment "${busyEquipment[0].name}" is currently ${busyEquipment[0].availability} and cannot be scheduled.`
+        );
+      }
+    }
+
+    // Team Schedule Conflict Check for the same Shoot Date
+    if (data.teamUserIds && Array.isArray(data.teamUserIds) && data.teamUserIds.length > 0) {
+      const targetDate = new Date(data.shootDate);
+      const startOfDay = new Date(new Date(targetDate).setHours(0, 0, 0, 0));
+      const endOfDay = new Date(new Date(targetDate).setHours(23, 59, 59, 999));
+
+      const conflictingProject = await this.prisma.shootProject.findFirst({
+        where: {
+          assignedTeam: {
+            some: { userId: { in: data.teamUserIds } },
+          },
+          shootDate: { gte: startOfDay, lte: endOfDay },
+          status: { notIn: ['CANCELLED', 'CLOSED'] },
+        },
+        include: { assignedTeam: { include: { user: true } } },
+      });
+      if (conflictingProject) {
+        const busyUser = conflictingProject.assignedTeam.find((tm) => data.teamUserIds.includes(tm.userId))?.user;
+        throw new BadRequestException(
+          `Scheduling Conflict: Team member "${busyUser?.name || 'Staff Member'}" is already assigned to project "${conflictingProject.name}" on ${targetDate.toLocaleDateString()}.`
+        );
+      }
     }
 
     const event = await this.prisma.mediaCalendarEvent.create({
@@ -111,7 +181,8 @@ export class CalendarService {
         calendarEventId: event.id,
         shootType: event.shootType,
         shootDate: event.shootDate,
-        shootLocation: 'Studio / Designated Site',
+        estimatedCompletionDate: data.deadline ? new Date(data.deadline) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        shootLocation: data.location || 'Studio / Designated Site',
         reportingTime: '09:00 AM',
         expectedWrapUpTime: '05:00 PM',
         influencerTalent: event.influencerTalent,

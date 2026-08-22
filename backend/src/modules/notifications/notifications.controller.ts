@@ -90,13 +90,39 @@ export class NotificationsController {
   }
 
   @Get('system-alerts')
-  getSystemAlerts() {
-    return this.notificationsService.getSystemAlerts();
+  getSystemAlerts(@CurrentUser('id') userId: string) {
+    return this.notificationsService.getSystemAlerts(userId);
   }
 
   @Post('system-alerts/scan')
   scanOperationalAlerts() {
     return this.notificationsService.checkOperationalAlerts();
+  }
+
+  @Post('system-alerts/acknowledge')
+  acknowledgeAlert(
+    @CurrentUser('id') userId: string,
+    @Body('alertId') alertId: string,
+    @Body('notes') notes?: string
+  ) {
+    return this.notificationsService.acknowledgeOperationalAlert(alertId, userId, notes);
+  }
+
+  @Post('system-alerts/resolve')
+  resolveAlert(
+    @CurrentUser('id') userId: string,
+    @Body('alertId') alertId: string,
+    @Body('actionNotes') actionNotes?: string
+  ) {
+    return this.notificationsService.resolveOperationalAlert(alertId, userId, actionNotes);
+  }
+
+  @Post('system-alerts/test-trigger')
+  triggerDiagnosticTest(
+    @Body('type') type: string,
+    @Body('trigger') trigger: boolean
+  ) {
+    return this.notificationsService.triggerOperationalDiagnosticTest(type, trigger);
   }
 
   @Post('auto-archive')

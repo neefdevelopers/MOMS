@@ -54,7 +54,17 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   ShieldCheck,
 };
 
+import { RouteGuard } from '@/components/common/RouteGuard';
+
 export default function SettingsPage() {
+  return (
+    <RouteGuard module="SETTINGS">
+      <SettingsContent />
+    </RouteGuard>
+  );
+}
+
+function SettingsContent() {
   const { user } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);

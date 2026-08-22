@@ -9,7 +9,13 @@ export class EquipmentService {
   // ─── Business Rule 1: All equipment belongs to COMPANY ─────────────────────
   // ownedBy is always stamped as 'COMPANY' on every record; never personal.
 
-  async findAll(category?: string, availability?: EquipmentAvailability, includeArchived = false) {
+  async findAll(
+    category?: string,
+    availability?: EquipmentAvailability,
+    includeArchived = false,
+    userId?: string,
+    role?: string,
+  ) {
     const where: any = {};
     if (category) where.category = category;
     if (availability) where.availability = availability;
@@ -17,6 +23,15 @@ export class EquipmentService {
     // Business Rule 4: Retired/archived equipment is hidden by default but never deleted
     if (!includeArchived) {
       where.isArchived = false;
+    }
+
+    // Role-based query filtering for STAFF: only assigned/requested equipment
+    if (role === 'STAFF' && userId) {
+      where.OR = [
+        { reservations: { some: { reservedById: userId } } },
+        { reservations: { some: { project: { assignedTeam: { some: { userId } } } } } },
+        { equipmentRequests: { some: { requestedById: userId } } },
+      ];
     }
 
     return this.prisma.equipment.findMany({

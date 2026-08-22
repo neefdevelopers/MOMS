@@ -10,6 +10,7 @@ export class CommunicationsController {
 
   @Get()
   findByEntity(
+    @CurrentUser() user: any,
     @Query('entityType') entityType?: string,
     @Query('entityId') entityId?: string,
     @Query('search') search?: string,
@@ -34,6 +35,8 @@ export class CommunicationsController {
       date,
       type,
       status,
+      user?.id,
+      user?.role,
     );
   }
 

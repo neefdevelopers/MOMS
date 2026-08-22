@@ -30,8 +30,17 @@ import {
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
+import { RouteGuard } from '@/components/common/RouteGuard';
 
 export default function ActivityPage() {
+  return (
+    <RouteGuard module="ACTIVITY_LOGS">
+      <ActivityContent />
+    </RouteGuard>
+  );
+}
+
+function ActivityContent() {
   const [history, setHistory] = useState<any[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);

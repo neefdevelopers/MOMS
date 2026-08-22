@@ -156,6 +156,7 @@ export function Header() {
   const unreadCount = notifications.filter((n) => n.status === 'UNREAD' || !n.isRead).length;
 
   const handleMarkAllRead = async () => {
+    setNotifications((prev) => prev.map((item) => ({ ...item, status: 'READ', isRead: true })));
     try {
       await fetchApi('/notifications/read-all', { method: 'PATCH' });
       loadNotifications();
@@ -173,9 +174,26 @@ export function Header() {
     }
   };
 
+  const handleNotificationItemClick = async (n: any) => {
+    setShowNotifMenu(false);
+    if (n.status === 'UNREAD' || !n.isRead) {
+      setNotifications((prev) =>
+        prev.map((item) => (item.id === n.id ? { ...item, status: 'READ', isRead: true } : item))
+      );
+      try {
+        await fetchApi(`/notifications/${n.id}/read`, { method: 'PATCH' });
+      } catch (err) {
+        console.error('Failed to mark notification as read:', err);
+      }
+    }
+  };
+
   const handleMarkSingleRead = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    setNotifications((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, status: 'READ', isRead: true } : item))
+    );
     try {
       await fetchApi(`/notifications/${id}/read`, { method: 'PATCH' });
       loadNotifications();
@@ -690,9 +708,9 @@ export function Header() {
                         }`}
                       >
                         <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                          <a
-                            href={n.linkUrl || '#'}
-                            onClick={() => setShowNotifMenu(false)}
+                          <Link
+                            href={getNotificationNavigationUrl(n.linkUrl, n.entityType, n.entityId, n.eventType)}
+                            onClick={() => handleNotificationItemClick(n)}
                             className="font-bold text-white text-xs truncate flex items-center gap-1.5 hover:underline flex-1 min-w-[150px]"
                           >
                             {isUnread && (
@@ -705,7 +723,7 @@ export function Header() {
                             <span className={`truncate ${isCritical ? 'text-red-200 font-black' : isHigh ? 'text-amber-200 font-bold' : ''}`}>
                               {n.title}
                             </span>
-                          </a>
+                          </Link>
 
                           <div className="flex items-center gap-1 shrink-0">
                             {/* Priority Badge */}
@@ -736,8 +754,8 @@ export function Header() {
                         {/* Direct Operational Shortcut Button */}
                         <div className="pt-0.5">
                           <Link
-                            href={getNotificationNavigationUrl(n.linkUrl, n.entityType, n.entityId)}
-                            onClick={() => setShowNotifMenu(false)}
+                            href={getNotificationNavigationUrl(n.linkUrl, n.entityType, n.entityId, n.eventType)}
+                            onClick={() => handleNotificationItemClick(n)}
                             className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 px-2 py-0.5 rounded transition-colors group"
                           >
                             <span>{getNotificationActionLabel(n.entityType, n.eventType, n.category)}</span>

@@ -11,6 +11,9 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [staffUsers, setStaffUsers] = useState<any[]>([]);
+  const [equipmentList, setEquipmentList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // View Mode: month, week, day
@@ -30,7 +33,7 @@ export default function CalendarPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
 
-  // Form State
+  // 13 Mandatory Schedule Event Form State
   const [formData, setFormData] = useState({
     title: '',
     clientId: '',
@@ -38,6 +41,13 @@ export default function CalendarPage() {
     productId: '',
     shootType: 'INDOOR',
     shootDate: new Date().toISOString().split('T')[0],
+    deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startTime: '09:00 AM',
+    endTime: '05:00 PM',
+    location: 'Main Studio Floor',
+    locationCategory: 'Studio Bay',
+    teamUserIds: [] as string[],
+    equipmentIds: [] as string[],
     influencerTalent: '',
     priority: 'MEDIUM',
     productionNotes: '',
@@ -53,17 +63,23 @@ export default function CalendarPage() {
       if (statusFilter) params.append('status', statusFilter);
       if (params.toString()) url += `?${params.toString()}`;
 
-      const [resEvents, resClients, resBrands] = await Promise.all([
+      const [resEvents, resClients, resBrands, resProducts, resUsers, resEq] = await Promise.all([
         fetchApi(url),
-        fetchApi('/clients'),
-        fetchApi('/brands'),
+        fetchApi('/clients').catch(() => []),
+        fetchApi('/brands').catch(() => []),
+        fetchApi('/products').catch(() => []),
+        fetchApi('/users').catch(() => []),
+        fetchApi('/equipment').catch(() => []),
       ]);
 
-      setEvents(resEvents);
-      setClients(resClients);
-      setBrands(resBrands);
+      setEvents(Array.isArray(resEvents) ? resEvents : []);
+      setClients(Array.isArray(resClients) ? resClients : []);
+      setBrands(Array.isArray(resBrands) ? resBrands : []);
+      setProducts(Array.isArray(resProducts) ? resProducts : []);
+      setStaffUsers(Array.isArray(resUsers) ? resUsers : []);
+      setEquipmentList(Array.isArray(resEq) ? resEq : []);
     } catch (err) {
-      console.error(err);
+      console.error('Error loading calendar reference data:', err);
     } finally {
       setLoading(false);
     }
@@ -73,8 +89,48 @@ export default function CalendarPage() {
     loadData();
   }, [clientIdFilter, brandIdFilter, shootTypeFilter, statusFilter]);
 
+  // Cascading Selection Handlers (Client -> Brand -> Product)
+  const handleClientChange = (cId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      clientId: cId,
+      brandId: '',
+      productId: '',
+    }));
+  };
+
+  const handleBrandChange = (bId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      brandId: bId,
+      productId: '',
+    }));
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!formData.title.trim()) {
+      alert('Event / Project Name is required.');
+      return;
+    }
+    if (!formData.clientId) {
+      alert('A valid active Client is required.');
+      return;
+    }
+    if (!formData.brandId) {
+      alert('A valid active Brand is required.');
+      return;
+    }
+    if (!formData.shootDate) {
+      alert('Shoot Date is required.');
+      return;
+    }
+    if (!formData.startTime || !formData.endTime) {
+      alert('Start Time and End Time are required.');
+      return;
+    }
+
     try {
       if (editingEvent) {
         await fetchApi(`/calendar/${editingEvent.id}`, {
@@ -118,6 +174,9 @@ export default function CalendarPage() {
 
   const openEdit = (eventItem: any) => {
     setEditingEvent(eventItem);
+    const existingTeam = eventItem.shootProjects?.[0]?.assignedTeam?.map((tm: any) => tm.userId) || [];
+    const existingEq = eventItem.shootProjects?.[0]?.equipmentReservations?.map((res: any) => res.equipmentId) || [];
+
     setFormData({
       title: eventItem.title || '',
       clientId: eventItem.clientId || '',
@@ -125,6 +184,13 @@ export default function CalendarPage() {
       productId: eventItem.productId || '',
       shootType: eventItem.shootType || 'INDOOR',
       shootDate: eventItem.shootDate ? new Date(eventItem.shootDate).toISOString().split('T')[0] : '',
+      deadline: eventItem.deadline ? new Date(eventItem.deadline).toISOString().split('T')[0] : (eventItem.shootProjects?.[0]?.estimatedCompletionDate ? new Date(eventItem.shootProjects[0].estimatedCompletionDate).toISOString().split('T')[0] : ''),
+      startTime: eventItem.startTime || '09:00 AM',
+      endTime: eventItem.endTime || '05:00 PM',
+      location: eventItem.location || 'Main Studio Floor',
+      locationCategory: eventItem.locationCategory || 'Studio Bay',
+      teamUserIds: existingTeam,
+      equipmentIds: existingEq,
       influencerTalent: eventItem.influencerTalent || '',
       priority: eventItem.priority || 'MEDIUM',
       productionNotes: eventItem.productionNotes || '',
@@ -133,13 +199,23 @@ export default function CalendarPage() {
   };
 
   const resetForm = () => {
+    const defaultClient = clients.find((c) => c.status === 'ACTIVE')?.id || '';
+    const defaultBrand = brands.find((b) => b.status === 'ACTIVE' && (!defaultClient || b.clientId === defaultClient))?.id || '';
+
     setFormData({
       title: '',
-      clientId: clients.filter((c) => c.status === 'ACTIVE')[0]?.id || '',
-      brandId: '',
+      clientId: defaultClient,
+      brandId: defaultBrand,
       productId: '',
       shootType: 'INDOOR',
       shootDate: new Date().toISOString().split('T')[0],
+      deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      startTime: '09:00 AM',
+      endTime: '05:00 PM',
+      location: 'Main Studio Floor',
+      locationCategory: 'Studio Bay',
+      teamUserIds: [],
+      equipmentIds: [],
       influencerTalent: '',
       priority: 'MEDIUM',
       productionNotes: '',
@@ -147,7 +223,13 @@ export default function CalendarPage() {
   };
 
   const activeClients = clients.filter((c) => c.status === 'ACTIVE');
-  const filteredBrands = brands.filter((b) => !formData.clientId || b.clientId === formData.clientId);
+  const filteredBrands = brands.filter((b) => b.status === 'ACTIVE' && (!formData.clientId || b.clientId === formData.clientId));
+  const filteredProducts = products.filter((p) => p.status === 'ACTIVE' && (!formData.brandId || p.brandId === formData.brandId));
+
+  // Available equipment: exclude RETIRED, DAMAGED, LOST, UNDER_MAINTENANCE
+  const availableEquipment = equipmentList.filter(
+    (eq) => !eq.isArchived && !['UNDER_MAINTENANCE', 'DAMAGED', 'LOST', 'RETIRED'].includes(eq.availability)
+  );
 
   const filteredEvents = events.filter((evt) => {
     if (searchQuery.trim()) {
@@ -562,113 +644,288 @@ export default function CalendarPage() {
 
       {/* Add / Edit Event Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <form onSubmit={handleSave} className="bg-card border border-border rounded-xl w-full max-w-lg p-6 space-y-4 text-xs">
-            <h2 className="text-base font-bold text-white border-b border-border pb-3">
-              {editingEvent ? 'Edit Shoot Calendar Event' : 'Schedule New Shoot Event'}
-            </h2>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="text-gray-400 block mb-1 font-semibold">Event Title *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="e.g. Ojas Launch Reel Shoot"
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
-                />
-              </div>
-
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <form onSubmit={handleSave} className="bg-card border border-border rounded-xl w-full max-w-2xl p-6 space-y-5 text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-border pb-3">
               <div>
-                <label className="text-gray-400 block mb-1 font-semibold">Active Client *</label>
-                <select
-                  required
-                  value={formData.clientId}
-                  onChange={(e) => setFormData({ ...formData, clientId: e.target.value, brandId: '' })}
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
-                >
-                  <option value="">Select Active Client</option>
-                  {activeClients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <CalendarIcon className="w-5 h-5 text-blue-400" />
+                  {editingEvent ? 'Edit Shoot Calendar Event' : 'Schedule New Shoot Event'}
+                </h2>
+                <p className="text-[11px] text-gray-400">All required production scheduling fields and team/equipment reservations</p>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddModal(false);
+                  setEditingEvent(null);
+                }}
+                className="text-gray-400 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-              <div>
-                <label className="text-gray-400 block mb-1 font-semibold">Active Brand *</label>
-                <select
-                  required
-                  value={formData.brandId}
-                  onChange={(e) => setFormData({ ...formData, brandId: e.target.value })}
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
-                >
-                  <option value="">Select Active Brand</option>
-                  {filteredBrands.map((b) => (
-                    <option key={b.id} value={b.id}>[{b.shortCode}] {b.name}</option>
-                  ))}
-                </select>
-              </div>
+            {/* SECTION 1: EVENT DETAILS */}
+            <div className="space-y-3 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
+              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">
+                Section 1 • Event & Client Details
+              </span>
 
-              <div>
-                <label className="text-gray-400 block mb-1 font-semibold">Shoot Type *</label>
-                <select
-                  value={formData.shootType}
-                  onChange={(e) => setFormData({ ...formData, shootType: e.target.value })}
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
-                >
-                  <option value="INDOOR">INDOOR Studio</option>
-                  <option value="OUTDOOR">OUTDOOR Location</option>
-                </select>
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="text-gray-300 block mb-1 font-semibold">Event / Project Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="e.g. Ojas Launch Reel Shoot"
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-medium"
+                  />
+                </div>
 
-              <div>
-                <label className="text-gray-400 block mb-1 font-semibold">Shoot Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={formData.shootDate}
-                  onChange={(e) => setFormData({ ...formData, shootDate: e.target.value })}
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
-                />
-              </div>
+                <div>
+                  <label className="text-gray-300 block mb-1 font-semibold">Client (Cascading) *</label>
+                  <select
+                    required
+                    value={formData.clientId}
+                    onChange={(e) => handleClientChange(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                  >
+                    <option value="">Select Active Client</option>
+                    {activeClients.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <label className="text-gray-400 block mb-1 font-semibold">Influencer / Talent</label>
-                <input
-                  type="text"
-                  value={formData.influencerTalent}
-                  onChange={(e) => setFormData({ ...formData, influencerTalent: e.target.value })}
-                  placeholder="e.g. Devika (Model)"
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
-                />
-              </div>
+                <div>
+                  <label className="text-gray-300 block mb-1 font-semibold">Brand (Filtered) *</label>
+                  <select
+                    required
+                    value={formData.brandId}
+                    onChange={(e) => handleBrandChange(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                  >
+                    <option value="">Select Active Brand</option>
+                    {filteredBrands.map((b) => (
+                      <option key={b.id} value={b.id}>[{b.shortCode}] {b.name}</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <label className="text-gray-400 block mb-1 font-semibold">Priority</label>
-                <select
-                  value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
-                >
-                  <option value="LOW">LOW</option>
-                  <option value="MEDIUM">MEDIUM</option>
-                  <option value="HIGH">HIGH</option>
-                  <option value="CRITICAL">CRITICAL</option>
-                </select>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="text-gray-300 block mb-1 font-semibold">Product (Optional)</label>
+                  <select
+                    value={formData.productId}
+                    onChange={(e) => setFormData({ ...formData, productId: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                  >
+                    <option value="">None / General Shoot</option>
+                    {filteredProducts.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name} ({p.productCode})</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
-            <div>
-              <label className="text-gray-400 block mb-1 font-semibold">Production Notes</label>
-              <textarea
-                rows={2}
-                value={formData.productionNotes}
-                onChange={(e) => setFormData({ ...formData, productionNotes: e.target.value })}
-                placeholder="Shot requirements, moodboard links..."
-                className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
-              ></textarea>
+            {/* SECTION 2: SCHEDULE & TIMINGS */}
+            <div className="space-y-3 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
+                Section 2 • Schedule & Timings
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                <div>
+                  <label className="text-gray-300 block mb-1 font-semibold">Shoot Type *</label>
+                  <select
+                    value={formData.shootType}
+                    onChange={(e) => setFormData({ ...formData, shootType: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                  >
+                    <option value="INDOOR">INDOOR Studio</option>
+                    <option value="OUTDOOR">OUTDOOR Location</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-gray-300 block mb-1 font-semibold">Shoot Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.shootDate}
+                    onChange={(e) => setFormData({ ...formData, shootDate: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-gray-300 block mb-1 font-semibold">Deadline Date</label>
+                  <input
+                    type="date"
+                    value={formData.deadline}
+                    onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-gray-300 block mb-1 font-semibold">Start Time *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.startTime}
+                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                    placeholder="09:00 AM"
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-gray-300 block mb-1 font-semibold">End Time *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.endTime}
+                    onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                    placeholder="05:00 PM"
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 3: LOCATION DETAILS */}
+            <div className="space-y-3 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
+              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                Section 3 • Location Details
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-300 block mb-1 font-semibold">Shoot Location *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    placeholder="e.g. Studio Floor 4, Media Ops HQ"
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-gray-300 block mb-1 font-semibold">Location Category *</label>
+                  <select
+                    value={formData.locationCategory}
+                    onChange={(e) => setFormData({ ...formData, locationCategory: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                  >
+                    <option value="Studio Bay">Studio Bay</option>
+                    <option value="Outdoor Field">Outdoor Field</option>
+                    <option value="Client Site">Client Site</option>
+                    <option value="Third-Party Location">Third-Party Location</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 4: TEAM & EQUIPMENT */}
+            <div className="space-y-3 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
+              <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider block">
+                Section 4 • Assigned Team & Required Equipment
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-300 block mb-1 font-semibold">Assigned Team (Select Staff) *</label>
+                  <select
+                    multiple
+                    size={4}
+                    value={formData.teamUserIds}
+                    onChange={(e) => {
+                      const opts = Array.from(e.target.selectedOptions, (option) => option.value);
+                      setFormData({ ...formData, teamUserIds: opts });
+                    }}
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-[11px] scrollbar-thin"
+                  >
+                    {staffUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.employeeProfile?.designation || u.role})
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[10px] text-gray-500 mt-1 block">Hold Ctrl / Cmd to select multiple employees</span>
+                </div>
+
+                <div>
+                  <label className="text-gray-300 block mb-1 font-semibold">Required Equipment (Available Only)</label>
+                  <select
+                    multiple
+                    size={4}
+                    value={formData.equipmentIds}
+                    onChange={(e) => {
+                      const opts = Array.from(e.target.selectedOptions, (option) => option.value);
+                      setFormData({ ...formData, equipmentIds: opts });
+                    }}
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-[11px] scrollbar-thin"
+                  >
+                    {availableEquipment.map((eq) => (
+                      <option key={eq.id} value={eq.id}>
+                        📷 {eq.name} ({eq.category})
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[10px] text-gray-500 mt-1 block">Hold Ctrl / Cmd to select multiple equipment items</span>
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 5: ADDITIONAL INFORMATION */}
+            <div className="space-y-3 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                Section 5 • Additional Information
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-300 block mb-1 font-semibold">Influencer / Talent</label>
+                  <input
+                    type="text"
+                    value={formData.influencerTalent}
+                    onChange={(e) => setFormData({ ...formData, influencerTalent: e.target.value })}
+                    placeholder="e.g. Devika (Model)"
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-gray-300 block mb-1 font-semibold">Priority</label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                  >
+                    <option value="LOW">LOW</option>
+                    <option value="MEDIUM">MEDIUM</option>
+                    <option value="HIGH">HIGH</option>
+                    <option value="CRITICAL">CRITICAL</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-gray-300 block mb-1 font-semibold">Notes / Remarks</label>
+                <textarea
+                  rows={2}
+                  value={formData.productionNotes}
+                  onChange={(e) => setFormData({ ...formData, productionNotes: e.target.value })}
+                  placeholder="Additional scheduling notes, shot list links..."
+                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                ></textarea>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-3 border-t border-border">

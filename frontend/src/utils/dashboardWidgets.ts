@@ -7,7 +7,8 @@ export type WidgetId =
   | 'calendar'
   | 'equipment_status'
   | 'employee_capacity'
-  | 'recent_activities';
+  | 'recent_activities'
+  | 'recently_accessed';
 
 export interface DashboardWidgetConfig {
   id: WidgetId;
@@ -120,6 +121,17 @@ export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidgetConfig[] = [
     order: 8,
     size: 'full',
     itemLimit: 6,
+  },
+  {
+    id: 'recently_accessed',
+    title: 'Recently Accessed Records',
+    category: 'Operational',
+    description: 'Quick resume history for active Projects, Scripts, Reports & Equipment',
+    iconName: 'History',
+    enabled: true,
+    order: 9,
+    size: 'full',
+    itemLimit: 12,
   },
 ];
 

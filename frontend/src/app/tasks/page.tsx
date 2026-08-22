@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame, Clock, ArrowUpDown } from 'lucide-react';
@@ -13,6 +14,11 @@ import { ReassignmentRecommendationsModal } from '@/components/dashboard/Reassig
 
 export default function TasksPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const reassignUserParam = searchParams.get('reassignUser');
+  const employeeIdParam = searchParams.get('employeeId');
+  const taskIdParam = searchParams.get('taskId');
+
   const [tasks, setTasks] = useState<any[]>([]);
   const [capacity, setCapacity] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -201,6 +207,24 @@ export default function TasksPage() {
   useEffect(() => {
     loadReferenceData();
   }, []);
+
+  useEffect(() => {
+    if (reassignUserParam) {
+      setSelectedOverloadedUserId(reassignUserParam);
+      setShowCapacityEngine(true);
+    } else if (employeeIdParam) {
+      setSelectedEmployee(employeeIdParam);
+    }
+  }, [reassignUserParam, employeeIdParam]);
+
+  useEffect(() => {
+    if (taskIdParam && tasks.length > 0) {
+      const match = tasks.find((t) => t.id === taskIdParam || t.taskId === taskIdParam);
+      if (match) {
+        setInspectedTask(match);
+      }
+    }
+  }, [taskIdParam, tasks]);
 
   useEffect(() => {
     loadTasks();
