@@ -454,18 +454,13 @@ export default function GraphicReqsPage() {
           </div>
         </div>
 
-        {user?.role === 'MEDIA_MANAGER' ? (
+        {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
           <button
             onClick={() => setShowCreateModal(true)}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg flex items-center gap-2 shadow-md shadow-amber-600/30 transition-colors text-xs"
           >
             <Plus className="w-4 h-4" /> Create Graphic Requirement
           </button>
-        ) : (
-          <div className="px-3 py-1.5 bg-gray-900 border border-gray-800 rounded-lg text-gray-400 font-medium text-[11px] flex items-center gap-1.5">
-            <ShieldAlert className="w-4 h-4 text-amber-400" />
-            Creation restricted to Media Manager (Or auto-generated from Media Calendar)
-          </div>
         )}
       </div>
 

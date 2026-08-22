@@ -46,7 +46,7 @@ export class EquipmentController {
   }
 
   // ─── Business Rule 4: Retire (archive) equipment — replaces physical delete ─
-  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER)
+  @Roles(Role.MEDIA_MANAGER)
   @Post(':id/retire')
   retire(
     @Param('id') id: string,

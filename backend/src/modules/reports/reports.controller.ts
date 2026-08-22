@@ -243,7 +243,7 @@ export class ReportsController {
     return this.reportsService.getProjectPerformanceReports(period, startDate, endDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, search);
   }
 
-  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER)
+  @Roles(Role.MEDIA_MANAGER)
   @Get('attendance-analytics')
   getAttendanceAnalyticsReport(
     @Query('period') period?: string,
@@ -325,7 +325,7 @@ export class ReportsController {
     return this.reportsService.getRevisionPerformanceReports(period, startDate, endDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, search);
   }
 
-  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER)
+  @Roles(Role.MEDIA_MANAGER)
   @Get('timelines')
   getTimelinePerformanceReports(
     @Query('period') period?: string,

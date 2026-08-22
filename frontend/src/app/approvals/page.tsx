@@ -119,28 +119,29 @@ export default function ApprovalsPage() {
                     <p className="text-gray-400 text-[10px]">{proj.client?.name} • {proj.brand?.name}</p>
                   </div>
 
-                  <input
-                    type="text"
-                    placeholder="Technical Remarks (e.g. 4K Bitrate check OK)..."
-                    onChange={(e) => setRemarks(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-800 text-gray-200 px-2.5 py-1.5 rounded"
-                  />
+                  {(user?.role === 'TECHNICAL_MANAGER' || (user?.role as string) === 'ADMIN') && (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Technical Remarks (e.g. 4K Bitrate check OK)..."
+                        onChange={(e) => setRemarks(e.target.value)}
+                        className="w-full bg-gray-950 border border-gray-800 text-gray-200 px-2.5 py-1.5 rounded"
+                      />
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={() => handleTechReview(proj.id, 'APPROVED')}
+                          className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded flex items-center justify-center gap-1"
+                        >
+                          <Check className="w-3.5 h-3.5" /> Approve Tech
+                        </button>
 
-                  {(user?.role === 'TECHNICAL_MANAGER' || user?.role === 'MEDIA_MANAGER') && (
-                    <div className="flex gap-2 pt-1">
-                      <button
-                        onClick={() => handleTechReview(proj.id, 'APPROVED')}
-                        className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded flex items-center justify-center gap-1"
-                      >
-                        <Check className="w-3.5 h-3.5" /> Approve Tech
-                      </button>
-
-                      <button
-                        onClick={() => handleTechReview(proj.id, 'REJECTED')}
-                        className="flex-1 py-1.5 bg-red-600/30 hover:bg-red-600/40 text-red-300 border border-red-500/30 font-bold rounded flex items-center justify-center gap-1"
-                      >
-                        <X className="w-3.5 h-3.5" /> Reject
-                      </button>
+                        <button
+                          onClick={() => handleTechReview(proj.id, 'REJECTED')}
+                          className="flex-1 py-1.5 bg-red-600/30 hover:bg-red-600/40 text-red-300 border border-red-500/30 font-bold rounded flex items-center justify-center gap-1"
+                        >
+                          <X className="w-3.5 h-3.5" /> Reject
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -174,28 +175,29 @@ export default function ApprovalsPage() {
                     <p className="text-gray-400 text-[10px]">{proj.client?.name} • {proj.brand?.name}</p>
                   </div>
 
-                  <input
-                    type="text"
-                    placeholder="Media Creative Quality Remarks..."
-                    onChange={(e) => setRemarks(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-800 text-gray-200 px-2.5 py-1.5 rounded"
-                  />
+                  {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Media Creative Quality Remarks..."
+                        onChange={(e) => setRemarks(e.target.value)}
+                        className="w-full bg-gray-950 border border-gray-800 text-gray-200 px-2.5 py-1.5 rounded"
+                      />
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={() => handleMediaReview(proj.id, 'APPROVED')}
+                          className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded flex items-center justify-center gap-1"
+                        >
+                          <Check className="w-3.5 h-3.5" /> Approve Media
+                        </button>
 
-                  {user?.role === 'MEDIA_MANAGER' && (
-                    <div className="flex gap-2 pt-1">
-                      <button
-                        onClick={() => handleMediaReview(proj.id, 'APPROVED')}
-                        className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded flex items-center justify-center gap-1"
-                      >
-                        <Check className="w-3.5 h-3.5" /> Approve Media
-                      </button>
-
-                      <button
-                        onClick={() => handleMediaReview(proj.id, 'REJECTED')}
-                        className="flex-1 py-1.5 bg-red-600/30 hover:bg-red-600/40 text-red-300 border border-red-500/30 font-bold rounded flex items-center justify-center gap-1"
-                      >
-                        <X className="w-3.5 h-3.5" /> Reject
-                      </button>
+                        <button
+                          onClick={() => handleMediaReview(proj.id, 'REJECTED')}
+                          className="flex-1 py-1.5 bg-red-600/30 hover:bg-red-600/40 text-red-300 border border-red-500/30 font-bold rounded flex items-center justify-center gap-1"
+                        >
+                          <X className="w-3.5 h-3.5" /> Reject
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -229,7 +231,7 @@ export default function ApprovalsPage() {
                     <p className="text-gray-400 text-[10px]">{proj.client?.name}</p>
                   </div>
 
-                  {user?.role === 'MEDIA_MANAGER' && (
+                  {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
                     <div className="space-y-2 pt-1 border-t border-gray-800">
                       <div>
                         <label className="block text-gray-400 font-semibold mb-1">Communication Method</label>
@@ -246,13 +248,13 @@ export default function ApprovalsPage() {
                       </div>
 
                       <div>
-                        <label className="block text-gray-400 font-semibold mb-1">Client Decision</label>
+                        <label className="block text-gray-400 font-semibold mb-1">Client Decision &amp; Closure</label>
                         <select
                           value={clientDecision}
                           onChange={(e) => setClientDecision(e.target.value)}
                           className="w-full bg-gray-950 border border-gray-800 text-gray-200 px-2 py-1 rounded font-bold"
                         >
-                          <option value="APPROVED">APPROVED (Complete Project)</option>
+                          <option value="APPROVED">APPROVED (Approve Project Closure)</option>
                           <option value="REVISION_REQUESTED">REVISION REQUESTED (Restart Prod)</option>
                           <option value="REJECTED">REJECTED (Cancel Project)</option>
                         </select>
@@ -269,7 +271,7 @@ export default function ApprovalsPage() {
                         onClick={() => handleRecordClientConfirmation(proj.id)}
                         className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded"
                       >
-                        Record Client Confirmation
+                        Record Client Confirmation &amp; Project Closure
                       </button>
                     </div>
                   )}

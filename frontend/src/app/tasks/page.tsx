@@ -9,12 +9,14 @@ import { PaginationControls } from '@/components/common/PaginationControls';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
 import { usePagination } from '@/lib/usePagination';
 import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
+import { ReassignmentRecommendationsModal } from '@/components/dashboard/ReassignmentRecommendationsModal';
 
 export default function TasksPage() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<any[]>([]);
   const [capacity, setCapacity] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedOverloadedUserId, setSelectedOverloadedUserId] = useState<string | null>(null);
 
   // Pagination Hook (Uses system default page size from settings)
   const { currentPage, setCurrentPage, pageSize, setPageSize, paginate } = usePagination();
@@ -42,6 +44,7 @@ export default function TasksPage() {
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showCapacityEngine, setShowCapacityEngine] = useState(false);
   const [clientsList, setClientsList] = useState<any[]>([]);
   const [brandsList, setBrandsList] = useState<any[]>([]);
   const [productsList, setProductsList] = useState<any[]>([]);
@@ -65,6 +68,72 @@ export default function TasksPage() {
   const [editingCapacityUser, setEditingCapacityUser] = useState<any>(null);
   const [editCapacityHours, setEditCapacityHours] = useState('8.0');
   const [savingCapacity, setSavingCapacity] = useState(false);
+
+  // Dedicated Update Task Modal State
+  const [updatingTask, setUpdatingTask] = useState<any>(null);
+  const [editStatus, setEditStatus] = useState('IN_PROGRESS');
+  const [editProgress, setEditProgress] = useState(0);
+  const [editRemark, setEditRemark] = useState('');
+  const [savingTaskUpdate, setSavingTaskUpdate] = useState(false);
+  // Dedicated Work Details Modal State for Workload & Capacity Engine
+  const [selectedWorkDetailsEmp, setSelectedWorkDetailsEmp] = useState<any>(null);
+  const [empAssignedWorkTasks, setEmpAssignedWorkTasks] = useState<any[]>([]);
+  const [loadingEmpWorkDetails, setLoadingEmpWorkDetails] = useState(false);
+
+  const openWorkDetailsModal = async (emp: any) => {
+    setSelectedWorkDetailsEmp(emp);
+    setLoadingEmpWorkDetails(true);
+    try {
+      const res = await fetchApi(`/tasks?employeeId=${emp.userId}`);
+      setEmpAssignedWorkTasks(Array.isArray(res) ? res : []);
+    } catch (err) {
+      console.error('Failed to load employee assigned work tasks:', err);
+      setEmpAssignedWorkTasks([]);
+    } finally {
+      setLoadingEmpWorkDetails(false);
+    }
+  };
+
+  const openUpdateTaskModal = (task: any) => {
+    setUpdatingTask(task);
+    setEditStatus(task.status || 'IN_PROGRESS');
+    setEditProgress(task.completionPercentage || 0);
+    setEditRemark('');
+  };
+
+  const handleSaveTaskUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!updatingTask) return;
+    setSavingTaskUpdate(true);
+    try {
+      let finalProgress = editProgress;
+      if (editStatus === 'COMPLETED') finalProgress = 100;
+      if (editStatus === 'PENDING') finalProgress = 0;
+
+      await fetchApi(`/tasks/${updatingTask.id}/progress`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: editStatus,
+          completionPercentage: finalProgress,
+          remark: editRemark.trim() || undefined,
+        }),
+      });
+
+      if (editRemark.trim()) {
+        await fetchApi(`/tasks/${updatingTask.id}/remarks`, {
+          method: 'POST',
+          body: JSON.stringify({ text: editRemark.trim() }),
+        }).catch(() => null);
+      }
+
+      setUpdatingTask(null);
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update task');
+    } finally {
+      setSavingTaskUpdate(false);
+    }
+  };
 
   // Create Task Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -181,7 +250,7 @@ export default function TasksPage() {
 
   const openReassignDrawer = async (task: any) => {
     setSelectedTask(task);
-    setTargetUserIds((task.assignedEmployees || []).map((a: any) => a.userId));
+    setTargetUserIds([]); // Clean selection so candidate selection replaces previous employee
     try {
       const rec = await fetchApi(`/tasks/${task.id}/reassign-recommendations`);
       setRecommendations(rec);
@@ -377,9 +446,12 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* Workload Capacity Section */}
-      <div className="bg-card border border-border p-5 rounded-xl space-y-4">
-        <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+      {/* Workload Capacity Section (Toggleable on click button) */}
+      <div className="bg-card border border-border rounded-xl shadow-md overflow-hidden">
+        <div
+          onClick={() => setShowCapacityEngine(!showCapacityEngine)}
+          className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer hover:bg-gray-800/40 transition-colors"
+        >
           <div>
             <h2 className="text-sm font-bold text-white flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-400" /> Automated Continuous Workload &amp; Capacity Engine
@@ -388,144 +460,187 @@ export default function TasksPage() {
               Continuously calculated from Estimated Hours, Active Tasks, Due Dates (Urgency), Employee Capacity, and Task Priority.
             </p>
           </div>
-          <span className="px-2.5 py-1 bg-cyan-950 text-cyan-300 border border-cyan-800 rounded font-mono font-bold text-[10px]">
-            ⚡ Auto-Updated Live
-          </span>
+
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {capacity.some((e) => e.isOverloaded || e.status === 'Overloaded') && (
+              <span className="px-2.5 py-1 bg-red-600 text-white font-mono font-bold text-[10px] rounded flex items-center gap-1 animate-pulse">
+                🚨 {capacity.filter((e) => e.isOverloaded || e.status === 'Overloaded').length} Overloaded Staff
+              </span>
+            )}
+            <span className="px-2.5 py-1 bg-cyan-950 text-cyan-300 border border-cyan-800 rounded font-mono font-bold text-[10px]">
+              ⚡ Auto-Updated Live ({capacity.length} Staff Monitored)
+            </span>
+            <button
+              type="button"
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1 shadow-md shadow-blue-600/30"
+            >
+              <span>{showCapacityEngine ? 'Hide Engine Inspector ▲' : 'Open Engine Inspector ▼'}</span>
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
-          {capacity.map((emp) => {
-            const isOverloaded = emp.isOverloaded || emp.assignedHours > emp.capacityHours || emp.status === 'Overloaded';
+        {showCapacityEngine && (
+          <div className="p-5 border-t border-gray-800 space-y-4 animate-in fade-in duration-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
+              {capacity.map((emp) => {
+                const isOverloaded = emp.isOverloaded || emp.assignedHours > emp.capacityHours || emp.status === 'Overloaded';
 
-            return (
-              <div
-                key={emp.userId}
-                className={`p-4 rounded-xl border space-y-3 relative transition-all shadow-md ${
-                  isOverloaded
-                    ? 'bg-gradient-to-br from-red-950/90 via-zinc-900 to-red-950/70 border-red-500 ring-2 ring-red-500/50 shadow-xl shadow-red-950/60 animate-pulse'
-                    : emp.status === 'Normal'
-                    ? 'bg-gradient-to-br from-amber-950/30 via-zinc-900 to-zinc-900 border-amber-800/60'
-                    : 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-900 border-zinc-800'
-                }`}
-              >
-                {/* Overloaded Alert Header Banner */}
-                {isOverloaded && (
-                  <div className="bg-red-600 text-white font-mono text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded flex items-center justify-between border border-red-400 shadow-sm tracking-wider">
-                    <span className="flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3 text-white animate-bounce" /> EXCEEDS CAPACITY
-                    </span>
-                    <span>OVERLOADED</span>
-                  </div>
-                )}
-
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-bold text-white text-sm flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-blue-400" /> {emp.name}
-                    </h3>
-                    <span className="text-[10px] text-gray-400">{emp.designation}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {user?.role === 'MEDIA_MANAGER' && (
-                      <button
-                        onClick={() => {
-                          setEditingCapacityUser(emp);
-                          setEditCapacityHours(emp.capacityHours.toString());
-                        }}
-                        className="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors"
-                        title="Configure Daily Working Capacity"
-                      >
-                        ⚙️
-                      </button>
+                return (
+                  <div
+                    key={emp.userId}
+                    className={`p-4 rounded-xl border space-y-3 relative transition-all shadow-md ${
+                      isOverloaded
+                        ? 'bg-gradient-to-br from-red-950/90 via-zinc-900 to-red-950/70 border-red-500 ring-2 ring-red-500/50 shadow-xl shadow-red-950/60 animate-pulse'
+                        : emp.status === 'Normal'
+                        ? 'bg-gradient-to-br from-amber-950/30 via-zinc-900 to-zinc-900 border-amber-800/60'
+                        : 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-900 border-zinc-800'
+                    }`}
+                  >
+                    {/* Overloaded Alert Header Banner */}
+                    {isOverloaded && (
+                      <div className="bg-red-600 text-white font-mono text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded flex items-center justify-between border border-red-400 shadow-sm tracking-wider">
+                        <span className="flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 text-white animate-bounce" /> EXCEEDS CAPACITY
+                        </span>
+                        <span>OVERLOADED</span>
+                      </div>
                     )}
-                    <span
-                      className={`text-[9px] font-extrabold px-2 py-0.5 rounded uppercase border font-mono ${
-                        isOverloaded
-                          ? 'bg-red-600 text-white border-red-400'
-                          : emp.status === 'Normal'
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-800'
-                          : 'bg-emerald-500/20 text-emerald-400 border-emerald-800'
-                      }`}
-                    >
-                      {isOverloaded ? 'OVERLOADED' : emp.status}
-                    </span>
-                  </div>
-                </div>
 
-                {/* 6 Mandatory Monitoring Metrics */}
-                <div className="text-[11px] space-y-1.5 font-mono border-t border-gray-800/80 pt-2.5">
-                  {/* 1. Daily Capacity */}
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400 flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-cyan-400" /> 1. Daily Capacity:
-                    </span>
-                    <strong className="text-cyan-300 font-bold bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/50">
-                      {emp.capacityHours} Hours
-                    </strong>
-                  </div>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-bold text-white text-sm flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-blue-400" /> {emp.name}
+                        </h3>
+                        <span className="text-[10px] text-gray-400">{emp.designation}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {user?.role === 'MEDIA_MANAGER' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingCapacityUser(emp);
+                              setEditCapacityHours(emp.capacityHours.toString());
+                            }}
+                            className="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors"
+                            title="Configure Daily Working Capacity"
+                          >
+                            ⚙️
+                          </button>
+                        )}
+                        <span
+                          className={`text-[9px] font-extrabold px-2 py-0.5 rounded uppercase border font-mono ${
+                            isOverloaded
+                              ? 'bg-red-600 text-white border-red-400'
+                              : emp.status === 'Normal'
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-800'
+                              : 'bg-emerald-500/20 text-emerald-400 border-emerald-800'
+                          }`}
+                        >
+                          {isOverloaded ? 'OVERLOADED' : emp.status}
+                        </span>
+                      </div>
+                    </div>
 
-                  {/* 2. Assigned Hours */}
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400 flex items-center gap-1">
-                      <Flame className="w-3 h-3 text-amber-400" /> 2. Assigned Hours:
-                    </span>
-                    <strong className={`font-bold px-1.5 py-0.5 rounded border ${
-                      emp.assignedHours > emp.capacityHours
-                        ? 'bg-red-950 text-red-300 border-red-800'
-                        : 'bg-zinc-800 text-white border-zinc-700'
-                    }`}>
-                      {emp.assignedHours} Hours
-                    </strong>
-                  </div>
+                    {/* 6 Mandatory Monitoring Metrics */}
+                    <div className="text-[11px] space-y-1.5 font-mono border-t border-gray-800/80 pt-2.5">
+                      {/* 1. Daily Capacity */}
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-cyan-400" /> 1. Daily Capacity:
+                        </span>
+                        <strong className="text-cyan-300 font-bold bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/50">
+                          {emp.capacityHours} Hours
+                        </strong>
+                      </div>
 
-                  {/* 3. Remaining Capacity */}
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-400" /> 3. Remaining Capacity:
-                    </span>
-                    <strong className={`font-bold px-1.5 py-0.5 rounded border ${
-                      (emp.remainingCapacity || emp.remainingHours || 0) <= 0
-                        ? 'bg-red-950 text-red-400 border-red-800'
-                        : 'bg-emerald-950 text-emerald-300 border-emerald-800'
-                    }`}>
-                      {emp.remainingCapacity !== undefined ? emp.remainingCapacity : emp.remainingHours || 0} Hours
-                    </strong>
-                  </div>
+                      {/* 2. Assigned Hours */}
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 flex items-center gap-1">
+                          <Flame className="w-3 h-3 text-amber-400" /> 2. Assigned Hours:
+                        </span>
+                        <strong className={`font-bold px-1.5 py-0.5 rounded border ${
+                          emp.assignedHours > emp.capacityHours
+                            ? 'bg-red-950 text-red-300 border-red-800'
+                            : 'bg-zinc-800 text-white border-zinc-700'
+                        }`}>
+                          {emp.assignedHours} Hours
+                        </strong>
+                      </div>
 
-                  {/* 4. Current Projects */}
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400 flex items-center gap-1">
-                      <Building2 className="w-3 h-3 text-purple-400" /> 4. Current Projects:
-                    </span>
-                    <span className="text-purple-300 font-bold text-[10px]" title={emp.currentProjects?.join(', ') || 'No active projects'}>
-                      {emp.currentProjectsCount || emp.currentProjects?.length || 0} Active
-                    </span>
-                  </div>
+                      {/* 3. Remaining Capacity */}
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" /> 3. Remaining Capacity:
+                        </span>
+                        <strong className={`font-bold px-1.5 py-0.5 rounded border ${
+                          (emp.remainingCapacity || emp.remainingHours || 0) <= 0
+                            ? 'bg-red-950 text-red-400 border-red-800'
+                            : 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                        }`}>
+                          {emp.remainingCapacity !== undefined ? emp.remainingCapacity : emp.remainingHours || 0} Hours
+                        </strong>
+                      </div>
 
-                  {/* 5. Task Count */}
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400 flex items-center gap-1">
-                      <Tag className="w-3 h-3 text-blue-400" /> 5. Task Count:
-                    </span>
-                    <span className="text-blue-300 font-bold">
-                      {emp.taskCount !== undefined ? emp.taskCount : emp.activeTaskCount || 0} Tasks
-                    </span>
-                  </div>
+                      {/* 4. Current Projects */}
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 flex items-center gap-1">
+                          <Building2 className="w-3 h-3 text-purple-400" /> 4. Current Projects:
+                        </span>
+                        <span className="text-purple-300 font-bold text-[10px]" title={emp.currentProjects?.join(', ') || 'No active projects'}>
+                          {emp.currentProjectsCount || emp.currentProjects?.length || 0} Active
+                        </span>
+                      </div>
 
-                  {/* 6. Output Progress */}
-                  <div className="flex justify-between items-center pt-1 border-t border-gray-800/40">
-                    <span className="text-gray-400 flex items-center gap-1">
-                      <CheckSquare className="w-3 h-3 text-emerald-400" /> 6. Output Progress:
-                    </span>
-                    <span className="text-emerald-400 font-bold">
-                      {emp.actualOutputToday || 0} / {emp.dailyTarget || 5} ({emp.outputProgressPercentage || 0}%)
-                    </span>
+                      {/* 5. Task Count */}
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 flex items-center gap-1">
+                          <Tag className="w-3 h-3 text-blue-400" /> 5. Task Count:
+                        </span>
+                        <span className="text-blue-300 font-bold">
+                          {emp.taskCount !== undefined ? emp.taskCount : emp.activeTaskCount || 0} Tasks
+                        </span>
+                      </div>
+
+                      {/* 6. Output Progress */}
+                      <div className="flex justify-between items-center pt-1 border-t border-gray-800/40">
+                        <span className="text-gray-400 flex items-center gap-1">
+                          <CheckSquare className="w-3 h-3 text-emerald-400" /> 6. Output Progress:
+                        </span>
+                        <span className="text-emerald-400 font-bold">
+                          {emp.actualOutputToday || 0} / {emp.dailyTarget || 5} ({emp.outputProgressPercentage || 0}%)
+                        </span>
+                      </div>
+
+                      {/* On-Click View Assigned Work Details & Smart Reassign Actions */}
+                      <div className="flex items-center gap-1.5 mt-2.5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openWorkDetailsModal(emp);
+                          }}
+                          className="flex-1 px-2 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-sm cursor-pointer"
+                        >
+                          <Search className="w-3.5 h-3.5 text-blue-400" /> Work Details
+                        </button>
+                        {isOverloaded && (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedOverloadedUserId(emp.userId);
+                            }}
+                            className="flex-1 px-2 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 transition-colors shadow-sm cursor-pointer"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5 text-amber-400" /> Reassign
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* User-Friendly Project-Style Filter Panel */}
@@ -771,213 +886,245 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* Tasks Table */}
+      {/* Tasks Table - Minimalist Theme (Without Horizontal Overflow) */}
       {loading ? (
-        <div className="p-8 text-center text-gray-400">Loading Tasks...</div>
+        <div className="p-12 text-center text-gray-400 font-mono text-xs animate-pulse">
+          ⚡ Loading Tasks Directory...
+        </div>
       ) : (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-gray-900 text-gray-400 uppercase text-[10px] border-b border-border">
-              <tr>
-                <th className="p-4">
-                  <TableSortHeader
-                    label="Task ID & Title"
-                    field="name"
-                    currentSort={sortBy}
-                    currentOrder={sortOrder}
-                    onSort={handleSort}
-                  />
-                </th>
-                <th className="p-4">
-                  <TableSortHeader
-                    label="Parent Entity"
-                    field="project"
-                    currentSort={sortBy}
-                    currentOrder={sortOrder}
-                    onSort={handleSort}
-                  />
-                </th>
-                <th className="p-4">
-                  <TableSortHeader
-                    label="Assigned Staff"
-                    field="employee"
-                    currentSort={sortBy}
-                    currentOrder={sortOrder}
-                    onSort={handleSort}
-                  />
-                </th>
-                <th className="p-4">Hours</th>
-                <th className="p-4">
-                  <TableSortHeader
-                    label="Deadline"
-                    field="deadline"
-                    currentSort={sortBy}
-                    currentOrder={sortOrder}
-                    onSort={handleSort}
-                  />
-                </th>
-                <th className="p-4">
-                  <TableSortHeader
-                    label="Status"
-                    field="status"
-                    currentSort={sortBy}
-                    currentOrder={sortOrder}
-                    onSort={handleSort}
-                  />
-                </th>
-                <th className="p-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800 text-gray-200">
-              {(() => {
-                const filteredAndSorted = sortData(
-                  tasks.filter((t) => statusFilter === 'ALL' || t.status === statusFilter),
-                  sortBy,
-                  sortOrder
-                );
-                const paginated = paginate(filteredAndSorted);
-                return paginated.map((task) => (
-                <tr key={task.id} className="hover:bg-gray-900/50 transition-colors">
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <FavoriteButton
-                        entityType="TASK"
-                        entityId={task.id}
-                        title={task.title}
-                        code={task.taskId}
-                        url="/tasks"
-                        metadata={{ status: task.status, priority: task.priority, brand: task.brand?.name }}
-                        size="sm"
-                      />
-                      <div>
-                        <span className="font-mono text-blue-400 font-bold block">{task.taskId}</span>
-                        <span className="font-bold text-white">{task.title}</span>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="p-4 text-xs">
-                    {task.script ? (
-                      <div>
-                        <span className="px-2 py-0.5 bg-purple-950 text-purple-300 border border-purple-800 rounded font-semibold text-[10px] inline-block mb-1">
-                          📄 Script
-                        </span>
-                        <div className="text-white font-medium">{task.script.name}</div>
-                      </div>
-                    ) : task.graphicRequirement ? (
-                      <div>
-                        <span className="px-2 py-0.5 bg-amber-950 text-amber-300 border border-amber-800 rounded font-semibold text-[10px] inline-block mb-1">
-                          🎨 Graphic Req
-                        </span>
-                        <div className="text-white font-medium">{task.graphicRequirement.name}</div>
-                      </div>
-                    ) : (
-                      <div>
-                        <span className="px-2 py-0.5 bg-blue-950 text-blue-300 border border-blue-800 rounded font-semibold text-[10px] inline-block mb-1">
-                          🎬 Shoot Project
-                        </span>
-                        <div className="text-white font-medium">{task.project?.name}</div>
-                      </div>
-                    )}
-                    <div className="text-[10px] text-gray-500 mt-0.5">{task.brand?.name}</div>
-                  </td>
-
-                  <td className="p-4">
-                    {task.assignedEmployees?.length === 0 ? (
-                      <span className="text-gray-500 italic text-[11px]">Unassigned</span>
-                    ) : (
-                      task.assignedEmployees?.map((a: any) => (
-                        <div key={a.id} className="my-1">
-                          <span className="font-semibold text-gray-200 block text-[11px]">{a.user?.name}</span>
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border inline-block ${
-                              a.acceptanceStatus === 'ACCEPTED'
-                                ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
-                                : 'bg-amber-950 text-amber-300 border-amber-800'
-                            }`}
-                          >
-                            {a.acceptanceStatus === 'ACCEPTED' ? '✓ Accepted' : '⏳ Not Yet Accepted'}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </td>
-
-                  <td className="p-4 font-mono font-bold text-gray-300">{task.estimatedHours}h</td>
-
-                  <td className="p-4 w-40">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        step="25"
-                        value={task.completionPercentage}
-                        onChange={(e) => handleUpdateProgress(task.id, parseInt(e.target.value))}
-                        className="w-full"
-                      />
-                      <span className="font-bold text-[11px] w-8">{task.completionPercentage}%</span>
-                    </div>
-                  </td>
-
-                  <td className="p-4">
-                    <select
-                      value={task.status}
-                      onChange={(e) => handleUpdateStatus(task.id, e.target.value)}
-                      className={`px-2 py-1 rounded font-bold text-[10px] border focus:outline-none cursor-pointer transition-colors ${getStatusBadge(
-                        task.status,
-                      )}`}
-                    >
-                      <option value="PENDING">Pending</option>
-                      <option value="ASSIGNED">Assigned</option>
-                      <option value="ACCEPTED">Accepted</option>
-                      <option value="IN_PROGRESS">In Progress</option>
-                      <option value="ON_HOLD">On Hold</option>
-                      <option value="WAITING_FOR_REVIEW">Waiting for Review</option>
-                      <option value="COMPLETED">Completed</option>
-                      <option value="CANCELLED">Cancelled</option>
-                    </select>
-                  </td>
-
-                  <td className="p-4 flex items-center gap-1.5">
-                    {task.assignedEmployees?.some((a: any) => a.userId === user?.id && a.acceptanceStatus !== 'ACCEPTED') && (
-                      <button
-                        onClick={() => handleAcknowledgeAcceptance(task.id)}
-                        className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded font-bold text-[11px] flex items-center gap-1 shadow-sm"
-                        title="Acknowledge Receipt & Accept Task"
-                      >
-                        ✓ Accept
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => setUploadTask(task)}
-                      className="px-2 py-1 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 rounded font-semibold text-[11px] flex items-center gap-1"
-                      title="Upload Latest Work Deliverable"
-                    >
-                      📤 Upload Work
-                    </button>
-
-                    <button
-                      onClick={() => setInspectedTask(task)}
-                      className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 rounded font-semibold text-[11px] flex items-center gap-1"
-                    >
-                      👁️ Inspect
-                    </button>
-                    {user?.role === 'MEDIA_MANAGER' && (
-                      <button
-                        onClick={() => openReassignDrawer(task)}
-                        className="px-2.5 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border border-purple-500/30 rounded font-semibold text-[11px] flex items-center gap-1"
-                      >
-                        <RefreshCw className="w-3 h-3" /> Reassign
-                      </button>
-                    )}
-                  </td>
+        <div className="bg-gray-950/80 border border-gray-800/80 rounded-2xl overflow-hidden shadow-2xl backdrop-blur-sm">
+          <div className="w-full">
+            <table className="w-full table-fixed text-left text-xs border-collapse">
+              <thead className="bg-gray-900/60 text-gray-400 uppercase text-[10px] font-mono tracking-wider border-b border-gray-800/60">
+                <tr>
+                  <th className="px-3 py-3 font-semibold w-[26%]">
+                    <TableSortHeader
+                      label="Task ID &amp; Deliverable"
+                      field="name"
+                      currentSort={sortBy}
+                      currentOrder={sortOrder}
+                      onSort={handleSort}
+                    />
+                  </th>
+                  <th className="px-3 py-3 font-semibold w-[16%]">
+                    <TableSortHeader
+                      label="Parent Entity"
+                      field="project"
+                      currentSort={sortBy}
+                      currentOrder={sortOrder}
+                      onSort={handleSort}
+                    />
+                  </th>
+                  <th className="px-3 py-3 font-semibold w-[14%]">
+                    <TableSortHeader
+                      label="Assigned Staff"
+                      field="employee"
+                      currentSort={sortBy}
+                      currentOrder={sortOrder}
+                      onSort={handleSort}
+                    />
+                  </th>
+                  <th className="px-2 py-3 font-semibold font-mono w-[6%]">Hours</th>
+                  <th className="px-3 py-3 font-semibold w-[12%]">
+                    <TableSortHeader
+                      label="Progress"
+                      field="deadline"
+                      currentSort={sortBy}
+                      currentOrder={sortOrder}
+                      onSort={handleSort}
+                    />
+                  </th>
+                  <th className="px-3 py-3 font-semibold w-[11%]">
+                    <TableSortHeader
+                      label="Status"
+                      field="status"
+                      currentSort={sortBy}
+                      currentOrder={sortOrder}
+                      onSort={handleSort}
+                    />
+                  </th>
+                  <th className="px-3 py-3 font-semibold text-right w-[15%]">Actions</th>
                 </tr>
-                ));
-              })()}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-800/40 text-gray-200">
+                {(() => {
+                  const filteredAndSorted = sortData(
+                    tasks.filter((t) => statusFilter === 'ALL' || t.status === statusFilter),
+                    sortBy,
+                    sortOrder
+                  );
+                  const paginated = paginate(filteredAndSorted);
+                  if (paginated.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={7} className="px-5 py-10 text-center text-gray-500 italic font-mono text-xs">
+                          No matching tasks found. Adjust active filters to view records.
+                        </td>
+                      </tr>
+                    );
+                  }
+                  return paginated.map((task) => (
+                    <tr key={task.id} className="hover:bg-gray-900/40 transition-colors border-b border-gray-800/40 last:border-0">
+                      {/* Task ID & Title */}
+                      <td className="px-3 py-3">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <FavoriteButton
+                            entityType="TASK"
+                            entityId={task.id}
+                            title={task.title}
+                            code={task.taskId}
+                            url="/tasks"
+                            metadata={{ status: task.status, priority: task.priority, brand: task.brand?.name }}
+                            size="sm"
+                          />
+                          <div className="space-y-0.5 min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-mono text-[9px] text-blue-400 font-bold bg-blue-950/40 border border-blue-900/40 px-1 py-0.2 rounded shrink-0">
+                                {task.taskId}
+                              </span>
+                              <span className="font-semibold text-gray-100 text-xs truncate">{task.title}</span>
+                            </div>
+                            {task.description && (
+                              <p className="text-[10px] text-gray-400 font-normal truncate">
+                                {task.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Parent Entity */}
+                      <td className="px-3 py-3 text-xs min-w-0">
+                        {task.script ? (
+                          <div className="space-y-0.5 min-w-0">
+                            <span className="px-1.5 py-0.2 bg-purple-950/60 text-purple-300 border border-purple-800/50 rounded-full font-mono text-[9px] inline-block shrink-0">
+                              📄 Script
+                            </span>
+                            <div className="text-gray-200 font-medium text-[11px] truncate">{task.script.name}</div>
+                          </div>
+                        ) : task.graphicRequirement ? (
+                          <div className="space-y-0.5 min-w-0">
+                            <span className="px-1.5 py-0.2 bg-amber-950/60 text-amber-300 border border-amber-800/50 rounded-full font-mono text-[9px] inline-block shrink-0">
+                              🎨 Graphic Req
+                            </span>
+                            <div className="text-gray-200 font-medium text-[11px] truncate">{task.graphicRequirement.name}</div>
+                          </div>
+                        ) : (
+                          <div className="space-y-0.5 min-w-0">
+                            <span className="px-1.5 py-0.2 bg-blue-950/60 text-blue-300 border border-blue-800/50 rounded-full font-mono text-[9px] inline-block shrink-0">
+                              🎬 Shoot Project
+                            </span>
+                            <div className="text-gray-200 font-medium text-[11px] truncate">{task.project?.name}</div>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Assigned Staff */}
+                      <td className="px-3 py-3 min-w-0">
+                        {task.assignedEmployees?.length === 0 ? (
+                          <span className="text-gray-500 italic text-[10px] font-mono">Unassigned</span>
+                        ) : (
+                          <div className="space-y-0.5 min-w-0">
+                            {task.assignedEmployees?.map((a: any) => (
+                              <div key={a.id} className="flex items-center gap-1 min-w-0">
+                                <span className="font-medium text-gray-200 text-[11px] truncate">{a.user?.name}</span>
+                                <span
+                                  className={`text-[8px] font-mono px-1 rounded border shrink-0 ${
+                                    a.acceptanceStatus === 'ACCEPTED'
+                                      ? 'text-emerald-400 border-emerald-800/50 bg-emerald-950/30'
+                                      : 'text-amber-400 border-amber-800/50 bg-amber-950/30'
+                                  }`}
+                                >
+                                  {a.acceptanceStatus === 'ACCEPTED' ? '✓' : '⏳'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Hours */}
+                      <td className="px-2 py-3 font-mono text-[11px] font-semibold text-gray-300">
+                        {task.estimatedHours}h
+                      </td>
+
+                      {/* Progress */}
+                      <td className="px-3 py-3">
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] font-mono text-gray-400 font-semibold">
+                            <span>{task.completionPercentage || 0}%</span>
+                          </div>
+                          <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500 rounded-full transition-all"
+                              style={{ width: `${Math.min(task.completionPercentage || 0, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-3 py-3 min-w-0">
+                        <span className={`px-2 py-0.5 rounded-full font-mono text-[8px] font-bold uppercase tracking-wide border inline-block truncate max-w-full ${getStatusBadge(
+                          task.status
+                        )}`}>
+                          {task.status?.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-3 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1 flex-wrap">
+                          {task.assignedEmployees?.some((a: any) => a.userId === user?.id && a.acceptanceStatus !== 'ACCEPTED') && (
+                            <button
+                              onClick={() => handleAcknowledgeAcceptance(task.id)}
+                              className="px-1.5 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded text-[10px] font-medium transition-colors"
+                              title="Acknowledge Receipt & Accept Task"
+                            >
+                              ✓ Accept
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => openUpdateTaskModal(task)}
+                            className="px-1.5 py-0.5 bg-gray-900 hover:bg-gray-800 text-amber-300 border border-gray-800 hover:border-amber-500/40 rounded text-[10px] font-medium transition-colors"
+                            title="Update Task Status & Progress"
+                          >
+                            ✏️ Update
+                          </button>
+
+                          <button
+                            onClick={() => setUploadTask(task)}
+                            className="px-1.5 py-0.5 bg-gray-900 hover:bg-gray-800 text-cyan-300 border border-gray-800 hover:border-cyan-500/40 rounded text-[10px] font-medium transition-colors"
+                            title="Upload Deliverable"
+                          >
+                            📤 Deliverable
+                          </button>
+
+                          <button
+                            onClick={() => setInspectedTask(task)}
+                            className="px-1.5 py-0.5 bg-gray-900 hover:bg-gray-800 text-gray-300 border border-gray-800 hover:border-gray-700 rounded text-[10px] font-medium transition-colors"
+                          >
+                            👁️ Inspect
+                          </button>
+
+                          {user?.role === 'MEDIA_MANAGER' && (
+                            <button
+                              onClick={() => openReassignDrawer(task)}
+                              className="px-1.5 py-0.5 bg-purple-950/40 hover:bg-purple-900/60 text-purple-300 border border-purple-800/40 rounded text-[10px] font-medium transition-colors"
+                              title="Reassign Task"
+                            >
+                              🔄 Reassign
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ));
+                })()}
+              </tbody>
+            </table>
+          </div>
 
           <PaginationControls
             currentPage={currentPage}
@@ -997,7 +1144,7 @@ export default function TasksPage() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-card border border-border rounded-xl w-full max-w-md p-6 space-y-4 text-xs shadow-2xl relative"
+            className="bg-card border border-border rounded-xl w-full max-w-lg p-6 space-y-4 text-xs shadow-2xl relative max-h-[90vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -1180,21 +1327,30 @@ export default function TasksPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={creating || !selectedParentId}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold disabled:opacity-50"
-                >
-                  {creating ? 'Creating...' : 'Create Task'}
-                </button>
+              <div className="sticky bottom-0 bg-gray-950/95 -mx-6 -mb-6 p-4 border-t border-gray-800 flex items-center justify-between gap-3 z-20 backdrop-blur-md">
+                <span className="text-[11px] text-gray-400 font-mono">
+                  {!selectedParentId ? (
+                    <span className="text-amber-400 font-bold">⚠️ Parent Entity Required</span>
+                  ) : (
+                    <span className="text-emerald-400 font-bold">✓ Ready to Create</span>
+                  )}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-semibold transition-colors text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creating || !selectedParentId}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs transition-all shadow-lg shadow-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  >
+                    {creating ? 'Creating...' : '✓ Create Task'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -1272,12 +1428,10 @@ export default function TasksPage() {
                     >
                       <div className="flex items-start gap-2.5">
                         <input
-                          type="checkbox"
+                          type="radio"
+                          name="reassignTargetCandidate"
                           checked={targetUserIds.includes(rec.userId)}
-                          onChange={(e) => {
-                            if (e.target.checked) setTargetUserIds([...targetUserIds, rec.userId]);
-                            else setTargetUserIds(targetUserIds.filter((id) => id !== rec.userId));
-                          }}
+                          onChange={() => setTargetUserIds([rec.userId])}
                           className="w-4 h-4 mt-0.5 accent-blue-500 cursor-pointer"
                         />
                         <div className="space-y-1">
@@ -1788,6 +1942,305 @@ export default function TasksPage() {
           </div>
         </div>
       )}
+
+      {/* Dedicated Task Progress & Status Update Modal */}
+      {updatingTask && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-lg space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 font-mono text-xs font-bold">
+                  {updatingTask.taskId}
+                </span>
+                <h3 className="font-bold text-white text-base">Update Task Status &amp; Progress</h3>
+              </div>
+              <button
+                onClick={() => setUpdatingTask(null)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTaskUpdate} className="space-y-4 text-xs">
+              {/* Task Title preview */}
+              <div className="bg-gray-900/80 p-3 rounded-lg border border-gray-800 space-y-1">
+                <span className="text-[10px] text-gray-500 font-bold uppercase block">Task Title</span>
+                <p className="font-bold text-white text-sm">{updatingTask.title}</p>
+                {updatingTask.description && (
+                  <p className="text-gray-400 text-xs mt-0.5">{updatingTask.description}</p>
+                )}
+              </div>
+
+              {/* Status Select */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-gray-200 block text-xs">New Task Status:</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => {
+                    const newSt = e.target.value;
+                    setEditStatus(newSt);
+                    if (newSt === 'COMPLETED') setEditProgress(100);
+                    if (newSt === 'PENDING') setEditProgress(0);
+                  }}
+                  className="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-white font-bold text-xs focus:outline-none focus:border-amber-500"
+                >
+                  <option value="PENDING">Pending</option>
+                  <option value="ASSIGNED">Assigned</option>
+                  <option value="ACCEPTED">Accepted</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="ON_HOLD">On Hold</option>
+                  <option value="WAITING_FOR_REVIEW">Waiting for Review</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+              </div>
+
+              {/* Progress Percentage */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="font-bold text-gray-200 block text-xs">Completion Progress:</label>
+                  <span className="font-mono font-bold text-amber-400 text-sm">{editProgress}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={editProgress}
+                  onChange={(e) => setEditProgress(parseInt(e.target.value))}
+                  className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                />
+                <div className="flex justify-between text-[10px] text-gray-500 font-mono">
+                  <span>0% (Not Started)</span>
+                  <span>50% (Halfway)</span>
+                  <span>100% (Completed)</span>
+                </div>
+              </div>
+
+              {/* Status Update Note / Remark */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-gray-200 block text-xs">Status Remark / Log Note (Optional):</label>
+                <textarea
+                  rows={2}
+                  placeholder="Explain status change, work progress, or blocking issues for audit trail..."
+                  value={editRemark}
+                  onChange={(e) => setEditRemark(e.target.value)}
+                  className="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-white text-xs focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setUpdatingTask(null)}
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingTaskUpdate}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-amber-600/30"
+                >
+                  {savingTaskUpdate ? 'Saving Update...' : '✓ Save Task Update'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Dedicated Employee Workload Details Inspector Modal */}
+      {selectedWorkDetailsEmp && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-3xl space-y-5 shadow-2xl animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div className="flex items-center gap-3">
+                <img
+                  src={selectedWorkDetailsEmp.avatarUrl || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150'}
+                  alt={selectedWorkDetailsEmp.name}
+                  className="w-10 h-10 rounded-full border border-gray-700 object-cover"
+                />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-white text-base">{selectedWorkDetailsEmp.name}</h3>
+                    <span
+                      className={`text-[9px] font-extrabold px-2 py-0.5 rounded uppercase border font-mono ${
+                        selectedWorkDetailsEmp.status === 'Overloaded' || selectedWorkDetailsEmp.isOverloaded
+                          ? 'bg-red-600 text-white border-red-400'
+                          : selectedWorkDetailsEmp.status === 'Normal'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-800'
+                          : 'bg-emerald-500/20 text-emerald-400 border-emerald-800'
+                      }`}
+                    >
+                      {selectedWorkDetailsEmp.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    {selectedWorkDetailsEmp.designation} • {selectedWorkDetailsEmp.department || 'Production Team'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedWorkDetailsEmp(null)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 6 Mandatory Capacity Metrics Summary Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-gray-900/60 p-4 rounded-xl border border-gray-800">
+              <div>
+                <span className="text-gray-400 text-[10px] block font-mono">1. Daily Capacity</span>
+                <strong className="text-cyan-300 font-mono text-sm font-bold">{selectedWorkDetailsEmp.capacityHours} Hours</strong>
+              </div>
+
+              <div>
+                <span className="text-gray-400 text-[10px] block font-mono">2. Assigned Workload</span>
+                <strong className={`font-mono text-sm font-bold ${
+                  selectedWorkDetailsEmp.assignedHours > selectedWorkDetailsEmp.capacityHours ? 'text-red-400' : 'text-amber-300'
+                }`}>
+                  {selectedWorkDetailsEmp.assignedHours} Hours
+                </strong>
+              </div>
+
+              <div>
+                <span className="text-gray-400 text-[10px] block font-mono">3. Remaining Capacity</span>
+                <strong className={`font-mono text-sm font-bold ${
+                  (selectedWorkDetailsEmp.remainingCapacity || 0) <= 0 ? 'text-red-400' : 'text-emerald-400'
+                }`}>
+                  {selectedWorkDetailsEmp.remainingCapacity !== undefined ? selectedWorkDetailsEmp.remainingCapacity : selectedWorkDetailsEmp.remainingHours || 0} Hours
+                </strong>
+              </div>
+
+              <div>
+                <span className="text-gray-400 text-[10px] block font-mono">4. Workload Utilized</span>
+                <strong className={`font-mono text-sm font-bold ${
+                  selectedWorkDetailsEmp.workloadPercentage > 100 ? 'text-red-400' : 'text-blue-300'
+                }`}>
+                  {selectedWorkDetailsEmp.workloadPercentage || 0}%
+                </strong>
+              </div>
+            </div>
+
+            {/* Continuous Calculation Formula Explainer */}
+            <div className="p-3 bg-blue-950/30 border border-blue-800/40 rounded-xl space-y-1 text-xs">
+              <span className="font-mono text-blue-300 font-bold text-[11px] flex items-center gap-1.5">
+                ⚡ Continuous Automated Calculation Formula:
+              </span>
+              <p className="text-[11px] text-gray-300">
+                Workload = Σ (Estimated Task Hours × Priority Multiplier × Urgency Multiplier)
+              </p>
+              <div className="flex flex-wrap gap-2 text-[10px] text-gray-400 font-mono pt-1">
+                <span className="bg-gray-900 px-1.5 py-0.5 rounded border border-gray-800">Priority: CRITICAL=1.4x | HIGH=1.2x | MEDIUM=1.0x | LOW=0.8x</span>
+                <span className="bg-gray-900 px-1.5 py-0.5 rounded border border-gray-800">Urgency: Overdue/Due Today=1.5x | Due &lt;=3d=1.25x</span>
+              </div>
+            </div>
+
+            {/* Assigned Work Items List */}
+            <div className="space-y-3">
+              <h4 className="font-bold text-white text-sm flex items-center justify-between">
+                <span>📋 Assigned Active Work Deliverables ({empAssignedWorkTasks.length} Tasks)</span>
+                {loadingEmpWorkDetails && <span className="text-xs text-blue-400 animate-pulse font-mono">Loading work items...</span>}
+              </h4>
+
+              {loadingEmpWorkDetails ? (
+                <div className="p-8 text-center text-gray-500 font-mono text-xs">Loading employee tasks...</div>
+              ) : empAssignedWorkTasks.length === 0 ? (
+                <p className="text-gray-500 italic text-xs p-4 text-center bg-gray-900/40 rounded-lg border border-gray-800">
+                  No active pending tasks currently assigned to this employee.
+                </p>
+              ) : (
+                <div className="space-y-2.5">
+                  {empAssignedWorkTasks.map((t) => (
+                    <div key={t.id} className="p-3.5 bg-gray-900/80 border border-gray-800 hover:border-gray-700 rounded-xl text-xs space-y-2 transition-colors">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[10px] text-blue-400 font-bold bg-blue-950/40 border border-blue-900/40 px-1.5 py-0.5 rounded">
+                              {t.taskId}
+                            </span>
+                            <h5 className="font-bold text-white text-xs">{t.title}</h5>
+                          </div>
+                          {t.description && (
+                            <p className="text-[11px] text-gray-300">{t.description}</p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`px-2 py-0.5 rounded font-mono text-[9px] font-bold border ${
+                            t.priority === 'CRITICAL' ? 'bg-red-950 text-red-300 border-red-800' :
+                            t.priority === 'HIGH' ? 'bg-amber-950 text-amber-300 border-amber-800' :
+                            'bg-blue-950 text-blue-300 border-blue-800'
+                          }`}>
+                            {t.priority}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full font-mono text-[9px] font-bold uppercase border ${getStatusBadge(t.status)}`}>
+                            {t.status?.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-gray-400 font-mono pt-2 border-t border-gray-800/60">
+                        <div>Project: <strong className="text-gray-200">{t.project?.name || t.script?.name || t.graphicRequirement?.name || 'N/A'}</strong></div>
+                        <div>Est Hours: <strong className="text-cyan-300">{t.estimatedHours}h</strong></div>
+                        <div>Progress: <strong className="text-blue-300">{t.completionPercentage || 0}%</strong></div>
+                        <div>Due Date: <strong className="text-amber-300">{new Date(t.dueDate).toLocaleDateString()}</strong></div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          onClick={() => {
+                            setSelectedWorkDetailsEmp(null);
+                            openUpdateTaskModal(t);
+                          }}
+                          className="px-2.5 py-1 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded text-[10px] font-bold transition-colors"
+                        >
+                          ✏️ Update Progress
+                        </button>
+                        {user?.role === 'MEDIA_MANAGER' && (
+                          <button
+                            onClick={() => {
+                              setSelectedWorkDetailsEmp(null);
+                              openReassignDrawer(t);
+                            }}
+                            className="px-2.5 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded text-[10px] font-bold transition-colors"
+                          >
+                            🔄 Reassign Task
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-border">
+              <button
+                onClick={() => setSelectedWorkDetailsEmp(null)}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-semibold text-xs"
+              >
+                Close Work Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Smart Reassignment Recommendations Modal */}
+      <ReassignmentRecommendationsModal
+        isOpen={Boolean(selectedOverloadedUserId)}
+        onClose={() => setSelectedOverloadedUserId(null)}
+        overloadedUserId={selectedOverloadedUserId}
+        onReassignmentComplete={() => {
+          loadData();
+        }}
+      />
     </div>
   );
 }

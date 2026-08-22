@@ -439,12 +439,32 @@ export class ReportsService {
     const overallProductivityPercentage = totalDailyTargetsToday > 0 ? Math.round((totalDailyOutputsToday / totalDailyTargetsToday) * 100) : 0;
     const totalCompletedProjects = await this.prisma.shootProject.count({ where: { status: 'COMPLETED' } });
 
+    const inProgressProjects = activeProjects.filter((p) => p.status === 'IN_PROGRESS').length;
+    const upcomingProjects = activeProjects.filter((p) => p.status === 'PLANNED' || new Date(p.shootDate) > todayEnd).length;
+    const overdueProjectsCount = activeProjects.filter((p) => p.status !== 'COMPLETED' && p.status !== 'CANCELLED' && new Date(p.estimatedCompletionDate || p.shootDate) < todayStart).length;
+    const overdueTasksCount = await this.prisma.task.count({
+      where: { status: { not: 'COMPLETED' }, dueDate: { lt: todayStart } },
+    });
+
+    const sevenDaysLater = new Date();
+    sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
+
+    const upcomingProjectDeadlines = activeProjects
+      .filter((p) => p.status !== 'COMPLETED' && new Date(p.estimatedCompletionDate || p.shootDate) <= sevenDaysLater)
+      .map((p) => ({ id: p.id, title: p.name, code: p.projectId, type: 'PROJECT', dueDate: p.estimatedCompletionDate || p.shootDate, status: p.status, clientName: p.client?.name }));
+
     return {
-      // 10 Mandatory Executive Dashboard Display Metrics
+      // 10 Mandatory Media Manager Dashboard Display Metrics
       totalActiveProjects: activeProjects.filter((p) => p.status !== 'COMPLETED' && p.status !== 'CANCELLED').length,
+      inProgressProjects,
+      upcomingProjects,
+      overdueProjectsCount,
+      overdueTasksCount,
       totalCompletedProjects,
       pendingApprovals: pendingScripts + pendingRequirements + techReviewQueue + mediaReviewQueue,
       pendingClientConfirmations: clientQueue + revisionQueue,
+      upcomingDeadlines: upcomingProjectDeadlines,
+      employeeWorkload: capacityUtilizationPercentage,
       todaysProduction: {
         actualOutput: totalDailyOutputsToday,
         targetOutput: totalDailyTargetsToday,

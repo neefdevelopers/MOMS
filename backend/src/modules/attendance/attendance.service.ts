@@ -11,6 +11,10 @@ export class AttendanceService {
     const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 86400000);
 
+    if (currentUser?.role === 'TECHNICAL_MANAGER') {
+      throw new ForbiddenException('Technical Manager does not have access to attendance records.');
+    }
+
     const userWhere: any = { isArchived: false };
     // Rule: Staff members shall not view other employees' attendance records
     if (currentUser?.role === 'STAFF') {
@@ -69,6 +73,10 @@ export class AttendanceService {
 
   // Dashboard endpoint displaying Today's Attendance, Absent, Late, Half Day, Attendance %, and Monthly Summary
   async getDashboardSummary(monthStr?: string, currentUser?: any) {
+    if (currentUser?.role === 'TECHNICAL_MANAGER') {
+      throw new ForbiddenException('Technical Manager does not have access to attendance records.');
+    }
+
     const today = new Date();
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 86400000);

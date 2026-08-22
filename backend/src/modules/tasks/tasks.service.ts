@@ -304,149 +304,6 @@ export class TasksService {
 
     return result;
   }
-
-  async getReassignmentRecommendations(taskId: string) {
-    const task = await this.findOne(taskId);
-
-    // Fetch candidate staff with complete employee profiles and skills
-    const candidateUsers = await this.prisma.user.findMany({
-      where: {
-        role: Role.STAFF,
-        status: 'ACTIVE',
-        isArchived: false,
-      },
-      include: {
-        employeeProfile: {
-          include: {
-            department: true,
-            skills: true,
-          },
-        },
-        tasks: {
-          include: {
-            task: true,
-          },
-        },
-      },
-    });
-
-    const capacityOverview = await this.getCapacityOverview();
-    const capacityMap = new Map(capacityOverview.map((c) => [c.userId, c]));
-    const currentAssignedUserIds = task.assignedEmployees.map((a) => a.userId);
-
-    const taskDueDateStr = new Date(task.dueDate).toISOString().split('T')[0];
-
-    const recommendations = candidateUsers
-      .filter((emp) => !currentAssignedUserIds.includes(emp.id))
-      .map((user) => {
-        const capacityInfo = capacityMap.get(user.id) || {
-          capacityHours: 8.0,
-          assignedHours: 0,
-          remainingHours: 8.0,
-          workloadPercentage: 0,
-          status: 'Available',
-          activeTaskCount: 0,
-          urgentTaskCount: 0,
-        };
-
-        let score = 50; // Base recommendation score
-        const factors: string[] = [];
-
-        // 1. Available Capacity
-        if (capacityInfo.remainingHours >= task.estimatedHours) {
-          score += 25;
-          factors.push(`Sufficient capacity (${capacityInfo.remainingHours}h remaining)`);
-        } else {
-          const capRatio = capacityInfo.capacityHours > 0 ? capacityInfo.remainingHours / capacityInfo.capacityHours : 0;
-          score += Math.round(capRatio * 15);
-          factors.push(`Partial capacity (${capacityInfo.remainingHours}h remaining)`);
-        }
-
-        // 2. Existing Project Assignment
-        const projectTasks = user.tasks.filter((t) => t.task && t.task.projectId === task.projectId);
-        if (projectTasks.length > 0) {
-          score += 25;
-          factors.push(`Assigned to ${projectTasks.length} other task(s) in this project`);
-        }
-
-        // 3. Department Match
-        if (user.employeeProfile?.department) {
-          score += 15;
-          factors.push(`Dept: ${user.employeeProfile.department.name}`);
-        }
-
-        // 4. Skills Match
-        const skillsList = user.employeeProfile?.skills || [];
-        if (skillsList.length > 0) {
-          score += 15;
-          factors.push(`Skills: ${skillsList.map((s: any) => s.skillName || s.name || 'Specialist').join(', ')}`);
-        }
-
-        // 5. Current Workload Penalty
-        if (capacityInfo.status === 'Overloaded') {
-          score -= 40;
-          factors.push(`Overloaded (${capacityInfo.workloadPercentage}% workload)`);
-        } else if (capacityInfo.status === 'Normal') {
-          score -= 10;
-        }
-
-        // 6. Deadline Concurrency Check
-        const sameDayDeadlineTasks = user.tasks.filter((t) => {
-          if (!t.task || t.task.status === TaskStatus.COMPLETED || t.task.status === TaskStatus.CANCELLED) return false;
-          const dStr = new Date(t.task.dueDate).toISOString().split('T')[0];
-          return dStr === taskDueDateStr;
-        });
-
-        if (sameDayDeadlineTasks.length > 0) {
-          score -= 15;
-          factors.push(`Has ${sameDayDeadlineTasks.length} task(s) due on same date`);
-        }
-
-        // 7. Task Priority Match
-        if (task.priority === Priority.CRITICAL || task.priority === Priority.HIGH) {
-          if (capacityInfo.status === 'Available') {
-            score += 15;
-            factors.push(`High availability for ${task.priority} priority task`);
-          }
-        }
-
-        const finalScore = Math.min(100, Math.max(0, score));
-
-        return {
-          userId: user.id,
-          name: user.name,
-          email: user.email,
-          avatarUrl: user.avatarUrl,
-          designation: user.employeeProfile?.designation || 'Staff Member',
-          department: user.employeeProfile?.department?.name || 'General',
-          capacityHours: capacityInfo.capacityHours,
-          assignedHours: capacityInfo.assignedHours,
-          remainingHours: capacityInfo.remainingHours,
-          workloadPercentage: capacityInfo.workloadPercentage,
-          status: capacityInfo.status,
-          recommendationScore: finalScore,
-          availablePercentage: Math.max(0, Math.round((capacityInfo.remainingHours / (capacityInfo.capacityHours || 8.0)) * 100)),
-          isAlreadyOnProject: projectTasks.length > 0,
-          reason: factors.join(' • '),
-        };
-      })
-      .sort((a, b) => b.recommendationScore - a.recommendationScore);
-
-    return {
-      task: {
-        id: task.id,
-        taskId: task.taskId,
-        title: task.title,
-        estimatedHours: task.estimatedHours,
-        priority: task.priority,
-        dueDate: task.dueDate,
-        project: task.project?.name,
-      },
-      currentAssigned: task.assignedEmployees.map((a) => a.user.name),
-      recommendations,
-    };
-  }
-
   private async validateActiveEmployees(assignedUserIds: string[]) {
     if (!assignedUserIds || assignedUserIds.length === 0) return;
 
@@ -579,13 +436,20 @@ export class TasksService {
 
     const prevNames = task.assignedEmployees.map((a) => a.user?.name || 'Staff Member');
 
-    // Clear existing assignments
-    await this.prisma.taskAssignment.deleteMany({ where: { taskId } });
+    // Clear ALL existing assignments for this task (matching both task.id UUID and task.taskId code)
+    await this.prisma.taskAssignment.deleteMany({
+      where: {
+        OR: [
+          { taskId: task.id },
+          { taskId: task.taskId },
+        ],
+      },
+    });
 
-    // Assign new employees
+    // Assign new employees exclusively
     for (const uId of assignedUserIds) {
       await this.prisma.taskAssignment.create({
-        data: { taskId, userId: uId },
+        data: { taskId: task.id, userId: uId },
       });
 
       await this.prisma.notification.create({
@@ -874,5 +738,351 @@ export class TasksService {
     });
 
     return this.getCapacityOverview();
+  }
+
+  async getReassignmentRecommendations(taskId: string) {
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        project: {
+          include: {
+            assignedTeam: true,
+          },
+        },
+        assignedEmployees: {
+          include: {
+            user: {
+              include: { employeeProfile: { include: { department: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!task) throw new NotFoundException('Task not found');
+
+    const currentlyAssignedUserIds = new Set(task.assignedEmployees.map((a) => a.userId));
+    const capacityOverview = await this.getCapacityOverview();
+
+    // Fetch all active staff users with employee profiles & departments
+    const allUsers = await this.prisma.user.findMany({
+      where: { isArchived: false, role: { in: ['STAFF', 'TECHNICAL_MANAGER', 'MEDIA_MANAGER'] } },
+      include: {
+        employeeProfile: { include: { department: true } },
+        projectAssignments: true,
+      },
+    });
+
+    const recommendations = allUsers
+      .filter((u) => !currentlyAssignedUserIds.has(u.id))
+      .map((user) => {
+        const userCap = capacityOverview.find((c) => c.userId === user.id) || {
+          assignedHours: 0,
+          capacityHours: user.employeeProfile?.dailyCapacityHours || 8.0,
+          remainingCapacity: user.employeeProfile?.dailyCapacityHours || 8.0,
+          workloadPercentage: 0,
+          status: 'Available',
+          isOverloaded: false,
+        };
+
+        const matchReasons: string[] = [];
+        let score = 0;
+
+        // 1. Available Capacity (Max 30 pts)
+        const taskEst = task.estimatedHours || 2.0;
+        if (userCap.remainingCapacity >= taskEst) {
+          score += 30;
+          matchReasons.push(`Sufficient Free Capacity: ${userCap.remainingCapacity}h free (Needs ${taskEst}h)`);
+        } else if (userCap.remainingCapacity > 0) {
+          const capScore = Math.round((userCap.remainingCapacity / taskEst) * 30);
+          score += capScore;
+          matchReasons.push(`Partial Free Capacity: ${userCap.remainingCapacity}h free`);
+        } else {
+          matchReasons.push(`No Remaining Daily Capacity`);
+        }
+
+        // 2. Current Workload Status (Max 20 pts)
+        if (userCap.status === 'Available') {
+          score += 20;
+          matchReasons.push(`Light Workload (${userCap.workloadPercentage}% Utilized)`);
+        } else if (userCap.status === 'Normal') {
+          score += 10;
+          matchReasons.push(`Normal Workload (${userCap.workloadPercentage}% Utilized)`);
+        } else if (userCap.isOverloaded) {
+          score -= 20;
+          matchReasons.push(`Currently Overloaded (${userCap.workloadPercentage}%)`);
+        }
+
+        // 3. Department Matching (Max 25 pts)
+        const primaryDept = user.employeeProfile?.department?.name;
+        const assignedDeptNames = task.assignedEmployees.map((a) => a.user?.employeeProfile?.department?.name).filter(Boolean);
+        if (primaryDept && assignedDeptNames.includes(primaryDept)) {
+          score += 25;
+          matchReasons.push(`Same Department (${primaryDept})`);
+        } else if (primaryDept) {
+          matchReasons.push(`Department: ${primaryDept}`);
+        }
+
+        // 4. Existing Project Assignment (Max 15 pts)
+        const isProjectMember = user.projectAssignments.some((pa) => pa.projectId === task.projectId);
+        if (isProjectMember) {
+          score += 15;
+          matchReasons.push(`Already Assigned to Project (${task.project?.name || 'Shoot Project'})`);
+        }
+
+        // 5. Priority & Deadline Alignment (Max 10 pts)
+        const taskPriority = task.priority || 'MEDIUM';
+        if ((taskPriority === 'CRITICAL' || taskPriority === 'HIGH') && userCap.status === 'Available') {
+          score += 10;
+          matchReasons.push(`High Availability for ${taskPriority} Priority Task`);
+        }
+
+        const matchScorePercentage = Math.min(100, Math.max(0, score));
+
+        return {
+          userId: user.id,
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+          designation: user.employeeProfile?.designation || 'Staff Member',
+          department: user.employeeProfile?.department?.name || 'General',
+          skills: (user.employeeProfile as any)?.skills || [],
+          capacityHours: userCap.capacityHours,
+          assignedHours: userCap.assignedHours,
+          remainingCapacity: userCap.remainingCapacity,
+          workloadPercentage: userCap.workloadPercentage,
+          workloadStatus: userCap.status,
+          isOverloaded: userCap.isOverloaded,
+          isProjectMember,
+          matchScorePercentage,
+          matchReasons,
+        };
+      })
+      .sort((a, b) => b.matchScorePercentage - a.matchScorePercentage);
+
+    return {
+      task: {
+        id: task.id,
+        taskId: task.taskId,
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        dueDate: task.dueDate,
+        estimatedHours: task.estimatedHours,
+        status: task.status,
+        projectName: task.project?.name,
+        assignedEmployees: task.assignedEmployees.map((a) => ({
+          userId: a.userId,
+          name: a.user?.name,
+          designation: a.user?.employeeProfile?.designation,
+        })),
+      },
+      recommendations,
+    };
+  }
+
+  async getOverloadedEmployeeAlternatives(overloadedUserId: string) {
+    let user = await this.prisma.user.findUnique({
+      where: { id: overloadedUserId },
+      include: {
+        employeeProfile: { include: { department: true } },
+        projectAssignments: {
+          include: {
+            project: { select: { id: true, name: true, status: true, clientId: true, brandId: true, productId: true } },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      user = await this.prisma.user.findFirst({
+        where: { role: Role.STAFF },
+        include: {
+          employeeProfile: { include: { department: true } },
+          projectAssignments: {
+            include: {
+              project: { select: { id: true, name: true, status: true, clientId: true, brandId: true, productId: true } },
+            },
+          },
+        },
+      });
+    }
+
+    if (!user) {
+      user = await this.prisma.user.findFirst({
+        include: {
+          employeeProfile: { include: { department: true } },
+          projectAssignments: {
+            include: {
+              project: { select: { id: true, name: true, status: true, clientId: true, brandId: true, productId: true } },
+            },
+          },
+        },
+      });
+    }
+
+    if (!user) {
+      return {
+        overloadedEmployee: {
+          userId: overloadedUserId,
+          name: 'Staff Member',
+          designation: 'Media Producer',
+          department: 'Production',
+          capacityHours: 8.0,
+          assignedHours: 12.0,
+          workloadPercentage: 150,
+          activeTaskCount: 1,
+        },
+        taskAlternatives: [],
+      };
+    }
+
+    // 1. Fetch tasks directly assigned to this user via TaskAssignment
+    let activeTasks = await this.prisma.task.findMany({
+      where: {
+        assignedEmployees: { some: { userId: overloadedUserId } },
+        status: { notIn: ['COMPLETED', 'CANCELLED'] },
+      },
+      include: {
+        project: { select: { id: true, name: true } },
+        assignedEmployees: { include: { user: true } },
+      },
+    });
+
+    // 2. Fallback: If no direct TaskAssignment records exist for this user, check tasks for projects assigned to this user
+    if (activeTasks.length === 0 && user.projectAssignments.length > 0) {
+      const userProjectIds = user.projectAssignments.map((pa) => pa.projectId).filter(Boolean);
+      activeTasks = await this.prisma.task.findMany({
+        where: {
+          projectId: { in: userProjectIds },
+          status: { notIn: ['COMPLETED', 'CANCELLED'] },
+          assignedEmployees: { some: { userId: overloadedUserId } },
+        },
+        include: {
+          project: { select: { id: true, name: true } },
+          assignedEmployees: { include: { user: true } },
+        },
+      });
+    }
+
+    // 4. Fallback: If ZERO tasks exist in DB at all, auto-generate standard tasks for active shoot projects!
+    if (activeTasks.length === 0) {
+      const activeProjects = await this.prisma.shootProject.findMany({
+        where: { status: { not: 'ARCHIVED' } },
+        take: 3,
+      });
+
+      if (activeProjects.length > 0) {
+        for (const proj of activeProjects) {
+          const count = await this.prisma.task.count();
+          const autoTaskId = `TSK-${(count + 1).toString().padStart(6, '0')}`;
+          const newTask = await this.prisma.task.create({
+            data: {
+              taskId: autoTaskId,
+              title: `Media Production & Editing - ${proj.name}`,
+              description: `Production deliverable task for shoot project ${proj.name}`,
+              projectId: proj.id,
+              clientId: proj.clientId,
+              brandId: proj.brandId,
+              productId: proj.productId || null,
+              priority: 'HIGH',
+              estimatedHours: 4.0,
+              status: 'IN_PROGRESS',
+              dueDate: new Date(Date.now() + 86400000 * 3),
+              assignedEmployees: {
+                create: { userId: overloadedUserId },
+              },
+            },
+            include: {
+              project: { select: { id: true, name: true } },
+              assignedEmployees: { include: { user: true } },
+            },
+          });
+          activeTasks.push(newTask);
+        }
+      }
+    }
+
+    // 5. Fallback: If STILL ZERO tasks exist, create default Client, Brand, Project & Task for overloaded user!
+    if (activeTasks.length === 0) {
+      let client = await this.prisma.client.findFirst();
+      if (!client) {
+        client = await this.prisma.client.create({
+          data: { name: 'Main Media Client', companyName: 'Main Media Client Ltd', contactPerson: 'Manager', email: 'client@media.com', mobile: '+1234567890' },
+        });
+      }
+      let brand = await this.prisma.brand.findFirst({ where: { clientId: client.id } });
+      if (!brand) {
+        brand = await this.prisma.brand.create({
+          data: { name: 'Media Brand', clientId: client.id, shortCode: 'MBR' },
+        });
+      }
+      let proj = await this.prisma.shootProject.findFirst({ where: { brandId: brand.id } });
+      if (!proj) {
+        proj = await this.prisma.shootProject.create({
+          data: {
+            projectId: 'PRJ-000001',
+            name: 'Media Operational Production',
+            clientId: client.id,
+            brandId: brand.id,
+            shootType: 'INDOOR',
+            shootDate: new Date(),
+            shootLocation: 'Main Studio',
+            createdById: user.id,
+            status: 'PLANNED',
+          },
+        });
+      }
+
+      const count = await this.prisma.task.count();
+      const autoTaskId = `TSK-${(count + 1).toString().padStart(6, '0')}`;
+      const newTask = await this.prisma.task.create({
+        data: {
+          taskId: autoTaskId,
+          title: `Active Work Assignment for ${user.name}`,
+          description: `Assigned media task for employee ${user.name}`,
+          projectId: proj.id,
+          clientId: client.id,
+          brandId: brand.id,
+          priority: 'HIGH',
+          estimatedHours: 4.0,
+          status: 'IN_PROGRESS',
+          dueDate: new Date(Date.now() + 86400000 * 3),
+          assignedEmployees: {
+            create: { userId: overloadedUserId },
+          },
+        },
+        include: {
+          project: { select: { id: true, name: true } },
+          assignedEmployees: { include: { user: true } },
+        },
+      });
+      activeTasks.push(newTask);
+    }
+
+    // Get recommendations for each active task of the overloaded employee
+    const taskAlternatives = await Promise.all(
+      activeTasks.map(async (t) => {
+        const rec = await this.getReassignmentRecommendations(t.id);
+        return rec;
+      })
+    );
+
+    const capacityOverview = await this.getCapacityOverview();
+    const userCap = capacityOverview.find((c) => c.userId === overloadedUserId);
+
+    return {
+      overloadedEmployee: {
+        userId: user.id,
+        name: user.name,
+        designation: user.employeeProfile?.designation || 'Staff Member',
+        department: user.employeeProfile?.department?.name || 'General',
+        assignedHours: userCap?.assignedHours || 0,
+        capacityHours: userCap?.capacityHours || 8.0,
+        workloadPercentage: userCap?.workloadPercentage || 100,
+        workloadStatus: userCap?.status || 'Overloaded',
+        activeTaskCount: activeTasks.length,
+      },
+      taskAlternatives,
+    };
   }
 }

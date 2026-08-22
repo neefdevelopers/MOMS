@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -25,6 +25,7 @@ import {
   Archive,
   Tv,
   Shield,
+  Loader2,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -100,19 +101,19 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         name: 'Clients',
         href: '/clients',
         icon: Building2,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
       },
       {
         name: 'Brands',
         href: '/brands',
         icon: BookmarkCheck,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
       },
       {
         name: 'Products',
         href: '/products',
         icon: Package,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
       },
       {
         name: 'Equipment',
@@ -126,7 +127,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
     title: 'Workforce & Logs',
     items: [
       {
-        name: 'Staff & Roster',
+        name: 'Staff',
         href: '/staff',
         icon: Users,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
@@ -135,7 +136,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         name: 'Attendance',
         href: '/attendance',
         icon: UserCheck,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'STAFF'],
       },
       {
         name: 'Communication',
@@ -153,7 +154,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         name: 'Activity Center',
         href: '/activity',
         icon: Activity,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
       },
       {
         name: 'Settings & Formulas',
@@ -170,6 +171,7 @@ export function Sidebar() {
   const router = useRouter();
   const { user } = useAuth();
   const [optimisticPath, setOptimisticPath] = useState<string>(pathname);
+  const [isPending, startTransition] = useTransition();
 
   const userRole = (user?.role || 'STAFF') as 'MEDIA_MANAGER' | 'TECHNICAL_MANAGER' | 'STAFF';
 
@@ -178,18 +180,14 @@ export function Sidebar() {
     setOptimisticPath(pathname);
   }, [pathname]);
 
-  // Pre-fetch all sidebar navigation routes in the background on mount
-  useEffect(() => {
-    NAVIGATION_SECTIONS.forEach((section) => {
-      section.items.forEach((item) => {
-        if (!item.roles || item.roles.includes(userRole)) {
-          router.prefetch(item.href);
-        }
-      });
-    });
-  }, [router, userRole]);
-
   const activePath = optimisticPath || pathname;
+
+  const handleNavClick = (href: string) => {
+    setOptimisticPath(href);
+    startTransition(() => {
+      // Transition wrapper allows smooth non-blocking updates
+    });
+  };
 
   return (
     <aside className="w-64 bg-card border-r border-border flex flex-col h-full shrink-0 z-30 select-none">
@@ -248,13 +246,20 @@ export function Sidebar() {
                 const isActive =
                   activePath === item.href ||
                   (item.href !== '/' && activePath.startsWith(item.href));
+                const isItemNavigating = isPending && optimisticPath === item.href;
+
+                const displayName =
+                  item.href === '/' && userRole === 'TECHNICAL_MANAGER'
+                    ? 'Technical Dashboard'
+                    : item.name;
 
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     prefetch={true}
-                    onClick={() => setOptimisticPath(item.href)}
+                    onMouseEnter={() => router.prefetch(item.href)}
+                    onClick={() => handleNavClick(item.href)}
                     className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all group ${
                       isActive
                         ? 'bg-blue-600/20 text-blue-400 border border-blue-500/40 font-bold shadow-sm'
@@ -262,14 +267,18 @@ export function Sidebar() {
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <Icon
-                        className={`w-4 h-4 transition-colors shrink-0 ${
-                          isActive
-                            ? 'text-blue-400'
-                            : 'text-gray-400 group-hover:text-gray-200'
-                        }`}
-                      />
-                      <span className="truncate">{item.name}</span>
+                      {isItemNavigating ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-400 shrink-0" />
+                      ) : (
+                        <Icon
+                          className={`w-4 h-4 transition-colors shrink-0 ${
+                            isActive
+                              ? 'text-blue-400'
+                              : 'text-gray-400 group-hover:text-gray-200'
+                          }`}
+                        />
+                      )}
+                      <span className="truncate">{displayName}</span>
                     </div>
 
                     {item.badge && (

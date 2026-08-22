@@ -1237,7 +1237,7 @@ export class NotificationsService {
         });
 
         if (!(await hasRecentAlert('ATTENDANCE', emp.id, 'ALERT_EMPLOYEE_OVER_CAPACITY'))) {
-          await this.notifyTechnicalManagers({
+          await this.notifyMediaManagers({
             title: `⚠️ Employee Over Capacity: ${emp.name}`,
             message: `${emp.name} is handling ${taskCount} active operational tasks. Administrative workload rebalancing required.`,
             type: 'WARNING',

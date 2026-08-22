@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { exportToExcel, exportToCSV, exportToPDF, ExportColumn } from '@/utils/exportUtils';
 import { fetchApi } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import {
   BarChart3, TrendingUp, PieChart, Layers, ShieldCheck, Users, Building2, RotateCcw,
   Palette, Tag, Zap, Package, CheckCircle2, Download,
@@ -14,6 +15,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 const BRAND_COLORS = ['#a78bfa', '#34d399', '#60a5fa', '#fbbf24', '#f87171', '#38bdf8', '#fb923c'];
 
 export default function ReportsPage() {
+  const { user } = useAuth();
   const [data, setData] = useState<any>(null);
   const [scriptAnalytics, setScriptAnalytics] = useState<any>(null);
   const [graphicAnalytics, setGraphicAnalytics] = useState<any>(null);
@@ -353,6 +355,29 @@ export default function ReportsPage() {
     fill: BRAND_COLORS[i % BRAND_COLORS.length],
   }));
 
+  const isMediaManager = user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN';
+  const isTechnicalManager = user?.role === 'TECHNICAL_MANAGER';
+  const isStaff = user?.role === 'STAFF';
+
+  const isReportTabAllowed = (tabId: string) => {
+    if (isMediaManager) return true;
+    if (isTechnicalManager) {
+      return ['brands', 'equipment', 'employee', 'capacity', 'revisions', 'scripts', 'graphics', 'approvals'].includes(tabId);
+    }
+    if (isStaff) {
+      return ['employee', 'attendance', 'capacity', 'revisions'].includes(tabId);
+    }
+    return true;
+  };
+
+  useEffect(() => {
+    if (isTechnicalManager && (activeTab === 'timelines' || activeTab === 'attendance')) {
+      setActiveTab('equipment');
+    } else if (isStaff && !['employee', 'attendance', 'capacity', 'revisions'].includes(activeTab)) {
+      setActiveTab('employee');
+    }
+  }, [user?.role]);
+
   return (
     <div className="space-y-6 text-xs">
       {/* Compact Controls Bar */}
@@ -509,9 +534,9 @@ export default function ReportsPage() {
               url="/reports"
               size="md"
             />
-            <BarChart3 className="w-5 h-5 text-blue-400" /> Timeline, Revision &amp; Operational Analytics
+            <BarChart3 className="w-5 h-5 text-blue-400" /> Operational &amp; Performance Reports
           </h1>
-          <p className="text-xs text-gray-400 mt-1">Project history, status changes, approval logs, equipment movements, employee activities</p>
+          <p className="text-xs text-gray-400 mt-1">Role-based analytics, status history, approval logs, equipment performance, and employee productivity</p>
         </div>
         <div className="flex gap-3 flex-wrap">
           <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-center">
@@ -544,7 +569,7 @@ export default function ReportsPage() {
           { id: 'approvals', label: 'Approvals', color: 'amber' },
           { id: 'attendance', label: 'Attendance', color: 'emerald' },
           { id: 'equipment', label: 'Equipment', color: 'cyan' },
-        ] as const).map(t => (
+        ] as const).filter(t => isReportTabAllowed(t.id)).map(t => (
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
@@ -556,47 +581,63 @@ export default function ReportsPage() {
           >{t.label}</button>
         ))}
 
-        <div className="w-px h-4 bg-gray-700 mx-2" />
-
-        {/* Group: Business */}
-        <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Business</span>
+        {/* Group: Business (Only if allowed tabs exist for role) */}
         {([
           { id: 'projects', label: 'Projects', color: 'blue' },
           { id: 'departments', label: 'Departments', color: 'indigo' },
           { id: 'clients', label: 'Clients', color: 'emerald' },
           { id: 'brands', label: 'Brands', color: 'cyan' },
           { id: 'products', label: 'Products', color: 'rose' },
-        ] as const).map(t => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-              activeTab === t.id
-                ? `bg-${t.color}-600/20 text-${t.color}-300 border border-${t.color}-600/50`
-                : 'text-gray-500 hover:text-gray-300 border border-transparent'
-            }`}
-          >{t.label}</button>
-        ))}
-
-        <div className="w-px h-4 bg-gray-700 mx-2" />
+        ] as const).filter(t => isReportTabAllowed(t.id)).length > 0 && (
+          <>
+            <div className="w-px h-4 bg-gray-700 mx-2" />
+            <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Business</span>
+            {([
+              { id: 'projects', label: 'Projects', color: 'blue' },
+              { id: 'departments', label: 'Departments', color: 'indigo' },
+              { id: 'clients', label: 'Clients', color: 'emerald' },
+              { id: 'brands', label: 'Brands', color: 'cyan' },
+              { id: 'products', label: 'Products', color: 'rose' },
+            ] as const).filter(t => isReportTabAllowed(t.id)).map(t => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                  activeTab === t.id
+                    ? `bg-${t.color}-600/20 text-${t.color}-300 border border-${t.color}-600/50`
+                    : 'text-gray-500 hover:text-gray-300 border border-transparent'
+                }`}
+              >{t.label}</button>
+            ))}
+          </>
+        )}
 
         {/* Group: Performance */}
-        <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Performance</span>
         {([
           { id: 'employee', label: 'Employees', color: 'purple' },
           { id: 'scripts', label: 'Scripts', color: 'blue' },
           { id: 'graphics', label: 'Graphics', color: 'amber' },
-        ] as const).map(t => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-              activeTab === t.id
-                ? `bg-${t.color}-600/20 text-${t.color}-300 border border-${t.color}-600/50`
-                : 'text-gray-500 hover:text-gray-300 border border-transparent'
-            }`}
-          >{t.label}</button>
-        ))}
+        ] as const).filter(t => isReportTabAllowed(t.id)).length > 0 && (
+          <>
+            <div className="w-px h-4 bg-gray-700 mx-2" />
+            <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Performance</span>
+            {([
+              { id: 'employee', label: 'Employees', color: 'purple' },
+              { id: 'scripts', label: 'Scripts', color: 'blue' },
+              { id: 'graphics', label: 'Graphics', color: 'amber' },
+            ] as const).filter(t => isReportTabAllowed(t.id)).map(t => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                  activeTab === t.id
+                    ? `bg-${t.color}-600/20 text-${t.color}-300 border border-${t.color}-600/50`
+                    : 'text-gray-500 hover:text-gray-300 border border-transparent'
+                }`}
+              >{t.label}</button>
+            ))}
+          </>
+        )}
       </div>
 
       {/* TIMELINE PERFORMANCE REPORTS TAB */}

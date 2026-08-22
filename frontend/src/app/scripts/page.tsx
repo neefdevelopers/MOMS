@@ -395,12 +395,14 @@ export default function ScriptsPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-purple-600/30"
-        >
-          + Create New Script
-        </button>
+        {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-purple-600/30"
+          >
+            + Create New Script
+          </button>
+        )}
       </div>
 
       {/* Project Filtration Session Control Panel */}

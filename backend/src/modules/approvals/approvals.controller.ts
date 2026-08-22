@@ -25,7 +25,7 @@ export class ApprovalsController {
     return this.approvalsService.getApprovalQueue();
   }
 
-  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER)
+  @Roles(Role.TECHNICAL_MANAGER)
   @Post('tech-review')
   submitTechnicalReview(
     @Body() data: { projectId: string; status: 'APPROVED' | 'REJECTED'; remarks?: string },

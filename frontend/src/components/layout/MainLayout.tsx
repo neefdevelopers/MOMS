@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
@@ -10,6 +10,7 @@ import { FavoritesProvider } from '@/lib/favorites-context';
 import { KeyboardShortcutsProvider } from '@/lib/keyboard-shortcuts-context';
 import { KeyboardShortcutsModal } from '../common/KeyboardShortcutsModal';
 import { useRouter, usePathname } from 'next/navigation';
+import Loading from '@/app/loading';
 
 export function MainLayout({
   children,
@@ -62,7 +63,9 @@ export function MainLayout({
 
               <div className="flex-1 flex min-h-0 overflow-hidden">
                 {/* 3. Main Content Area */}
-                <main className="flex-1 p-6 overflow-y-auto min-w-0">{children}</main>
+                <main className="flex-1 p-6 overflow-y-auto min-w-0">
+                  <Suspense fallback={<Loading />}>{children}</Suspense>
+                </main>
 
                 {/* 4. Right Utility Panel (Optional) */}
                 {rightUtilityPanel && (

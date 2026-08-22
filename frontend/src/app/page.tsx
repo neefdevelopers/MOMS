@@ -40,8 +40,10 @@ import {
   Sparkles,
   ExternalLink,
   RotateCcw,
+  Search,
 } from 'lucide-react';
 import ConfigureWidgetsModal from '@/components/dashboard/ConfigureWidgetsModal';
+import { ReassignmentRecommendationsModal } from '@/components/dashboard/ReassignmentRecommendationsModal';
 import { RecentlyAccessedWidget } from '@/components/dashboard/RecentlyAccessedWidget';
 import {
   DashboardWidgetConfig,
@@ -64,11 +66,20 @@ export default function DashboardPage() {
   const [capacity, setCapacity] = useState<any[]>([]);
   const [myTasks, setMyTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'PERSONAL' | 'SYSTEM'>('PERSONAL');
+  const [equipmentStats, setEquipmentStats] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'PERSONAL' | 'SYSTEM' | 'TECHNICAL'>('PERSONAL');
+
+  useEffect(() => {
+    if (user?.role === 'TECHNICAL_MANAGER') {
+      setActiveTab('TECHNICAL');
+    }
+  }, [user?.role]);
 
   // Dashboard Widgets Configuration State
   const [widgetsConfig, setWidgetsConfig] = useState<DashboardWidgetConfig[]>(DEFAULT_DASHBOARD_WIDGETS);
   const [showWidgetConfigModal, setShowWidgetConfigModal] = useState(false);
+  const [selectedOverloadedUserId, setSelectedOverloadedUserId] = useState<string | null>(null);
+  const [activeOperationalTab, setActiveOperationalTab] = useState<'TODAY' | 'SHOOTS' | 'DEADLINES' | 'RISKS' | 'PROJECTS'>('TODAY');
 
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
@@ -123,7 +134,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadDashboard() {
       try {
-        const [dashRes, myDashRes, capRes, tasksRes, annRes, settingsRes, summariesRes, alertsRes] = await Promise.all([
+        const [dashRes, myDashRes, capRes, tasksRes, annRes, settingsRes, summariesRes, alertsRes, eqRes] = await Promise.all([
           fetchApi('/reports/dashboard').catch(() => ({})),
           fetchApi('/reports/my-dashboard').catch(() => null),
           fetchApi('/tasks/capacity/overview').catch(() => []),
@@ -132,6 +143,7 @@ export default function DashboardPage() {
           fetchApi('/settings').catch(() => null),
           fetchApi('/notifications/summaries').catch(() => null),
           fetchApi('/notifications/system-alerts').catch(() => null),
+          fetchApi('/equipment/dashboard').catch(() => null),
         ]);
         setData(dashRes || {});
         setMyDashboard(myDashRes);
@@ -140,6 +152,7 @@ export default function DashboardPage() {
         setAnnouncements(Array.isArray(annRes) ? annRes : []);
         setNotifSummaries(summariesRes);
         setSystemAlerts(alertsRes);
+        setEquipmentStats(eqRes);
 
         // Load configured dashboard widgets from DB / localStorage
         const dbSetting = settingsRes?.settings?.find((s: any) => s.key === DASHBOARD_WIDGETS_SETTING_KEY);
@@ -448,6 +461,29 @@ export default function DashboardPage() {
               <Users className="w-4 h-4 text-emerald-400" />
               <span>Personalized Assignment Dashboard</span>
             </div>
+          ) : role === 'TECHNICAL_MANAGER' ? (
+            <>
+              <button
+                onClick={() => setActiveTab('TECHNICAL')}
+                className={`px-4 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-2 ${
+                  activeTab === 'TECHNICAL'
+                    ? 'bg-cyan-600 text-white shadow-md'
+                    : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+                }`}
+              >
+                <Camera className="w-4 h-4 text-cyan-300" /> Technical Operations & Equipment Dashboard
+              </button>
+              <button
+                onClick={() => setActiveTab('PERSONAL')}
+                className={`px-4 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-2 ${
+                  activeTab === 'PERSONAL'
+                    ? 'bg-cyan-600 text-white shadow-md'
+                    : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+                }`}
+              >
+                <Users className="w-4 h-4 text-cyan-300" /> My Technical Tasks & Assignments
+              </button>
+            </>
           ) : (
             <>
               <button
@@ -772,8 +808,152 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Recently Accessed Records History Widget */}
-      <RecentlyAccessedWidget />
+      {/* ===== TECHNICAL MANAGER OPERATIONS & MAINTENANCE DASHBOARD ===== */}
+      {activeTab === 'TECHNICAL' && (
+        <div className="space-y-6">
+          {/* Equipment & Technical Asset Health Overview */}
+          <div className="bg-card border border-cyan-900/40 p-5 rounded-xl space-y-4 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-cyan-400" /> Equipment Fleet & Operational Asset Health
+                </h3>
+                <p className="text-xs text-gray-400">Real-time status of cameras, audio, lighting, bays, and technical inventory</p>
+              </div>
+              <Link
+                href="/equipment"
+                className="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded-lg transition-colors inline-flex items-center gap-1.5 self-start sm:self-auto shadow-md"
+              >
+                <span>Manage Equipment Fleet</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {/* Technical Metrics Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="p-3.5 bg-gray-900/90 border border-gray-800 rounded-xl space-y-1">
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Equipment</div>
+                <div className="text-2xl font-black font-mono text-white">{equipmentStats?.total || 0}</div>
+                <div className="text-[10px] text-gray-500 font-medium">Registered items</div>
+              </div>
+
+              <div className="p-3.5 bg-gray-900/90 border border-emerald-900/40 rounded-xl space-y-1">
+                <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Available Gear</div>
+                <div className="text-2xl font-black font-mono text-emerald-300">{equipmentStats?.available || 0}</div>
+                <div className="text-[10px] text-emerald-400/80 font-medium">Ready for issue</div>
+              </div>
+
+              <div className="p-3.5 bg-gray-900/90 border border-blue-900/40 rounded-xl space-y-1">
+                <div className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Checked Out / In Use</div>
+                <div className="text-2xl font-black font-mono text-blue-300">{equipmentStats?.checkedOut || 0}</div>
+                <div className="text-[10px] text-blue-400/80 font-medium">Issued on shoots</div>
+              </div>
+
+              <div className="p-3.5 bg-gray-900/90 border border-amber-900/40 rounded-xl space-y-1">
+                <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Under Maintenance</div>
+                <div className="text-2xl font-black font-mono text-amber-300">{equipmentStats?.underMaintenance || 0}</div>
+                <div className="text-[10px] text-amber-400/80 font-medium">In service / repair</div>
+              </div>
+
+              <div className="p-3.5 bg-gray-900/90 border border-red-900/40 rounded-xl space-y-1">
+                <div className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Damaged / Flagged</div>
+                <div className="text-2xl font-black font-mono text-red-400">{equipmentStats?.damaged || 0}</div>
+                <div className="text-[10px] text-red-400/80 font-medium">Needs technical fix</div>
+              </div>
+
+              <div className="p-3.5 bg-gray-900/90 border border-purple-900/40 rounded-xl space-y-1">
+                <div className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Recently Returned</div>
+                <div className="text-2xl font-black font-mono text-purple-300">{equipmentStats?.recentlyReturned || 0}</div>
+                <div className="text-[10px] text-purple-400/80 font-medium">Last 7 days</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Pending Technical Review Sign-Offs */}
+            <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-cyan-400" /> Pending Technical Deliverable Sign-Offs ({pendingApprovals.length})
+                </h3>
+                <Link href="/approvals" className="text-xs text-cyan-400 hover:text-cyan-300 font-bold">
+                  View All Approvals →
+                </Link>
+              </div>
+
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                {pendingApprovals.length > 0 ? (
+                  pendingApprovals.map((app: any) => (
+                    <div key={app.id} className="p-3 bg-gray-900 rounded-lg border border-gray-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white text-xs">{app.title || app.entityName || 'Deliverable Sign-Off'}</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold">
+                          {app.type || 'TECHNICAL_REVIEW'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-400 line-clamp-2">{app.description || app.notes || 'Awaiting technical manager review and sign-off.'}</p>
+                      <div className="pt-2 border-t border-gray-800 flex items-center justify-between">
+                        <span className="text-[10px] text-gray-500 font-mono">Submitted: {new Date(app.createdAt).toLocaleDateString()}</span>
+                        <Link
+                          href="/approvals"
+                          className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[10px] rounded transition-colors"
+                        >
+                          Process Review
+                        </Link>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-6 text-center text-gray-500 text-xs italic">
+                    No pending technical deliverable reviews in your queue
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Active Technical Blockers & Issues */}
+            <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-red-400" /> Active Technical Blockers & Issues ({assignedBlockers.length})
+                </h3>
+                <Link href="/communication" className="text-xs text-red-400 hover:text-red-300 font-bold">
+                  View Blockers Feed →
+                </Link>
+              </div>
+
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                {assignedBlockers.length > 0 ? (
+                  assignedBlockers.map((b: any) => (
+                    <div key={b.id} className="p-3 bg-gray-900 rounded-lg border border-red-900/30 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white text-xs">{b.title || 'Technical Blocker'}</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-red-950 text-red-300 border border-red-800 font-bold">
+                          {b.blockerPriority || 'HIGH'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-300 line-clamp-2">{b.content}</p>
+                      <div className="pt-2 border-t border-gray-800 flex items-center justify-between">
+                        <span className="text-[10px] text-gray-500 font-mono">Logged by: {b.sender?.name || 'Staff'}</span>
+                        <Link
+                          href="/communication"
+                          className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] rounded transition-colors"
+                        >
+                          Resolve Blocker
+                        </Link>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-6 text-center text-gray-500 text-xs italic">
+                    No active technical blockers reported
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ===== PERSONALIZED ASSIGNMENT DASHBOARD (10 MANDATORY WIDGETS) ===== */}
       {activeTab === 'PERSONAL' && (
@@ -1404,27 +1584,41 @@ export default function DashboardPage() {
                           </Link>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                           <div className="bg-gray-900/80 border border-gray-800 p-3 rounded-lg">
-                            <span className="text-[10px] text-gray-400 font-bold uppercase block">Active Pipeline</span>
+                            <span className="text-[10px] text-blue-300 font-bold uppercase block">Total Active Projects</span>
                             <div className="text-2xl font-extrabold text-blue-400 font-mono mt-1">
                               {data?.totalActiveProjects || 0}
                             </div>
-                            <p className="text-[10px] text-blue-400/80 mt-0.5">In production</p>
+                            <p className="text-[10px] text-blue-400/80 mt-0.5">Active pipeline</p>
                           </div>
+
                           <div className="bg-gray-900/80 border border-gray-800 p-3 rounded-lg">
-                            <span className="text-[10px] text-gray-400 font-bold uppercase block">Completed</span>
+                            <span className="text-[10px] text-emerald-300 font-bold uppercase block">Projects In Progress</span>
                             <div className="text-2xl font-extrabold text-emerald-400 font-mono mt-1">
-                              {data?.totalCompletedProjects || 0}
+                              {data?.inProgressProjects || 0}
                             </div>
-                            <p className="text-[10px] text-emerald-400/80 mt-0.5">Delivered</p>
+                            <p className="text-[10px] text-emerald-400/80 mt-0.5">Currently shooting/editing</p>
                           </div>
-                          <div className="bg-gray-900/80 border border-gray-800 p-3 rounded-lg col-span-2 sm:col-span-1">
-                            <span className="text-[10px] text-gray-400 font-bold uppercase block">Today's Shoots</span>
-                            <div className="text-2xl font-extrabold text-cyan-400 font-mono mt-1">
-                              {(data?.todayIndoorShootsCount || 0) + (data?.todayOutdoorShootsCount || 0)}
+
+                          <div className="bg-gray-900/80 border border-gray-800 p-3 rounded-lg">
+                            <span className="text-[10px] text-purple-300 font-bold uppercase block">Upcoming Projects</span>
+                            <div className="text-2xl font-extrabold text-purple-400 font-mono mt-1">
+                              {data?.upcomingProjects || 0}
                             </div>
-                            <p className="text-[10px] text-cyan-400/80 mt-0.5">Scheduled today</p>
+                            <p className="text-[10px] text-purple-400/80 mt-0.5">Planned / Scheduled</p>
+                          </div>
+
+                          <div className={`p-3 rounded-lg border ${
+                            (data?.overdueProjectsCount || 0) + (data?.overdueTasksCount || 0) > 0
+                              ? 'bg-red-950/40 border-red-600/80 shadow-md shadow-red-950/40 ring-1 ring-red-500/40 animate-pulse'
+                              : 'bg-gray-900/80 border-gray-800'
+                          }`}>
+                            <span className="text-[10px] text-red-300 font-bold uppercase block">Overdue Projects/Tasks</span>
+                            <div className="text-2xl font-extrabold text-red-400 font-mono mt-1">
+                              {(data?.overdueProjectsCount || 0) + (data?.overdueTasksCount || 0)}
+                            </div>
+                            <p className="text-[10px] text-red-300/80 mt-0.5">Requires immediate action</p>
                           </div>
                         </div>
                       </div>
@@ -1498,6 +1692,67 @@ export default function DashboardPage() {
                             ))}
                           </div>
                         )}
+                      </div>
+                    );
+
+                  // UPCOMING DEADLINES WIDGET
+                  case 'upcoming_deadlines':
+                    return (
+                      <div
+                        key={widget.id}
+                        className={`bg-card border border-border p-5 rounded-xl space-y-4 shadow-md ${
+                          isFull ? 'lg:col-span-2' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between border-b border-border pb-3">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-amber-400" />
+                            <h3 className="font-bold text-white text-sm">Upcoming Deadlines &amp; Projects Due</h3>
+                            <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                              {data?.upcomingDeadlines?.length || 0} Due Soon
+                            </span>
+                          </div>
+                          <Link
+                            href="/projects"
+                            className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1"
+                          >
+                            Projects Directory <ArrowUpRight className="w-3.5 h-3.5" />
+                          </Link>
+                        </div>
+
+                        <div className="space-y-2">
+                          {!data?.upcomingDeadlines || data.upcomingDeadlines.length === 0 ? (
+                            <p className="text-gray-500 italic text-[11px] p-3 text-center bg-gray-950 rounded-lg border border-gray-800">
+                              No project or task deadlines due within the next 7 days. ✓
+                            </p>
+                          ) : (
+                            data.upcomingDeadlines.slice(0, widget.itemLimit || 5).map((item: any) => (
+                              <Link
+                                key={item.id}
+                                href="/projects"
+                                className="flex items-center justify-between p-2.5 bg-gray-900/90 rounded-lg border border-gray-800 hover:border-amber-500/40 transition-colors"
+                              >
+                                <div className="min-w-0 pr-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">
+                                      {item.code || item.type}
+                                    </span>
+                                    <h4 className="text-xs font-bold text-white truncate">{item.title}</h4>
+                                  </div>
+                                  <p className="text-[10px] text-gray-400 mt-0.5 truncate">
+                                    {item.clientName ? `Client: ${item.clientName} • ` : ''}Status: {item.status || 'Active'}
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="text-[10px] font-mono font-bold text-amber-400 block">
+                                    {new Date(item.dueDate).toLocaleDateString()}
+                                  </span>
+                                  <span className="text-[9px] text-gray-500 block">Target Due</span>
+                                </div>
+                              </Link>
+                            ))
+                          )}
+                        </div>
                       </div>
                     );
 
@@ -1672,6 +1927,7 @@ export default function DashboardPage() {
                     );
 
                   // 6. CALENDAR & SHOOTS WIDGET
+                  // 6. UPCOMING OPERATIONAL EVENTS COMMAND WIDGET
                   case 'calendar':
                     return (
                       <div
@@ -1680,94 +1936,336 @@ export default function DashboardPage() {
                           isFull ? 'lg:col-span-2' : ''
                         }`}
                       >
-                        <div className="flex items-center justify-between border-b border-border pb-3">
+                        {/* Widget Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3">
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-blue-400" />
-                            <h3 className="font-bold text-white text-sm">Calendar & Today's Shoots</h3>
+                            <h3 className="font-bold text-white text-sm">Upcoming Operational Events</h3>
                             <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-bold">
-                              {(data?.todayIndoorShootsCount || 0) + (data?.todayOutdoorShootsCount || 0)} Shoots Scheduled
+                              {(data?.todayIndoorShootsCount || 0) + (data?.todayOutdoorShootsCount || 0)} Today • {data?.upcomingProjects || 0} Upcoming
                             </span>
                           </div>
                           <Link
                             href="/calendar"
-                            className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1"
+                            className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 self-start sm:self-auto"
                           >
-                            Media Calendar <ArrowUpRight className="w-3.5 h-3.5" />
+                            Full Operational Calendar <ArrowUpRight className="w-3.5 h-3.5" />
                           </Link>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {/* Indoor Shoots */}
-                          <div className="p-4 bg-blue-950/20 border border-blue-800/40 rounded-xl space-y-2.5">
-                            <div className="flex justify-between items-center font-bold text-blue-300 text-xs">
-                              <span className="flex items-center gap-1.5">
-                                <Building className="w-3.5 h-3.5" /> Today's Indoor Shoots
-                              </span>
-                              <span className="font-mono bg-blue-900/50 px-2 py-0.5 rounded text-[10px]">
-                                {data?.todayIndoorShootsCount || 0}
-                              </span>
-                            </div>
-                            {data?.todayIndoorShoots?.length > 0 ? (
-                              <div className="space-y-1.5">
-                                {data.todayIndoorShoots.slice(0, widget.itemLimit || 3).map((proj: any) => (
-                                  <div key={proj.id} className="p-2 bg-gray-900/90 rounded-lg border border-gray-800">
-                                    <div className="font-bold text-white text-xs">{proj.name}</div>
-                                    <div className="text-[10px] text-gray-400">
-                                      Studio: {proj.indoorDetails?.studioName || proj.shootLocation}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-gray-500 italic text-[11px]">No indoor shoots scheduled for today.</p>
-                            )}
-                          </div>
+                        {/* 5 Operational Tabs */}
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-border">
+                          <button
+                            onClick={() => setActiveOperationalTab('TODAY')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${
+                              activeOperationalTab === 'TODAY'
+                                ? 'bg-blue-600 text-white border-blue-500 shadow-md'
+                                : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                            }`}
+                          >
+                            <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                            <span>1. Today's Events ({(data?.todayIndoorShootsCount || 0) + (data?.todayOutdoorShootsCount || 0)})</span>
+                          </button>
 
-                          {/* Outdoor Shoots */}
-                          <div className="p-4 bg-emerald-950/20 border border-emerald-800/40 rounded-xl space-y-2.5">
-                            <div className="flex justify-between items-center font-bold text-emerald-300 text-xs">
-                              <span className="flex items-center gap-1.5">
-                                <ShieldAlert className="w-3.5 h-3.5" /> Today's Outdoor Shoots
-                              </span>
-                              <span className="font-mono bg-emerald-900/50 px-2 py-0.5 rounded text-[10px]">
-                                {data?.todayOutdoorShootsCount || 0}
-                              </span>
-                            </div>
-                            {data?.todayOutdoorShoots?.length > 0 ? (
-                              <div className="space-y-1.5">
-                                {data.todayOutdoorShoots.slice(0, widget.itemLimit || 3).map((proj: any) => (
-                                  <div key={proj.id} className="p-2 bg-gray-900/90 rounded-lg border border-gray-800">
-                                    <div className="font-bold text-white text-xs">{proj.name}</div>
-                                    <div className="text-[10px] text-gray-400">
-                                      Site: {proj.outdoorDetails?.outdoorLocation || proj.shootLocation}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-gray-500 italic text-[11px]">No outdoor shoots scheduled for today.</p>
-                            )}
-                          </div>
+                          <button
+                            onClick={() => setActiveOperationalTab('SHOOTS')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${
+                              activeOperationalTab === 'SHOOTS'
+                                ? 'bg-purple-600 text-white border-purple-500 shadow-md'
+                                : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                            }`}
+                          >
+                            <Camera className="w-3.5 h-3.5 text-purple-400" />
+                            <span>2. Upcoming Shoots ({data?.upcomingProjects || 0})</span>
+                          </button>
+
+                          <button
+                            onClick={() => setActiveOperationalTab('DEADLINES')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${
+                              activeOperationalTab === 'DEADLINES'
+                                ? 'bg-amber-600 text-white border-amber-500 shadow-md'
+                                : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                            }`}
+                          >
+                            <Clock className="w-3.5 h-3.5 text-amber-400" />
+                            <span>3. Upcoming Deadlines ({data?.upcomingDeadlines?.length || 0})</span>
+                          </button>
+
+                          <button
+                            onClick={() => setActiveOperationalTab('RISKS')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${
+                              activeOperationalTab === 'RISKS'
+                                ? 'bg-red-600 text-white border-red-500 shadow-md'
+                                : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                            }`}
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                            <span>4. Calendar Conflicts &amp; Risks ({(data?.outdoorAwaitingPermission || 0) + (data?.outdoorAffectedByWeather || 0)})</span>
+                          </button>
+
+                          <button
+                            onClick={() => setActiveOperationalTab('PROJECTS')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${
+                              activeOperationalTab === 'PROJECTS'
+                                ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
+                                : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                            }`}
+                          >
+                            <Film className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>5. Related Projects ({data?.totalActiveProjects || 0})</span>
+                          </button>
                         </div>
 
-                        {/* Quick alerts */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                          <div className="bg-amber-950/30 border border-amber-800/40 p-2.5 rounded-lg flex items-center justify-between">
-                            <span className="text-[11px] text-amber-300 font-semibold flex items-center gap-1.5">
-                              <ShieldAlert className="w-3.5 h-3.5 text-amber-400" /> Outdoor Permits Pending:
-                            </span>
-                            <span className="font-mono font-bold text-amber-400">
-                              {data?.outdoorAwaitingPermission || 0}
-                            </span>
-                          </div>
-                          <div className="bg-cyan-950/30 border border-cyan-800/40 p-2.5 rounded-lg flex items-center justify-between">
-                            <span className="text-[11px] text-cyan-300 font-semibold flex items-center gap-1.5">
-                              <CloudRain className="w-3.5 h-3.5 text-cyan-400" /> Weather Risk Advisories:
-                            </span>
-                            <span className="font-mono font-bold text-cyan-400">
-                              {data?.outdoorAffectedByWeather || 0}
-                            </span>
-                          </div>
+                        {/* Tab Content Display */}
+                        <div className="pt-2 space-y-4">
+                          {/* TAB 1: TODAY'S EVENTS */}
+                          {activeOperationalTab === 'TODAY' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-150">
+                              {/* Indoor Shoots */}
+                              <div className="p-4 bg-blue-950/20 border border-blue-800/40 rounded-xl space-y-2.5">
+                                <div className="flex justify-between items-center font-bold text-blue-300 text-xs">
+                                  <span className="flex items-center gap-1.5">
+                                    <Building className="w-3.5 h-3.5" /> Today's Indoor Studio Shoots
+                                  </span>
+                                  <span className="font-mono bg-blue-900/50 px-2 py-0.5 rounded text-[10px]">
+                                    {data?.todayIndoorShootsCount || 0}
+                                  </span>
+                                </div>
+                                {data?.todayIndoorShoots?.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {data.todayIndoorShoots.slice(0, widget.itemLimit || 4).map((proj: any) => (
+                                      <div key={proj.id} className="p-2.5 bg-gray-900/90 rounded-lg border border-gray-800 space-y-1">
+                                        <div className="flex items-center justify-between">
+                                          <Link href="/projects" className="font-bold text-white text-xs hover:text-blue-400 truncate">
+                                            {proj.name}
+                                          </Link>
+                                          <span className="px-1.5 py-0.2 bg-blue-950 text-blue-300 border border-blue-800 font-mono text-[9px] rounded">
+                                            {proj.projectId}
+                                          </span>
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 font-mono flex items-center justify-between pt-0.5">
+                                          <span>Studio: {proj.indoorDetails?.studioName || proj.shootLocation || 'Main Studio'}</span>
+                                          {proj.brand?.name && <span className="text-gray-500">{proj.brand.name}</span>}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-gray-500 italic text-[11px]">No indoor shoots scheduled for today.</p>
+                                )}
+                              </div>
+
+                              {/* Outdoor Shoots */}
+                              <div className="p-4 bg-emerald-950/20 border border-emerald-800/40 rounded-xl space-y-2.5">
+                                <div className="flex justify-between items-center font-bold text-emerald-300 text-xs">
+                                  <span className="flex items-center gap-1.5">
+                                    <Camera className="w-3.5 h-3.5 text-emerald-400" /> Today's Outdoor Field Shoots
+                                  </span>
+                                  <span className="font-mono bg-emerald-900/50 px-2 py-0.5 rounded text-[10px]">
+                                    {data?.todayOutdoorShootsCount || 0}
+                                  </span>
+                                </div>
+                                {data?.todayOutdoorShoots?.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {data.todayOutdoorShoots.slice(0, widget.itemLimit || 4).map((proj: any) => (
+                                      <div key={proj.id} className="p-2.5 bg-gray-900/90 rounded-lg border border-gray-800 space-y-1">
+                                        <div className="flex items-center justify-between">
+                                          <Link href="/projects" className="font-bold text-white text-xs hover:text-emerald-400 truncate">
+                                            {proj.name}
+                                          </Link>
+                                          <span className="px-1.5 py-0.2 bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono text-[9px] rounded">
+                                            {proj.projectId}
+                                          </span>
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 font-mono flex items-center justify-between pt-0.5">
+                                          <span>Site: {proj.outdoorDetails?.outdoorLocation || proj.shootLocation || 'Field Location'}</span>
+                                          {proj.brand?.name && <span className="text-gray-500">{proj.brand.name}</span>}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-gray-500 italic text-[11px]">No outdoor shoots scheduled for today.</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* TAB 2: UPCOMING SHOOTS */}
+                          {activeOperationalTab === 'SHOOTS' && (
+                            <div className="space-y-3 animate-in fade-in duration-150">
+                              <div className="flex justify-between items-center text-xs text-gray-400 font-mono border-b border-gray-800/80 pb-2">
+                                <span className="font-bold text-purple-300">Upcoming Production Shoots Pipeline</span>
+                                <span>Showing scheduled shoots</span>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                                {((data?.activeProjectsList || data?.todayIndoorShoots || []) as any[]).length === 0 ? (
+                                  <p className="text-gray-500 italic text-xs col-span-full p-4 text-center">No upcoming shoots scheduled in calendar.</p>
+                                ) : (
+                                  ((data?.activeProjectsList || data?.todayIndoorShoots || []) as any[]).slice(0, widget.itemLimit || 6).map((proj: any) => (
+                                    <div key={proj.id} className="p-3.5 bg-gray-900/90 border border-purple-900/40 hover:border-purple-500/50 rounded-xl space-y-2 transition-colors">
+                                      <div className="flex items-center justify-between">
+                                        <span className="px-2 py-0.5 bg-purple-950 text-purple-300 border border-purple-800 font-mono text-[9px] rounded font-bold">
+                                          {proj.shootType || 'INDOOR'}
+                                        </span>
+                                        <span className="text-[10px] text-gray-400 font-mono">
+                                          {proj.shootDate ? new Date(proj.shootDate).toLocaleDateString() : 'Upcoming'}
+                                        </span>
+                                      </div>
+                                      <h4 className="font-bold text-white text-xs truncate">{proj.name}</h4>
+                                      <div className="text-[10px] text-gray-400 font-mono space-y-0.5 pt-1 border-t border-gray-800">
+                                        <div>Location: <strong className="text-gray-200">{proj.shootLocation || 'Studio Location'}</strong></div>
+                                        <div>Client/Brand: <strong className="text-purple-300">{proj.client?.name || proj.brand?.name || 'General Brand'}</strong></div>
+                                      </div>
+                                      <div className="pt-1 flex justify-end">
+                                        <Link href="/projects" className="text-[10px] text-purple-400 hover:text-purple-300 font-bold flex items-center gap-1">
+                                          View Project Details →
+                                        </Link>
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* TAB 3: UPCOMING DEADLINES */}
+                          {activeOperationalTab === 'DEADLINES' && (
+                            <div className="space-y-3 animate-in fade-in duration-150">
+                              <div className="flex justify-between items-center text-xs text-gray-400 font-mono border-b border-gray-800/80 pb-2">
+                                <span className="font-bold text-amber-300">Deliverable Due Dates &amp; Task Target Deadlines</span>
+                                <span>Next 7 Days</span>
+                              </div>
+                              <div className="space-y-2 text-xs">
+                                {!data?.upcomingDeadlines || data.upcomingDeadlines.length === 0 ? (
+                                  <p className="text-gray-500 italic text-xs p-4 text-center">No upcoming deadlines due in the next 7 days.</p>
+                                ) : (
+                                  data.upcomingDeadlines.slice(0, widget.itemLimit || 5).map((item: any) => (
+                                    <div key={item.id} className="p-3 bg-gray-900/90 border border-gray-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between gap-3 transition-colors">
+                                      <div className="space-y-0.5 min-w-0 flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-mono text-[9px] text-amber-400 font-bold bg-amber-950/40 border border-amber-900/40 px-1.5 py-0.5 rounded">
+                                            {item.code || 'DEADLINE'}
+                                          </span>
+                                          <h5 className="font-bold text-white text-xs truncate">{item.title}</h5>
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 font-mono">
+                                          Client: <strong className="text-gray-300">{item.clientName || 'General Client'}</strong> • Status: <strong className="text-amber-300">{item.status}</strong>
+                                        </div>
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <span className="px-2.5 py-1 bg-amber-950 text-amber-300 border border-amber-800 rounded font-mono text-[10px] font-bold block">
+                                          📅 {new Date(item.dueDate).toLocaleDateString()}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* TAB 4: CALENDAR CONFLICTS & RISKS */}
+                          {activeOperationalTab === 'RISKS' && (
+                            <div className="space-y-3 animate-in fade-in duration-150">
+                              <div className="flex justify-between items-center text-xs text-gray-400 font-mono border-b border-gray-800/80 pb-2">
+                                <span className="font-bold text-red-400">Operational Scheduling Conflicts &amp; Advisory Risks</span>
+                                <span>Conflict Prevention Engine</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                <div className="p-3 bg-red-950/20 border border-red-800/50 rounded-xl space-y-1.5">
+                                  <span className="text-[11px] text-red-300 font-bold flex items-center gap-1.5">
+                                    <ShieldAlert className="w-4 h-4 text-red-400" /> Outdoor Permit Approvals Pending
+                                  </span>
+                                  <div className="flex items-center justify-between font-mono pt-1">
+                                    <span className="text-gray-400">Pending Site Clearances:</span>
+                                    <strong className="text-red-400 text-sm font-bold">{data?.outdoorAwaitingPermission || 0} Locations</strong>
+                                  </div>
+                                  <p className="text-[10px] text-gray-400">Shoots cannot proceed until outdoor permits are approved by authorities.</p>
+                                </div>
+
+                                <div className="p-3 bg-cyan-950/20 border border-cyan-800/50 rounded-xl space-y-1.5">
+                                  <span className="text-[11px] text-cyan-300 font-bold flex items-center gap-1.5">
+                                    <CloudRain className="w-4 h-4 text-cyan-400" /> Outdoor Weather Risk Advisories
+                                  </span>
+                                  <div className="flex items-center justify-between font-mono pt-1">
+                                    <span className="text-gray-400">Advisory Sites:</span>
+                                    <strong className="text-cyan-400 text-sm font-bold">{data?.outdoorAffectedByWeather || 0} Sites</strong>
+                                  </div>
+                                  <p className="text-[10px] text-gray-400">Risk of rain or extreme heat flagged for scheduled outdoor locations.</p>
+                                </div>
+
+                                <div className="p-3 bg-amber-950/20 border border-amber-800/50 rounded-xl space-y-1.5">
+                                  <span className="text-[11px] text-amber-300 font-bold flex items-center gap-1.5">
+                                    <Camera className="w-4 h-4 text-amber-400" /> Equipment Availability &amp; Repairs
+                                  </span>
+                                  <div className="flex items-center justify-between font-mono pt-1">
+                                    <span className="text-gray-400">Under Repair / Maintenance:</span>
+                                    <strong className="text-amber-300 text-sm font-bold">
+                                      {(equipmentStats?.underMaintenance || 0) + (equipmentStats?.damaged || 0)} Assets
+                                    </strong>
+                                  </div>
+                                  <p className="text-[10px] text-gray-400">Asset double-booking prevention and repair dispatch active.</p>
+                                </div>
+
+                                <div className="p-3 bg-purple-950/20 border border-purple-800/50 rounded-xl space-y-1.5">
+                                  <span className="text-[11px] text-purple-300 font-bold flex items-center gap-1.5">
+                                    <Users className="w-4 h-4 text-purple-400" /> Staff Workload Over-Allocations
+                                  </span>
+                                  <div className="flex items-center justify-between font-mono pt-1">
+                                    <span className="text-gray-400">Overloaded Team Members:</span>
+                                    <strong className="text-purple-300 text-sm font-bold">
+                                      {safeCapacity.filter((e) => e.status === 'Overloaded' || e.isOverloaded).length} Staff
+                                    </strong>
+                                  </div>
+                                  <p className="text-[10px] text-gray-400">Use Smart Recommendations to reassign tasks to available staff.</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* TAB 5: RELATED PROJECTS & PIPELINE */}
+                          {activeOperationalTab === 'PROJECTS' && (
+                            <div className="space-y-3 animate-in fade-in duration-150">
+                              <div className="flex justify-between items-center text-xs text-gray-400 font-mono border-b border-gray-800/80 pb-2">
+                                <span className="font-bold text-emerald-300">Operational Shoot Projects &amp; Related Entity Links</span>
+                                <Link href="/projects" className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1">
+                                  Go to Projects Directory →
+                                </Link>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                {((data?.activeProjectsList || data?.todayIndoorShoots || []) as any[]).length === 0 ? (
+                                  <p className="text-gray-500 italic text-xs col-span-full p-4 text-center">No related operational projects found.</p>
+                                ) : (
+                                  ((data?.activeProjectsList || data?.todayIndoorShoots || []) as any[]).slice(0, widget.itemLimit || 6).map((proj: any) => (
+                                    <div key={proj.id} className="p-3 bg-gray-900/90 border border-gray-800 hover:border-emerald-500/40 rounded-xl space-y-2 transition-colors">
+                                      <div className="flex items-center justify-between">
+                                        <span className="px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono text-[9px] font-bold rounded">
+                                          {proj.projectId || 'PRJ-001'}
+                                        </span>
+                                        <span className="px-2 py-0.5 rounded-full font-mono text-[9px] font-bold bg-blue-950 text-blue-300 border border-blue-800 uppercase">
+                                          {proj.status?.replace(/_/g, ' ')}
+                                        </span>
+                                      </div>
+                                      <h4 className="font-bold text-white text-xs truncate">{proj.name}</h4>
+                                      <div className="flex flex-wrap gap-1.5 text-[10px] font-mono">
+                                        {proj.client?.name && (
+                                          <span className="bg-gray-950 px-2 py-0.5 rounded text-gray-300 border border-gray-800">
+                                            🏢 {proj.client.name}
+                                          </span>
+                                        )}
+                                        {proj.brand?.name && (
+                                          <span className="bg-gray-950 px-2 py-0.5 rounded text-purple-300 border border-gray-800">
+                                            🏷️ {proj.brand.name}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1852,6 +2350,25 @@ export default function DashboardPage() {
                                       }`}
                                       style={{ width: `${Math.min(emp.workloadPercentage || 0, 100)}%` }}
                                     />
+                                  </div>
+                                  <div className="flex items-center gap-1.5 mt-2.5">
+                                    <Link
+                                      href={`/tasks?employeeId=${emp.userId}`}
+                                      className="flex-1 px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded text-[10px] font-bold flex items-center justify-center gap-1 transition-colors"
+                                    >
+                                      <Search className="w-3 h-3 text-blue-400" />
+                                      <span>View Work Details</span>
+                                    </Link>
+
+                                    {(emp.status === 'Overloaded' || emp.workloadPercentage > 100) && (role === 'MEDIA_MANAGER' || (role as string) === 'ADMIN') && (
+                                      <button
+                                        onClick={() => setSelectedOverloadedUserId(emp.userId)}
+                                        className="flex-1 px-2 py-1 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 rounded text-[10px] font-bold flex items-center justify-center gap-1 transition-colors"
+                                      >
+                                        <Sparkles className="w-3 h-3 text-amber-400" />
+                                        <span>Reassign</span>
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -1975,6 +2492,18 @@ export default function DashboardPage() {
         widgets={widgetsConfig}
         onSave={handleSaveWidgetsConfig}
         isMediaManager={role === 'MEDIA_MANAGER' || (role as string) === 'ADMIN'}
+      />
+
+      {/* Smart Reassignment Recommendations Modal for Overloaded Employees */}
+      <ReassignmentRecommendationsModal
+        isOpen={Boolean(selectedOverloadedUserId)}
+        onClose={() => setSelectedOverloadedUserId(null)}
+        overloadedUserId={selectedOverloadedUserId}
+        onReassignmentComplete={() => {
+          // reload capacity
+          fetchApi('/tasks/capacity/overview').then((res) => setCapacity(Array.isArray(res) ? res : []));
+          fetchApi('/reports/dashboard').then((res) => setData(res || {}));
+        }}
       />
     </div>
   );

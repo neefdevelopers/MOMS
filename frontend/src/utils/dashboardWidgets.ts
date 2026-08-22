@@ -3,6 +3,7 @@ export type WidgetId =
   | 'attendance'
   | 'productivity'
   | 'active_projects'
+  | 'upcoming_deadlines'
   | 'calendar'
   | 'equipment_status'
   | 'employee_capacity'
@@ -43,6 +44,17 @@ export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidgetConfig[] = [
     iconName: 'Clock',
     enabled: true,
     order: 2,
+    size: 'normal',
+    itemLimit: 5,
+  },
+  {
+    id: 'upcoming_deadlines',
+    title: 'Upcoming Deadlines & Projects Due',
+    category: 'Operational',
+    description: 'Upcoming project deliverable dates and task deadlines within 7 days',
+    iconName: 'Clock',
+    enabled: true,
+    order: 3,
     size: 'normal',
     itemLimit: 5,
   },

@@ -521,71 +521,77 @@ export default function SettingsPage() {
                   <div className="pt-2 border-t border-gray-800/80 flex items-center justify-between gap-3 flex-wrap">
                     {/* Control input based on field type */}
                     <div className="flex-1 min-w-[200px]">
-                      {field.type === 'boolean' ? (
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            disabled={!isMediaManager}
-                            onClick={() => {
-                              const nextVal = currentValue === 'true' ? 'false' : 'true';
-                              setSettingValues((prev) => ({ ...prev, [field.key]: nextVal }));
-                            }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 ${
-                              currentValue === 'true'
-                                ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/40'
-                                : 'bg-gray-900 text-gray-400 border border-gray-800'
-                            }`}
-                          >
-                            <span
-                              className={`w-2 h-2 rounded-full ${
-                                currentValue === 'true' ? 'bg-emerald-400' : 'bg-gray-600'
+                      {isMediaManager ? (
+                        field.type === 'boolean' ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextVal = currentValue === 'true' ? 'false' : 'true';
+                                setSettingValues((prev) => ({ ...prev, [field.key]: nextVal }));
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 ${
+                                currentValue === 'true'
+                                  ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/40'
+                                  : 'bg-gray-900 text-gray-400 border border-gray-800'
                               }`}
+                            >
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  currentValue === 'true' ? 'bg-emerald-400' : 'bg-gray-600'
+                                }`}
+                              />
+                              {currentValue === 'true' ? 'Enabled (Active)' : 'Disabled'}
+                            </button>
+                          </div>
+                        ) : field.type === 'select' ? (
+                          <select
+                            value={currentValue}
+                            onChange={(e) =>
+                              setSettingValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+                            }
+                            className="w-full bg-gray-950 border border-gray-800 text-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-500"
+                          >
+                            {field.options?.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : field.type === 'number' ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              value={currentValue}
+                              onChange={(e) =>
+                                setSettingValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+                              }
+                              placeholder={field.placeholder}
+                              className="w-36 bg-gray-950 border border-gray-800 text-white font-mono font-bold rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-500"
                             />
-                            {currentValue === 'true' ? 'Enabled (Active)' : 'Disabled'}
-                          </button>
-                        </div>
-                      ) : field.type === 'select' ? (
-                        <select
-                          disabled={!isMediaManager}
-                          value={currentValue}
-                          onChange={(e) =>
-                            setSettingValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                          }
-                          className="w-full bg-gray-950 border border-gray-800 text-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-500"
-                        >
-                          {field.options?.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : field.type === 'number' ? (
-                        <div className="flex items-center gap-2">
+                            {field.unit && (
+                              <span className="text-[10px] text-gray-500 font-mono">{field.unit}</span>
+                            )}
+                          </div>
+                        ) : (
                           <input
-                            type="number"
-                            disabled={!isMediaManager}
+                            type="text"
                             value={currentValue}
                             onChange={(e) =>
                               setSettingValues((prev) => ({ ...prev, [field.key]: e.target.value }))
                             }
                             placeholder={field.placeholder}
-                            className="w-36 bg-gray-950 border border-gray-800 text-white font-mono font-bold rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-500"
+                            className="w-full bg-gray-950 border border-gray-800 text-white font-medium rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-500"
                           />
-                          {field.unit && (
-                            <span className="text-[10px] text-gray-500 font-mono">{field.unit}</span>
-                          )}
-                        </div>
+                        )
                       ) : (
-                        <input
-                          type="text"
-                          disabled={!isMediaManager}
-                          value={currentValue}
-                          onChange={(e) =>
-                            setSettingValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                          }
-                          placeholder={field.placeholder}
-                          className="w-full bg-gray-950 border border-gray-800 text-white font-medium rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-500"
-                        />
+                        <div className="text-xs font-mono font-bold text-gray-300 bg-gray-950 border border-gray-800/80 px-3 py-2 rounded-xl inline-block">
+                          {field.type === 'boolean'
+                            ? currentValue === 'true'
+                              ? 'Enabled'
+                              : 'Disabled'
+                            : `${currentValue} ${field.unit || ''}`}
+                        </div>
                       )}
                     </div>
 

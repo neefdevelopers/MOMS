@@ -751,13 +751,15 @@ export default function EquipmentPage() {
                     <AlertTriangle className="w-3.5 h-3.5 text-red-400" /> File Damage Report
                   </button>
 
-                  {/* Business Rule 4: Retire action replaces delete */}
-                  <button
-                    onClick={() => setRetireTargetId(eqp.id)}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-red-900/40 border border-zinc-700 hover:border-red-700/50 text-zinc-400 hover:text-red-300 rounded-lg text-[11px] font-semibold transition-colors"
-                  >
-                    <Archive className="w-3.5 h-3.5" /> Retire &amp; Archive
-                  </button>
+                  {/* Business Rule 4: Retire action replaces delete — Media Manager authority */}
+                  {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+                    <button
+                      onClick={() => setRetireTargetId(eqp.id)}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-red-900/40 border border-zinc-700 hover:border-red-700/50 text-zinc-400 hover:text-red-300 rounded-lg text-[11px] font-semibold transition-colors"
+                    >
+                      <Archive className="w-3.5 h-3.5" /> Retire &amp; Archive
+                    </button>
+                  )}
                 </div>
               )}
               {/* For Staff (Employees): Submit Equipment Request instead of direct checkout */}
