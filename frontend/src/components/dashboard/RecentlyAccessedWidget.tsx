@@ -135,13 +135,16 @@ export function RecentlyAccessedWidget({ className = '' }: { className?: string 
       {loading ? (
         <div className="p-8 text-center text-gray-400">Loading recent history...</div>
       ) : recentRecords.length === 0 ? (
-        <div className="p-8 text-center bg-gray-950/60 border border-gray-800/80 rounded-xl space-y-2">
-          <Clock className="w-8 h-8 text-gray-600 mx-auto" />
-          <p className="font-semibold text-gray-300">No recently accessed records found</p>
-          <p className="text-[10px] text-gray-500">
-            As you navigate through Projects, Scripts, Reports, and Equipment, your history
-            will be tracked here for quick resume.
-          </p>
+        <div className="py-3.5 px-4 bg-gray-950/60 border border-gray-800/80 rounded-xl flex items-center gap-3 text-left">
+          <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+            <Clock className="w-4 h-4" />
+          </div>
+          <div>
+            <p className="font-bold text-gray-300 text-xs">No recently accessed records found</p>
+            <p className="text-[11px] text-gray-400 leading-snug">
+              As you navigate through Projects, Scripts, Reports, and Equipment, your quick history will appear here.
+            </p>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

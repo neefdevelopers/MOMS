@@ -63,25 +63,25 @@ export default function MyFavoritesWidget({ className = '' }: { className?: stri
 
   return (
     <div
-      className={`bg-zinc-950/90 border border-zinc-800/90 rounded-2xl p-6 md:p-7 space-y-6 shadow-xl text-xs ${className}`}
+      className={`bg-zinc-950/90 border border-zinc-800/90 rounded-2xl p-4 sm:p-5 md:p-6 space-y-4 shadow-xl text-xs ${className}`}
     >
       {/* Header Container */}
-      <div className="space-y-4 border-b border-zinc-800/80 pb-4">
+      <div className="space-y-3 border-b border-zinc-800/80 pb-3.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-500/15 border border-amber-500/30 rounded-2xl text-amber-400 shrink-0 shadow-lg shadow-amber-500/5">
-              <Star className="w-5 h-5 fill-amber-400/40" />
+            <div className="p-2 bg-amber-500/15 border border-amber-500/30 rounded-xl text-amber-400 shrink-0 shadow-lg shadow-amber-500/5">
+              <Star className="w-4 h-4 fill-amber-400/40" />
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h3 className="text-base font-bold text-white tracking-wide">
+                <h3 className="text-sm font-bold text-white tracking-wide">
                   My Starred Favorites
                 </h3>
-                <span className="text-[11px] font-mono font-bold bg-amber-950/70 text-amber-300 border border-amber-800/80 px-2.5 py-0.5 rounded-full">
+                <span className="text-[10px] font-mono font-bold bg-amber-950/70 text-amber-300 border border-amber-800/80 px-2 py-0.5 rounded-full">
                   {favorites.length} Starred
                 </span>
               </div>
-              <p className="text-xs text-zinc-400 mt-0.5">
+              <p className="text-[11px] text-zinc-400 mt-0.5">
                 User-specific shortcuts to your starred Projects, Scripts, Graphic Reqs, Tasks & Reports
               </p>
             </div>
@@ -89,10 +89,10 @@ export default function MyFavoritesWidget({ className = '' }: { className?: stri
         </div>
 
         {/* Filter Pills Bar */}
-        <div className="flex flex-wrap items-center gap-2 pt-1">
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
           <button
             onClick={() => setSelectedType('ALL')}
-            className={`px-3 py-1.5 rounded-xl font-bold transition-all text-xs flex items-center gap-1.5 ${
+            className={`px-2.5 py-1 rounded-lg font-semibold transition-all text-[11px] flex items-center gap-1.5 ${
               selectedType === 'ALL'
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
                 : 'bg-zinc-900/60 text-zinc-400 hover:text-white hover:bg-zinc-800/80 border border-zinc-800/60'
@@ -112,7 +112,7 @@ export default function MyFavoritesWidget({ className = '' }: { className?: stri
               <button
                 key={type}
                 onClick={() => setSelectedType(type)}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all text-xs flex items-center gap-1.5 ${
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all text-[11px] flex items-center gap-1.5 ${
                   selectedType === type
                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
                     : 'bg-zinc-900/60 text-zinc-400 hover:text-white hover:bg-zinc-800/80 border border-zinc-800/60'
@@ -129,23 +129,25 @@ export default function MyFavoritesWidget({ className = '' }: { className?: stri
 
       {/* Favorites Content Body */}
       {loading ? (
-        <div className="py-12 text-center text-zinc-500 font-mono animate-pulse">
+        <div className="py-6 text-center text-zinc-500 font-mono animate-pulse">
           Loading user-specific favorites...
         </div>
       ) : filteredFavorites.length === 0 ? (
-        <div className="py-12 px-6 bg-gradient-to-b from-zinc-900/40 via-zinc-950/60 to-zinc-950 border border-zinc-800/80 rounded-2xl text-center space-y-3.5 shadow-inner">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/5">
-            <Star className="w-6 h-6 fill-amber-400/30" />
+        <div className="py-3.5 px-4 bg-gradient-to-r from-zinc-900/50 via-zinc-950/80 to-zinc-900/50 border border-zinc-800/80 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-left shadow-inner">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+              <Star className="w-4 h-4 fill-amber-400/30" />
+            </div>
+            <div>
+              <h4 className="font-bold text-white text-xs tracking-wide">No Favorites Starred Yet</h4>
+              <p className="text-[11px] text-zinc-400 leading-snug">
+                Click the star icon ⭐ on any Project, Script, Graphic Requirement, Task, or Report to add quick-access shortcuts.
+              </p>
+            </div>
           </div>
-          <div className="space-y-1">
-            <h4 className="font-bold text-white text-sm tracking-wide">No Favorites Starred Yet</h4>
-            <p className="text-xs text-zinc-400 max-w-md mx-auto leading-relaxed">
-              Click the star icon ⭐ on any Project, Script, Graphic Requirement, Task, or Report to add it to your private quick-access dashboard favorites.
-            </p>
-          </div>
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-zinc-900 text-amber-300/90 border border-zinc-800 text-[11px] font-medium mt-1">
-            <span className="w-2 h-2 rounded-full bg-amber-400" />
-            <span>Starred items are private to your logged-in account</span>
+          <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-900/90 text-amber-300/90 border border-zinc-800 text-[10px] font-medium whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+            <span>Private to your account</span>
           </div>
         </div>
       ) : (
