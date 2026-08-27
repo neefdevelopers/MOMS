@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function ClientReviewPage() {
   const { user } = useAuth();
@@ -504,6 +505,30 @@ export default function ClientReviewPage() {
                 </span>
               </div>
             </div>
+
+            {/* Source Graphic Requirement Information (if generated from Graphic Requirement) */}
+            {selectedEvent.graphicReqs && selectedEvent.graphicReqs.length > 0 && (
+              <div className="p-3.5 rounded-xl bg-amber-950/25 border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400 block flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5" /> Source Graphic Requirement
+                  </span>
+                  <p className="font-bold text-white mt-0.5 flex items-center gap-2">
+                    <span className="font-mono text-amber-300 px-2 py-0.5 bg-gray-900 rounded border border-gray-800 text-[11px]">
+                      {selectedEvent.graphicReqs[0].requirementId}
+                    </span>
+                    {selectedEvent.graphicReqs[0].name} ({selectedEvent.graphicReqs[0].requirementType || 'Poster'})
+                  </p>
+                </div>
+
+                <Link
+                  href="/graphic-reqs"
+                  className="px-3.5 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 font-bold text-xs transition-colors flex items-center gap-1.5 shrink-0"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> View Graphic Requirement
+                </Link>
+              </div>
+            )}
 
             {/* Caption & Copywriting Preview Section */}
             <div className="space-y-2">

@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Palette, Plus, Search, Layers, Calendar, Building2, Tag, CheckSquare, FileText, AlertCircle, ShieldAlert, SlidersHorizontal, RotateCcw, X, Flame, User } from 'lucide-react';
+import { Palette, Plus, Search, Layers, Calendar, Building2, Tag, CheckSquare, FileText, AlertCircle, ShieldAlert, SlidersHorizontal, RotateCcw, X, Flame, User, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
 import { SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
@@ -233,7 +234,7 @@ export default function GraphicReqsPage() {
 
     setCreating(true);
     try {
-      await fetchApi('/graphic-reqs', {
+      const res = await fetchApi('/graphic-reqs', {
         method: 'POST',
         body: JSON.stringify({
           projectId: selectedProjectId,
@@ -254,6 +255,12 @@ export default function GraphicReqsPage() {
           })),
         }),
       });
+
+      alert(
+        `✨ Graphic Requirement created successfully!\n\nA Media Calendar Event (${
+          res?.calendarEvent?.eventId || res?.calendarEventId || 'CAL-EVENT'
+        }) has been created automatically and sent to the Marketing Manager for client approval.`,
+      );
 
       setShowCreateModal(false);
       setSelectedProjectId('');
@@ -1581,20 +1588,36 @@ export default function GraphicReqsPage() {
                   </span>
                 </div>
 
-                {/* Revision Count & Workflow Controls */}
-                <div className="bg-gray-900/80 p-2.5 rounded-lg border border-gray-800/80">
-                  <span className="text-gray-500 font-bold block text-[10px] uppercase">Revision History</span>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="px-2 py-0.5 bg-orange-950 text-orange-400 border border-orange-800 rounded font-mono font-bold text-xs">
-                      🔄 Revision #{inspectedReq.revisionCount || 0}
+                {/* Automatically Linked Media Calendar Event Tile */}
+                <div className="bg-purple-950/20 border border-purple-500/40 p-3.5 rounded-xl col-span-1 md:col-span-2 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-purple-300 font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-purple-400" /> Automatically Linked Media Calendar Event
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateStatus(inspectedReq.id, 'REVISION_REQUESTED')}
-                      className="px-2 py-1 bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800 rounded font-bold text-[10px] transition-colors"
+                    <span className="text-[10px] px-2.5 py-0.5 rounded font-extrabold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      {inspectedReq.calendarEvent?.status?.replace(/_/g, ' ') || 'PENDING CLIENT APPROVAL'}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs pt-1.5 border-t border-purple-900/50">
+                    <div>
+                      <p className="font-bold text-white flex items-center gap-2">
+                        <span className="font-mono text-amber-400 text-xs px-2 py-0.5 bg-gray-900 rounded border border-gray-800">
+                          {inspectedReq.calendarEvent?.eventId || 'CAL-EVENT'}
+                        </span>
+                        {inspectedReq.calendarEvent?.title || inspectedReq.name}
+                      </p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        Approval Routing: <strong className="text-purple-300">Sent to Marketing Manager for Client Sign-off</strong>
+                      </p>
+                    </div>
+
+                    <Link
+                      href={`/client-review`}
+                      className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-lg shadow transition-colors flex items-center gap-1.5 shrink-0"
                     >
-                      + Request Revision
-                    </button>
+                      <ExternalLink className="w-3.5 h-3.5" /> View Calendar Event
+                    </Link>
                   </div>
                 </div>
 
