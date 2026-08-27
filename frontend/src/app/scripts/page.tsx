@@ -1859,8 +1859,8 @@ export default function ScriptsPage() {
       {/* 1. Script Description & Storyline Editor Popup Modal (Creation Flow) */}
       {showDescriptionPopup && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-in fade-in duration-150">
-          <div className="bg-gray-950 border border-purple-900/80 rounded-2xl w-full max-w-2xl p-6 space-y-4 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+          <div className="bg-gray-950 border border-purple-900/80 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col p-6 space-y-4 shadow-2xl relative overflow-hidden">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3 shrink-0">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-purple-400" />
                 <h3 className="text-base font-bold text-white uppercase tracking-wider">
@@ -1876,7 +1876,7 @@ export default function ScriptsPage() {
               </button>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shrink-0">
               <span className="text-gray-400 text-[11px]">Write scenes, visual instructions, and voiceover dialogues</span>
               <div className="flex items-center gap-2 text-[10px]">
                 <button
@@ -1900,28 +1900,30 @@ export default function ScriptsPage() {
               </div>
             </div>
 
-            {!showStorylinePreview ? (
-              <textarea
-                rows={10}
-                autoFocus
-                placeholder={`Enter full scene narration, voiceover dialogues, shots...\n\nExample:\n[Scene 1 - Studio Intro]\nVisual: Smooth pan over hero product\nVoiceover (VO): Experience the next generation of performance...\n\n[Scene 2 - Feature Callout]\nVisual: Macro shot of premium finish`}
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-                className="w-full bg-gray-900 border border-purple-900/60 text-white p-4 rounded-xl text-xs font-mono focus:outline-none focus:border-purple-400 leading-relaxed shadow-inner"
-              />
-            ) : (
-              <div className="bg-gray-900 border border-purple-800/60 p-4 rounded-xl max-h-72 overflow-y-auto custom-scrollbar">
-                {newDescription?.trim() ? (
-                  <div className="whitespace-pre-wrap font-sans text-gray-200 text-xs leading-relaxed">
-                    {newDescription}
-                  </div>
-                ) : (
-                  <span className="text-gray-500 italic text-xs">No storyline text entered yet. Switch to Edit Text to add content.</span>
-                )}
-              </div>
-            )}
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+              {!showStorylinePreview ? (
+                <textarea
+                  rows={8}
+                  autoFocus
+                  placeholder={`Enter full scene narration, voiceover dialogues, shots...\n\nExample:\n[Scene 1 - Studio Intro]\nVisual: Smooth pan over hero product\nVoiceover (VO): Experience the next generation of performance...\n\n[Scene 2 - Feature Callout]\nVisual: Macro shot of premium finish`}
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  className="w-full flex-1 bg-gray-900 border border-purple-900/60 text-white p-4 rounded-xl text-xs font-mono focus:outline-none focus:border-purple-400 leading-relaxed shadow-inner break-words [overflow-wrap:anywhere] resize-none"
+                />
+              ) : (
+                <div className="bg-gray-900 border border-purple-800/60 p-4 rounded-xl flex-1 max-h-[55vh] overflow-y-auto custom-scrollbar break-words [overflow-wrap:anywhere]">
+                  {newDescription?.trim() ? (
+                    <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-sans text-gray-200 text-xs leading-relaxed">
+                      {newDescription}
+                    </div>
+                  ) : (
+                    <span className="text-gray-500 italic text-xs">No storyline text entered yet. Switch to Edit Text to add content.</span>
+                  )}
+                </div>
+              )}
+            </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-gray-800">
+            <div className="flex items-center justify-between pt-3 border-t border-gray-800 shrink-0">
               <span className="text-[10px] text-gray-400 font-mono">
                 {newDescription ? newDescription.split('\n').filter(Boolean).length : 0} lines • {newDescription.length} characters
               </span>
@@ -1940,8 +1942,8 @@ export default function ScriptsPage() {
       {/* 2. Script Description Reader Popup Modal (From Cards / Table View) */}
       {viewingScriptDescription && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-in fade-in duration-150">
-          <div className="bg-gray-950 border border-purple-900/80 rounded-2xl w-full max-w-2xl p-6 space-y-4 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+          <div className="bg-gray-950 border border-purple-900/80 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col p-6 space-y-4 shadow-2xl relative overflow-hidden">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3 shrink-0">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-purple-400" />
                 <div>
@@ -1960,9 +1962,9 @@ export default function ScriptsPage() {
               </button>
             </div>
 
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl max-h-80 overflow-y-auto custom-scrollbar">
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl flex-1 max-h-[55vh] overflow-y-auto custom-scrollbar break-words [overflow-wrap:anywhere]">
               {viewingScriptDescription.description?.trim() ? (
-                <div className="whitespace-pre-wrap font-sans text-gray-200 text-xs leading-relaxed tracking-wide">
+                <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-sans text-gray-200 text-xs leading-relaxed tracking-wide">
                   {viewingScriptDescription.description}
                 </div>
               ) : (
@@ -1970,7 +1972,7 @@ export default function ScriptsPage() {
               )}
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-gray-800">
+            <div className="flex items-center justify-between pt-3 border-t border-gray-800 shrink-0">
               <button
                 type="button"
                 onClick={() => {
