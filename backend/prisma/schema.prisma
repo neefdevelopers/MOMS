@@ -218,6 +218,12 @@ model MediaCalendarEvent {
   createdAt              DateTime                  @default(now())
   updatedAt              DateTime                  @default(now()) @updatedAt
 
+  eventSource            String                    @default("SHOOT") // GRAPHIC_REQUIREMENT, SHOOT
+  graphicRequirementId   String?
+  graphicRequirement     GraphicRequirement?       @relation("CalendarEventSourceGraphicReq", fields: [graphicRequirementId], references: [id])
+  shootId                String?
+  shoot                  ShootProject?             @relation("CalendarEventSourceShoot", fields: [shootId], references: [id])
+
   shootProjects          ShootProject[]
   graphicReqs            GraphicRequirement[]
   revisions              CalendarEventRevision[]
@@ -274,6 +280,7 @@ model ShootProject {
   files                  FileMetadata[]
   communications         Communication[]
   equipmentRequests      EquipmentRequest[]
+  sourceForCalendarEvents MediaCalendarEvent[]     @relation("CalendarEventSourceShoot")
 }
 
 model IndoorShootDetails {
@@ -440,6 +447,7 @@ model GraphicRequirement {
   files              FileMetadata[]
   timeline           GraphicRequirementTimeline[]
   remarksHistory     GraphicRequirementRemark[]
+  sourceForCalendarEvents MediaCalendarEvent[]     @relation("CalendarEventSourceGraphicReq")
 }
 
 model GraphicRequirementTimeline {

@@ -35,7 +35,6 @@ import {
 } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 
 export default function ClientReviewPage() {
   const { user } = useAuth();
@@ -475,6 +474,43 @@ export default function ClientReviewPage() {
               </div>
             )}
 
+            {/* Event Source Details Tile */}
+            <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/30 text-xs flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-extrabold text-amber-400 uppercase tracking-wider block">Event Source</span>
+                <p className="font-bold text-white flex items-center gap-1.5 mt-0.5">
+                  {selectedEvent.eventSource === 'GRAPHIC_REQUIREMENT' || selectedEvent.graphicRequirementId ? (
+                    <>
+                      <FileText className="w-4 h-4 text-amber-400" />
+                      <span>Graphic Requirement</span>
+                      {selectedEvent.graphicRequirement?.requirementId && (
+                        <span className="font-mono text-amber-300">({selectedEvent.graphicRequirement.requirementId})</span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Video className="w-4 h-4 text-blue-400" />
+                      <span>Shoot</span>
+                      {selectedEvent.shoot?.projectId && (
+                        <span className="font-mono text-blue-300">({selectedEvent.shoot.projectId})</span>
+                      )}
+                    </>
+                  )}
+                </p>
+              </div>
+
+              {selectedEvent.graphicRequirementId && (
+                <span className="text-[10px] px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40 font-mono">
+                  GR-LINKED
+                </span>
+              )}
+              {selectedEvent.shootId && (
+                <span className="text-[10px] px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 font-bold border border-blue-500/40 font-mono">
+                  SHOOT-LINKED
+                </span>
+              )}
+            </div>
+
             {/* Clean Front Metadata Tiles Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3.5 rounded-xl bg-gray-900/60 border border-gray-800 text-xs">
               <div>
@@ -505,30 +541,6 @@ export default function ClientReviewPage() {
                 </span>
               </div>
             </div>
-
-            {/* Source Graphic Requirement Information (if generated from Graphic Requirement) */}
-            {selectedEvent.graphicReqs && selectedEvent.graphicReqs.length > 0 && (
-              <div className="p-3.5 rounded-xl bg-amber-950/25 border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400 block flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5" /> Source Graphic Requirement
-                  </span>
-                  <p className="font-bold text-white mt-0.5 flex items-center gap-2">
-                    <span className="font-mono text-amber-300 px-2 py-0.5 bg-gray-900 rounded border border-gray-800 text-[11px]">
-                      {selectedEvent.graphicReqs[0].requirementId}
-                    </span>
-                    {selectedEvent.graphicReqs[0].name} ({selectedEvent.graphicReqs[0].requirementType || 'Poster'})
-                  </p>
-                </div>
-
-                <Link
-                  href="/graphic-reqs"
-                  className="px-3.5 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 font-bold text-xs transition-colors flex items-center gap-1.5 shrink-0"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" /> View Graphic Requirement
-                </Link>
-              </div>
-            )}
 
             {/* Caption & Copywriting Preview Section */}
             <div className="space-y-2">

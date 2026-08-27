@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck, FileText } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CalendarPage() {
@@ -14,6 +14,8 @@ export default function CalendarPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [staffUsers, setStaffUsers] = useState<any[]>([]);
   const [equipmentList, setEquipmentList] = useState<any[]>([]);
+  const [graphicRequirements, setGraphicRequirements] = useState<any[]>([]);
+  const [shootProjectsList, setShootProjectsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // View Mode: month, week, day
@@ -61,6 +63,9 @@ export default function CalendarPage() {
 
   // 13 Mandatory Schedule Event Form State
   const [formData, setFormData] = useState({
+    eventSource: 'GRAPHIC_REQUIREMENT' as 'GRAPHIC_REQUIREMENT' | 'SHOOT',
+    graphicRequirementId: '',
+    shootId: '',
     title: '',
     clientId: '',
     brandId: '',
@@ -153,13 +158,15 @@ export default function CalendarPage() {
       if (activeStatus && activeStatus !== 'ALL') params.append('status', activeStatus);
       if (params.toString()) url += `?${params.toString()}`;
 
-      const [resEvents, resClients, resBrands, resProducts, resUsers, resEq] = await Promise.all([
+      const [resEvents, resClients, resBrands, resProducts, resUsers, resEq, resGr, resProj] = await Promise.all([
         fetchApi(url),
         fetchApi('/clients').catch(() => []),
         fetchApi('/brands').catch(() => []),
         fetchApi('/products').catch(() => []),
         fetchApi('/users').catch(() => []),
         fetchApi('/equipment').catch(() => []),
+        fetchApi('/graphic-requirements').catch(() => []),
+        fetchApi('/projects').catch(() => []),
       ]);
 
       setEvents(Array.isArray(resEvents) ? resEvents : []);
@@ -168,6 +175,8 @@ export default function CalendarPage() {
       setProducts(Array.isArray(resProducts) ? resProducts : []);
       setStaffUsers(Array.isArray(resUsers) ? resUsers : []);
       setEquipmentList(Array.isArray(resEq) ? resEq : []);
+      setGraphicRequirements(Array.isArray(resGr) ? resGr : []);
+      setShootProjectsList(Array.isArray(resProj) ? resProj : []);
     } catch (err) {
       console.error('Error loading calendar reference data:', err);
     } finally {
@@ -197,9 +206,98 @@ export default function CalendarPage() {
     }));
   };
 
+  const handleGraphicReqSelect = (reqId: string) => {
+    if (!reqId) {
+      setFormData((prev) => ({ ...prev, graphicRequirementId: '' }));
+      return;
+    }
+    const selectedGr = graphicRequirements.find((gr) => gr.id === reqId);
+    if (!selectedGr) return;
+
+    // Duplicate Check
+    const existingEvent = events.find(
+      (e) => e.graphicRequirementId === reqId && e.status !== 'CANCELLED' && e.status !== 'REJECTED',
+    );
+    if (existingEvent) {
+      alert(`⚠️ This Graphic Requirement already has a Media Calendar Event (ID: ${existingEvent.eventId || existingEvent.id}).`);
+    }
+
+    const deadlineStr = selectedGr.estimatedCompletion
+      ? new Date(selectedGr.estimatedCompletion).toISOString().split('T')[0]
+      : new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    setFormData((prev) => ({
+      ...prev,
+      eventSource: 'GRAPHIC_REQUIREMENT',
+      graphicRequirementId: reqId,
+      clientId: selectedGr.clientId || prev.clientId,
+      brandId: selectedGr.brandId || prev.brandId,
+      productId: selectedGr.productId || '',
+      title: selectedGr.name || prev.title,
+      description: selectedGr.description || '',
+      contentType: selectedGr.requirementType || 'Banner',
+      platform: prev.platform || 'Instagram',
+      clientApprovalDeadline: deadlineStr,
+      deadline: deadlineStr,
+      priority: selectedGr.priority || 'MEDIUM',
+      productionNotes: selectedGr.remarks || selectedGr.objective || '',
+    }));
+  };
+
+  const handleShootSelect = (sId: string) => {
+    if (!sId) {
+      setFormData((prev) => ({ ...prev, shootId: '' }));
+      return;
+    }
+    const selectedShoot = shootProjectsList.find((sp) => sp.id === sId);
+    if (!selectedShoot) return;
+
+    // Duplicate Check
+    const existingEvent = events.find(
+      (e) => e.shootId === sId && e.status !== 'CANCELLED' && e.status !== 'REJECTED',
+    );
+    if (existingEvent) {
+      alert(`⚠️ This Shoot already has a Media Calendar Event (ID: ${existingEvent.eventId || existingEvent.id}).`);
+    }
+
+    const shootDateStr = selectedShoot.shootDate
+      ? new Date(selectedShoot.shootDate).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0];
+
+    const deadlineStr = selectedShoot.estimatedCompletionDate
+      ? new Date(selectedShoot.estimatedCompletionDate).toISOString().split('T')[0]
+      : shootDateStr;
+
+    setFormData((prev) => ({
+      ...prev,
+      eventSource: 'SHOOT',
+      shootId: sId,
+      clientId: selectedShoot.clientId || prev.clientId,
+      brandId: selectedShoot.brandId || prev.brandId,
+      productId: selectedShoot.productId || '',
+      title: selectedShoot.name || prev.title,
+      shootDate: shootDateStr,
+      shootType: selectedShoot.shootType || 'INDOOR',
+      location: selectedShoot.shootLocation || prev.location,
+      locationCategory: selectedShoot.locationCategory || prev.locationCategory,
+      clientApprovalDeadline: deadlineStr,
+      deadline: deadlineStr,
+      priority: selectedShoot.priority || 'MEDIUM',
+      productionNotes: selectedShoot.notes || '',
+    }));
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!formData.eventSource) {
+      alert('Event Source (GRAPHIC_REQUIREMENT or SHOOT) is required.');
+      return;
+    }
+    if (formData.eventSource === 'GRAPHIC_REQUIREMENT' && !formData.graphicRequirementId) {
+      alert('Please select an existing Graphic Requirement.');
+      return;
+    }
     if (!formData.title.trim()) {
       alert('Event / Project Name is required.');
       return;
@@ -214,10 +312,6 @@ export default function CalendarPage() {
     }
     if (!formData.shootDate) {
       alert('Shoot Date is required.');
-      return;
-    }
-    if (!formData.startTime || !formData.endTime) {
-      alert('Start Time and End Time are required.');
       return;
     }
 
@@ -269,6 +363,9 @@ export default function CalendarPage() {
     const existingEq = eventItem.shootProjects?.[0]?.equipmentReservations?.map((res: any) => res.equipmentId) || [];
 
     setFormData({
+      eventSource: eventItem.eventSource || (eventItem.graphicRequirementId ? 'GRAPHIC_REQUIREMENT' : 'SHOOT'),
+      graphicRequirementId: eventItem.graphicRequirementId || '',
+      shootId: eventItem.shootId || '',
       title: eventItem.title || '',
       clientId: eventItem.clientId || '',
       brandId: eventItem.brandId || '',
@@ -301,6 +398,9 @@ export default function CalendarPage() {
     const defaultBrand = brands.find((b) => b.status === 'ACTIVE' && (!defaultClient || b.clientId === defaultClient))?.id || '';
 
     setFormData({
+      eventSource: 'GRAPHIC_REQUIREMENT',
+      graphicRequirementId: '',
+      shootId: '',
       title: '',
       clientId: defaultClient,
       brandId: defaultBrand,
@@ -882,13 +982,125 @@ export default function CalendarPage() {
               </button>
             </div>
 
-            {/* SECTION 1: EVENT DETAILS */}
-            <div className="space-y-3 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
-              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">
-                Section 1 • Event & Client Details
+            {/* SECTION 1: EVENT SOURCE / EVENT TYPE (REQUIRED) */}
+            <div className="space-y-4 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
+              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                Section 1 • Event Source &amp; Basic Details *
               </span>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Event Source Selection Radio Cards */}
+              <div className="space-y-2">
+                <label className="text-gray-200 font-bold text-xs block">
+                  EVENT SOURCE / EVENT TYPE <span className="text-red-400">*</span>
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div
+                    onClick={() => setFormData((prev) => ({ ...prev, eventSource: 'GRAPHIC_REQUIREMENT', shootId: '' }))}
+                    className={`p-3.5 rounded-xl border cursor-pointer transition-all space-y-1 ${
+                      formData.eventSource === 'GRAPHIC_REQUIREMENT'
+                        ? 'bg-amber-950/40 border-amber-500 ring-1 ring-amber-500/40 text-amber-300'
+                        : 'bg-gray-900/60 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-xs flex items-center gap-1.5 text-white">
+                        <FileText className="w-4 h-4 text-amber-400" />
+                        1. GRAPHIC REQUIREMENT
+                      </span>
+                      <input
+                        type="radio"
+                        name="eventSource"
+                        checked={formData.eventSource === 'GRAPHIC_REQUIREMENT'}
+                        onChange={() => {}}
+                        className="accent-amber-500 cursor-pointer"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 leading-tight">
+                      Create event from an existing Graphic Requirement. Auto-populates client, brand, priority &amp; deadline.
+                    </p>
+                  </div>
+
+                  <div
+                    onClick={() => setFormData((prev) => ({ ...prev, eventSource: 'SHOOT', graphicRequirementId: '' }))}
+                    className={`p-3.5 rounded-xl border cursor-pointer transition-all space-y-1 ${
+                      formData.eventSource === 'SHOOT'
+                        ? 'bg-amber-950/40 border-amber-500 ring-1 ring-amber-500/40 text-amber-300'
+                        : 'bg-gray-900/60 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-xs flex items-center gap-1.5 text-white">
+                        <Video className="w-4 h-4 text-blue-400" />
+                        2. SHOOT
+                      </span>
+                      <input
+                        type="radio"
+                        name="eventSource"
+                        checked={formData.eventSource === 'SHOOT'}
+                        onChange={() => {}}
+                        className="accent-amber-500 cursor-pointer"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 leading-tight">
+                      Create event from a Shoot. Link existing shoot or enter new shoot schedule details.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Conditional Field: Select Graphic Requirement */}
+                {formData.eventSource === 'GRAPHIC_REQUIREMENT' && (
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-amber-300 font-bold text-xs flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5" /> Select Existing Graphic Requirement <span className="text-red-400">*</span>
+                    </label>
+                    <select
+                      required
+                      value={formData.graphicRequirementId}
+                      onChange={(e) => handleGraphicReqSelect(e.target.value)}
+                      className="w-full bg-gray-900 border border-amber-500/50 rounded-xl p-2.5 text-xs text-white font-semibold focus:outline-none focus:border-amber-400"
+                    >
+                      <option value="">-- Choose Graphic Requirement --</option>
+                      {graphicRequirements.map((gr) => (
+                        <option key={gr.id} value={gr.id}>
+                          [{gr.requirementId || 'GR-REQ'}] {gr.name} ({gr.client?.name || 'Client'} - {gr.brand?.name || 'Brand'})
+                        </option>
+                      ))}
+                    </select>
+                    {formData.graphicRequirementId && (
+                      <div className="p-2 rounded-lg bg-amber-950/20 border border-amber-500/30 text-[11px] text-amber-300 flex items-center justify-between">
+                        <span>✨ Event fields auto-populated from Graphic Requirement</span>
+                        <span className="font-mono text-[10px] bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+                          Auto-Linked
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Conditional Field: Select Shoot */}
+                {formData.eventSource === 'SHOOT' && (
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-blue-300 font-bold text-xs flex items-center gap-1">
+                      <Video className="w-3.5 h-3.5" /> Select Existing Shoot (Optional Link)
+                    </label>
+                    <select
+                      value={formData.shootId}
+                      onChange={(e) => handleShootSelect(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-xs text-white font-semibold focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">-- None / Custom Shoot Schedule --</option>
+                      {shootProjectsList.map((sp) => (
+                        <option key={sp.id} value={sp.id}>
+                          [{sp.projectId || 'SP-PROJECT'}] {sp.name} ({sp.client?.name || 'Client'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-gray-800/80">
                 <div className="col-span-2">
                   <label className="text-gray-300 block mb-1 font-semibold">Event / Project Name *</label>
                   <input
@@ -896,7 +1108,7 @@ export default function CalendarPage() {
                     required
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    placeholder="e.g. Ojas Launch Reel Shoot"
+                    placeholder="e.g. Summer Campaign Banner or Product Shoot"
                     className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-medium"
                   />
                 </div>

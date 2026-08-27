@@ -91,6 +91,8 @@ export class CalendarService {
         client: true,
         brand: true,
         product: true,
+        graphicRequirement: { select: { id: true, requirementId: true, name: true, status: true, requirementType: true, priority: true } },
+        shoot: { select: { id: true, projectId: true, name: true, status: true, shootType: true, shootDate: true, priority: true } },
         createdBy: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         revisions: {
           orderBy: { version: 'desc' },
@@ -128,6 +130,8 @@ export class CalendarService {
         client: true,
         brand: true,
         product: true,
+        graphicRequirement: { select: { id: true, requirementId: true, name: true, status: true, requirementType: true, priority: true } },
+        shoot: { select: { id: true, projectId: true, name: true, status: true, shootType: true, shootDate: true, priority: true } },
         createdBy: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         revisions: {
           orderBy: { version: 'desc' },
@@ -186,6 +190,80 @@ export class CalendarService {
   }
 
   async create(data: any, user?: any) {
+    const eventSource = data.eventSource || 'SHOOT';
+    if (eventSource !== 'GRAPHIC_REQUIREMENT' && eventSource !== 'SHOOT') {
+      throw new BadRequestException('Event Source is required and must be GRAPHIC_REQUIREMENT or SHOOT.');
+    }
+
+    let resolvedGraphicReq: any = null;
+    let resolvedShoot: any = null;
+
+    if (eventSource === 'GRAPHIC_REQUIREMENT') {
+      if (!data.graphicRequirementId) {
+        throw new BadRequestException('Graphic Requirement selection is required for Graphic Requirement event source.');
+      }
+      resolvedGraphicReq = await this.prisma.graphicRequirement.findUnique({
+        where: { id: data.graphicRequirementId },
+      });
+      if (!resolvedGraphicReq) {
+        throw new BadRequestException('Selected Graphic Requirement does not exist.');
+      }
+
+      // Check for duplicate calendar event for this Graphic Requirement
+      const existingGrEvent = await this.prisma.mediaCalendarEvent.findFirst({
+        where: {
+          graphicRequirementId: resolvedGraphicReq.id,
+          status: { notIn: ['CANCELLED', 'REJECTED'] },
+        },
+      });
+      if (existingGrEvent) {
+        throw new BadRequestException(`This Graphic Requirement already has a Media Calendar Event (ID: ${existingGrEvent.eventId || existingGrEvent.id}).`);
+      }
+
+      // Auto-inherit source values if not provided
+      data.clientId = data.clientId || resolvedGraphicReq.clientId;
+      data.brandId = data.brandId || resolvedGraphicReq.brandId;
+      data.productId = data.productId || resolvedGraphicReq.productId;
+      data.title = data.title?.trim() || resolvedGraphicReq.name;
+      data.description = data.description || resolvedGraphicReq.description;
+      data.priority = data.priority || resolvedGraphicReq.priority;
+      if (!data.clientApprovalDeadline && resolvedGraphicReq.estimatedCompletion) {
+        data.clientApprovalDeadline = resolvedGraphicReq.estimatedCompletion;
+      }
+      data.contentType = data.contentType || resolvedGraphicReq.requirementType || 'Banner';
+      data.productionNotes = data.productionNotes || resolvedGraphicReq.remarks || resolvedGraphicReq.objective;
+    } else if (eventSource === 'SHOOT') {
+      if (data.shootId) {
+        resolvedShoot = await this.prisma.shootProject.findUnique({
+          where: { id: data.shootId },
+        });
+        if (!resolvedShoot) {
+          throw new BadRequestException('Selected Shoot Project does not exist.');
+        }
+
+        // Check for duplicate calendar event for this Shoot
+        const existingShootEvent = await this.prisma.mediaCalendarEvent.findFirst({
+          where: {
+            shootId: resolvedShoot.id,
+            status: { notIn: ['CANCELLED', 'REJECTED'] },
+          },
+        });
+        if (existingShootEvent) {
+          throw new BadRequestException(`This Shoot already has a Media Calendar Event (ID: ${existingShootEvent.eventId || existingShootEvent.id}).`);
+        }
+
+        // Auto-inherit source values
+        data.clientId = data.clientId || resolvedShoot.clientId;
+        data.brandId = data.brandId || resolvedShoot.brandId;
+        data.productId = data.productId || resolvedShoot.productId;
+        data.title = data.title?.trim() || resolvedShoot.name;
+        data.shootDate = data.shootDate || resolvedShoot.shootDate;
+        data.clientApprovalDeadline = data.clientApprovalDeadline || resolvedShoot.estimatedCompletionDate || resolvedShoot.shootDate;
+        data.priority = data.priority || resolvedShoot.priority;
+        data.productionNotes = data.productionNotes || resolvedShoot.notes;
+      }
+    }
+
     if (!data.title?.trim()) {
       throw new BadRequestException('Event Title is required.');
     }
@@ -214,7 +292,7 @@ export class CalendarService {
       }
     }
 
-    // Resolve safe activeUserId for mandatory User relations (revision, history, audit)
+    // Resolve safe activeUserId for mandatory User relations
     let activeUserId = user?.id;
     if (!activeUserId) {
       const fallbackUser = await this.prisma.user.findFirst({
@@ -248,6 +326,9 @@ export class CalendarService {
       const event = await tx.mediaCalendarEvent.create({
         data: {
           eventId: autoEventId,
+          eventSource: eventSource,
+          graphicRequirementId: eventSource === 'GRAPHIC_REQUIREMENT' && resolvedGraphicReq ? resolvedGraphicReq.id : null,
+          shootId: eventSource === 'SHOOT' && resolvedShoot ? resolvedShoot.id : null,
           title: data.title.trim(),
           clientId: data.clientId,
           brandId: data.brandId,
@@ -269,6 +350,18 @@ export class CalendarService {
           createdById: activeUserId,
         },
       });
+
+      if (eventSource === 'GRAPHIC_REQUIREMENT' && resolvedGraphicReq) {
+        await tx.graphicRequirement.update({
+          where: { id: resolvedGraphicReq.id },
+          data: { calendarEventId: event.id },
+        });
+      } else if (eventSource === 'SHOOT' && resolvedShoot) {
+        await tx.shootProject.update({
+          where: { id: resolvedShoot.id },
+          data: { calendarEventId: event.id },
+        });
+      }
 
       // Create Version 1 Revision Record
       const revision = await tx.calendarEventRevision.create({
@@ -297,7 +390,7 @@ export class CalendarService {
         initialStatus === 'APPROVED'
           ? 'Created and automatically approved by Marketing Manager.'
           : initialStatus === 'PENDING_CLIENT_APPROVAL'
-          ? 'Created and submitted for client review.'
+          ? `Created from ${eventSource === 'GRAPHIC_REQUIREMENT' ? 'Graphic Requirement' : 'Shoot'} and submitted for client review.`
           : 'Created event draft.';
 
       await tx.calendarApprovalHistory.create({
@@ -314,11 +407,29 @@ export class CalendarService {
         },
       });
 
+      await tx.activityLog.create({
+        data: {
+          userId: activeUserId,
+          action: 'MEDIA_CALENDAR_EVENT_CREATED',
+          entity: 'MediaCalendarEvent',
+          entityId: event.id,
+          description: `Created Media Calendar Event '${event.title}' with source ${eventSource}.`,
+          metadata: JSON.stringify({
+            eventId: event.eventId || event.id,
+            eventSource,
+            graphicRequirementId: event.graphicRequirementId,
+            shootId: event.shootId,
+            createdBy: activeUserId,
+            clientId: event.clientId,
+          }),
+        },
+      });
+
       return event;
     });
 
     if (initialStatus === 'PENDING_CLIENT_APPROVAL') {
-      await this.notifyClientReviewers(createdEvent.id, createdEvent.title, client.id);
+      await this.notifyClientReviewers(createdEvent.id, createdEvent.title, client.id, eventSource);
     }
 
     return this.findOne(createdEvent.id, user);
@@ -778,7 +889,7 @@ export class CalendarService {
     return graphicReq;
   }
 
-  private async notifyClientReviewers(eventId: string, eventTitle: string, clientId: string) {
+  private async notifyClientReviewers(eventId: string, eventTitle: string, clientId: string, eventSource: string = 'SHOOT') {
     const assignments = await this.prisma.clientAssignment.findMany({
       where: { clientId },
       select: { userId: true },
@@ -801,12 +912,16 @@ export class CalendarService {
       });
     }
 
+    const sourceText = eventSource === 'GRAPHIC_REQUIREMENT'
+      ? 'New Graphic Requirement-based Calendar Event is waiting for client approval.'
+      : 'New Shoot-based Calendar Event is waiting for client approval.';
+
     for (const mm of marketingManagers) {
       await this.prisma.notification.create({
         data: {
           userId: mm.id,
-          title: 'New Calendar Event Pending Client Approval',
-          message: `Event '${eventTitle}' has been submitted for client review and sign-off.`,
+          title: 'New Media Calendar Event Pending Client Approval',
+          message: `Event '${eventTitle}': ${sourceText}`,
           type: 'INFO',
           category: 'CALENDAR_EVENT',
           priority: 'HIGH',
