@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ClientStatus } from '../../common/enums';
 
@@ -6,7 +6,7 @@ import { ClientStatus } from '../../common/enums';
 export class ClientsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(search?: string, status?: string, page?: number, limit?: number) {
+  async findAll(search?: string, status?: string, page?: number, limit?: number, user?: any) {
     const where: any = {};
     if (status) where.status = status;
     if (search) {
@@ -17,6 +17,15 @@ export class ClientsService {
         { email: { contains: search } },
         { mobile: { contains: search } },
       ];
+    }
+
+    if (user && user.role === 'MARKETING_MANAGER') {
+      const assignments = await this.prisma.clientAssignment.findMany({
+        where: { userId: user.id },
+        select: { clientId: true },
+      });
+      const assignedIds = assignments.map((a) => a.clientId);
+      where.id = { in: assignedIds };
     }
 
     const take = limit ? Number(limit) : undefined;
@@ -57,7 +66,18 @@ export class ClientsService {
     return data;
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: any) {
+    if (user && user.role === 'MARKETING_MANAGER') {
+      const assignments = await this.prisma.clientAssignment.findMany({
+        where: { userId: user.id },
+        select: { clientId: true },
+      });
+      const assignedIds = assignments.map((a) => a.clientId);
+      if (!assignedIds.includes(id)) {
+        throw new ForbiddenException('Access Denied: You are not authorized to view this client.');
+      }
+    }
+
     const client = await this.prisma.client.findUnique({
       where: { id },
       include: {

@@ -3,6 +3,7 @@ import { BrandsService } from './brands.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -12,16 +13,17 @@ export class BrandsController {
 
   @Get()
   findAll(
+    @CurrentUser() user: any,
     @Query('clientId') clientId?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
   ) {
-    return this.brandsService.findAll(clientId, status, search);
+    return this.brandsService.findAll(clientId, status, search, user);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.brandsService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.brandsService.findOne(id, user);
   }
 
   @Roles(Role.MEDIA_MANAGER)

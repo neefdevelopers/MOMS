@@ -97,6 +97,7 @@ export default function LoginPage() {
 
           <div className="grid grid-cols-2 gap-2 text-xs">
             <button
+              type="button"
               onClick={() => quickFill('media.manager@example.com')}
               className="p-2 rounded-lg bg-purple-950/40 border border-purple-800/40 text-purple-300 text-left hover:border-purple-600 transition-colors"
             >
@@ -105,6 +106,7 @@ export default function LoginPage() {
             </button>
 
             <button
+              type="button"
               onClick={() => quickFill('technical.manager@example.com')}
               className="p-2 rounded-lg bg-cyan-950/40 border border-cyan-800/40 text-cyan-300 text-left hover:border-cyan-600 transition-colors"
             >
@@ -113,11 +115,30 @@ export default function LoginPage() {
             </button>
 
             <button
+              type="button"
+              onClick={() => quickFill('smm@example.com')}
+              className="p-2 rounded-lg bg-blue-950/40 border border-blue-800/40 text-blue-300 text-left hover:border-blue-600 transition-colors"
+            >
+              <div className="font-bold">Social Media Mgr</div>
+              <div className="text-[10px] text-gray-400">smm@example.com</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => quickFill('marketing.manager@example.com')}
+              className="p-2 rounded-lg bg-amber-950/40 border border-amber-800/40 text-amber-300 text-left hover:border-amber-600 transition-colors"
+            >
+              <div className="font-bold">Marketing Mgr (Client)</div>
+              <div className="text-[10px] text-gray-400">marketing.manager@...</div>
+            </button>
+
+            <button
+              type="button"
               onClick={() => quickFill('staff1@example.com')}
               className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/40 text-emerald-300 text-left hover:border-emerald-600 transition-colors col-span-2"
             >
               <div className="font-bold">Staff: Ahmed Khan (Video Editor)</div>
-              <div className="text-[10px] text-gray-400">staff1@example.com (Overloaded 9.5h test user)</div>
+              <div className="text-[10px] text-gray-400">staff1@example.com</div>
             </button>
           </div>
         </div>

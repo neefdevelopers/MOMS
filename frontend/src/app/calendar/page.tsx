@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CalendarPage() {
@@ -24,7 +24,7 @@ export default function CalendarPage() {
   const [clientIdFilter, setClientIdFilter] = useState('');
   const [brandIdFilter, setBrandIdFilter] = useState('');
   const [shootTypeFilter, setShootTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('OPERATIONAL');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -39,8 +39,14 @@ export default function CalendarPage() {
     clientId: '',
     brandId: '',
     productId: '',
+    campaign: '',
+    contentType: 'Post',
+    platform: 'Instagram',
+    caption: '',
+    creativePreviewUrl: '',
     shootType: 'INDOOR',
     shootDate: new Date().toISOString().split('T')[0],
+    clientApprovalDeadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     startTime: '09:00 AM',
     endTime: '05:00 PM',
@@ -51,16 +57,74 @@ export default function CalendarPage() {
     influencerTalent: '',
     priority: 'MEDIUM',
     productionNotes: '',
+    saveAsDraft: false,
   });
 
-  const loadData = async () => {
+  // Marketing Manager Client Edit Modal State
+  const [showClientEditModal, setShowClientEditModal] = useState(false);
+  const [clientEditEvent, setClientEditEvent] = useState<any | null>(null);
+  const [clientDeadline, setClientDeadline] = useState('');
+  const [clientPriority, setClientPriority] = useState('MEDIUM');
+  const [clientReason, setClientReason] = useState('');
+  const [savingClientSettings, setSavingClientSettings] = useState(false);
+
+  const openClientEdit = (evt: any) => {
+    setClientEditEvent(evt);
+    const dStr = evt.clientApprovalDeadline
+      ? new Date(evt.clientApprovalDeadline).toISOString().split('T')[0]
+      : '';
+    setClientDeadline(dStr);
+    setClientPriority(evt.priority || 'MEDIUM');
+    setClientReason('');
+    setShowClientEditModal(true);
+  };
+
+  const handleSaveClientSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientEditEvent) return;
+    try {
+      setSavingClientSettings(true);
+      if (clientDeadline) {
+        await fetchApi(`/calendar/${clientEditEvent.id}/deadline`, {
+          method: 'PUT',
+          body: JSON.stringify({ deadline: clientDeadline, reason: clientReason }),
+        });
+      }
+      if (clientPriority) {
+        await fetchApi(`/calendar/${clientEditEvent.id}/priority`, {
+          method: 'PUT',
+          body: JSON.stringify({ priority: clientPriority, reason: clientReason }),
+        });
+      }
+      setShowClientEditModal(false);
+      setClientEditEvent(null);
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update event settings.');
+    } finally {
+      setSavingClientSettings(false);
+    }
+  };
+
+  const handleSubmitForApproval = async (eventId: string) => {
+    try {
+      await fetchApi(`/calendar/${eventId}/submit`, { method: 'POST' });
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to submit event for client review');
+    }
+  };
+
+  const loadData = async (overrideStatus?: string) => {
     try {
       let url = '/calendar';
       const params = new URLSearchParams();
       if (clientIdFilter) params.append('clientId', clientIdFilter);
       if (brandIdFilter) params.append('brandId', brandIdFilter);
       if (shootTypeFilter) params.append('shootType', shootTypeFilter);
-      if (statusFilter) params.append('status', statusFilter);
+      
+      const activeStatus = overrideStatus !== undefined ? overrideStatus : statusFilter;
+      if (activeStatus && activeStatus !== 'ALL') params.append('status', activeStatus);
       if (params.toString()) url += `?${params.toString()}`;
 
       const [resEvents, resClients, resBrands, resProducts, resUsers, resEq] = await Promise.all([
@@ -146,6 +210,7 @@ export default function CalendarPage() {
       setShowAddModal(false);
       setEditingEvent(null);
       resetForm();
+      setStatusFilter('ALL');
       loadData();
     } catch (err: any) {
       alert(err.message || 'Failed to save calendar event');
@@ -182,8 +247,14 @@ export default function CalendarPage() {
       clientId: eventItem.clientId || '',
       brandId: eventItem.brandId || '',
       productId: eventItem.productId || '',
+      campaign: eventItem.campaign || '',
+      contentType: eventItem.contentType || 'Post',
+      platform: eventItem.platform || 'Instagram',
+      caption: eventItem.caption || '',
+      creativePreviewUrl: eventItem.creativePreviewUrl || '',
       shootType: eventItem.shootType || 'INDOOR',
       shootDate: eventItem.shootDate ? new Date(eventItem.shootDate).toISOString().split('T')[0] : '',
+      clientApprovalDeadline: eventItem.clientApprovalDeadline ? new Date(eventItem.clientApprovalDeadline).toISOString().split('T')[0] : '',
       deadline: eventItem.deadline ? new Date(eventItem.deadline).toISOString().split('T')[0] : (eventItem.shootProjects?.[0]?.estimatedCompletionDate ? new Date(eventItem.shootProjects[0].estimatedCompletionDate).toISOString().split('T')[0] : ''),
       startTime: eventItem.startTime || '09:00 AM',
       endTime: eventItem.endTime || '05:00 PM',
@@ -194,6 +265,7 @@ export default function CalendarPage() {
       influencerTalent: eventItem.influencerTalent || '',
       priority: eventItem.priority || 'MEDIUM',
       productionNotes: eventItem.productionNotes || '',
+      saveAsDraft: false,
     });
     setShowAddModal(true);
   };
@@ -207,8 +279,14 @@ export default function CalendarPage() {
       clientId: defaultClient,
       brandId: defaultBrand,
       productId: '',
+      campaign: '',
+      contentType: 'Post',
+      platform: 'Instagram',
+      caption: '',
+      creativePreviewUrl: '',
       shootType: 'INDOOR',
       shootDate: new Date().toISOString().split('T')[0],
+      clientApprovalDeadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       startTime: '09:00 AM',
       endTime: '05:00 PM',
@@ -219,6 +297,7 @@ export default function CalendarPage() {
       influencerTalent: '',
       priority: 'MEDIUM',
       productionNotes: '',
+      saveAsDraft: false,
     });
   };
 
@@ -231,7 +310,32 @@ export default function CalendarPage() {
     (eq) => !eq.isArchived && !['UNDER_MAINTENANCE', 'DAMAGED', 'LOST', 'RETIRED'].includes(eq.availability)
   );
 
+  const canCreateEvents = ['MEDIA_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'].includes(user?.role || '');
+
   const filteredEvents = events.filter((evt) => {
+    const isApproved = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED'].includes(evt.status);
+    const isMyCreatedEvent = Boolean(
+      user?.id && (evt.createdById === user.id || evt.createdBy?.id === user.id)
+    );
+
+    // Business Rule: Unapproved/pending events on Media Calendar grid are ONLY shown if created by the logged in user or Marketing Manager
+    if (!isApproved && !isMyCreatedEvent && user?.role !== 'MARKETING_MANAGER') {
+      return false;
+    }
+
+    if (statusFilter === 'OPERATIONAL' || !statusFilter) {
+      if (!isApproved) {
+        return false;
+      }
+    } else if (statusFilter === 'PENDING_CLIENT_APPROVAL' || statusFilter === 'PENDING_CLIENT_REVIEW') {
+      // "My Pending Creations" tab strictly shows pending events created by THIS logged-in user
+      if ((evt.status !== 'PENDING_CLIENT_APPROVAL' && evt.status !== 'PENDING_CLIENT_REVIEW') || (!isMyCreatedEvent && user?.role !== 'MARKETING_MANAGER')) {
+        return false;
+      }
+    } else if (statusFilter !== 'ALL' && evt.status !== statusFilter) {
+      return false;
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       const titleMatch = (evt.title || '').toLowerCase().includes(q);
@@ -283,7 +387,7 @@ export default function CalendarPage() {
             </button>
           </div>
 
-          {user?.role === 'MEDIA_MANAGER' && (
+          {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER') && (
             <button
               onClick={() => {
                 resetForm();
@@ -300,6 +404,44 @@ export default function CalendarPage() {
 
       {/* User-Friendly Project-Style Filter Panel */}
       <div className="bg-card border border-border p-5 rounded-xl space-y-4 text-xs shadow-md">
+        {/* Quick View Tab Pills */}
+        <div className="flex items-center gap-2 pb-1 border-b border-gray-800 flex-wrap">
+          <button
+            onClick={() => setStatusFilter('OPERATIONAL')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              statusFilter === 'OPERATIONAL' || !statusFilter
+                ? 'bg-blue-600 text-white shadow'
+                : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+            }`}
+          >
+            Operational Calendar (Approved)
+          </button>
+
+          {canCreateEvents && (
+            <button
+              onClick={() => setStatusFilter('PENDING_CLIENT_APPROVAL')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                statusFilter === 'PENDING_CLIENT_APPROVAL' || statusFilter === 'PENDING_CLIENT_REVIEW'
+                  ? 'bg-amber-500 text-slate-950 shadow'
+                  : 'bg-gray-900 text-amber-400 hover:text-white border border-gray-800'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" /> My Pending Creations
+            </button>
+          )}
+
+          <button
+            onClick={() => setStatusFilter('ALL')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              statusFilter === 'ALL'
+                ? 'bg-purple-600 text-white shadow'
+                : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+            }`}
+          >
+            All Events
+          </button>
+        </div>
+
         {/* Top Search & Controls Row */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Keyword Search Input */}
@@ -473,12 +615,14 @@ export default function CalendarPage() {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 font-medium"
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 font-medium text-xs"
                   >
-                    <option value="">All Event Statuses</option>
-                    <option value="SCHEDULED">SCHEDULED</option>
-                    <option value="COMPLETED">COMPLETED</option>
-                    <option value="CANCELLED">CANCELLED</option>
+                    <option value="">Operational Calendar (Approved Only)</option>
+                    <option value="PENDING_CLIENT_APPROVAL">Pending Client Sign-off</option>
+                    <option value="CHANGES_REQUESTED">Changes Requested by Client</option>
+                    <option value="DRAFT">Draft Events</option>
+                    <option value="REJECTED">Rejected Events</option>
+                    <option value="ALL">All Events (Including Unapproved)</option>
                   </select>
 
                   <select
@@ -613,8 +757,16 @@ export default function CalendarPage() {
                   )
                 )}
 
-                {user?.role === 'MEDIA_MANAGER' && eventItem.status !== 'CANCELLED' && (
-                  <div className="flex gap-1.5 flex-wrap">
+                {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER') && eventItem.status !== 'CANCELLED' && (
+                  <div className="flex gap-1.5 flex-wrap items-center">
+                    {(eventItem.status === 'DRAFT' || eventItem.status === 'CHANGES_REQUESTED') && (
+                      <button
+                        onClick={() => handleSubmitForApproval(eventItem.id)}
+                        className="px-2.5 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded text-[10px] flex items-center gap-1 shadow-sm"
+                      >
+                        <Send className="w-3 h-3" /> Submit to Client
+                      </button>
+                    )}
                     <button
                       onClick={() => handleGenerateGraphicReq(eventItem.id)}
                       className="px-2 py-0.5 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 text-amber-300 rounded font-semibold text-[10px] flex items-center gap-1"
@@ -628,12 +780,31 @@ export default function CalendarPage() {
                     >
                       <Edit className="w-3 h-3" /> Edit
                     </button>
+                    {user?.role === 'MEDIA_MANAGER' && (
+                      <button
+                        onClick={() => handleCancelEvent(eventItem.id)}
+                        className="px-2 py-0.5 bg-red-950/40 border border-red-800/40 text-red-400 hover:bg-red-900/50 rounded font-semibold text-[10px] flex items-center gap-1"
+                      >
+                        <XCircle className="w-3 h-3" /> Cancel
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {user?.role === 'MARKETING_MANAGER' && (
+                  <div className="flex gap-1.5 flex-wrap items-center">
                     <button
-                      onClick={() => handleCancelEvent(eventItem.id)}
-                      className="px-2 py-0.5 bg-red-950/40 border border-red-800/40 text-red-400 hover:bg-red-900/50 rounded font-semibold text-[10px] flex items-center gap-1"
+                      onClick={() => openClientEdit(eventItem)}
+                      className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded font-bold text-[10px] flex items-center gap-1 shadow-sm"
                     >
-                      <XCircle className="w-3 h-3" /> Cancel
+                      <Clock className="w-3 h-3" /> Edit Deadline &amp; Priority
                     </button>
+                    <Link
+                      href="/client-review"
+                      className="px-2.5 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded font-bold text-[10px] flex items-center gap-1"
+                    >
+                      <ShieldCheck className="w-3 h-3" /> Review Portal
+                    </Link>
                   </div>
                 )}
               </div>
@@ -944,6 +1115,99 @@ export default function CalendarPage() {
                 className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-500 shadow-lg shadow-blue-600/30"
               >
                 {editingEvent ? 'Save Event' : 'Schedule Event'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Marketing Manager Client Edit Modal (Deadline & Priority) */}
+      {showClientEditModal && clientEditEvent && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <form onSubmit={handleSaveClientSettings} className="bg-card border border-border rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-amber-400" />
+                <h3 className="font-extrabold text-base text-white">Client Review Settings</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowClientEditModal(false);
+                  setClientEditEvent(null);
+                }}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-gray-900 border border-gray-800 text-xs text-gray-300 space-y-1">
+              <p className="font-bold text-white line-clamp-1">{clientEditEvent.title}</p>
+              <p className="text-gray-400 font-mono text-[10px]">
+                Event ID: {clientEditEvent.eventId || clientEditEvent.id} • Client: {clientEditEvent.client?.name}
+              </p>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="space-y-1">
+                <label className="text-gray-300 font-bold uppercase text-[10px] flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-amber-400" /> Client Approval Deadline
+                </label>
+                <input
+                  type="date"
+                  value={clientDeadline}
+                  onChange={(e) => setClientDeadline(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white font-semibold focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-300 font-bold uppercase text-[10px] flex items-center gap-1">
+                  <Flame className="w-3.5 h-3.5 text-amber-400" /> Client Event Priority
+                </label>
+                <select
+                  value={clientPriority}
+                  onChange={(e) => setClientPriority(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white font-bold focus:outline-none focus:border-amber-500"
+                >
+                  <option value="LOW">LOW Priority</option>
+                  <option value="MEDIUM">MEDIUM Priority</option>
+                  <option value="HIGH">HIGH Priority</option>
+                  <option value="CRITICAL">CRITICAL Priority</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-300 font-semibold text-[11px]">Audit Reason / Note (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Accelerated launch timeline requested by client..."
+                  value={clientReason}
+                  onChange={(e) => setClientReason(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white placeholder-gray-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-border">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowClientEditModal(false);
+                  setClientEditEvent(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 text-xs font-bold"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                disabled={savingClientSettings}
+                className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 transition-all"
+              >
+                {savingClientSettings ? 'Saving...' : 'Save Settings'}
               </button>
             </div>
           </form>

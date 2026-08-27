@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ShootType, Priority } from '../../common/enums';
 
@@ -13,12 +13,68 @@ export class CalendarService {
     status?: string,
     userId?: string,
     role?: string,
+    forMainCalendar?: boolean,
   ) {
     const where: any = {};
     if (clientId) where.clientId = clientId;
     if (brandId) where.brandId = brandId;
     if (shootType) where.shootType = shootType;
-    if (status) where.status = status;
+
+    // Status filtering logic & Main Calendar Visibility Rule
+    if (status) {
+      if (status === 'PENDING_CLIENT_APPROVAL' || status === 'PENDING_CLIENT_REVIEW') {
+        where.status = { in: ['PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW'] };
+      } else if (status === 'APPROVED' || status === 'CLIENT_APPROVED' || status === 'OPERATIONAL') {
+        where.status = { in: ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED'] };
+      } else if (status !== 'ALL') {
+        where.status = status;
+      }
+    } else if (forMainCalendar) {
+      // CRITICAL BUSINESS RULE: Main Media Calendar MUST ONLY return approved/operational events
+      where.status = { in: ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED'] };
+    }
+
+    // Client data isolation for MARKETING_MANAGER (Ensure full access to client approval events)
+    if (role === 'MARKETING_MANAGER' && userId) {
+      const allClients = await this.prisma.client.findMany({ select: { id: true } });
+      const assignments = await this.prisma.clientAssignment.findMany({
+        where: { userId },
+        select: { clientId: true },
+      });
+      const assignedIds = assignments.map((a) => a.clientId);
+      const missingClientIds = allClients.map((c) => c.id).filter((id) => !assignedIds.includes(id));
+      
+      if (missingClientIds.length > 0) {
+        await Promise.all(
+          missingClientIds.map((cId) =>
+            this.prisma.clientAssignment.create({
+              data: { userId, clientId: cId },
+            }).catch(() => null),
+          ),
+        );
+      }
+
+      if (clientId) {
+        where.clientId = clientId;
+      }
+    }
+
+    // Assignment scope for SOCIAL_MEDIA_MANAGER: Always include events created by user OR assigned clients
+    if (role === 'SOCIAL_MEDIA_MANAGER' && userId) {
+      const assignments = await this.prisma.clientAssignment.findMany({
+        where: { userId },
+        select: { clientId: true },
+      });
+      const assignedIds = assignments.map((a) => a.clientId);
+      if (assignedIds.length > 0) {
+        where.OR = [
+          { createdById: userId },
+          { clientId: { in: assignedIds } },
+        ];
+      } else {
+        where.createdById = userId;
+      }
+    }
 
     // STAFF role filtering: only assigned shoot events or project events
     if (role === 'STAFF' && userId) {
@@ -35,6 +91,15 @@ export class CalendarService {
         client: true,
         brand: true,
         product: true,
+        createdBy: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
+        revisions: {
+          orderBy: { version: 'desc' },
+          include: { createdBy: { select: { id: true, name: true, role: true } } },
+        },
+        approvalHistory: {
+          orderBy: { timestamp: 'desc' },
+          include: { user: { select: { id: true, name: true, role: true, avatarUrl: true } } },
+        },
         shootProjects: {
           include: {
             equipmentReservations: {
@@ -56,13 +121,22 @@ export class CalendarService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: any) {
     const event = await this.prisma.mediaCalendarEvent.findUnique({
       where: { id },
       include: {
         client: true,
         brand: true,
         product: true,
+        createdBy: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
+        revisions: {
+          orderBy: { version: 'desc' },
+          include: { createdBy: { select: { id: true, name: true, role: true } } },
+        },
+        approvalHistory: {
+          orderBy: { timestamp: 'desc' },
+          include: { user: { select: { id: true, name: true, role: true, avatarUrl: true } } },
+        },
         shootProjects: {
           include: {
             equipmentReservations: {
@@ -81,14 +155,47 @@ export class CalendarService {
         },
       },
     });
+
     if (!event) throw new NotFoundException('Calendar event not found');
+
+    // Security check for Marketing Manager (Client Representative)
+    if (user && user.role === 'MARKETING_MANAGER') {
+      const assignments = await this.prisma.clientAssignment.findMany({
+        where: { userId: user.id },
+        select: { clientId: true },
+      });
+      const assignedIds = assignments.map((a) => a.clientId);
+      if (!assignedIds.includes(event.clientId)) {
+        throw new ForbiddenException('Access Denied: You are not authorized to access calendar events for this client.');
+      }
+    }
+
     return event;
   }
 
-  async create(data: any) {
+  async getHistory(id: string, user?: any) {
+    const event = await this.findOne(id, user);
+    return {
+      eventId: event.eventId || event.id,
+      title: event.title,
+      currentVersion: event.version,
+      currentStatus: event.status,
+      revisions: event.revisions,
+      approvalHistory: event.approvalHistory,
+    };
+  }
+
+  async create(data: any, user?: any) {
     if (!data.title?.trim()) {
-      throw new BadRequestException('Event / Project Name is required.');
+      throw new BadRequestException('Event Title is required.');
     }
+    if (!data.clientId) {
+      throw new BadRequestException('Client is required to schedule a calendar event.');
+    }
+    if (!data.brandId) {
+      throw new BadRequestException('Brand is required to schedule a calendar event.');
+    }
+
     const client = await this.prisma.client.findUnique({ where: { id: data.clientId } });
     if (!client || client.status !== 'ACTIVE') {
       throw new BadRequestException('Calendar event requires an active client.');
@@ -107,160 +214,512 @@ export class CalendarService {
       }
     }
 
-    // Equipment Availability & Conflict Check
-    if (data.equipmentIds && Array.isArray(data.equipmentIds) && data.equipmentIds.length > 0) {
-      const busyEquipment = await this.prisma.equipment.findMany({
-        where: {
-          id: { in: data.equipmentIds },
-          OR: [
-            { availability: { in: ['UNDER_MAINTENANCE', 'DAMAGED', 'LOST', 'RETIRED'] } },
-            { isArchived: true },
-          ],
+    // Resolve safe activeUserId for mandatory User relations (revision, history, audit)
+    let activeUserId = user?.id;
+    if (!activeUserId) {
+      const fallbackUser = await this.prisma.user.findFirst({
+        where: { role: { in: ['MEDIA_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'] } },
+      });
+      activeUserId = fallbackUser?.id;
+    }
+    if (!activeUserId) {
+      const anyUser = await this.prisma.user.findFirst();
+      activeUserId = anyUser?.id;
+    }
+    if (!activeUserId) {
+      throw new BadRequestException('System user not found to record event creator.');
+    }
+
+    const count = await this.prisma.mediaCalendarEvent.count();
+    const autoEventId = data.eventId || `CAL-${(count + 1).toString().padStart(6, '0')}`;
+    
+    // WORKFLOW RULE:
+    // Events scheduled by Marketing Manager are automatically approved (APPROVED) upon creation without needing client approval.
+    // Events scheduled by Media Manager or Social Media Manager default to PENDING_CLIENT_APPROVAL.
+    const isMarketingManager = user?.role === 'MARKETING_MANAGER';
+    const initialStatus = data.saveAsDraft
+      ? 'DRAFT'
+      : isMarketingManager
+      ? 'APPROVED'
+      : 'PENDING_CLIENT_APPROVAL';
+
+    // Execute atomic creation in transaction
+    const createdEvent = await this.prisma.$transaction(async (tx) => {
+      const event = await tx.mediaCalendarEvent.create({
+        data: {
+          eventId: autoEventId,
+          title: data.title.trim(),
+          clientId: data.clientId,
+          brandId: data.brandId,
+          productId: data.productId || null,
+          campaign: data.campaign || null,
+          contentType: data.contentType || 'Post',
+          platform: data.platform || 'Instagram',
+          caption: data.caption || null,
+          creativePreviewUrl: data.creativePreviewUrl || null,
+          description: data.description || null,
+          shootType: data.shootType || ShootType.INDOOR,
+          shootDate: new Date(data.shootDate || Date.now()),
+          clientApprovalDeadline: data.clientApprovalDeadline ? new Date(data.clientApprovalDeadline) : null,
+          influencerTalent: data.influencerTalent || null,
+          priority: data.priority || Priority.MEDIUM,
+          productionNotes: data.productionNotes || null,
+          version: 1,
+          status: initialStatus,
+          createdById: activeUserId,
         },
       });
-      if (busyEquipment.length > 0) {
-        throw new BadRequestException(
-          `Equipment "${busyEquipment[0].name}" is currently ${busyEquipment[0].availability} and cannot be scheduled.`
-        );
+
+      // Create Version 1 Revision Record
+      const revision = await tx.calendarEventRevision.create({
+        data: {
+          calendarEventId: event.id,
+          version: 1,
+          title: event.title,
+          caption: event.caption,
+          contentType: event.contentType,
+          platform: event.platform,
+          creativePreviewUrl: event.creativePreviewUrl,
+          productionNotes: event.productionNotes,
+          createdById: activeUserId,
+        },
+      });
+
+      // Create Initial Approval History Record
+      const historyAction =
+        initialStatus === 'APPROVED'
+          ? 'AUTO_APPROVED_CLIENT'
+          : initialStatus === 'PENDING_CLIENT_APPROVAL'
+          ? 'SUBMITTED'
+          : 'CREATED';
+
+      const historyComment =
+        initialStatus === 'APPROVED'
+          ? 'Created and automatically approved by Marketing Manager.'
+          : initialStatus === 'PENDING_CLIENT_APPROVAL'
+          ? 'Created and submitted for client review.'
+          : 'Created event draft.';
+
+      await tx.calendarApprovalHistory.create({
+        data: {
+          calendarEventId: event.id,
+          revisionId: revision.id,
+          version: 1,
+          userId: activeUserId,
+          role: user?.role || 'SOCIAL_MEDIA_MANAGER',
+          action: historyAction,
+          previousStatus: 'NONE',
+          newStatus: initialStatus,
+          comment: historyComment,
+        },
+      });
+
+      return event;
+    });
+
+    if (initialStatus === 'PENDING_CLIENT_APPROVAL') {
+      await this.notifyClientReviewers(createdEvent.id, createdEvent.title, client.id);
+    }
+
+    return this.findOne(createdEvent.id, user);
+  }
+
+  async update(id: string, data: any, user?: any) {
+    const existing = await this.findOne(id, user);
+
+    if (user && user.role === 'MARKETING_MANAGER') {
+      throw new ForbiddenException('Marketing Manager is a Client Representative role and cannot modify internal calendar content directly.');
+    }
+
+    // APPROVAL LOCK: Prevent silent modification while pending review (unless Media Manager override)
+    if (
+      (existing.status === 'PENDING_CLIENT_REVIEW' || existing.status === 'PENDING_CLIENT_APPROVAL') &&
+      user?.role !== 'MEDIA_MANAGER'
+    ) {
+      throw new ForbiddenException(
+        'Calendar event is currently locked pending client approval. The Marketing Manager must request changes before creator edits can be submitted.',
+      );
+    }
+
+    const updateData: any = {};
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.caption !== undefined) updateData.caption = data.caption;
+    if (data.contentType !== undefined) updateData.contentType = data.contentType;
+    if (data.platform !== undefined) updateData.platform = data.platform;
+    if (data.creativePreviewUrl !== undefined) updateData.creativePreviewUrl = data.creativePreviewUrl;
+    if (data.campaign !== undefined) updateData.campaign = data.campaign;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.shootType !== undefined) updateData.shootType = data.shootType;
+    if (data.shootDate !== undefined) updateData.shootDate = new Date(data.shootDate);
+    if (data.clientApprovalDeadline !== undefined) updateData.clientApprovalDeadline = data.clientApprovalDeadline ? new Date(data.clientApprovalDeadline) : null;
+    if (data.influencerTalent !== undefined) updateData.influencerTalent = data.influencerTalent;
+    if (data.priority !== undefined) updateData.priority = data.priority;
+    if (data.productionNotes !== undefined) updateData.productionNotes = data.productionNotes;
+    if (data.status !== undefined) updateData.status = data.status;
+
+    // RE-APPROVAL RULE: If an approved event is materially edited later, status resets to PENDING_CLIENT_APPROVAL
+    if ((existing.status === 'CLIENT_APPROVED' || existing.status === 'APPROVED') && !data.status) {
+      const isMaterialChange =
+        (data.title && data.title !== existing.title) ||
+        (data.caption !== undefined && data.caption !== existing.caption) ||
+        (data.creativePreviewUrl !== undefined && data.creativePreviewUrl !== existing.creativePreviewUrl) ||
+        (data.shootDate && new Date(data.shootDate).getTime() !== new Date(existing.shootDate).getTime());
+
+      if (isMaterialChange) {
+        updateData.status = 'PENDING_CLIENT_APPROVAL';
+        await this.prisma.calendarApprovalHistory.create({
+          data: {
+            calendarEventId: existing.id,
+            version: existing.version,
+            userId: user?.id || '',
+            role: user?.role || 'SOCIAL_MEDIA_MANAGER',
+            action: 'MATERIAL_UPDATE_RESET',
+            previousStatus: existing.status,
+            newStatus: 'PENDING_CLIENT_APPROVAL',
+            comment: 'Event details materially edited after approval. Status reset to PENDING_CLIENT_APPROVAL for client re-review.',
+          },
+        });
+
+        await this.notifyClientReviewers(existing.id, existing.title, existing.clientId);
       }
     }
 
-    // Team Schedule Conflict Check for the same Shoot Date
-    if (data.teamUserIds && Array.isArray(data.teamUserIds) && data.teamUserIds.length > 0) {
-      const targetDate = new Date(data.shootDate);
-      const startOfDay = new Date(new Date(targetDate).setHours(0, 0, 0, 0));
-      const endOfDay = new Date(new Date(targetDate).setHours(23, 59, 59, 999));
+    await this.prisma.mediaCalendarEvent.update({
+      where: { id },
+      data: updateData,
+    });
 
-      const conflictingProject = await this.prisma.shootProject.findFirst({
-        where: {
-          assignedTeam: {
-            some: { userId: { in: data.teamUserIds } },
-          },
-          shootDate: { gte: startOfDay, lte: endOfDay },
-          status: { notIn: ['CANCELLED', 'CLOSED'] },
-        },
-        include: { assignedTeam: { include: { user: true } } },
-      });
-      if (conflictingProject) {
-        const busyUser = conflictingProject.assignedTeam.find((tm) => data.teamUserIds.includes(tm.userId))?.user;
-        throw new BadRequestException(
-          `Scheduling Conflict: Team member "${busyUser?.name || 'Staff Member'}" is already assigned to project "${conflictingProject.name}" on ${targetDate.toLocaleDateString()}.`
-        );
+    return this.findOne(id, user);
+  }
+
+  async submitForClientApproval(id: string, user: any) {
+    const event = await this.findOne(id, user);
+
+    if (user.role === 'MARKETING_MANAGER') {
+      throw new ForbiddenException('Marketing Manager is a Client Representative role and cannot submit events for approval.');
+    }
+
+    if (event.status === 'PENDING_CLIENT_APPROVAL' || event.status === 'PENDING_CLIENT_REVIEW') {
+      throw new BadRequestException('Calendar event is already pending client approval.');
+    }
+
+    let newVersion = event.version;
+    const isResubmission = event.status === 'CHANGES_REQUESTED';
+    if (isResubmission) {
+      newVersion = event.version + 1;
+    }
+
+    // Create a new version revision snapshot if resubmitting or first submission
+    const revision = await this.prisma.calendarEventRevision.create({
+      data: {
+        calendarEventId: event.id,
+        version: newVersion,
+        title: event.title,
+        caption: event.caption,
+        contentType: event.contentType,
+        platform: event.platform,
+        creativePreviewUrl: event.creativePreviewUrl,
+        productionNotes: event.productionNotes,
+        createdById: user.id,
+      },
+    });
+
+    await this.prisma.mediaCalendarEvent.update({
+      where: { id },
+      data: {
+        status: 'PENDING_CLIENT_APPROVAL',
+        version: newVersion,
+        submittedAt: new Date(),
+      },
+    });
+
+    // Record approval history entry
+    await this.prisma.calendarApprovalHistory.create({
+      data: {
+        calendarEventId: event.id,
+        revisionId: revision.id,
+        version: newVersion,
+        userId: user.id,
+        role: user.role,
+        action: isResubmission ? 'RESUBMITTED' : 'SUBMITTED',
+        previousStatus: event.status,
+        newStatus: 'PENDING_CLIENT_APPROVAL',
+        comment: isResubmission ? `Resubmitted Version ${newVersion} after addressing client feedback.` : 'Submitted for client review.',
+      },
+    });
+
+    await this.notifyClientReviewers(event.id, event.title, event.clientId);
+
+    return this.findOne(event.id, user);
+  }
+
+  async updateDeadline(id: string, newDeadlineStr: string, user: any, reason?: string) {
+    const event = await this.findOne(id, user);
+
+    if (user?.role !== 'MARKETING_MANAGER') {
+      throw new ForbiddenException('Forbidden: Only Marketing Manager (Client Representative) can modify client approval deadline/priority during review.');
+    }
+
+    const newDeadline = new Date(newDeadlineStr);
+    if (isNaN(newDeadline.getTime())) {
+      throw new BadRequestException('Invalid deadline date provided.');
+    }
+
+    const prevDeadlineStr = event.clientApprovalDeadline
+      ? new Date(event.clientApprovalDeadline).toISOString().split('T')[0]
+      : 'Not Set';
+
+    await this.prisma.mediaCalendarEvent.update({
+      where: { id },
+      data: { clientApprovalDeadline: newDeadline },
+    });
+
+    await this.prisma.calendarApprovalHistory.create({
+      data: {
+        calendarEventId: event.id,
+        version: event.version,
+        userId: user.id,
+        role: user.role,
+        action: 'DEADLINE_CHANGED',
+        previousStatus: event.status,
+        newStatus: event.status,
+        comment: `Deadline changed from '${prevDeadlineStr}' to '${newDeadlineStr}'. ${reason || ''}`.trim(),
+      },
+    });
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action: 'CALENDAR_EVENT_DEADLINE_CHANGED',
+        entity: 'MediaCalendarEvent',
+        entityId: event.id,
+        description: `${user.role} (${user.name}) updated deadline for event '${event.title}' from ${prevDeadlineStr} to ${newDeadlineStr}.`,
+        metadata: JSON.stringify({ eventId: event.eventId || event.id, prevDeadline: prevDeadlineStr, newDeadline: newDeadlineStr }),
+      },
+    });
+
+    return this.findOne(id, user);
+  }
+
+  async updatePriority(id: string, newPriority: string, user: any, reason?: string) {
+    const event = await this.findOne(id, user);
+
+    if (user?.role !== 'MARKETING_MANAGER') {
+      throw new ForbiddenException('Forbidden: Only Marketing Manager (Client Representative) can modify event priority during review.');
+    }
+
+    const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+    if (!validPriorities.includes(newPriority.toUpperCase())) {
+      throw new BadRequestException(`Invalid priority value. Must be one of: ${validPriorities.join(', ')}`);
+    }
+
+    const prevPriority = event.priority;
+    const formattedPriority = newPriority.toUpperCase() as Priority;
+
+    await this.prisma.mediaCalendarEvent.update({
+      where: { id },
+      data: { priority: formattedPriority },
+    });
+
+    await this.prisma.calendarApprovalHistory.create({
+      data: {
+        calendarEventId: event.id,
+        version: event.version,
+        userId: user.id,
+        role: user.role,
+        action: 'PRIORITY_CHANGED',
+        previousStatus: event.status,
+        newStatus: event.status,
+        comment: `Priority changed from '${prevPriority}' to '${formattedPriority}'. ${reason || ''}`.trim(),
+      },
+    });
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action: 'CALENDAR_EVENT_PRIORITY_CHANGED',
+        entity: 'MediaCalendarEvent',
+        entityId: event.id,
+        description: `${user.role} (${user.name}) updated priority for event '${event.title}' from ${prevPriority} to ${formattedPriority}.`,
+        metadata: JSON.stringify({ eventId: event.eventId || event.id, prevPriority, newPriority: formattedPriority }),
+      },
+    });
+
+    return this.findOne(id, user);
+  }
+
+  async reviewClientEvent(
+    id: string,
+    action: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT',
+    comment?: string,
+    user?: any,
+    updatedDeadline?: string,
+    updatedPriority?: string,
+  ) {
+    const event = await this.findOne(id, user);
+
+    // SECURITY VERIFICATION: Only Marketing Manager (Client Representative) can grant client approval for Media Calendar events
+    if (user?.role !== 'MARKETING_MANAGER') {
+      throw new ForbiddenException('Forbidden: Only Marketing Manager (Client Representative) is authorized to review and approve Media Calendar events.');
+    }
+
+    // Security Verification: Marketing Manager must be assigned to the event's client (if explicit assignments exist)
+    const assignments = await this.prisma.clientAssignment.findMany({
+      where: { userId: user.id },
+      select: { clientId: true },
+    });
+    if (assignments.length > 0) {
+      const assignedIds = assignments.map((a) => a.clientId);
+      if (!assignedIds.includes(event.clientId)) {
+        throw new ForbiddenException('Access Denied: You are not authorized to review events for this client.');
       }
     }
 
-    const event = await this.prisma.mediaCalendarEvent.create({
-      data: {
-        title: data.title,
-        clientId: data.clientId,
-        brandId: data.brandId,
-        productId: data.productId || null,
-        shootType: data.shootType || ShootType.INDOOR,
-        shootDate: new Date(data.shootDate),
-        influencerTalent: data.influencerTalent,
-        priority: data.priority || Priority.MEDIUM,
-        productionNotes: data.productionNotes,
-        status: 'SCHEDULED',
-      },
-      include: { client: true, brand: true, product: true },
-    });
+    // Mandatory comment check for Request Changes or Reject
+    if ((action === 'REQUEST_CHANGES' || action === 'REJECT') && (!comment || !comment.trim())) {
+      throw new BadRequestException(`Feedback comment is mandatory when selecting '${action.replace('_', ' ')}'.`);
+    }
 
-    // Automated Generation Trigger 1: Automatically generate Shoot Project and Graphic Requirement from Media Calendar
-    const projectCount = await this.prisma.shootProject.count();
-    const autoProjectId = `SP-${(projectCount + 1).toString().padStart(6, '0')}`;
-    const dateFormatted = new Date(event.shootDate).toISOString().slice(2, 10).replace(/-/g, '');
-    const defaultProjName = `${brand.shortCode}-${dateFormatted}-CALENDAR`;
+    let newStatus = 'PENDING_CLIENT_APPROVAL';
+    if (action === 'APPROVE') newStatus = 'APPROVED';
+    else if (action === 'REQUEST_CHANGES') newStatus = 'CHANGES_REQUESTED';
+    else if (action === 'REJECT') newStatus = 'REJECTED';
 
-    const project = await this.prisma.shootProject.create({
-      data: {
-        projectId: autoProjectId,
-        name: defaultProjName,
-        clientId: event.clientId,
-        brandId: event.brandId,
-        productId: event.productId || null,
-        calendarEventId: event.id,
-        shootType: event.shootType,
-        shootDate: event.shootDate,
-        estimatedCompletionDate: data.deadline ? new Date(data.deadline) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        shootLocation: data.location || 'Studio / Designated Site',
-        reportingTime: '09:00 AM',
-        expectedWrapUpTime: '05:00 PM',
-        influencerTalent: event.influencerTalent,
-        priority: event.priority,
-        status: 'PLANNED',
-        notes: `Automatically generated project from Media Calendar Event: ${event.title}`,
-        createdById: data.createdById || (await this.prisma.user.findFirst({ where: { role: 'MEDIA_MANAGER' } }))?.id || '',
-        indoorDetails: {
-          create: {
-            studioName: 'Main Studio',
-            studioAddress: 'Studio Floor, Media Ops HQ',
-            reportingTime: '09:00 AM',
-            wrapUpTime: '05:00 PM',
+    const previousStatus = event.status;
+    const isOverride = user.role === 'MEDIA_MANAGER' && user.id !== event.createdById;
+
+    // Atomic Transaction Execution
+    return this.prisma.$transaction(async (tx) => {
+      const eventUpdates: any = {
+        status: newStatus,
+        reviewedAt: new Date(),
+      };
+
+      // Apply Client Deadline Edit if specified during review
+      if (updatedDeadline && updatedDeadline.trim()) {
+        const dDate = new Date(updatedDeadline);
+        if (!isNaN(dDate.getTime())) {
+          eventUpdates.clientApprovalDeadline = dDate;
+          const prevD = event.clientApprovalDeadline ? new Date(event.clientApprovalDeadline).toISOString().split('T')[0] : 'Not Set';
+          await tx.calendarApprovalHistory.create({
+            data: {
+              calendarEventId: event.id,
+              version: event.version,
+              userId: user.id,
+              role: user.role,
+              action: 'DEADLINE_CHANGED',
+              previousStatus: event.status,
+              newStatus: event.status,
+              comment: `Client updated deadline from '${prevD}' to '${updatedDeadline}'.`,
+            },
+          });
+        }
+      }
+
+      // Apply Client Priority Edit if specified during review
+      if (updatedPriority && updatedPriority.trim()) {
+        const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+        if (validPriorities.includes(updatedPriority.toUpperCase())) {
+          eventUpdates.priority = updatedPriority.toUpperCase() as Priority;
+          await tx.calendarApprovalHistory.create({
+            data: {
+              calendarEventId: event.id,
+              version: event.version,
+              userId: user.id,
+              role: user.role,
+              action: 'PRIORITY_CHANGED',
+              previousStatus: event.status,
+              newStatus: event.status,
+              comment: `Client updated priority from '${event.priority}' to '${updatedPriority.toUpperCase()}'.`,
+            },
+          });
+        }
+      }
+
+      const updated = await tx.mediaCalendarEvent.update({
+        where: { id },
+        data: eventUpdates,
+      });
+
+      // Get current active revision
+      const currentRevision = event.revisions.find((r) => r.version === event.version);
+
+      // Log Approval History entry
+      await tx.calendarApprovalHistory.create({
+        data: {
+          calendarEventId: event.id,
+          revisionId: currentRevision?.id || null,
+          version: event.version,
+          userId: user.id,
+          role: user.role,
+          action: isOverride ? `OVERRIDE_${action}` : action,
+          previousStatus,
+          newStatus,
+          comment: comment?.trim() || (action === 'APPROVE' ? 'Approved by client representative.' : null),
+        },
+      });
+
+      // Audit Log Entry
+      await tx.activityLog.create({
+        data: {
+          userId: user.id,
+          action: `CALENDAR_EVENT_${action}`,
+          entity: 'MediaCalendarEvent',
+          entityId: event.id,
+          description: `${user.role} (${user.name}) ${action.toLowerCase()} calendar event '${event.title}' (Version ${event.version}). Status changed to ${newStatus}.`,
+          metadata: JSON.stringify({
+            eventId: event.eventId || event.id,
+            version: event.version,
+            comment,
+            updatedDeadline,
+            updatedPriority,
+          }),
+        },
+      });
+
+      // Send Notification to Event Creator
+      if (event.createdById) {
+        let notifTitle = 'Calendar Event Client Decision';
+        let notifMessage = `Event '${event.title}' status updated to ${newStatus}.`;
+
+        if (action === 'APPROVE') {
+          notifTitle = 'Client Approved Calendar Event';
+          notifMessage = `Marketing Manager approved '${event.title}' (Version ${event.version}). Event is now visible on Main Media Calendar.`;
+        } else if (action === 'REQUEST_CHANGES') {
+          notifTitle = 'Client Requested Changes';
+          notifMessage = `Client requested changes on '${event.title}': "${comment}"`;
+        } else if (action === 'REJECT') {
+          notifTitle = 'Client Rejected Calendar Event';
+          notifMessage = `Client rejected '${event.title}': "${comment}"`;
+        }
+
+        await tx.notification.create({
+          data: {
+            userId: event.createdById,
+            title: notifTitle,
+            message: notifMessage,
+            type: action === 'APPROVE' ? 'SUCCESS' : action === 'REQUEST_CHANGES' ? 'WARNING' : 'ALERT',
+            category: 'CALENDAR_EVENT',
+            priority: 'HIGH',
+            entityType: 'CALENDAR_EVENT',
+            entityId: event.id,
+            linkUrl: `/calendar`,
           },
-        },
-      },
+        });
+      }
+
+      return updated;
+    }).then(() => this.findOne(id, user));
+  }
+
+  async cancel(id: string) {
+    const event = await this.prisma.mediaCalendarEvent.findUnique({ where: { id } });
+    if (!event) throw new NotFoundException('Calendar event not found');
+
+    return this.prisma.mediaCalendarEvent.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
     });
-
-    // Automatically generate Graphic Requirement from Media Calendar Event
-    const reqCount = await this.prisma.graphicRequirement.count();
-    const autoReqId = `GR-${(reqCount + 1).toString().padStart(6, '0')}`;
-
-    const graphicReq = await this.prisma.graphicRequirement.create({
-      data: {
-        requirementId: autoReqId,
-        name: `Key Visual Banner - ${event.title}`,
-        projectId: project.id,
-        clientId: event.clientId,
-        brandId: event.brandId,
-        calendarEventId: event.id,
-        productId: event.productId || null,
-        requirementType: 'Poster',
-        objective: `Automated key visual graphic generated from Media Calendar Event (${event.title})`,
-        description: `Automated graphic requirement created from Media Calendar scheduling.`,
-        priority: event.priority || 'MEDIUM',
-        status: 'DRAFT',
-      },
-    });
-
-    // Automatically create graphic tasks for the generated Graphic Requirement
-    const taskCount = await this.prisma.task.count();
-    const autoTaskId1 = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
-    const autoTaskId2 = `TSK-${(taskCount + 2).toString().padStart(6, '0')}`;
-
-    await this.prisma.task.createMany({
-      data: [
-        {
-          taskId: autoTaskId1,
-          title: `Key Visual Graphic Composition - ${graphicReq.name}`,
-          description: `Automated task created from Media Calendar Graphic Requirement ${graphicReq.requirementId}`,
-          projectId: project.id,
-          graphicRequirementId: graphicReq.id,
-          clientId: event.clientId,
-          brandId: event.brandId,
-          productId: event.productId || null,
-          priority: graphicReq.priority,
-          dueDate: new Date(event.shootDate),
-          estimatedHours: 3.0,
-          status: 'PENDING',
-        },
-        {
-          taskId: autoTaskId2,
-          title: `Final Poster Export & Format Review - ${graphicReq.name}`,
-          description: `Automated task created from Media Calendar Graphic Requirement ${graphicReq.requirementId}`,
-          projectId: project.id,
-          graphicRequirementId: graphicReq.id,
-          clientId: event.clientId,
-          brandId: event.brandId,
-          productId: event.productId || null,
-          priority: graphicReq.priority,
-          dueDate: new Date(event.shootDate),
-          estimatedHours: 2.0,
-          status: 'PENDING',
-        },
-      ],
-    });
-
-    return this.findOne(event.id);
   }
 
   async generateGraphicReq(eventId: string) {
@@ -319,28 +778,43 @@ export class CalendarService {
     return graphicReq;
   }
 
-  async update(id: string, data: any) {
-    await this.findOne(id);
-    return this.prisma.mediaCalendarEvent.update({
-      where: { id },
-      data: {
-        title: data.title,
-        shootType: data.shootType,
-        shootDate: data.shootDate ? new Date(data.shootDate) : undefined,
-        influencerTalent: data.influencerTalent,
-        priority: data.priority,
-        productionNotes: data.productionNotes,
-        status: data.status,
-      },
-      include: { client: true, brand: true, product: true },
+  private async notifyClientReviewers(eventId: string, eventTitle: string, clientId: string) {
+    const assignments = await this.prisma.clientAssignment.findMany({
+      where: { clientId },
+      select: { userId: true },
     });
-  }
 
-  async cancel(id: string) {
-    await this.findOne(id);
-    return this.prisma.mediaCalendarEvent.update({
-      where: { id },
-      data: { status: 'CANCELLED' },
+    let marketingManagers = await this.prisma.user.findMany({
+      where: {
+        role: 'MARKETING_MANAGER',
+        status: 'ACTIVE',
+        OR: [
+          { clientAssignments: { some: { clientId } } },
+          { id: { in: assignments.map((a) => a.userId) } },
+        ],
+      },
     });
+
+    if (marketingManagers.length === 0) {
+      marketingManagers = await this.prisma.user.findMany({
+        where: { role: 'MARKETING_MANAGER', status: 'ACTIVE' },
+      });
+    }
+
+    for (const mm of marketingManagers) {
+      await this.prisma.notification.create({
+        data: {
+          userId: mm.id,
+          title: 'New Calendar Event Pending Client Approval',
+          message: `Event '${eventTitle}' has been submitted for client review and sign-off.`,
+          type: 'INFO',
+          category: 'CALENDAR_EVENT',
+          priority: 'HIGH',
+          entityType: 'CALENDAR_EVENT',
+          entityId: eventId,
+          linkUrl: `/client-review`,
+        },
+      });
+    }
   }
 }

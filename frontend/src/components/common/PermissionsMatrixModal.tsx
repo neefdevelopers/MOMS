@@ -159,9 +159,10 @@ export function PermissionsMatrixModal({
                   'MEDIA_MANAGER',
                   'TECHNICAL_MANAGER',
                   'STAFF',
+                  'SOCIAL_MEDIA_MANAGER',
+                  'MARKETING_MANAGER',
                   'HR_MANAGER',
                   'FINANCE_MANAGER',
-                  'MARKETING_MANAGER',
                   'SALES_MANAGER',
                   'CLIENT_COORDINATOR',
                   'ADMINISTRATOR',
@@ -184,7 +185,7 @@ export function PermissionsMatrixModal({
 
             <div className="text-[11px] font-mono">
               {selectedRole === 'MEDIA_MANAGER' && (
-                <span className="text-blue-300">👑 Media Manager: Unrestricted administrative authority across all modules.</span>
+                <span className="text-blue-300">👑 Media Manager: Highest operational authority across all system modules.</span>
               )}
               {selectedRole === 'TECHNICAL_MANAGER' && (
                 <span className="text-purple-300">🔧 Technical Manager: Technical reviews, equipment lifecycle & remarks.</span>
@@ -192,14 +193,17 @@ export function PermissionsMatrixModal({
               {selectedRole === 'STAFF' && (
                 <span className="text-emerald-300">🎨 Production Staff: Work strictly scoped to assigned records & tasks.</span>
               )}
+              {selectedRole === 'SOCIAL_MEDIA_MANAGER' && (
+                <span className="text-blue-400">📱 Social Media Manager: Creates calendar events, drafts, and submits for client approval.</span>
+              )}
+              {selectedRole === 'MARKETING_MANAGER' && (
+                <span className="text-amber-300">🤝 Marketing Manager (Client): Client representative for calendar review, feedback & sign-offs.</span>
+              )}
               {selectedRole === 'HR_MANAGER' && (
                 <span className="text-amber-300">👥 HR Manager: Staff directory, shift scheduling, and employee attendance.</span>
               )}
               {selectedRole === 'FINANCE_MANAGER' && (
                 <span className="text-emerald-300">💰 Finance Manager: Billing formulas, commercial settings & cost analytics.</span>
-              )}
-              {selectedRole === 'MARKETING_MANAGER' && (
-                <span className="text-pink-300">🚀 Marketing Manager: Brands, products, campaigns & creative briefs.</span>
               )}
               {selectedRole === 'SALES_MANAGER' && (
                 <span className="text-cyan-300">🤝 Sales Manager: Enterprise clients, commercial proposals & contracts.</span>

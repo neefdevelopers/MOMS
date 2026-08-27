@@ -51,6 +51,8 @@ import { RecentlyAccessedWidget } from '@/components/dashboard/RecentlyAccessedW
 import MyFavoritesWidget from '@/components/dashboard/MyFavoritesWidget';
 import StaffPersonalizedDashboard from '@/components/dashboard/StaffPersonalizedDashboard';
 import TechnicalManagerDashboard from '@/components/dashboard/TechnicalManagerDashboard';
+import ClientDashboard from '@/components/dashboard/ClientDashboard';
+import SocialMediaManagerDashboard from '@/components/dashboard/SocialMediaManagerDashboard';
 import {
   DashboardWidgetConfig,
   DEFAULT_DASHBOARD_WIDGETS,
@@ -269,6 +271,14 @@ export default function DashboardPage() {
 
   const role = (user?.role || 'STAFF') as string;
   const safeCapacity = Array.isArray(capacity) ? capacity : [];
+
+  if (role === 'MARKETING_MANAGER') {
+    return <ClientDashboard />;
+  }
+
+  if (role === 'SOCIAL_MEDIA_MANAGER') {
+    return <SocialMediaManagerDashboard />;
+  }
 
   if (role === 'TECHNICAL_MANAGER') {
     return <TechnicalManagerDashboard user={user} />;

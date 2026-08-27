@@ -19,25 +19,77 @@ export class CalendarController {
     @Query('brandId') brandId?: string,
     @Query('shootType') shootType?: string,
     @Query('status') status?: string,
+    @Query('forMainCalendar') forMainCalendar?: string,
   ) {
-    return this.calendarService.findAll(clientId, brandId, shootType, status, user?.id, user?.role);
+    return this.calendarService.findAll(clientId, brandId, shootType, status, user?.id, user?.role, forMainCalendar === 'true');
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.calendarService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.calendarService.findOne(id, user);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Get(':id/history')
+  getHistory(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.calendarService.getHistory(id, user);
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER, Role.MARKETING_MANAGER)
   @Post()
-  create(@Body() data: any) {
-    return this.calendarService.create(data);
+  create(@Body() data: any, @CurrentUser() user: any) {
+    return this.calendarService.create(data, user);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER, Role.MARKETING_MANAGER)
   @Put(':id')
-  update(@Param('id') id: string, @Body() data: any) {
-    return this.calendarService.update(id, data);
+  update(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) {
+    return this.calendarService.update(id, data, user);
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER)
+  @Post(':id/submit')
+  submitForClientApproval(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.calendarService.submitForClientApproval(id, user);
+  }
+
+  @Roles(Role.MARKETING_MANAGER)
+  @Post(':id/client-review')
+  reviewClientEvent(
+    @Param('id') id: string,
+    @Body() body: { action: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT'; comment?: string; deadline?: string; priority?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.calendarService.reviewClientEvent(id, body.action, body.comment, user, body.deadline, body.priority);
+  }
+
+  @Roles(Role.MARKETING_MANAGER)
+  @Post(':id/approve')
+  approveEvent(
+    @Param('id') id: string,
+    @Body() body: { comment?: string; deadline?: string; priority?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.calendarService.reviewClientEvent(id, 'APPROVE', body?.comment, user, body?.deadline, body?.priority);
+  }
+
+  @Roles(Role.MARKETING_MANAGER)
+  @Put(':id/deadline')
+  updateDeadline(
+    @Param('id') id: string,
+    @Body() body: { deadline: string; reason?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.calendarService.updateDeadline(id, body.deadline, user, body.reason);
+  }
+
+  @Roles(Role.MARKETING_MANAGER)
+  @Put(':id/priority')
+  updatePriority(
+    @Param('id') id: string,
+    @Body() body: { priority: string; reason?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.calendarService.updatePriority(id, body.priority, user, body.reason);
   }
 
   @Roles(Role.MEDIA_MANAGER)
@@ -46,7 +98,7 @@ export class CalendarController {
     return this.calendarService.cancel(id);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER)
   @Post(':id/generate-graphic-req')
   generateGraphicReq(@Param('id') id: string) {
     return this.calendarService.generateGraphicReq(id);

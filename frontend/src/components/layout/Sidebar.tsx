@@ -27,19 +27,23 @@ import {
   Loader2,
 } from 'lucide-react';
 
+export type AppRole = 'MEDIA_MANAGER' | 'TECHNICAL_MANAGER' | 'STAFF' | 'SOCIAL_MEDIA_MANAGER' | 'MARKETING_MANAGER';
+
 export interface NavItem {
   name: string;
   href: string;
   icon: React.ElementType;
-  roles?: ('MEDIA_MANAGER' | 'TECHNICAL_MANAGER' | 'STAFF')[];
+  roles?: AppRole[];
   staffName?: string;
   techName?: string;
+  smmName?: string;
+  clientName?: string;
   badge?: string;
 }
 
 export interface NavSection {
   title: string;
-  roles?: ('MEDIA_MANAGER' | 'TECHNICAL_MANAGER' | 'STAFF')[];
+  roles?: AppRole[];
   items: NavItem[];
 }
 
@@ -51,17 +55,28 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         name: 'Dashboard',
         staffName: 'Dashboard',
         techName: 'Technical Dashboard',
+        smmName: 'Social Media Dashboard',
+        clientName: 'Client Portal Dashboard',
         href: '/',
         icon: LayoutDashboard,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
+      },
+      {
+        name: 'Pending Client Approvals',
+        clientName: 'Pending Client Approvals',
+        href: '/client-review',
+        icon: CheckCircle2,
+        roles: ['MARKETING_MANAGER'],
       },
       {
         name: 'Media Calendar',
         staffName: 'My Calendar',
         techName: 'Media Calendar',
+        smmName: 'Media Calendar',
+        clientName: 'Client Calendar View',
         href: '/calendar',
         icon: Calendar,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
     ],
   },
@@ -72,36 +87,40 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         name: 'Projects',
         staffName: 'My Projects',
         techName: 'Projects',
+        smmName: 'Production Projects',
         href: '/projects',
         icon: Film,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER'],
       },
       {
         name: 'Scripts',
         staffName: 'My Scripts',
         techName: 'Scripts (Tech Review)',
+        smmName: 'Content Scripts',
         href: '/scripts',
         icon: FileText,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER'],
       },
       {
         name: 'Graphic Requirements',
         staffName: 'My Graphic Reqs',
         techName: 'Graphic Reqs (Tech Review)',
+        smmName: 'Graphic Requirements',
         href: '/graphic-reqs',
         icon: Palette,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER'],
       },
       {
         name: 'Tasks',
         staffName: 'My Tasks',
         techName: 'Tasks',
+        smmName: 'My Tasks',
         href: '/tasks',
         icon: CheckSquare,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER'],
       },
       {
-        name: 'Approvals',
+        name: 'Internal Approvals',
         href: '/approvals',
         icon: CheckCircle2,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
@@ -113,21 +132,27 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
     items: [
       {
         name: 'Clients',
+        clientName: 'My Assigned Clients',
+        smmName: 'Assigned Clients',
         href: '/clients',
         icon: Building2,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
       {
         name: 'Brands',
+        clientName: 'Client Brands',
+        smmName: 'Client Brands',
         href: '/brands',
         icon: BookmarkCheck,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
       {
         name: 'Products',
+        clientName: 'Client Products',
+        smmName: 'Client Products',
         href: '/products',
         icon: Package,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
       {
         name: 'Equipment',
@@ -159,17 +184,19 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         name: 'Communication',
         staffName: 'My Communication',
         techName: 'Communication',
+        clientName: 'Client Feedback Messages',
         href: '/communication',
         icon: MessageSquare,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
       {
         name: 'Reports & Analytics',
         staffName: 'My Reports',
         techName: 'Technical Reports',
+        clientName: 'Client Campaign Reports',
         href: '/reports',
         icon: BarChart3,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
       {
         name: 'Activity Center',
@@ -194,7 +221,7 @@ export function Sidebar() {
   const [optimisticPath, setOptimisticPath] = useState<string>(pathname);
   const [isPending, startTransition] = useTransition();
 
-  const userRole = (user?.role || 'STAFF') as 'MEDIA_MANAGER' | 'TECHNICAL_MANAGER' | 'STAFF';
+  const userRole = (user?.role || 'STAFF') as AppRole;
 
   useEffect(() => {
     setOptimisticPath(pathname);
@@ -239,10 +266,14 @@ export function Sidebar() {
               ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
               : userRole === 'TECHNICAL_MANAGER'
               ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
+              : userRole === 'SOCIAL_MEDIA_MANAGER'
+              ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+              : userRole === 'MARKETING_MANAGER'
+              ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
               : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
           }`}
         >
-          {userRole.replace('_', ' ')}
+          {userRole.replace(/_/g, ' ')}
         </span>
       </div>
 
@@ -258,14 +289,12 @@ export function Sidebar() {
           return (
             <div key={section.title} className="space-y-1">
               <div className="px-3 pb-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                {userRole === 'STAFF' && section.title === 'Overview'
+                {userRole === 'MARKETING_MANAGER' && section.title === 'Overview'
+                  ? 'Client Portal'
+                  : userRole === 'MARKETING_MANAGER' && section.title === 'Operations & Assets'
+                  ? 'Assigned Client Data'
+                  : userRole === 'STAFF' && section.title === 'Overview'
                   ? 'My Workspace'
-                  : userRole === 'STAFF' && section.title === 'Production'
-                  ? 'My Production Work'
-                  : userRole === 'STAFF' && section.title === 'Operations & Assets'
-                  ? 'My Equipment & Assets'
-                  : userRole === 'STAFF' && section.title === 'Workforce & Logs'
-                  ? 'My Logs & Reports'
                   : section.title}
               </div>
 
@@ -277,7 +306,11 @@ export function Sidebar() {
                 const isItemNavigating = isPending && optimisticPath === item.href;
 
                 const displayName =
-                  userRole === 'STAFF' && item.staffName
+                  userRole === 'MARKETING_MANAGER' && item.clientName
+                    ? item.clientName
+                    : userRole === 'SOCIAL_MEDIA_MANAGER' && item.smmName
+                    ? item.smmName
+                    : userRole === 'STAFF' && item.staffName
                     ? item.staffName
                     : userRole === 'TECHNICAL_MANAGER' && item.techName
                     ? item.techName

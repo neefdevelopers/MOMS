@@ -53,6 +53,11 @@ model User {
   equipmentApprovedBy   EquipmentMovement[]    @relation("EquipmentApprovedBy")
   equipmentReturnedBy   EquipmentMovement[]    @relation("EquipmentReturnedBy")
   equipmentDamageReports EquipmentDamageReport[] @relation("EquipmentDamageReporter")
+
+  clientAssignments         ClientAssignment[]
+  createdCalendarEvents     MediaCalendarEvent[]      @relation("CalendarEventCreator")
+  calendarRevisions         CalendarEventRevision[]
+  calendarApprovalHistories CalendarApprovalHistory[]
 }
 
 model Department {
@@ -123,6 +128,7 @@ model Client {
   scripts        Script[]
   graphicReqs    GraphicRequirement[]
   tasks          Task[]
+  assignedUsers  ClientAssignment[]
 }
 
 model Brand {
@@ -182,24 +188,40 @@ model Campaign {
 }
 
 model MediaCalendarEvent {
-  id              String      @id @default(uuid())
-  title           String
-  clientId        String
-  client          Client      @relation(fields: [clientId], references: [id])
-  brandId         String
-  brand           Brand       @relation(fields: [brandId], references: [id])
-  productId       String?
-  product         Product?    @relation(fields: [productId], references: [id])
-  shootType       String      @default("INDOOR") // INDOOR, OUTDOOR
-  shootDate       DateTime
-  influencerTalent String?
-  priority        String      @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
-  productionNotes String?
-  status          String      @default("PLANNED")
-  createdAt       DateTime    @default(now())
+  id                     String                    @id @default(uuid())
+  eventId                String?                   @unique
+  title                  String
+  clientId               String
+  client                 Client                    @relation(fields: [clientId], references: [id])
+  brandId                String
+  brand                  Brand                     @relation(fields: [brandId], references: [id])
+  productId              String?
+  product                Product?                  @relation(fields: [productId], references: [id])
+  campaign               String?
+  contentType            String?                   // Post, Reel, Story, Carousel, Video, Banner
+  platform               String?                   // Instagram, Facebook, LinkedIn, YouTube, TikTok
+  caption                String?                   // Caption / Copy
+  creativePreviewUrl     String?                   // Image/video preview URL
+  description            String?
+  shootType              String                    @default("INDOOR") // INDOOR, OUTDOOR
+  shootDate              DateTime
+  clientApprovalDeadline DateTime?
+  influencerTalent       String?
+  priority               String                    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  productionNotes        String?
+  version                Int                       @default(1)
+  createdById            String?
+  createdBy              User?                     @relation("CalendarEventCreator", fields: [createdById], references: [id])
+  status                 String                    @default("DRAFT") // DRAFT, PENDING_CLIENT_REVIEW, CHANGES_REQUESTED, CLIENT_APPROVED, SCHEDULED, PUBLISHED, CANCELLED, REJECTED
+  submittedAt            DateTime?
+  reviewedAt             DateTime?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @default(now()) @updatedAt
 
-  shootProjects   ShootProject[]
-  graphicReqs     GraphicRequirement[]
+  shootProjects          ShootProject[]
+  graphicReqs            GraphicRequirement[]
+  revisions              CalendarEventRevision[]
+  approvalHistory        CalendarApprovalHistory[]
 }
 
 model ShootProject {
@@ -903,5 +925,52 @@ model RecentAccess {
   @@index([userId])
   @@index([userId, accessedAt])
 }
+
+model ClientAssignment {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, clientId])
+}
+
+model CalendarEventRevision {
+  id                 String                    @id @default(uuid())
+  calendarEventId    String
+  calendarEvent      MediaCalendarEvent        @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
+  version            Int
+  title              String
+  caption            String?
+  contentType        String?
+  platform           String?
+  creativePreviewUrl String?
+  productionNotes    String?
+  createdById        String
+  createdBy          User                      @relation(fields: [createdById], references: [id])
+  createdAt          DateTime                  @default(now())
+
+  approvalHistory    CalendarApprovalHistory[]
+}
+
+model CalendarApprovalHistory {
+  id              String                 @id @default(uuid())
+  calendarEventId String
+  calendarEvent   MediaCalendarEvent     @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
+  revisionId      String?
+  revision        CalendarEventRevision? @relation(fields: [revisionId], references: [id], onDelete: SetNull)
+  version         Int
+  userId          String
+  user            User                   @relation(fields: [userId], references: [id])
+  role            String
+  action          String                 // SUBMITTED, CLIENT_APPROVED, CHANGES_REQUESTED, REJECTED, RESUBMITTED, OVERRIDDEN
+  previousStatus  String
+  newStatus       String
+  comment         String?
+  timestamp       DateTime               @default(now())
+}
+
 
 

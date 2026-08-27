@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BrandStatus } from '../../common/enums';
 
@@ -6,7 +6,7 @@ import { BrandStatus } from '../../common/enums';
 export class BrandsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(clientId?: string, status?: string, search?: string) {
+  async findAll(clientId?: string, status?: string, search?: string, user?: any) {
     const where: any = {};
     if (clientId) where.clientId = clientId;
     if (status) where.status = status;
@@ -20,6 +20,18 @@ export class BrandsService {
       ];
     }
 
+    if (user && user.role === 'MARKETING_MANAGER') {
+      const assignments = await this.prisma.clientAssignment.findMany({
+        where: { userId: user.id },
+        select: { clientId: true },
+      });
+      const assignedIds = assignments.map((a) => a.clientId);
+      if (clientId && !assignedIds.includes(clientId)) {
+        return [];
+      }
+      where.clientId = { in: assignedIds };
+    }
+
     return this.prisma.brand.findMany({
       where,
       include: {
@@ -31,12 +43,24 @@ export class BrandsService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: any) {
     const brand = await this.prisma.brand.findUnique({
       where: { id },
       include: { client: true, products: true, projects: true },
     });
     if (!brand) throw new NotFoundException('Brand not found');
+
+    if (user && user.role === 'MARKETING_MANAGER') {
+      const assignments = await this.prisma.clientAssignment.findMany({
+        where: { userId: user.id },
+        select: { clientId: true },
+      });
+      const assignedIds = assignments.map((a) => a.clientId);
+      if (!assignedIds.includes(brand.clientId)) {
+        throw new ForbiddenException('Access Denied: You are not authorized to view this brand.');
+      }
+    }
+
     return brand;
   }
 

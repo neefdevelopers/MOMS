@@ -7,6 +7,9 @@ async function main() {
   console.log('Seeding MOMS database (SQLite)...');
 
   // Clean existing tables in reverse order
+  await prisma.calendarApprovalHistory.deleteMany();
+  await prisma.calendarEventRevision.deleteMany();
+  await prisma.clientAssignment.deleteMany();
   await prisma.activityLog.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.communication.deleteMany();
@@ -87,6 +90,40 @@ async function main() {
       employeeProfile: {
         create: {
           designation: 'Technical Supervisor & Chief Engineer',
+          departmentId: deptManagement.id,
+          dailyCapacityHours: 8.0,
+        },
+      },
+    },
+  });
+
+  const smmUser = await prisma.user.create({
+    data: {
+      email: 'smm@example.com',
+      password: hashedPassword,
+      name: 'Ananya Roy (Social Media Manager)',
+      role: 'SOCIAL_MEDIA_MANAGER',
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      employeeProfile: {
+        create: {
+          designation: 'Social Media & Content Operations Manager',
+          departmentId: deptDesign.id,
+          dailyCapacityHours: 8.0,
+        },
+      },
+    },
+  });
+
+  const marketingManagerUser = await prisma.user.create({
+    data: {
+      email: 'marketing.manager@example.com',
+      password: hashedPassword,
+      name: 'Aditya Birla (Client Marketing Manager)',
+      role: 'MARKETING_MANAGER',
+      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+      employeeProfile: {
+        create: {
+          designation: 'Brand & Marketing Director (Client Representative)',
           departmentId: deptManagement.id,
           dailyCapacityHours: 8.0,
         },
@@ -297,6 +334,20 @@ async function main() {
     },
   });
 
+  await prisma.clientAssignment.create({
+    data: {
+      userId: marketingManagerUser.id,
+      clientId: client1.id,
+    },
+  });
+
+  await prisma.clientAssignment.create({
+    data: {
+      userId: smmUser.id,
+      clientId: client1.id,
+    },
+  });
+
   const client2 = await prisma.client.create({
     data: {
       name: 'Example Media Client',
@@ -307,6 +358,20 @@ async function main() {
       address: '402 Creative Hub, Indiranagar, Bengaluru',
       status: 'ACTIVE',
       internalNotes: 'Monthly retainership client.',
+    },
+  });
+
+  await prisma.clientAssignment.create({
+    data: {
+      userId: marketingManagerUser.id,
+      clientId: client2.id,
+    },
+  });
+
+  await prisma.clientAssignment.create({
+    data: {
+      userId: smmUser.id,
+      clientId: client2.id,
     },
   });
 

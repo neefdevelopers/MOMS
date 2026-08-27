@@ -3,7 +3,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { fetchApi } from './api';
 
-export type UserRole = 'MEDIA_MANAGER' | 'TECHNICAL_MANAGER' | 'STAFF';
+export type UserRole =
+  | 'MEDIA_MANAGER'
+  | 'TECHNICAL_MANAGER'
+  | 'STAFF'
+  | 'SOCIAL_MEDIA_MANAGER'
+  | 'MARKETING_MANAGER'
+  | 'HR_MANAGER'
+  | 'FINANCE_MANAGER'
+  | 'SALES_MANAGER'
+  | 'CLIENT_COORDINATOR'
+  | 'ADMINISTRATOR';
 
 export interface User {
   id: string;

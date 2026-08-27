@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { ClientsService } from './clients.service';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/permissions/permissions.decorator';
 import { Role, ClientStatus, ModuleType, PermissionType } from '../../common/enums';
 
@@ -15,12 +16,13 @@ export class ClientsController {
   @RequirePermission(ModuleType.CLIENTS, PermissionType.VIEW)
   @Get()
   findAll(
+    @CurrentUser() user: any,
     @Query('search') search?: string,
     @Query('status') status?: ClientStatus,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.clientsService.findAll(search, status, page, limit);
+    return this.clientsService.findAll(search, status, page, limit, user);
   }
 
   /**
@@ -29,8 +31,8 @@ export class ClientsController {
    */
   @RequirePermission(ModuleType.CLIENTS, PermissionType.VIEW)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.clientsService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.clientsService.findOne(id, user);
   }
 
   /**

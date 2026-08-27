@@ -565,6 +565,8 @@ function StaffContent() {
                 <option value="ALL">All System Roles</option>
                 <option value="MEDIA_MANAGER">Media Manager</option>
                 <option value="TECHNICAL_MANAGER">Technical Manager</option>
+                <option value="SOCIAL_MEDIA_MANAGER">Social Media Manager</option>
+                <option value="MARKETING_MANAGER">Marketing Manager (Client Rep)</option>
                 <option value="STAFF">Staff / Employee</option>
               </select>
             </div>
@@ -887,6 +889,8 @@ function StaffContent() {
                   >
                     <option value="STAFF">Staff / Employee</option>
                     <option value="TECHNICAL_MANAGER">Technical Manager</option>
+                    <option value="SOCIAL_MEDIA_MANAGER">Social Media Manager</option>
+                    <option value="MARKETING_MANAGER">Marketing Manager (Client Representative)</option>
                     <option value="MEDIA_MANAGER">Media Manager</option>
                   </select>
                 </div>
@@ -1229,6 +1233,8 @@ function StaffContent() {
                   >
                     <option value="STAFF">Staff / Employee</option>
                     <option value="TECHNICAL_MANAGER">Technical Manager</option>
+                    <option value="SOCIAL_MEDIA_MANAGER">Social Media Manager</option>
+                    <option value="MARKETING_MANAGER">Marketing Manager (Client Representative)</option>
                     <option value="MEDIA_MANAGER">Media Manager</option>
                   </select>
                 </div>

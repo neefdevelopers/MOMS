@@ -2,6 +2,7 @@ export type Role =
   | 'MEDIA_MANAGER'
   | 'TECHNICAL_MANAGER'
   | 'STAFF'
+  | 'SOCIAL_MEDIA_MANAGER'
   | 'HR_MANAGER'
   | 'FINANCE_MANAGER'
   | 'MARKETING_MANAGER'
@@ -249,19 +250,36 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     ACTIVITY_LOGS: [],
     SETTINGS: [],
   },
-  MARKETING_MANAGER: {
-    DASHBOARD: ['VIEW', 'EXPORT'],
+  SOCIAL_MEDIA_MANAGER: {
+    DASHBOARD: ['VIEW'],
     PROJECTS: ['VIEW'],
     SCRIPTS: ['VIEW'],
     GRAPHIC_REQUIREMENTS: ['VIEW'],
     TASKS: ['VIEW'],
     EQUIPMENT: ['VIEW'],
     CLIENTS: ['VIEW'],
-    BRANDS: ['VIEW', 'CREATE', 'EDIT'],
-    PRODUCTS: ['VIEW', 'CREATE', 'EDIT'],
-    STAFF: ['VIEW'],
+    BRANDS: ['VIEW'],
+    PRODUCTS: ['VIEW'],
+    STAFF: [],
     REPORTS: ['VIEW'],
-    CALENDAR: ['VIEW'],
+    CALENDAR: ['VIEW', 'CREATE', 'EDIT'],
+    COMMUNICATIONS: ['VIEW', 'CREATE'],
+    ACTIVITY_LOGS: ['VIEW'],
+    SETTINGS: [],
+  },
+  MARKETING_MANAGER: {
+    DASHBOARD: ['VIEW'],
+    PROJECTS: [],
+    SCRIPTS: [],
+    GRAPHIC_REQUIREMENTS: [],
+    TASKS: [],
+    EQUIPMENT: [],
+    CLIENTS: ['VIEW'],
+    BRANDS: ['VIEW'],
+    PRODUCTS: ['VIEW'],
+    STAFF: [],
+    REPORTS: ['VIEW'],
+    CALENDAR: ['VIEW', 'APPROVE'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
     ACTIVITY_LOGS: [],
     SETTINGS: [],

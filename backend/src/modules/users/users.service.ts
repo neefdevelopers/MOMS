@@ -226,6 +226,14 @@ export class UsersService {
     });
   }
 
+  async getUserAssignedClientIds(userId: string): Promise<string[]> {
+    const assignments = await this.prisma.clientAssignment.findMany({
+      where: { userId },
+      select: { clientId: true },
+    });
+    return assignments.map((a) => a.clientId);
+  }
+
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -238,6 +246,7 @@ export class UsersService {
         isArchived: true,
         archivedAt: true,
         avatarUrl: true,
+        clientAssignments: { include: { client: true } },
         employeeProfile: {
           select: {
             id: true,
@@ -349,6 +358,14 @@ export class UsersService {
       }
     }
 
+    if (data.assignedClientIds && Array.isArray(data.assignedClientIds)) {
+      for (const cId of data.assignedClientIds) {
+        await this.prisma.clientAssignment.create({
+          data: { userId: user.id, clientId: cId },
+        });
+      }
+    }
+
     return this.findOne(user.id);
   }
 
@@ -378,6 +395,7 @@ export class UsersService {
       'email',
       'name',
       'skills',
+      'assignedClientIds',
     ];
 
     // Non-Media Manager restriction
@@ -459,6 +477,15 @@ export class UsersService {
             employeeId: targetProfileId,
             skillId: skill.id,
           },
+        });
+      }
+    }
+
+    if (data.assignedClientIds && Array.isArray(data.assignedClientIds) && currentUser.role === 'MEDIA_MANAGER') {
+      await this.prisma.clientAssignment.deleteMany({ where: { userId: id } });
+      for (const cId of data.assignedClientIds) {
+        await this.prisma.clientAssignment.create({
+          data: { userId: id, clientId: cId },
         });
       }
     }
