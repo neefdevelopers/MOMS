@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
-import { FileText, UserPlus, X, MessageSquare, Send, Search, Filter, RotateCcw, SlidersHorizontal, Building2, Users, Layers, Check } from 'lucide-react';
+import { FileText, UserPlus, X, MessageSquare, Send, Search, Filter, RotateCcw, SlidersHorizontal, Building2, Users, Layers, Check, Copy, Eye } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
@@ -17,6 +17,11 @@ export default function ScriptsPage() {
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Storyline & Description UI States
+  const [copiedStoryline, setCopiedStoryline] = useState(false);
+  const [showStorylinePreview, setShowStorylinePreview] = useState(false);
+  const [storylineTab, setStorylineTab] = useState<'view' | 'edit'>('view');
 
   // Pagination Hook
   const { currentPage, setCurrentPage, pageSize, setPageSize, paginate } = usePagination();
@@ -996,15 +1001,76 @@ export default function ScriptsPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-gray-300 font-semibold mb-1">Script Description & Storyline</label>
-                  <textarea
-                    rows={3}
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    placeholder="Enter script scenes, narration, dialogues..."
-                    className="w-full bg-gray-800 border border-gray-700 text-white p-3 rounded-lg"
-                  />
+                {/* User-Friendly Dedicated Full Script Storyline & Narration Session */}
+                <div className="p-4 bg-gray-950 border border-purple-900/60 rounded-2xl space-y-3 shadow-lg">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-purple-400" />
+                      <h3 className="font-bold text-white text-xs uppercase tracking-wider">
+                        📜 Full Script Storyline &amp; Scene Narration
+                      </h3>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(editDescription || selectedScript.description || '');
+                          setCopiedStoryline(true);
+                          setTimeout(() => setCopiedStoryline(false), 2000);
+                        }}
+                        className="px-2.5 py-1 bg-purple-950/60 hover:bg-purple-900/80 border border-purple-800 text-purple-300 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-colors"
+                      >
+                        {copiedStoryline ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-purple-400" />}
+                        <span>{copiedStoryline ? 'Copied to Clipboard!' : 'Copy Script Text'}</span>
+                      </button>
+
+                      <div className="flex bg-gray-900 border border-gray-800 p-0.5 rounded-lg text-[10px] font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setStorylineTab('view')}
+                          className={`px-2 py-0.5 rounded transition-colors ${storylineTab === 'view' ? 'bg-purple-600 text-white font-bold' : 'text-gray-400 hover:text-white'}`}
+                        >
+                          👁️ Formatted View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStorylineTab('edit')}
+                          className={`px-2 py-0.5 rounded transition-colors ${storylineTab === 'edit' ? 'bg-purple-600 text-white font-bold' : 'text-gray-400 hover:text-white'}`}
+                        >
+                          ✏️ Edit Storyline
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {storylineTab === 'view' ? (
+                    <div className="bg-gray-900/90 border border-gray-800/80 rounded-xl p-4 max-h-64 overflow-y-auto custom-scrollbar">
+                      {editDescription?.trim() ? (
+                        <div className="whitespace-pre-wrap font-sans text-gray-200 text-xs leading-relaxed tracking-wide">
+                          {editDescription}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 italic text-[11px] text-center py-4">
+                          No storyline or scene narration entered for this script yet. Switch to Edit tab to add details.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <textarea
+                        rows={6}
+                        value={editDescription}
+                        onChange={(e) => setEditDescription(e.target.value)}
+                        placeholder="Enter scene narration, voiceover dialogues, shots..."
+                        className="w-full bg-gray-900 border border-purple-900/60 text-white p-3 rounded-xl text-xs font-mono focus:outline-none focus:border-purple-500"
+                      />
+                      <span className="text-[10px] text-gray-400 flex items-center justify-between font-mono">
+                        <span>Tip: Use [Scene X] headers and VO: for voiceover dialogues</span>
+                        <span>{editDescription?.length || 0} characters</span>
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1696,16 +1762,59 @@ export default function ScriptsPage() {
               </div>
             </div>
 
-            {/* 12. Script Description */}
-            <div>
-              <label className="block text-gray-300 font-semibold mb-1">Script Description & Storyline</label>
-              <textarea
-                rows={3}
-                placeholder="Enter scene narration, voiceover dialogues, shots..."
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 text-white p-3 rounded-lg"
-              />
+            {/* 12. Script Description & Storyline Session */}
+            <div className="bg-gray-950/80 border border-purple-900/60 p-4 rounded-xl space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-2">
+                <label className="text-gray-200 font-bold text-xs flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-purple-400" />
+                  <span>Script Description &amp; Full Storyline (Scenes, Narration &amp; VO)</span>
+                </label>
+                <div className="flex items-center gap-2 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const template = `\n\n[Scene ${newDescription.split('[Scene').length} - New Scene]\nVisual: \nVoiceover (VO): `;
+                      setNewDescription((prev) => prev + template);
+                    }}
+                    className="px-2 py-0.5 bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-800 rounded font-semibold transition-colors"
+                  >
+                    + Add Scene Template
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowStorylinePreview(!showStorylinePreview)}
+                    className="px-2 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded font-semibold flex items-center gap-1 transition-colors"
+                  >
+                    <Eye className="w-3 h-3 text-purple-400" />
+                    {showStorylinePreview ? 'Edit Input' : 'Live Preview'}
+                  </button>
+                </div>
+              </div>
+
+              {!showStorylinePreview ? (
+                <textarea
+                  rows={5}
+                  placeholder={`Enter full scene narration, voiceover dialogues, shots...\n\nExample:\n[Scene 1 - Studio Intro]\nVisual: Smooth pan over hero product\nVoiceover (VO): Experience the next generation of performance...\n\n[Scene 2 - Feature Callout]\nVisual: Macro shot of premium finish`}
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl text-xs font-mono focus:outline-none focus:border-purple-500"
+                />
+              ) : (
+                <div className="bg-gray-900 border border-purple-800/60 p-3 rounded-xl max-h-52 overflow-y-auto custom-scrollbar">
+                  {newDescription?.trim() ? (
+                    <div className="whitespace-pre-wrap font-sans text-gray-200 text-xs leading-relaxed">
+                      {newDescription}
+                    </div>
+                  ) : (
+                    <span className="text-gray-500 italic text-xs">No storyline content written yet. Switch to Edit Input to add text.</span>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-between items-center text-[10px] text-gray-400 font-mono">
+                <span>Format: Scene headers, Visual cues, Narration &amp; Dialogues</span>
+                <span>{newDescription ? newDescription.split('\n').filter(Boolean).length : 0} lines • {newDescription.length} characters</span>
+              </div>
             </div>
 
             {/* 16. Remarks */}
