@@ -99,7 +99,7 @@ export class TasksService {
   }
 
   async findOne(id: string) {
-    const task = await this.prisma.task.findUnique({
+    let task = await this.prisma.task.findUnique({
       where: { id },
       include: {
         project: true,
@@ -114,6 +114,23 @@ export class TasksService {
         timeline: { include: { user: true }, orderBy: { createdAt: 'desc' } },
       },
     });
+    if (!task) {
+      task = await this.prisma.task.findFirst({
+        where: { OR: [{ id }, { taskId: id }] },
+        include: {
+          project: true,
+          script: true,
+          graphicRequirement: true,
+          client: true,
+          brand: true,
+          product: true,
+          assignedEmployees: { include: { user: true } },
+          remarksHistory: { include: { user: true }, orderBy: { createdAt: 'desc' } },
+          deliverableHistory: { include: { user: true }, orderBy: { version: 'desc' } },
+          timeline: { include: { user: true }, orderBy: { createdAt: 'desc' } },
+        },
+      });
+    }
     if (!task) throw new NotFoundException('Task not found');
     return task;
   }
@@ -964,99 +981,24 @@ export class TasksService {
       });
     }
 
-    // 4. Fallback: If ZERO tasks exist in DB at all, auto-generate standard tasks for active shoot projects!
+    // If the user has no active assigned tasks (all reassigned or completed), return clean response
     if (activeTasks.length === 0) {
-      const activeProjects = await this.prisma.shootProject.findMany({
-        where: { status: { not: 'ARCHIVED' } },
-        take: 3,
-      });
-
-      if (activeProjects.length > 0) {
-        for (const proj of activeProjects) {
-          const count = await this.prisma.task.count();
-          const autoTaskId = `TSK-${(count + 1).toString().padStart(6, '0')}`;
-          const newTask = await this.prisma.task.create({
-            data: {
-              taskId: autoTaskId,
-              title: `Media Production & Editing - ${proj.name}`,
-              description: `Production deliverable task for shoot project ${proj.name}`,
-              projectId: proj.id,
-              clientId: proj.clientId,
-              brandId: proj.brandId,
-              productId: proj.productId || null,
-              priority: 'HIGH',
-              estimatedHours: 4.0,
-              status: 'IN_PROGRESS',
-              dueDate: new Date(Date.now() + 86400000 * 3),
-              assignedEmployees: {
-                create: { userId: overloadedUserId },
-              },
-            },
-            include: {
-              project: { select: { id: true, name: true } },
-              assignedEmployees: { include: { user: true } },
-            },
-          });
-          activeTasks.push(newTask);
-        }
-      }
-    }
-
-    // 5. Fallback: If STILL ZERO tasks exist, create default Client, Brand, Project & Task for overloaded user!
-    if (activeTasks.length === 0) {
-      let client = await this.prisma.client.findFirst();
-      if (!client) {
-        client = await this.prisma.client.create({
-          data: { name: 'Main Media Client', companyName: 'Main Media Client Ltd', contactPerson: 'Manager', email: 'client@media.com', mobile: '+1234567890' },
-        });
-      }
-      let brand = await this.prisma.brand.findFirst({ where: { clientId: client.id } });
-      if (!brand) {
-        brand = await this.prisma.brand.create({
-          data: { name: 'Media Brand', clientId: client.id, shortCode: 'MBR' },
-        });
-      }
-      let proj = await this.prisma.shootProject.findFirst({ where: { brandId: brand.id } });
-      if (!proj) {
-        proj = await this.prisma.shootProject.create({
-          data: {
-            projectId: 'PRJ-000001',
-            name: 'Media Operational Production',
-            clientId: client.id,
-            brandId: brand.id,
-            shootType: 'INDOOR',
-            shootDate: new Date(),
-            shootLocation: 'Main Studio',
-            createdById: user.id,
-            status: 'PLANNED',
-          },
-        });
-      }
-
-      const count = await this.prisma.task.count();
-      const autoTaskId = `TSK-${(count + 1).toString().padStart(6, '0')}`;
-      const newTask = await this.prisma.task.create({
-        data: {
-          taskId: autoTaskId,
-          title: `Active Work Assignment for ${user.name}`,
-          description: `Assigned media task for employee ${user.name}`,
-          projectId: proj.id,
-          clientId: client.id,
-          brandId: brand.id,
-          priority: 'HIGH',
-          estimatedHours: 4.0,
-          status: 'IN_PROGRESS',
-          dueDate: new Date(Date.now() + 86400000 * 3),
-          assignedEmployees: {
-            create: { userId: overloadedUserId },
-          },
+      const capacityOverview = await this.getCapacityOverview();
+      const userCap = capacityOverview.find((c) => c.userId === overloadedUserId);
+      return {
+        overloadedEmployee: {
+          userId: user.id,
+          name: user.name,
+          designation: user.employeeProfile?.designation || 'Staff Member',
+          department: user.employeeProfile?.department?.name || 'General',
+          assignedHours: userCap?.assignedHours || 0,
+          capacityHours: userCap?.capacityHours || 8.0,
+          workloadPercentage: userCap?.workloadPercentage || 0,
+          workloadStatus: userCap?.status || 'Available',
+          activeTaskCount: 0,
         },
-        include: {
-          project: { select: { id: true, name: true } },
-          assignedEmployees: { include: { user: true } },
-        },
-      });
-      activeTasks.push(newTask);
+        taskAlternatives: [],
+      };
     }
 
     // Get recommendations for each active task of the overloaded employee
