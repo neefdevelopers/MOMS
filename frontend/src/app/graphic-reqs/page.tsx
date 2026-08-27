@@ -148,6 +148,29 @@ export default function GraphicReqsPage() {
   const [inspectedReq, setInspectedReq] = useState<any>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [assignStaffUserId, setAssignStaffUserId] = useState('');
+  const [assigningStaff, setAssigningStaff] = useState(false);
+
+  const handleAssignStaffToReq = async (reqId: string, userId: string) => {
+    if (!reqId || !userId) return;
+    setAssigningStaff(true);
+    try {
+      const updated = await fetchApi(`/graphic-reqs/${reqId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          assignedUserIds: [userId],
+          status: 'ASSIGNED',
+        }),
+      });
+      setInspectedReq(updated);
+      setAssignStaffUserId('');
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to assign staff member');
+    } finally {
+      setAssigningStaff(false);
+    }
+  };
 
   // Create Form State (All 14 Graphic Requirement Attributes)
   const [selectedProjectId, setSelectedProjectId] = useState('');
@@ -895,9 +918,20 @@ export default function GraphicReqsPage() {
               </div>
 
               <div className="flex items-center justify-between pt-2 border-t border-border">
-                <span className="text-[11px] text-gray-400 font-mono">
-                  {g.tasks?.length || 0} Task(s) Associated
-                </span>
+                {(() => {
+                  const cardAssignedNames = Array.from(new Set(
+                    (g.tasks || []).flatMap((t: any) =>
+                      (t.assignedEmployees || []).map((e: any) => e.user?.name)
+                    ).filter(Boolean)
+                  ));
+                  return (
+                    <span className="text-[11px] text-gray-400">
+                      Assigned Staff: <strong className={cardAssignedNames.length > 0 ? "text-blue-300 font-semibold" : "text-amber-400 font-semibold"}>
+                        {cardAssignedNames.length > 0 ? cardAssignedNames.join(', ') : 'Not Assigned'}
+                      </strong>
+                    </span>
+                  );
+                })()}
 
                 <button
                   onClick={() => setInspectedReq(g)}
@@ -1170,9 +1204,9 @@ export default function GraphicReqsPage() {
               <div className="bg-gray-950/70 border border-gray-800/90 p-4 sm:p-5 rounded-xl space-y-4">
                 <div className="flex items-center justify-between border-b border-gray-800/80 pb-2">
                   <span className="font-bold text-amber-400 text-xs uppercase tracking-wider flex items-center gap-2">
-                    <User className="w-4 h-4 text-amber-400" /> 3. Staff Assignment &amp; Completion Target
+                    <User className="w-4 h-4 text-amber-400" /> 3. Staff Assignment (Optional)
                   </span>
-                  <span className="text-[10px] text-gray-400">Designers &amp; Editors</span>
+                  <span className="text-[10px] text-gray-400">Leave unselected for 'Not Assigned'</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1615,24 +1649,59 @@ export default function GraphicReqsPage() {
                 </div>
 
                 {/* Assigned Employees */}
-                <div className="col-span-1 md:col-span-2 bg-gray-900/80 p-2.5 rounded-lg border border-gray-800/80">
-                  <span className="text-gray-500 font-bold block text-[10px] uppercase mb-1">Assigned Employees</span>
+                <div className="col-span-1 md:col-span-2 bg-gray-900/80 p-2.5 rounded-lg border border-gray-800/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400 font-bold text-[10px] uppercase">Assigned Staff</span>
+                    <span className="text-[10px] text-gray-500 font-mono">
+                      {inspectedReq.tasks?.length || 0} sub-tasks
+                    </span>
+                  </div>
                   {(() => {
                     const assignedNames = Array.from(new Set(
                       (inspectedReq.tasks || []).flatMap((t: any) =>
                         (t.assignedEmployees || []).map((e: any) => e.user?.name)
                       ).filter(Boolean)
                     ));
-                    return assignedNames.length > 0 ? (
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {assignedNames.map((name: any) => (
-                          <span key={name} className="px-2 py-0.5 bg-blue-950 text-blue-300 border border-blue-800 rounded font-semibold text-[10px] flex items-center gap-1">
-                            <User className="w-3 h-3" /> {name}
-                          </span>
-                        ))}
+                    return (
+                      <div className="space-y-2">
+                        {assignedNames.length > 0 ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {assignedNames.map((name: any) => (
+                              <span key={name} className="px-2.5 py-1 bg-blue-950 text-blue-300 border border-blue-800 rounded-lg font-semibold text-[11px] flex items-center gap-1.5 shadow-sm">
+                                <User className="w-3.5 h-3.5 text-blue-400" /> {name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-2 flex-wrap bg-gray-950/70 p-2 rounded-lg border border-gray-800">
+                            <span className="px-2.5 py-1 bg-amber-950/80 text-amber-300 border border-amber-800/80 rounded-md font-bold text-xs">
+                              Not Assigned
+                            </span>
+                            {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+                              <div className="flex items-center gap-1.5">
+                                <select
+                                  value={assignStaffUserId}
+                                  onChange={(e) => setAssignStaffUserId(e.target.value)}
+                                  className="bg-gray-900 border border-gray-700 text-white px-2 py-1 rounded text-xs focus:outline-none"
+                                >
+                                  <option value="">-- Select Staff Member --</option>
+                                  {usersList.map((u) => (
+                                    <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  disabled={!assignStaffUserId || assigningStaff}
+                                  onClick={() => handleAssignStaffToReq(inspectedReq.id, assignStaffUserId)}
+                                  className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded transition-colors disabled:opacity-40"
+                                >
+                                  {assigningStaff ? 'Assigning…' : 'Assign Staff'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <span className="text-gray-500 italic text-[11px]">No staff assigned to sub-tasks.</span>
                     );
                   })()}
                 </div>

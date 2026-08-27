@@ -1031,7 +1031,11 @@ export default function ScriptsPage() {
                 {/* Current Assignments */}
                 <div className="space-y-1.5">
                   {(selectedScript.scriptAssignments || []).length === 0 ? (
-                    <p className="text-gray-500 italic text-[11px]">No employees assigned yet</p>
+                    <div className="p-2 bg-gray-900 border border-gray-800 rounded-lg">
+                      <span className="px-2.5 py-1 bg-amber-950/80 text-amber-300 border border-amber-800/80 rounded-md font-bold text-xs">
+                        Not Assigned
+                      </span>
+                    </div>
                   ) : (
                     (selectedScript.scriptAssignments || []).map((a: any) => (
                       <div key={a.id} className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5">

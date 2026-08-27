@@ -328,6 +328,25 @@ export class GraphicReqsService {
       },
     });
 
+    if (data.assignedUserIds && Array.isArray(data.assignedUserIds) && data.assignedUserIds.length > 0) {
+      for (const t of updated.tasks) {
+        await this.prisma.taskAssignment.deleteMany({ where: { taskId: t.id } });
+        await this.prisma.taskAssignment.createMany({
+          data: data.assignedUserIds.map((userId: string) => ({
+            taskId: t.id,
+            userId,
+          })),
+        });
+      }
+      await this.prisma.graphicRequirementTimeline.create({
+        data: {
+          graphicRequirementId: id,
+          event: 'ASSIGNED',
+          description: `Staff assigned to Graphic Requirement ${existing.requirementId}`,
+        },
+      });
+    }
+
     // Log timeline event for revision request & status transitions
     if (isRevision) {
       await this.prisma.graphicRequirementTimeline.create({

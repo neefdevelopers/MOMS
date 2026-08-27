@@ -731,7 +731,9 @@ export default function ProjectsPage() {
                       ))}
                     </div>
                   ) : (
-                    <span className="text-gray-500 italic text-[11px]">No team assigned yet</span>
+                    <span className="px-2.5 py-0.5 bg-amber-950/80 text-amber-300 border border-amber-800/80 rounded-md font-bold text-[11px] inline-block">
+                      Not Assigned
+                    </span>
                   )}
                 </div>
 
@@ -1102,10 +1104,10 @@ export default function ProjectsPage() {
                 <div className="space-y-2 border-t border-border pt-3">
                   <div className="flex items-center justify-between">
                     <label className="text-gray-300 font-semibold flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-blue-400" /> Assign Team / Crew Members
+                      <Users className="w-4 h-4 text-blue-400" /> Assign Team / Crew Members (Optional)
                     </label>
                     <span className="text-[11px] text-gray-400 font-mono">
-                      {selectedTeamUserIds.length} selected
+                      {selectedTeamUserIds.length > 0 ? `${selectedTeamUserIds.length} selected` : "Not Assigned (Optional)"}
                     </span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto bg-gray-900 border border-gray-800 p-2.5 rounded-lg">

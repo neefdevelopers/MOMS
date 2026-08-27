@@ -311,10 +311,12 @@ export class ProjectsService {
       projectData.indoorDetails = {
         create: {
           studioName: data.indoorDetails.studioName,
-          studioAddress: data.indoorDetails.studioAddress || data.shootLocation,
+          studioAddress: data.indoorDetails.studioAddress || projectData.shootLocation || data.indoorDetails.studioName || 'Studio Bay Address',
           studioBookingStatus: data.indoorDetails.studioBookingStatus || StudioBookingStatus.CONFIRMED,
           studioBookingRef: data.indoorDetails.studioBookingRef || `REF-${Math.floor(1000 + Math.random() * 9000)}`,
           lightingRequirements: data.indoorDetails.lightingRequirements || 'Standard 3-Point Studio Softboxes',
+          reportingTime: data.indoorDetails.reportingTime || projectData.reportingTime || '09:00 AM',
+          wrapUpTime: data.indoorDetails.wrapUpTime || projectData.expectedWrapUpTime || '06:00 PM',
         },
       };
     } else {
