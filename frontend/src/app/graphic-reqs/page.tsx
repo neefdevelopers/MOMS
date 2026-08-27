@@ -1200,121 +1200,32 @@ export default function GraphicReqsPage() {
                 </div>
               </div>
 
-              {/* Section 3: Staff Assignment & Target Timeline */}
+              {/* Section 3: Target Completion & Operational Notes */}
               <div className="bg-gray-950/70 border border-gray-800/90 p-4 sm:p-5 rounded-xl space-y-4">
                 <div className="flex items-center justify-between border-b border-gray-800/80 pb-2">
                   <span className="font-bold text-amber-400 text-xs uppercase tracking-wider flex items-center gap-2">
-                    <User className="w-4 h-4 text-amber-400" /> 3. Staff Assignment (Optional)
+                    <User className="w-4 h-4 text-amber-400" /> 3. Target Completion Date &amp; Notes
                   </span>
-                  <span className="text-[10px] text-gray-400">Leave unselected for 'Not Assigned'</span>
+                  <span className="text-[10px] text-gray-400 font-mono">Staff assigned during Media Calendar Event scheduling</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="block text-gray-300 font-semibold mb-1.5 text-xs">Assign Employees (Designers / Editors)</label>
-                    <div className="p-3 bg-gray-900 border border-gray-800 rounded-xl space-y-3 max-h-56 overflow-y-auto custom-scrollbar">
-                      {usersList.length === 0 ? (
-                        <span className="text-gray-500 text-xs italic">No staff users available.</span>
-                      ) : (
-                        <div className="space-y-2.5">
-                          {usersList.map((u) => {
-                            const isSelected = assignedUserIds.includes(u.id);
-                            const userResps = employeeResponsibilities[u.id] || ['Graphic Designer'];
-
-                            return (
-                              <div
-                                key={u.id}
-                                className={`p-2.5 rounded-xl border transition-all ${
-                                  isSelected
-                                    ? 'bg-purple-950/60 border-purple-700/80 text-purple-200'
-                                    : 'bg-gray-950/80 border-gray-800 text-gray-400 hover:border-gray-700'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold select-none">
-                                    <input
-                                      type="checkbox"
-                                      checked={isSelected}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setAssignedUserIds([...assignedUserIds, u.id]);
-                                          if (!employeeResponsibilities[u.id]) {
-                                            setEmployeeResponsibilities({
-                                              ...employeeResponsibilities,
-                                              [u.id]: ['Graphic Designer'],
-                                            });
-                                          }
-                                        } else {
-                                          setAssignedUserIds(assignedUserIds.filter((id) => id !== u.id));
-                                        }
-                                      }}
-                                      className="rounded border-gray-700 bg-gray-950 text-purple-600 focus:ring-0 w-4 h-4"
-                                    />
-                                    <span className="text-white">{u.name}</span>
-                                    <span className="text-[10px] text-gray-400 font-mono">({u.role})</span>
-                                  </label>
-
-                                  {isSelected && (
-                                    <span className="text-[9px] text-amber-400 font-bold uppercase tracking-wider">
-                                      {userResps.length} Responsibility(ies)
-                                    </span>
-                                  )}
-                                </div>
-
-                                {isSelected && (
-                                  <div className="mt-2.5 pt-2 border-t border-purple-900/40 pl-6 space-y-1">
-                                    <span className="text-[10px] text-gray-400 font-medium block mb-1">
-                                      Assign Responsibilities (One employee may perform multiple):
-                                    </span>
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {EMPLOYEE_RESPONSIBILITIES.map((resp) => {
-                                        const isRespActive = userResps.includes(resp);
-                                        return (
-                                          <button
-                                            key={resp}
-                                            type="button"
-                                            onClick={() => {
-                                              const updated = isRespActive
-                                                ? userResps.filter((r) => r !== resp)
-                                                : [...userResps, resp];
-                                              setEmployeeResponsibilities({
-                                                ...employeeResponsibilities,
-                                                [u.id]: updated.length > 0 ? updated : ['Graphic Designer'],
-                                              });
-                                            }}
-                                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
-                                              isRespActive
-                                                ? 'bg-amber-500 text-gray-950 border-amber-400 shadow-sm'
-                                                : 'bg-gray-900 text-gray-400 border-gray-800 hover:border-gray-700'
-                                            }`}
-                                          >
-                                            {isRespActive ? '✓ ' : '+ '}
-                                            {resp}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1.5 text-xs">Estimated Completion Target</label>
+                    <label className="block text-gray-300 font-semibold mb-1.5 text-xs">Estimated Completion Target (Optional)</label>
                     <input
                       type="date"
                       value={estimatedCompletion}
                       onChange={(e) => setEstimatedCompletion(e.target.value)}
                       className="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-white font-medium text-xs focus:outline-none focus:border-amber-500"
                     />
-                    <p className="text-[10px] text-gray-500 mt-1.5 leading-relaxed">
-                      Target completion date for Key Visual and Final Export preparation.
-                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-300 font-semibold mb-1.5 text-xs">Initial Staff Assignment State</label>
+                    <div className="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-amber-300 font-semibold text-xs flex items-center justify-between">
+                      <span>Not Assigned</span>
+                      <span className="text-[10px] text-gray-400 font-normal">Assigned on Media Calendar Event</span>
+                    </div>
                   </div>
                 </div>
               </div>

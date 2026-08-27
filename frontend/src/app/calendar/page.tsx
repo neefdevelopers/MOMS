@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck, FileText, User } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CalendarPage() {
@@ -71,6 +71,7 @@ export default function CalendarPage() {
     brandId: '',
     productId: '',
     campaign: '',
+    assignedStaffId: '',
     contentType: 'Post',
     platform: 'Instagram',
     caption: '',
@@ -323,21 +324,30 @@ export default function CalendarPage() {
       alert('A valid active Brand is required.');
       return;
     }
+    if (!formData.assignedStaffId && (!formData.teamUserIds || formData.teamUserIds.length === 0)) {
+      alert('Please select a Staff member for this Media Calendar Event.');
+      return;
+    }
     if (!formData.shootDate) {
       alert('Shoot Date is required.');
       return;
     }
 
+    const payload = {
+      ...formData,
+      assignedStaffId: formData.assignedStaffId || formData.teamUserIds[0] || null,
+    };
+
     try {
       if (editingEvent) {
         await fetchApi(`/calendar/${editingEvent.id}`, {
           method: 'PUT',
-          body: JSON.stringify(formData),
+          body: JSON.stringify(payload),
         });
       } else {
         await fetchApi('/calendar', {
           method: 'POST',
-          body: JSON.stringify(formData),
+          body: JSON.stringify(payload),
         });
       }
       setShowAddModal(false);
@@ -374,6 +384,7 @@ export default function CalendarPage() {
     setEditingEvent(eventItem);
     const existingTeam = eventItem.shootProjects?.[0]?.assignedTeam?.map((tm: any) => tm.userId) || [];
     const existingEq = eventItem.shootProjects?.[0]?.equipmentReservations?.map((res: any) => res.equipmentId) || [];
+    const staffId = eventItem.assignedStaffId || eventItem.assignedStaff?.id || existingTeam[0] || '';
 
     setFormData({
       eventSource: eventItem.eventSource || (eventItem.graphicRequirementId ? 'GRAPHIC_REQUIREMENT' : 'SHOOT'),
@@ -396,7 +407,8 @@ export default function CalendarPage() {
       endTime: eventItem.endTime || '05:00 PM',
       location: eventItem.location || 'Main Studio Floor',
       locationCategory: eventItem.locationCategory || 'Studio Bay',
-      teamUserIds: existingTeam,
+      assignedStaffId: staffId,
+      teamUserIds: staffId && !existingTeam.includes(staffId) ? [staffId, ...existingTeam] : existingTeam,
       equipmentIds: existingEq,
       influencerTalent: eventItem.influencerTalent || '',
       priority: eventItem.priority || 'MEDIUM',
@@ -431,6 +443,7 @@ export default function CalendarPage() {
       endTime: '05:00 PM',
       location: 'Main Studio Floor',
       locationCategory: 'Studio Bay',
+      assignedStaffId: '',
       teamUserIds: [],
       equipmentIds: [],
       influencerTalent: '',
@@ -875,6 +888,26 @@ export default function CalendarPage() {
                 </p>
               </div>
 
+              {/* Assigned Staff & Source Info (Primary Operational Assignment) */}
+              <div className="text-[11px] bg-gray-950/80 p-2 rounded-lg border border-gray-800 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 font-medium flex items-center gap-1">
+                    <User className="w-3 h-3 text-purple-400" /> Assigned Staff:
+                  </span>
+                  <span className="font-bold text-purple-300">
+                    {eventItem.assignedStaff?.name || eventItem.shootProjects?.[0]?.assignedTeam?.[0]?.user?.name || 'Not Assigned'}
+                  </span>
+                </div>
+                {eventItem.eventSource && (
+                  <div className="flex items-center justify-between text-[10px] text-gray-400 border-t border-gray-800/80 pt-1 mt-1 font-mono">
+                    <span>Source: {eventItem.eventSource.replace('_', ' ')}</span>
+                    <span className="text-amber-400 font-bold">
+                      {eventItem.graphicRequirement?.requirementId || eventItem.shoot?.projectId || 'Custom'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
               {eventItem.influencerTalent && (
                 <div className="text-[11px] text-gray-300 bg-gray-900 p-2 rounded border border-gray-800">
                   Talent/Model: <strong className="text-white">{eventItem.influencerTalent}</strong>
@@ -1299,11 +1332,44 @@ export default function CalendarPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Custom Staff Multi-Select Control */}
-                <div className="space-y-2.5">
+                {/* Staff Assignment Control (Required at Calendar Level) */}
+                <div className="space-y-2.5 col-span-2 sm:col-span-1">
+                  <label className="text-gray-200 font-bold text-xs flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Assigned Staff Member *</span>
+                    </span>
+                    <span className="text-[10px] text-amber-400 font-bold font-mono">
+                      PRIMARY ASSIGNMENT
+                    </span>
+                  </label>
+                  <select
+                    required
+                    value={formData.assignedStaffId}
+                    onChange={(e) => {
+                      const sId = e.target.value;
+                      setFormData({
+                        ...formData,
+                        assignedStaffId: sId,
+                        teamUserIds: sId ? Array.from(new Set([sId, ...formData.teamUserIds])) : formData.teamUserIds,
+                      });
+                    }}
+                    className="w-full bg-gray-900 border border-purple-500/60 rounded-xl p-2.5 text-white font-bold text-xs focus:outline-none focus:border-purple-400"
+                  >
+                    <option value="">-- Select Responsible Staff Member * --</option>
+                    {staffUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.employeeProfile?.designation || u.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Additional Crew Multi-Select */}
+                <div className="space-y-2.5 col-span-2 sm:col-span-1">
                   <div className="flex items-center justify-between">
                     <label className="text-gray-200 font-bold text-xs flex items-center gap-1.5">
-                      <span>Assigned Team (Select Staff)</span>
+                      <span>Additional Crew Members</span>
                       <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono text-[10px] border border-purple-500/30">
                         {formData.teamUserIds.length} Selected
                       </span>

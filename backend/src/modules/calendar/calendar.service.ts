@@ -94,6 +94,7 @@ export class CalendarService {
         graphicRequirement: { select: { id: true, requirementId: true, name: true, status: true, requirementType: true, priority: true } },
         shoot: { select: { id: true, projectId: true, name: true, status: true, shootType: true, shootDate: true, priority: true } },
         createdBy: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
+        assignedStaff: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         revisions: {
           orderBy: { version: 'desc' },
           include: { createdBy: { select: { id: true, name: true, role: true } } },
@@ -133,6 +134,7 @@ export class CalendarService {
         graphicRequirement: { select: { id: true, requirementId: true, name: true, status: true, requirementType: true, priority: true } },
         shoot: { select: { id: true, projectId: true, name: true, status: true, shootType: true, shootDate: true, priority: true } },
         createdBy: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
+        assignedStaff: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         revisions: {
           orderBy: { version: 'desc' },
           include: { createdBy: { select: { id: true, name: true, role: true } } },
@@ -308,6 +310,17 @@ export class CalendarService {
       throw new BadRequestException('System user not found to record event creator.');
     }
 
+    // Validate assigned staff member for Media Calendar Event
+    let assignedStaffId = data.assignedStaffId || data.assignedUserId || data.staffId || null;
+    if (assignedStaffId) {
+      const staffUser = await this.prisma.user.findUnique({ where: { id: assignedStaffId } });
+      if (!staffUser) {
+        throw new BadRequestException('Selected assigned staff member does not exist.');
+      }
+    } else {
+      throw new BadRequestException('Please select a Staff member for this Media Calendar Event.');
+    }
+
     const count = await this.prisma.mediaCalendarEvent.count();
     const autoEventId = data.eventId || `CAL-${(count + 1).toString().padStart(6, '0')}`;
     
@@ -348,6 +361,7 @@ export class CalendarService {
           version: 1,
           status: initialStatus,
           createdById: activeUserId,
+          assignedStaffId: assignedStaffId,
         },
       });
 

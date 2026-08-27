@@ -1104,51 +1104,14 @@ export default function ProjectsPage() {
                 <div className="space-y-2 border-t border-border pt-3">
                   <div className="flex items-center justify-between">
                     <label className="text-gray-300 font-semibold flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-blue-400" /> Assign Team / Crew Members (Optional)
+                      <Users className="w-4 h-4 text-blue-400" /> Crew Assignment
                     </label>
-                    <span className="text-[11px] text-gray-400 font-mono">
-                      {selectedTeamUserIds.length > 0 ? `${selectedTeamUserIds.length} selected` : "Not Assigned (Optional)"}
+                    <span className="text-[11px] text-amber-400 font-bold">
+                      Not Assigned
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
-                    {usersList.length === 0 ? (
-                      <div className="text-gray-500 text-[11px] col-span-2 text-center py-2">No team members available.</div>
-                    ) : (
-                      usersList.map((u) => {
-                        const isSelected = selectedTeamUserIds.includes(u.id);
-                        return (
-                          <button
-                            key={u.id}
-                            type="button"
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedTeamUserIds(selectedTeamUserIds.filter((id) => id !== u.id));
-                              } else {
-                                setSelectedTeamUserIds([...selectedTeamUserIds, u.id]);
-                              }
-                            }}
-                            className={`flex items-center justify-between p-2 rounded-lg text-left transition-all border ${
-                              isSelected
-                                ? 'bg-blue-600/20 border-blue-500 text-blue-200'
-                                : 'bg-card border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 overflow-hidden">
-                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 ${
-                                isSelected ? 'bg-blue-600' : 'bg-gray-700'
-                              }`}>
-                                {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
-                              </div>
-                              <div className="truncate">
-                                <div className="font-semibold text-xs text-white leading-none truncate">{u.name}</div>
-                                <div className="text-[10px] text-gray-400 truncate">{u.employeeProfile?.designation || u.role}</div>
-                              </div>
-                            </div>
-                            {isSelected && <Check className="w-3.5 h-3.5 text-blue-400 shrink-0 ml-1" />}
-                          </button>
-                        );
-                      })
-                    )}
+                  <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg text-[11px] text-gray-400">
+                    Shoot Project will be created as <strong className="text-amber-300">Not Assigned</strong>. Crew and staff assignment is specified when scheduling the Media Calendar Event.
                   </div>
                 </div>
 
