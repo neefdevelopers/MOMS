@@ -165,7 +165,7 @@ export default function CalendarPage() {
         fetchApi('/products').catch(() => []),
         fetchApi('/users').catch(() => []),
         fetchApi('/equipment').catch(() => []),
-        fetchApi('/graphic-requirements').catch(() => []),
+        fetchApi('/graphic-reqs').catch(() => []),
         fetchApi('/projects').catch(() => []),
       ]);
 
@@ -1051,27 +1051,39 @@ export default function CalendarPage() {
                 {/* Conditional Field: Select Graphic Requirement */}
                 {formData.eventSource === 'GRAPHIC_REQUIREMENT' && (
                   <div className="space-y-1.5 pt-2">
-                    <label className="text-amber-300 font-bold text-xs flex items-center gap-1">
-                      <FileText className="w-3.5 h-3.5" /> Select Existing Graphic Requirement <span className="text-red-400">*</span>
+                    <label className="text-amber-300 font-bold text-xs flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <FileText className="w-3.5 h-3.5 text-amber-400" /> Select Existing Graphic Requirement <span className="text-red-400">*</span>
+                      </span>
+                      <span className="text-[10px] text-gray-400 font-mono">
+                        ({graphicRequirements.length} available)
+                      </span>
                     </label>
                     <select
                       required
                       value={formData.graphicRequirementId}
                       onChange={(e) => handleGraphicReqSelect(e.target.value)}
-                      className="w-full bg-gray-900 border border-amber-500/50 rounded-xl p-2.5 text-xs text-white font-semibold focus:outline-none focus:border-amber-400"
+                      className="w-full bg-gray-900 border border-amber-500/60 rounded-xl p-2.5 text-xs text-white font-semibold focus:outline-none focus:border-amber-400 shadow-inner"
                     >
-                      <option value="">-- Choose Graphic Requirement --</option>
+                      <option value="">-- Select Existing Graphic Requirement --</option>
                       {graphicRequirements.map((gr) => (
                         <option key={gr.id} value={gr.id}>
-                          [{gr.requirementId || 'GR-REQ'}] {gr.name} ({gr.client?.name || 'Client'} - {gr.brand?.name || 'Brand'})
+                          [{gr.requirementId || 'GR-REQ'}] {gr.name} — {gr.client?.name || 'Client'} ({gr.brand?.name || 'Brand'})
                         </option>
                       ))}
                     </select>
+
+                    {graphicRequirements.length === 0 && (
+                      <p className="text-[11px] text-amber-400/90 italic pt-1 flex items-center gap-1">
+                        ⚠️ No Graphic Requirements currently exist in the database.
+                      </p>
+                    )}
+
                     {formData.graphicRequirementId && (
-                      <div className="p-2 rounded-lg bg-amber-950/20 border border-amber-500/30 text-[11px] text-amber-300 flex items-center justify-between">
-                        <span>✨ Event fields auto-populated from Graphic Requirement</span>
-                        <span className="font-mono text-[10px] bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
-                          Auto-Linked
+                      <div className="p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/40 text-[11px] text-amber-300 flex items-center justify-between shadow-sm">
+                        <span className="font-semibold">✨ Client, Brand, Title &amp; Deadline auto-populated from requirement</span>
+                        <span className="font-mono text-[10px] bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40 font-extrabold">
+                          AUTO-LINKED
                         </span>
                       </div>
                     )}
