@@ -30,7 +30,8 @@ import {
   ExternalLink,
   Flame,
   SlidersHorizontal,
-  MousePointerClick,
+  ArrowRight,
+  Eye,
 } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
@@ -124,7 +125,11 @@ export default function ClientReviewPage() {
     if (!selectedEvent || !reviewModalAction) return;
 
     if ((reviewModalAction === 'REQUEST_CHANGES' || reviewModalAction === 'REJECT') && !commentText.trim()) {
-      alert(`Please provide a mandatory feedback comment explaining why you are ${reviewModalAction === 'REQUEST_CHANGES' ? 'requesting changes' : 'rejecting this content'}.`);
+      alert(
+        `Please provide a mandatory feedback comment explaining why you are ${
+          reviewModalAction === 'REQUEST_CHANGES' ? 'requesting changes' : 'rejecting this content'
+        }.`,
+      );
       return;
     }
 
@@ -142,6 +147,7 @@ export default function ClientReviewPage() {
 
       setReviewModalAction(null);
       setCommentText('');
+      setSelectedEventId(null); // Close pop-up on successful decision
       await loadEvents();
     } catch (err: any) {
       alert(err.message || 'Failed to submit client decision.');
@@ -166,8 +172,8 @@ export default function ClientReviewPage() {
   ).length;
 
   return (
-    <div className="space-y-5 pb-12 select-none">
-      {/* Clean, Simple Page Header */}
+    <div className="space-y-6 pb-12 select-none">
+      {/* Clean Page Header */}
       <div className="flex items-center justify-between pb-4 border-b border-border">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
@@ -187,417 +193,441 @@ export default function ClientReviewPage() {
         </div>
       </div>
 
-      {/* Main 2-Column Split Portal View */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Left Column: Event Selection List (4 cols) */}
-        <div className="lg:col-span-4 space-y-3">
-          {/* Search & Tabs */}
-          <div className="space-y-2">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search title, ID, brand..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-500"
-              />
-            </div>
-
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
-              {[
-                { label: 'Pending', value: 'PENDING_CLIENT_APPROVAL' },
-                { label: 'Approved', value: 'APPROVED' },
-                { label: 'Changes Req.', value: 'CHANGES_REQUESTED' },
-                { label: 'Rejected', value: 'REJECTED' },
-                { label: 'All', value: 'ALL' },
-              ].map((tab) => (
-                <button
-                  key={tab.value}
-                  onClick={() => setStatusFilter(tab.value)}
-                  className={`px-3 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
-                    statusFilter === tab.value
-                      ? 'bg-amber-500 text-slate-950 shadow-sm'
-                      : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* List Items */}
-          <div className="space-y-2 max-h-[650px] overflow-y-auto pr-1">
-            {filteredEvents.length === 0 ? (
-              <div className="p-8 text-center text-gray-500 bg-card border border-border rounded-xl">
-                No calendar items match the selected filter.
-              </div>
-            ) : (
-              filteredEvents.map((item) => {
-                const isSelected = selectedEvent?.id === item.id;
-                const isOverdue = item.clientApprovalDeadline && new Date(item.clientApprovalDeadline) < new Date();
-                const isPending = item.status === 'PENDING_CLIENT_APPROVAL' || item.status === 'PENDING_CLIENT_REVIEW';
-
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => setSelectedEventId(item.id)}
-                    className={`p-3.5 rounded-xl border transition-all cursor-pointer space-y-2 ${
-                      isSelected
-                        ? 'bg-amber-950/20 border-amber-500/60 ring-1 ring-amber-500/40'
-                        : 'bg-card border-border hover:border-gray-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-gray-800 text-amber-400 border border-gray-700">
-                        {item.eventId || 'CAL-EVENT'}
-                      </span>
-
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                          isPending
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            : item.status === 'APPROVED' || item.status === 'CLIENT_APPROVED'
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                            : item.status === 'CHANGES_REQUESTED'
-                            ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
-                            : 'bg-red-500/20 text-red-300 border border-red-500/30'
-                        }`}
-                      >
-                        {isPending ? 'Pending Review' : item.status.replace(/_/g, ' ')}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h4 className="text-xs font-bold text-white line-clamp-1">{item.title}</h4>
-                      <p className="text-[11px] text-gray-400 flex items-center gap-2 mt-0.5">
-                        <span>{item.brand?.name}</span>
-                        <span>•</span>
-                        <span className="font-mono text-gray-300">v{item.version}</span>
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[10px] text-gray-500 pt-1 border-t border-gray-800/60">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-gray-400" />
-                        Shoot: {new Date(item.shootDate).toLocaleDateString()}
-                      </span>
-                      {isOverdue && isPending && (
-                        <span className="text-red-400 font-bold flex items-center gap-0.5">
-                          <AlertCircle className="w-3 h-3" /> Overdue
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+      {/* Filter & Search Toolbar across Full Width */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card border border-border p-3.5 rounded-2xl">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search title, ID, brand..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-500"
+          />
         </div>
 
-        {/* Right Column: Detailed Workspace (8 cols) */}
-        <div className="lg:col-span-8">
-          {!selectedEvent ? (
-            <div className="flex flex-col items-center justify-center p-12 text-center bg-card border border-border rounded-2xl min-h-[460px] space-y-4 shadow-xl">
-              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
-                <MousePointerClick className="w-8 h-8" />
-              </div>
-              <div className="max-w-md space-y-1.5">
-                <h3 className="text-base font-bold text-white">No Event Selected</h3>
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  Click on any event request from the list on the left to view its proposed copy, creative assets, approval deadline, and sign-off options.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="p-6 rounded-2xl bg-card border border-border space-y-5 shadow-xl">
-              {/* Event Title & Metadata Bar */}
-              <div className="space-y-3 pb-4 border-b border-border">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                      {selectedEvent.eventId || 'CAL-EVENT'}
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto scrollbar-none">
+          {[
+            { label: 'Pending Review', value: 'PENDING_CLIENT_APPROVAL' },
+            { label: 'Approved', value: 'APPROVED' },
+            { label: 'Changes Req.', value: 'CHANGES_REQUESTED' },
+            { label: 'Rejected', value: 'REJECTED' },
+            { label: 'All Items', value: 'ALL' },
+          ].map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setStatusFilter(tab.value)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+                statusFilter === tab.value
+                  ? 'bg-amber-500 text-slate-950 shadow-sm'
+                  : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Full Width Grid View of Event Request Cards */}
+      {filteredEvents.length === 0 ? (
+        <div className="p-12 text-center text-gray-500 bg-card border border-border rounded-2xl">
+          No calendar items match the selected filter.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredEvents.map((item) => {
+            const isOverdue = item.clientApprovalDeadline && new Date(item.clientApprovalDeadline) < new Date();
+            const isPending = item.status === 'PENDING_CLIENT_APPROVAL' || item.status === 'PENDING_CLIENT_REVIEW';
+
+            return (
+              <div
+                key={item.id}
+                onClick={() => setSelectedEventId(item.id)}
+                className="group p-5 rounded-2xl bg-card border border-border hover:border-amber-500/60 hover:shadow-xl transition-all cursor-pointer space-y-3.5 flex flex-col justify-between"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-gray-900 text-amber-400 border border-gray-800">
+                      {item.eventId || 'CAL-EVENT'}
                     </span>
-                    <span className="text-xs font-bold text-gray-300 px-2 py-0.5 bg-gray-800 rounded border border-gray-700">
-                      Version {selectedEvent.version}
-                    </span>
+
                     <span
-                      className={`text-xs font-bold px-2.5 py-0.5 rounded uppercase ${
-                        selectedEvent.status === 'PENDING_CLIENT_APPROVAL' || selectedEvent.status === 'PENDING_CLIENT_REVIEW'
+                      className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded uppercase tracking-wider ${
+                        isPending
                           ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                          : selectedEvent.status === 'APPROVED' || selectedEvent.status === 'CLIENT_APPROVED'
+                          : item.status === 'APPROVED' || item.status === 'CLIENT_APPROVED'
                           ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : selectedEvent.status === 'CHANGES_REQUESTED'
+                          : item.status === 'CHANGES_REQUESTED'
                           ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
                           : 'bg-red-500/20 text-red-300 border border-red-500/30'
                       }`}
                     >
-                      {selectedEvent.status.replace(/_/g, ' ')}
+                      {isPending ? 'Pending Review' : item.status.replace(/_/g, ' ')}
                     </span>
                   </div>
 
-                  {/* Top Action Row - Strictly for Marketing Manager (Client Representative) */}
-                  {user?.role === 'MARKETING_MANAGER' ? (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
-                        className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 border ${
-                          showSettingsDrawer
-                            ? 'bg-amber-500 text-slate-950 border-amber-400'
-                            : 'bg-gray-900 text-gray-300 border-gray-800 hover:text-white'
-                        }`}
-                      >
-                        <SlidersHorizontal className="w-3.5 h-3.5" /> Adjust Settings
-                      </button>
+                  <div>
+                    <h3 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors line-clamp-2">
+                      {item.title}
+                    </h3>
+                    <p className="text-xs text-gray-400 flex items-center gap-2 mt-1">
+                      <span>{item.brand?.name || 'Brand'}</span>
+                      <span>•</span>
+                      <span className="font-mono text-gray-300">v{item.version}</span>
+                    </p>
+                  </div>
 
-                      <button
-                        onClick={() => {
-                          setReviewModalAction('REQUEST_CHANGES');
-                          setCommentText('');
-                        }}
-                        className="px-3.5 py-1.5 rounded-lg bg-orange-600/20 text-orange-400 border border-orange-500/40 hover:bg-orange-600/30 font-bold text-xs transition-colors flex items-center gap-1.5"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" /> Request Changes
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setReviewModalAction('REJECT');
-                          setCommentText('');
-                        }}
-                        className="px-3.5 py-1.5 rounded-lg bg-red-600/20 text-red-400 border border-red-500/40 hover:bg-red-600/30 font-bold text-xs transition-colors flex items-center gap-1.5"
-                      >
-                        <XCircle className="w-3.5 h-3.5" /> Reject
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setReviewModalAction('APPROVE');
-                          setCommentText('');
-                        }}
-                        className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-1.5"
-                      >
-                        <CheckCircle2 className="w-4 h-4" /> Approve Content
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="p-2.5 px-3.5 rounded-xl bg-amber-950/30 border border-amber-500/40 text-xs flex items-center gap-2 text-amber-300 font-semibold">
-                      <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
-                      <span>
-                        Waiting for client approval from <strong>Marketing Manager</strong>.
-                      </span>
-                    </div>
+                  {item.caption && (
+                    <p className="text-xs text-gray-400 line-clamp-2 italic bg-gray-900/60 p-2.5 rounded-xl border border-gray-800/80">
+                      "{item.caption}"
+                    </p>
                   )}
                 </div>
 
+                <div className="space-y-3 pt-3 border-t border-gray-800">
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-400">
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-500 uppercase block">Platform</span>
+                      <span className="text-gray-200 font-semibold">{item.platform || 'Instagram'}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-500 uppercase block">Shoot Date</span>
+                      <span className="text-gray-200 font-semibold">
+                        {item.shootDate ? new Date(item.shootDate).toLocaleDateString() : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    {isOverdue && isPending ? (
+                      <span className="text-[11px] text-red-400 font-bold flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> Overdue
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-gray-400 font-medium flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                        Deadline: {item.clientApprovalDeadline ? new Date(item.clientApprovalDeadline).toLocaleDateString() : 'Set on review'}
+                      </span>
+                    )}
+
+                    <span className="text-xs font-bold text-amber-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                      <Eye className="w-3.5 h-3.5" /> Review Event <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pop-Up Modal Dialog when Event Card is Clicked */}
+      {selectedEvent && !reviewModalAction && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+          onClick={() => setSelectedEventId(null)}
+        >
+          <div
+            className="bg-card border border-border rounded-2xl max-w-4xl w-full p-6 space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header Bar */}
+            <div className="space-y-3 pb-4 border-b border-border">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                    {selectedEvent.eventId || 'CAL-EVENT'}
+                  </span>
+                  <span className="text-xs font-bold text-gray-300 px-2 py-0.5 bg-gray-800 rounded border border-gray-700">
+                    Version {selectedEvent.version}
+                  </span>
+                  <span
+                    className={`text-xs font-bold px-2.5 py-0.5 rounded uppercase ${
+                      selectedEvent.status === 'PENDING_CLIENT_APPROVAL' || selectedEvent.status === 'PENDING_CLIENT_REVIEW'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : selectedEvent.status === 'APPROVED' || selectedEvent.status === 'CLIENT_APPROVED'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : selectedEvent.status === 'CHANGES_REQUESTED'
+                        ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                        : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                    }`}
+                  >
+                    {selectedEvent.status.replace(/_/g, ' ')}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => setSelectedEventId(null)}
+                  className="p-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-black text-white tracking-tight">{selectedEvent.title}</h2>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    Created by <strong className="text-gray-200">{selectedEvent.createdBy?.name || 'Social Media Manager'}</strong> ({selectedEvent.createdBy?.role || 'Creator'})
+                    Created by <strong className="text-gray-200">{selectedEvent.createdBy?.name || 'Social Media Manager'}</strong> (
+                    {selectedEvent.createdBy?.role || 'Creator'})
                   </p>
                 </div>
-              </div>
 
-              {/* On-Demand Collapsible Settings Drawer (Opens on click) */}
-              {showSettingsDrawer && (
-                <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-500/40 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-extrabold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4" /> Client Approval Deadline &amp; Priority Controls
-                    </span>
-                    <button onClick={() => setShowSettingsDrawer(false)} className="text-gray-400 hover:text-white">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-300 uppercase flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-amber-400" /> Client Approval Deadline
-                      </label>
-                      <input
-                        type="date"
-                        value={editDeadline}
-                        onChange={(e) => setEditDeadline(e.target.value)}
-                        className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs font-semibold text-white focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-300 uppercase flex items-center gap-1">
-                        <Flame className="w-3 h-3 text-amber-400" /> Client Event Priority
-                      </label>
-                      <select
-                        value={editPriority}
-                        onChange={(e) => setEditPriority(e.target.value)}
-                        className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
-                      >
-                        <option value="LOW">LOW Priority</option>
-                        <option value="MEDIUM">MEDIUM Priority</option>
-                        <option value="HIGH">HIGH Priority</option>
-                        <option value="CRITICAL">CRITICAL Priority</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Clean Front Metadata Tiles Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3.5 rounded-xl bg-gray-900/60 border border-gray-800 text-xs">
-                <div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">Client &amp; Brand</span>
-                  <p className="font-bold text-white truncate">{selectedEvent.client?.name}</p>
-                  <p className="text-gray-400 truncate">{selectedEvent.brand?.name}</p>
-                </div>
-
-                <div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">Product &amp; Campaign</span>
-                  <p className="font-bold text-white truncate">{selectedEvent.product?.name || 'General Post'}</p>
-                  <p className="text-gray-400 truncate">{selectedEvent.campaign || 'N/A'}</p>
-                </div>
-
-                <div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">Format &amp; Platform</span>
-                  <p className="font-bold text-amber-400 truncate">{selectedEvent.contentType || 'Post'}</p>
-                  <p className="text-gray-400 truncate">{selectedEvent.platform || 'Instagram'}</p>
-                </div>
-
-                <div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">Review Deadline &amp; Priority</span>
-                  <p className="font-bold text-white truncate">
-                    {editDeadline ? new Date(editDeadline).toLocaleDateString() : 'Not Set'}
-                  </p>
-                  <span className="inline-block mt-0.5 px-2 py-0.2 rounded text-[10px] font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                    {editPriority} Priority
-                  </span>
-                </div>
-              </div>
-
-              {/* Caption & Copywriting Preview Section */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-                    <FileText className="w-4 h-4 text-amber-400" />
-                    Proposed Social Copy / Caption
-                  </h3>
-                  {selectedEvent.caption && (
+                {/* Top Action Row - Strictly for Marketing Manager (Client Representative) */}
+                {user?.role === 'MARKETING_MANAGER' ? (
+                  <div className="flex items-center gap-2 flex-wrap shrink-0">
                     <button
-                      onClick={handleCopyCaption}
-                      className="text-xs text-amber-400 hover:underline flex items-center gap-1 font-medium"
+                      onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
+                      className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 border ${
+                        showSettingsDrawer
+                          ? 'bg-amber-500 text-slate-950 border-amber-400'
+                          : 'bg-gray-900 text-gray-300 border-gray-800 hover:text-white'
+                      }`}
                     >
-                      {copiedCaption ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      {copiedCaption ? 'Copied!' : 'Copy Text'}
+                      <SlidersHorizontal className="w-3.5 h-3.5" /> Adjust Settings
                     </button>
-                  )}
-                </div>
 
-                <div className="p-4 rounded-xl bg-gray-900 border border-gray-800 text-sm text-gray-200 whitespace-pre-wrap font-sans leading-relaxed">
-                  {selectedEvent.caption || <span className="text-gray-500 italic">No copy provided for this event.</span>}
-                </div>
-              </div>
+                    <button
+                      onClick={() => {
+                        setReviewModalAction('REQUEST_CHANGES');
+                        setCommentText('');
+                      }}
+                      className="px-3.5 py-1.5 rounded-lg bg-orange-600/20 text-orange-400 border border-orange-500/40 hover:bg-orange-600/30 font-bold text-xs transition-colors flex items-center gap-1.5"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Request Changes
+                    </button>
 
-              {/* Creative Asset Preview Section */}
-              <div className="space-y-2">
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-                  <ImageIcon className="w-4 h-4 text-blue-400" />
-                  Creative Asset Preview
-                </h3>
+                    <button
+                      onClick={() => {
+                        setReviewModalAction('REJECT');
+                        setCommentText('');
+                      }}
+                      className="px-3.5 py-1.5 rounded-lg bg-red-600/20 text-red-400 border border-red-500/40 hover:bg-red-600/30 font-bold text-xs transition-colors flex items-center gap-1.5"
+                    >
+                      <XCircle className="w-3.5 h-3.5" /> Reject
+                    </button>
 
-                {selectedEvent.creativePreviewUrl ? (
-                  <div className="p-4 rounded-xl bg-gray-900 border border-gray-800 space-y-3">
-                    {selectedEvent.creativePreviewUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) ? (
-                      <img
-                        src={selectedEvent.creativePreviewUrl}
-                        alt="Creative Preview"
-                        className="max-h-80 rounded-lg object-contain mx-auto border border-gray-800"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-gray-800 border border-gray-700">
-                        <span className="text-xs font-mono text-gray-300 truncate">{selectedEvent.creativePreviewUrl}</span>
-                        <a
-                          href={selectedEvent.creativePreviewUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-3 py-1 rounded bg-blue-600 text-white font-bold text-xs flex items-center gap-1"
-                        >
-                          View File <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      </div>
-                    )}
+                    <button
+                      onClick={() => {
+                        setReviewModalAction('APPROVE');
+                        setCommentText('');
+                      }}
+                      className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-4 h-4" /> Approve Content
+                    </button>
                   </div>
                 ) : (
-                  <div className="p-6 rounded-xl bg-gray-900/60 border border-gray-800 text-center text-gray-500 text-xs">
-                    Creative visual file link pending upload by Social Media Manager.
-                  </div>
-                )}
-              </div>
-
-              {/* Production Notes */}
-              {selectedEvent.productionNotes && (
-                <div className="p-3.5 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1 text-xs">
-                  <span className="font-bold text-gray-400">Production &amp; Campaign Notes:</span>
-                  <p className="text-gray-300">{selectedEvent.productionNotes}</p>
-                </div>
-              )}
-
-              {/* Revision History & Client Feedback Log */}
-              <div className="space-y-3 pt-4 border-t border-border">
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-                  <History className="w-4 h-4 text-purple-400" />
-                  Approval &amp; Revision Log History
-                </h3>
-
-                {(!selectedEvent.approvalHistory || selectedEvent.approvalHistory.length === 0) ? (
-                  <p className="text-xs text-gray-500 italic">No previous revision log for this event.</p>
-                ) : (
-                  <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-                    {selectedEvent.approvalHistory.map((log: any) => (
-                      <div key={log.id} className="p-3 rounded-xl bg-gray-900/80 border border-gray-800 text-xs space-y-1">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-gray-200">{log.user?.name || log.role}</span>
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-gray-800 text-gray-400 font-mono">
-                              v{log.version}
-                            </span>
-                          </div>
-                          <span
-                            className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
-                              log.action?.includes('APPROVE')
-                                ? 'bg-emerald-500/20 text-emerald-400'
-                                : log.action?.includes('REQUEST')
-                                ? 'bg-amber-500/20 text-amber-400'
-                                : log.action?.includes('SUBMIT')
-                                ? 'bg-blue-500/20 text-blue-400'
-                                : log.action?.includes('DEADLINE') || log.action?.includes('PRIORITY')
-                                ? 'bg-purple-500/20 text-purple-400'
-                                : 'bg-red-500/20 text-red-400'
-                            }`}
-                          >
-                            {log.action?.replace(/_/g, ' ')}
-                          </span>
-                        </div>
-
-                        {log.comment && (
-                          <p className="text-xs text-gray-300 italic p-2 rounded bg-gray-950/60 border border-gray-800">
-                            "{log.comment}"
-                          </p>
-                        )}
-
-                        <div className="text-[10px] text-gray-500 text-right">
-                          {new Date(log.timestamp).toLocaleString()}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="p-2.5 px-3.5 rounded-xl bg-amber-950/30 border border-amber-500/40 text-xs flex items-center gap-2 text-amber-300 font-semibold">
+                    <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>
+                      Waiting for client approval from <strong>Marketing Manager</strong>.
+                    </span>
                   </div>
                 )}
               </div>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Focused On-Demand Decision Modal Dialog */}
+            {/* On-Demand Collapsible Settings Drawer */}
+            {showSettingsDrawer && (
+              <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-500/40 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-extrabold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4" /> Client Approval Deadline &amp; Priority Controls
+                  </span>
+                  <button onClick={() => setShowSettingsDrawer(false)} className="text-gray-400 hover:text-white">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-300 uppercase flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-amber-400" /> Client Approval Deadline
+                    </label>
+                    <input
+                      type="date"
+                      value={editDeadline}
+                      onChange={(e) => setEditDeadline(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs font-semibold text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-300 uppercase flex items-center gap-1">
+                      <Flame className="w-3 h-3 text-amber-400" /> Client Event Priority
+                    </label>
+                    <select
+                      value={editPriority}
+                      onChange={(e) => setEditPriority(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="LOW">LOW Priority</option>
+                      <option value="MEDIUM">MEDIUM Priority</option>
+                      <option value="HIGH">HIGH Priority</option>
+                      <option value="CRITICAL">CRITICAL Priority</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Clean Front Metadata Tiles Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3.5 rounded-xl bg-gray-900/60 border border-gray-800 text-xs">
+              <div>
+                <span className="text-[10px] font-bold text-gray-500 uppercase">Client &amp; Brand</span>
+                <p className="font-bold text-white truncate">{selectedEvent.client?.name}</p>
+                <p className="text-gray-400 truncate">{selectedEvent.brand?.name}</p>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold text-gray-500 uppercase">Product &amp; Campaign</span>
+                <p className="font-bold text-white truncate">{selectedEvent.product?.name || 'General Post'}</p>
+                <p className="text-gray-400 truncate">{selectedEvent.campaign || 'N/A'}</p>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold text-gray-500 uppercase">Format &amp; Platform</span>
+                <p className="font-bold text-amber-400 truncate">{selectedEvent.contentType || 'Post'}</p>
+                <p className="text-gray-400 truncate">{selectedEvent.platform || 'Instagram'}</p>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold text-gray-500 uppercase">Review Deadline &amp; Priority</span>
+                <p className="font-bold text-white truncate">
+                  {editDeadline ? new Date(editDeadline).toLocaleDateString() : 'Not Set'}
+                </p>
+                <span className="inline-block mt-0.5 px-2 py-0.2 rounded text-[10px] font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  {editPriority} Priority
+                </span>
+              </div>
+            </div>
+
+            {/* Caption & Copywriting Preview Section */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-amber-400" />
+                  Proposed Social Copy / Caption
+                </h3>
+                {selectedEvent.caption && (
+                  <button
+                    onClick={handleCopyCaption}
+                    className="text-xs text-amber-400 hover:underline flex items-center gap-1 font-medium"
+                  >
+                    {copiedCaption ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedCaption ? 'Copied!' : 'Copy Text'}
+                  </button>
+                )}
+              </div>
+
+              <div className="p-4 rounded-xl bg-gray-900 border border-gray-800 text-sm text-gray-200 whitespace-pre-wrap font-sans leading-relaxed">
+                {selectedEvent.caption || <span className="text-gray-500 italic">No copy provided for this event.</span>}
+              </div>
+            </div>
+
+            {/* Creative Asset Preview Section */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                <ImageIcon className="w-4 h-4 text-blue-400" />
+                Creative Asset Preview
+              </h3>
+
+              {selectedEvent.creativePreviewUrl ? (
+                <div className="p-4 rounded-xl bg-gray-900 border border-gray-800 space-y-3">
+                  {selectedEvent.creativePreviewUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) ? (
+                    <img
+                      src={selectedEvent.creativePreviewUrl}
+                      alt="Creative Preview"
+                      className="max-h-80 rounded-lg object-contain mx-auto border border-gray-800"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-gray-800 border border-gray-700">
+                      <span className="text-xs font-mono text-gray-300 truncate">{selectedEvent.creativePreviewUrl}</span>
+                      <a
+                        href={selectedEvent.creativePreviewUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1 rounded bg-blue-600 text-white font-bold text-xs flex items-center gap-1"
+                      >
+                        View File <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-6 rounded-xl bg-gray-900/60 border border-gray-800 text-center text-gray-500 text-xs">
+                  Creative visual file link pending upload by Social Media Manager.
+                </div>
+              )}
+            </div>
+
+            {/* Production Notes */}
+            {selectedEvent.productionNotes && (
+              <div className="p-3.5 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1 text-xs">
+                <span className="font-bold text-gray-400">Production &amp; Campaign Notes:</span>
+                <p className="text-gray-300">{selectedEvent.productionNotes}</p>
+              </div>
+            )}
+
+            {/* Revision History & Client Feedback Log */}
+            <div className="space-y-3 pt-4 border-t border-border">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                <History className="w-4 h-4 text-purple-400" />
+                Approval &amp; Revision Log History
+              </h3>
+
+              {!selectedEvent.approvalHistory || selectedEvent.approvalHistory.length === 0 ? (
+                <p className="text-xs text-gray-500 italic">No previous revision log for this event.</p>
+              ) : (
+                <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                  {selectedEvent.approvalHistory.map((log: any) => (
+                    <div key={log.id} className="p-3 rounded-xl bg-gray-900/80 border border-gray-800 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-200">{log.user?.name || log.role}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-gray-800 text-gray-400 font-mono">
+                            v{log.version}
+                          </span>
+                        </div>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+                            log.action?.includes('APPROVE')
+                              ? 'bg-emerald-500/20 text-emerald-400'
+                              : log.action?.includes('REQUEST')
+                              ? 'bg-amber-500/20 text-amber-400'
+                              : log.action?.includes('SUBMIT')
+                              ? 'bg-blue-500/20 text-blue-400'
+                              : log.action?.includes('DEADLINE') || log.action?.includes('PRIORITY')
+                              ? 'bg-purple-500/20 text-purple-400'
+                              : 'bg-red-500/20 text-red-400'
+                          }`}
+                        >
+                          {log.action?.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+
+                      {log.comment && (
+                        <p className="text-xs text-gray-300 italic p-2 rounded bg-gray-950/60 border border-gray-800">
+                          "{log.comment}"
+                        </p>
+                      )}
+
+                      <div className="text-[10px] text-gray-500 text-right">
+                        {new Date(log.timestamp).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Decision Confirmation Modal Dialog */}
       {reviewModalAction && selectedEvent && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
