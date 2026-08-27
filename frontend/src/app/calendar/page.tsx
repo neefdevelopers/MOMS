@@ -32,6 +32,32 @@ export default function CalendarPage() {
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
+  const [staffModalSearch, setStaffModalSearch] = useState('');
+  const [equipmentModalSearch, setEquipmentModalSearch] = useState('');
+
+  const toggleTeamUser = (userId: string) => {
+    setFormData((prev) => {
+      const exists = prev.teamUserIds.includes(userId);
+      return {
+        ...prev,
+        teamUserIds: exists
+          ? prev.teamUserIds.filter((id) => id !== userId)
+          : [...prev.teamUserIds, userId],
+      };
+    });
+  };
+
+  const toggleEquipment = (eqId: string) => {
+    setFormData((prev) => {
+      const exists = prev.equipmentIds.includes(eqId);
+      return {
+        ...prev,
+        equipmentIds: exists
+          ? prev.equipmentIds.filter((id) => id !== eqId)
+          : [...prev.equipmentIds, eqId],
+      };
+    });
+  };
 
   // 13 Mandatory Schedule Event Form State
   const [formData, setFormData] = useState({
@@ -309,6 +335,25 @@ export default function CalendarPage() {
   const availableEquipment = equipmentList.filter(
     (eq) => !eq.isArchived && !['UNDER_MAINTENANCE', 'DAMAGED', 'LOST', 'RETIRED'].includes(eq.availability)
   );
+
+  const filteredStaffForModal = staffUsers.filter((u) => {
+    if (!staffModalSearch.trim()) return true;
+    const q = staffModalSearch.toLowerCase().trim();
+    return (
+      (u.name || '').toLowerCase().includes(q) ||
+      (u.role || '').toLowerCase().includes(q) ||
+      (u.employeeProfile?.designation || '').toLowerCase().includes(q)
+    );
+  });
+
+  const filteredEquipmentForModal = availableEquipment.filter((eq) => {
+    if (!equipmentModalSearch.trim()) return true;
+    const q = equipmentModalSearch.toLowerCase().trim();
+    return (
+      (eq.name || '').toLowerCase().includes(q) ||
+      (eq.category || '').toLowerCase().includes(q)
+    );
+  });
 
   const canCreateEvents = ['MEDIA_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'].includes(user?.role || '');
 
@@ -1004,52 +1049,233 @@ export default function CalendarPage() {
             </div>
 
             {/* SECTION 4: TEAM & EQUIPMENT */}
-            <div className="space-y-3 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
-              <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider block">
-                Section 4 • Assigned Team & Required Equipment
-              </span>
+            <div className="space-y-4 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider block">
+                  Section 4 • Assigned Team &amp; Required Equipment
+                </span>
+                <span className="text-[10px] text-gray-400">Click items to select/unselect instantly</span>
+              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Assigned Team (Select Staff) *</label>
-                  <select
-                    multiple
-                    size={4}
-                    value={formData.teamUserIds}
-                    onChange={(e) => {
-                      const opts = Array.from(e.target.selectedOptions, (option) => option.value);
-                      setFormData({ ...formData, teamUserIds: opts });
-                    }}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-[11px] scrollbar-thin"
-                  >
-                    {staffUsers.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} ({u.employeeProfile?.designation || u.role})
-                      </option>
-                    ))}
-                  </select>
-                  <span className="text-[10px] text-gray-500 mt-1 block">Hold Ctrl / Cmd to select multiple employees</span>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Custom Staff Multi-Select Control */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-gray-200 font-bold text-xs flex items-center gap-1.5">
+                      <span>Assigned Team (Select Staff)</span>
+                      <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono text-[10px] border border-purple-500/30">
+                        {formData.teamUserIds.length} Selected
+                      </span>
+                    </label>
+                    {formData.teamUserIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, teamUserIds: [] })}
+                        className="text-[10px] text-purple-400 hover:underline font-semibold"
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Selected Staff Chips */}
+                  <div className="min-h-[38px] p-2 rounded-xl bg-gray-950/80 border border-gray-800 flex flex-wrap gap-1.5 items-center">
+                    {formData.teamUserIds.length === 0 ? (
+                      <span className="text-[11px] text-gray-500 italic px-1">
+                        No team members selected. Click staff below to assign.
+                      </span>
+                    ) : (
+                      formData.teamUserIds.map((uId) => {
+                        const userObj = staffUsers.find((u) => u.id === uId);
+                        if (!userObj) return null;
+                        return (
+                          <span
+                            key={uId}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-950/60 text-purple-200 text-[11px] font-medium border border-purple-500/40"
+                          >
+                            <span>{userObj.name}</span>
+                            <span className="text-[9px] text-purple-300 font-mono opacity-80">
+                              ({userObj.employeeProfile?.designation || userObj.role})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleTeamUser(uId)}
+                              className="hover:text-white p-0.5 text-purple-400 rounded-full"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Staff Search Input */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-gray-500" />
+                    <input
+                      type="text"
+                      placeholder="Search staff by name or role..."
+                      value={staffModalSearch}
+                      onChange={(e) => setStaffModalSearch(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  {/* Clickable Staff Cards List */}
+                  <div className="max-h-44 overflow-y-auto space-y-1 pr-1 bg-gray-900/90 border border-gray-800 rounded-xl p-1.5 scrollbar-thin">
+                    {filteredStaffForModal.length === 0 ? (
+                      <div className="p-3 text-center text-gray-500 text-[11px]">No staff found matching search.</div>
+                    ) : (
+                      filteredStaffForModal.map((u) => {
+                        const isChecked = formData.teamUserIds.includes(u.id);
+                        return (
+                          <div
+                            key={u.id}
+                            onClick={() => toggleTeamUser(u.id)}
+                            className={`p-2 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                              isChecked
+                                ? 'bg-purple-950/40 border-purple-500/60 ring-1 ring-purple-500/30'
+                                : 'bg-gray-900/40 border-gray-800/80 hover:bg-gray-800/60 hover:border-gray-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {}}
+                                className="w-3.5 h-3.5 accent-purple-500 rounded border-gray-700 bg-gray-800 cursor-pointer shrink-0"
+                              />
+                              <div className="truncate">
+                                <span className="text-xs font-semibold text-white block truncate">{u.name}</span>
+                                <span className="text-[10px] text-gray-400 block truncate">
+                                  {u.employeeProfile?.designation || u.role}
+                                </span>
+                              </div>
+                            </div>
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono shrink-0 ${
+                                isChecked
+                                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                                  : 'bg-gray-800 text-gray-400'
+                              }`}
+                            >
+                              {u.role}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Required Equipment (Available Only)</label>
-                  <select
-                    multiple
-                    size={4}
-                    value={formData.equipmentIds}
-                    onChange={(e) => {
-                      const opts = Array.from(e.target.selectedOptions, (option) => option.value);
-                      setFormData({ ...formData, equipmentIds: opts });
-                    }}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-[11px] scrollbar-thin"
-                  >
-                    {availableEquipment.map((eq) => (
-                      <option key={eq.id} value={eq.id}>
-                        📷 {eq.name} ({eq.category})
-                      </option>
-                    ))}
-                  </select>
-                  <span className="text-[10px] text-gray-500 mt-1 block">Hold Ctrl / Cmd to select multiple equipment items</span>
+                {/* Custom Equipment Multi-Select Control */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-gray-200 font-bold text-xs flex items-center gap-1.5">
+                      <span>Required Equipment (Available Gear)</span>
+                      <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-mono text-[10px] border border-blue-500/30">
+                        {formData.equipmentIds.length} Reserved
+                      </span>
+                    </label>
+                    {formData.equipmentIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, equipmentIds: [] })}
+                        className="text-[10px] text-blue-400 hover:underline font-semibold"
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Selected Equipment Chips */}
+                  <div className="min-h-[38px] p-2 rounded-xl bg-gray-950/80 border border-gray-800 flex flex-wrap gap-1.5 items-center">
+                    {formData.equipmentIds.length === 0 ? (
+                      <span className="text-[11px] text-gray-500 italic px-1">
+                        No equipment reserved. Click gear below to select.
+                      </span>
+                    ) : (
+                      formData.equipmentIds.map((eqId) => {
+                        const eqObj = availableEquipment.find((eq) => eq.id === eqId);
+                        if (!eqObj) return null;
+                        return (
+                          <span
+                            key={eqId}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-950/60 text-blue-200 text-[11px] font-medium border border-blue-500/40"
+                          >
+                            <span>📷 {eqObj.name}</span>
+                            <span className="text-[9px] text-blue-300 font-mono opacity-80">({eqObj.category})</span>
+                            <button
+                              type="button"
+                              onClick={() => toggleEquipment(eqId)}
+                              className="hover:text-white p-0.5 text-blue-400 rounded-full"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Equipment Search Input */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-gray-500" />
+                    <input
+                      type="text"
+                      placeholder="Search gear by name or category..."
+                      value={equipmentModalSearch}
+                      onChange={(e) => setEquipmentModalSearch(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  {/* Clickable Equipment Cards List */}
+                  <div className="max-h-44 overflow-y-auto space-y-1 pr-1 bg-gray-900/90 border border-gray-800 rounded-xl p-1.5 scrollbar-thin">
+                    {filteredEquipmentForModal.length === 0 ? (
+                      <div className="p-3 text-center text-gray-500 text-[11px]">No available equipment matches search.</div>
+                    ) : (
+                      filteredEquipmentForModal.map((eq) => {
+                        const isChecked = formData.equipmentIds.includes(eq.id);
+                        return (
+                          <div
+                            key={eq.id}
+                            onClick={() => toggleEquipment(eq.id)}
+                            className={`p-2 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                              isChecked
+                                ? 'bg-blue-950/40 border-blue-500/60 ring-1 ring-blue-500/30'
+                                : 'bg-gray-900/40 border-gray-800/80 hover:bg-gray-800/60 hover:border-gray-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {}}
+                                className="w-3.5 h-3.5 accent-blue-500 rounded border-gray-700 bg-gray-800 cursor-pointer shrink-0"
+                              />
+                              <div className="truncate">
+                                <span className="text-xs font-semibold text-white flex items-center gap-1 truncate">
+                                  <span>📷</span> {eq.name}
+                                </span>
+                                <span className="text-[10px] text-gray-400 block truncate">{eq.category}</span>
+                              </div>
+                            </div>
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 ${
+                                isChecked
+                                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                                  : 'bg-gray-800 text-gray-400'
+                              }`}
+                            >
+                              {eq.category}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
