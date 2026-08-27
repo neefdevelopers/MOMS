@@ -310,15 +310,13 @@ export class CalendarService {
       throw new BadRequestException('System user not found to record event creator.');
     }
 
-    // Validate assigned staff member for Media Calendar Event
+    // Validate assigned staff member for Media Calendar Event if provided (Optional)
     let assignedStaffId = data.assignedStaffId || data.assignedUserId || data.staffId || null;
     if (assignedStaffId) {
       const staffUser = await this.prisma.user.findUnique({ where: { id: assignedStaffId } });
       if (!staffUser) {
         throw new BadRequestException('Selected assigned staff member does not exist.');
       }
-    } else {
-      throw new BadRequestException('Please select a Staff member for this Media Calendar Event.');
     }
 
     const count = await this.prisma.mediaCalendarEvent.count();

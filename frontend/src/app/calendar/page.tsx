@@ -324,10 +324,6 @@ export default function CalendarPage() {
       alert('A valid active Brand is required.');
       return;
     }
-    if (!formData.assignedStaffId && (!formData.teamUserIds || formData.teamUserIds.length === 0)) {
-      alert('Please select a Staff member for this Media Calendar Event.');
-      return;
-    }
     if (!formData.shootDate) {
       alert('Shoot Date is required.');
       return;
@@ -1332,19 +1328,18 @@ export default function CalendarPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Staff Assignment Control (Required at Calendar Level) */}
+                {/* Staff Assignment Control (Optional at Calendar Level) */}
                 <div className="space-y-2.5 col-span-2 sm:col-span-1">
                   <label className="text-gray-200 font-bold text-xs flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
                       <User className="w-3.5 h-3.5 text-purple-400" />
-                      <span>Assigned Staff Member *</span>
+                      <span>Assigned Staff Member (Optional)</span>
                     </span>
-                    <span className="text-[10px] text-amber-400 font-bold font-mono">
-                      PRIMARY ASSIGNMENT
+                    <span className="text-[10px] text-gray-400 font-mono">
+                      LEAVE UNSELECTED FOR 'NOT ASSIGNED'
                     </span>
                   </label>
                   <select
-                    required
                     value={formData.assignedStaffId}
                     onChange={(e) => {
                       const sId = e.target.value;
@@ -1354,9 +1349,9 @@ export default function CalendarPage() {
                         teamUserIds: sId ? Array.from(new Set([sId, ...formData.teamUserIds])) : formData.teamUserIds,
                       });
                     }}
-                    className="w-full bg-gray-900 border border-purple-500/60 rounded-xl p-2.5 text-white font-bold text-xs focus:outline-none focus:border-purple-400"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-white font-medium text-xs focus:outline-none focus:border-purple-400"
                   >
-                    <option value="">-- Select Responsible Staff Member * --</option>
+                    <option value="">-- Leave Unassigned / Select Staff Member (Optional) --</option>
                     {staffUsers.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name} ({u.employeeProfile?.designation || u.role})
