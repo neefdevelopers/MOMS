@@ -30,6 +30,7 @@ import {
   ExternalLink,
   Flame,
   SlidersHorizontal,
+  MousePointerClick,
 } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
@@ -67,14 +68,6 @@ export default function ClientReviewPage() {
       const res = await fetchApi('/calendar');
       const eventList = Array.isArray(res) ? res : [];
       setEvents(eventList);
-
-      // Auto select first pending event or existing selection
-      if (eventList.length > 0 && !selectedEventId) {
-        const pending = eventList.find(
-          (e: any) => e.status === 'PENDING_CLIENT_APPROVAL' || e.status === 'PENDING_CLIENT_REVIEW',
-        );
-        setSelectedEventId(pending ? pending.id : eventList[0].id);
-      }
     } catch (err) {
       console.error('Failed to load client review events:', err);
     } finally {
@@ -106,7 +99,7 @@ export default function ClientReviewPage() {
     return true;
   });
 
-  const selectedEvent = events.find((e) => e.id === selectedEventId) || filteredEvents[0];
+  const selectedEvent = selectedEventId ? events.find((e) => e.id === selectedEventId) || null : null;
 
   useEffect(() => {
     if (selectedEvent) {
@@ -306,8 +299,16 @@ export default function ClientReviewPage() {
         {/* Right Column: Detailed Workspace (8 cols) */}
         <div className="lg:col-span-8">
           {!selectedEvent ? (
-            <div className="p-12 text-center text-gray-400 bg-card border border-border rounded-2xl">
-              Select a calendar event to review creative details and grant sign-off.
+            <div className="flex flex-col items-center justify-center p-12 text-center bg-card border border-border rounded-2xl min-h-[460px] space-y-4 shadow-xl">
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                <MousePointerClick className="w-8 h-8" />
+              </div>
+              <div className="max-w-md space-y-1.5">
+                <h3 className="text-base font-bold text-white">No Event Selected</h3>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Click on any event request from the list on the left to view its proposed copy, creative assets, approval deadline, and sign-off options.
+                </p>
+              </div>
             </div>
           ) : (
             <div className="p-6 rounded-2xl bg-card border border-border space-y-5 shadow-xl">
