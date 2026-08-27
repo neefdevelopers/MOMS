@@ -23,6 +23,10 @@ export default function ScriptsPage() {
   const [showStorylinePreview, setShowStorylinePreview] = useState(false);
   const [storylineTab, setStorylineTab] = useState<'view' | 'edit'>('view');
 
+  // Dedicated Storyline Popup States
+  const [showDescriptionPopup, setShowDescriptionPopup] = useState(false);
+  const [viewingScriptDescription, setViewingScriptDescription] = useState<any | null>(null);
+
   // Pagination Hook
   const { currentPage, setCurrentPage, pageSize, setPageSize, paginate } = usePagination();
 
@@ -795,8 +799,23 @@ export default function ScriptsPage() {
                   )}
 
                   {s.description && (
-                    <div className="text-[11px] text-gray-400 italic">
-                      "{s.description}"
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewingScriptDescription(s);
+                      }}
+                      className="text-[11px] text-purple-300/90 bg-purple-950/40 border border-purple-800/50 p-2.5 rounded-lg cursor-pointer hover:border-purple-500 transition-all group space-y-1"
+                    >
+                      <div className="flex items-center justify-between text-[10px] text-purple-400 font-bold">
+                        <span className="flex items-center gap-1">
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>Script Storyline &amp; Scenes</span>
+                        </span>
+                        <span className="group-hover:underline text-purple-300">Read Full Popup ↗</span>
+                      </div>
+                      <p className="line-clamp-2 text-gray-300 font-sans leading-relaxed">
+                        {s.description}
+                      </p>
                     </div>
                   )}
 
@@ -1762,58 +1781,47 @@ export default function ScriptsPage() {
               </div>
             </div>
 
-            {/* 12. Script Description & Storyline Session */}
-            <div className="bg-gray-950/80 border border-purple-900/60 p-4 rounded-xl space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-2">
+            {/* 12. Script Description & Storyline - Clickable Popup Trigger */}
+            <div className="bg-gray-950/80 border border-purple-900/60 p-4 rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between">
                 <label className="text-gray-200 font-bold text-xs flex items-center gap-1.5">
                   <FileText className="w-4 h-4 text-purple-400" />
-                  <span>Script Description &amp; Full Storyline (Scenes, Narration &amp; VO)</span>
+                  <span>Script Description &amp; Storyline *</span>
                 </label>
-                <div className="flex items-center gap-2 text-[10px]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const template = `\n\n[Scene ${newDescription.split('[Scene').length} - New Scene]\nVisual: \nVoiceover (VO): `;
-                      setNewDescription((prev) => prev + template);
-                    }}
-                    className="px-2 py-0.5 bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-800 rounded font-semibold transition-colors"
-                  >
-                    + Add Scene Template
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowStorylinePreview(!showStorylinePreview)}
-                    className="px-2 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded font-semibold flex items-center gap-1 transition-colors"
-                  >
-                    <Eye className="w-3 h-3 text-purple-400" />
-                    {showStorylinePreview ? 'Edit Input' : 'Live Preview'}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDescriptionPopup(true)}
+                  className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md shadow-purple-600/30 transition-all"
+                >
+                  <span>📜 Open Description Popup</span>
+                </button>
               </div>
 
-              {!showStorylinePreview ? (
-                <textarea
-                  rows={5}
-                  placeholder={`Enter full scene narration, voiceover dialogues, shots...\n\nExample:\n[Scene 1 - Studio Intro]\nVisual: Smooth pan over hero product\nVoiceover (VO): Experience the next generation of performance...\n\n[Scene 2 - Feature Callout]\nVisual: Macro shot of premium finish`}
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl text-xs font-mono focus:outline-none focus:border-purple-500"
-                />
-              ) : (
-                <div className="bg-gray-900 border border-purple-800/60 p-3 rounded-xl max-h-52 overflow-y-auto custom-scrollbar">
-                  {newDescription?.trim() ? (
-                    <div className="whitespace-pre-wrap font-sans text-gray-200 text-xs leading-relaxed">
+              {/* Clickable Preview Card */}
+              <div
+                onClick={() => setShowDescriptionPopup(true)}
+                className="p-3 bg-gray-900/90 border border-gray-800 hover:border-purple-500/60 rounded-xl cursor-pointer transition-all group"
+              >
+                {newDescription?.trim() ? (
+                  <div className="space-y-1">
+                    <p className="text-gray-200 text-xs font-sans line-clamp-3 leading-relaxed whitespace-pre-wrap">
                       {newDescription}
+                    </p>
+                    <div className="flex justify-between items-center text-[10px] text-purple-400 font-mono pt-1.5 border-t border-gray-800">
+                      <span>{newDescription.split('\n').filter(Boolean).length} lines • {newDescription.length} characters</span>
+                      <span className="text-purple-300 group-hover:underline font-semibold flex items-center gap-1">
+                        Click to edit in popup ↗
+                      </span>
                     </div>
-                  ) : (
-                    <span className="text-gray-500 italic text-xs">No storyline content written yet. Switch to Edit Input to add text.</span>
-                  )}
-                </div>
-              )}
-
-              <div className="flex justify-between items-center text-[10px] text-gray-400 font-mono">
-                <span>Format: Scene headers, Visual cues, Narration &amp; Dialogues</span>
-                <span>{newDescription ? newDescription.split('\n').filter(Boolean).length : 0} lines • {newDescription.length} characters</span>
+                  </div>
+                ) : (
+                  <div className="py-2 text-center text-gray-500 text-xs italic flex flex-col items-center gap-1">
+                    <span>Click here to open popup &amp; write full script storyline, scenes, voiceovers &amp; shot list</span>
+                    <span className="px-2.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 text-[10px] font-mono not-italic mt-1">
+                      + Add Storyline &amp; Scenes Popup
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1846,6 +1854,144 @@ export default function ScriptsPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+      {/* 1. Script Description & Storyline Editor Popup Modal (Creation Flow) */}
+      {showDescriptionPopup && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-in fade-in duration-150">
+          <div className="bg-gray-950 border border-purple-900/80 rounded-2xl w-full max-w-2xl p-6 space-y-4 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-400" />
+                <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                  📜 Script Description &amp; Storyline Editor
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDescriptionPopup(false)}
+                className="w-8 h-8 rounded-lg bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center font-bold text-sm transition-colors border border-gray-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <span className="text-gray-400 text-[11px]">Write scenes, visual instructions, and voiceover dialogues</span>
+              <div className="flex items-center gap-2 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const template = `\n\n[Scene ${newDescription.split('[Scene').length} - New Scene]\nVisual: \nVoiceover (VO): `;
+                    setNewDescription((prev) => prev + template);
+                  }}
+                  className="px-2.5 py-1 bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-800 rounded-lg font-semibold transition-colors"
+                >
+                  + Add Scene Template
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowStorylinePreview(!showStorylinePreview)}
+                  className="px-2.5 py-1 bg-gray-900 hover:bg-gray-800 text-gray-300 border border-gray-700 rounded-lg font-semibold flex items-center gap-1 transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5 text-purple-400" />
+                  {showStorylinePreview ? 'Edit Text' : 'Formatted Preview'}
+                </button>
+              </div>
+            </div>
+
+            {!showStorylinePreview ? (
+              <textarea
+                rows={10}
+                autoFocus
+                placeholder={`Enter full scene narration, voiceover dialogues, shots...\n\nExample:\n[Scene 1 - Studio Intro]\nVisual: Smooth pan over hero product\nVoiceover (VO): Experience the next generation of performance...\n\n[Scene 2 - Feature Callout]\nVisual: Macro shot of premium finish`}
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                className="w-full bg-gray-900 border border-purple-900/60 text-white p-4 rounded-xl text-xs font-mono focus:outline-none focus:border-purple-400 leading-relaxed shadow-inner"
+              />
+            ) : (
+              <div className="bg-gray-900 border border-purple-800/60 p-4 rounded-xl max-h-72 overflow-y-auto custom-scrollbar">
+                {newDescription?.trim() ? (
+                  <div className="whitespace-pre-wrap font-sans text-gray-200 text-xs leading-relaxed">
+                    {newDescription}
+                  </div>
+                ) : (
+                  <span className="text-gray-500 italic text-xs">No storyline text entered yet. Switch to Edit Text to add content.</span>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-3 border-t border-gray-800">
+              <span className="text-[10px] text-gray-400 font-mono">
+                {newDescription ? newDescription.split('\n').filter(Boolean).length : 0} lines • {newDescription.length} characters
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowDescriptionPopup(false)}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-md text-xs transition-all"
+              >
+                Done &amp; Save Storyline
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Script Description Reader Popup Modal (From Cards / Table View) */}
+      {viewingScriptDescription && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-in fade-in duration-150">
+          <div className="bg-gray-950 border border-purple-900/80 rounded-2xl w-full max-w-2xl p-6 space-y-4 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-400" />
+                <div>
+                  <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                    📜 {viewingScriptDescription.name}
+                  </h3>
+                  <span className="text-[10px] text-purple-300 font-mono">ID: {viewingScriptDescription.scriptId}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingScriptDescription(null)}
+                className="w-8 h-8 rounded-lg bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center font-bold text-sm transition-colors border border-gray-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl max-h-80 overflow-y-auto custom-scrollbar">
+              {viewingScriptDescription.description?.trim() ? (
+                <div className="whitespace-pre-wrap font-sans text-gray-200 text-xs leading-relaxed tracking-wide">
+                  {viewingScriptDescription.description}
+                </div>
+              ) : (
+                <p className="text-gray-500 italic text-xs text-center py-4">No storyline text recorded for this script.</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-gray-800">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(viewingScriptDescription.description || '');
+                  setCopiedStoryline(true);
+                  setTimeout(() => setCopiedStoryline(false), 2000);
+                }}
+                className="px-3 py-1.5 bg-purple-950 hover:bg-purple-900 border border-purple-800 text-purple-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                {copiedStoryline ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-purple-400" />}
+                <span>{copiedStoryline ? 'Copied to Clipboard!' : 'Copy Script Text'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingScriptDescription(null)}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-xl text-xs transition-all"
+              >
+                Close Popup
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
