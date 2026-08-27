@@ -50,13 +50,13 @@ export class GraphicReqsController {
     return this.graphicReqsService.findOne(id);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER)
   @Post()
   create(@Body() data: any) {
     return this.graphicReqsService.create(data);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER)
   @Put(':id')
   update(@Param('id') id: string, @Body() data: any) {
     return this.graphicReqsService.update(id, data);

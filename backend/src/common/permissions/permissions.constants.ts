@@ -382,7 +382,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     [ModuleType.DASHBOARD]: [PermissionType.VIEW],
     [ModuleType.PROJECTS]: [PermissionType.VIEW],
     [ModuleType.SCRIPTS]: [PermissionType.VIEW],
-    [ModuleType.GRAPHIC_REQUIREMENTS]: [PermissionType.VIEW],
+    [ModuleType.GRAPHIC_REQUIREMENTS]: [PermissionType.VIEW, PermissionType.CREATE, PermissionType.EDIT],
     [ModuleType.TASKS]: [PermissionType.VIEW],
     [ModuleType.EQUIPMENT]: [PermissionType.VIEW],
     [ModuleType.CLIENTS]: [PermissionType.VIEW],

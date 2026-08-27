@@ -254,7 +254,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     DASHBOARD: ['VIEW'],
     PROJECTS: ['VIEW'],
     SCRIPTS: ['VIEW'],
-    GRAPHIC_REQUIREMENTS: ['VIEW'],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT'],
     TASKS: ['VIEW'],
     EQUIPMENT: ['VIEW'],
     CLIENTS: ['VIEW'],

@@ -454,7 +454,7 @@ export default function GraphicReqsPage() {
           </div>
         </div>
 
-        {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+        {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
           <button
             onClick={() => setShowCreateModal(true)}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg flex items-center gap-2 shadow-md shadow-amber-600/30 transition-colors text-xs"
