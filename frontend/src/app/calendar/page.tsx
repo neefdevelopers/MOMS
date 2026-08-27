@@ -165,9 +165,12 @@ export default function CalendarPage() {
         fetchApi('/products').catch(() => []),
         fetchApi('/users').catch(() => []),
         fetchApi('/equipment').catch(() => []),
-        fetchApi('/graphic-reqs').catch(() => []),
+        fetchApi('/graphic-reqs?all=true').catch(() => []),
         fetchApi('/projects').catch(() => []),
       ]);
+
+      const rawGr = Array.isArray(resGr) ? resGr : (resGr?.data || resGr?.requirements || resGr?.items || []);
+      const rawProj = Array.isArray(resProj) ? resProj : (resProj?.data || resProj?.projects || resProj?.items || []);
 
       setEvents(Array.isArray(resEvents) ? resEvents : []);
       setClients(Array.isArray(resClients) ? resClients : []);
@@ -175,12 +178,22 @@ export default function CalendarPage() {
       setProducts(Array.isArray(resProducts) ? resProducts : []);
       setStaffUsers(Array.isArray(resUsers) ? resUsers : []);
       setEquipmentList(Array.isArray(resEq) ? resEq : []);
-      setGraphicRequirements(Array.isArray(resGr) ? resGr : []);
-      setShootProjectsList(Array.isArray(resProj) ? resProj : []);
+      setGraphicRequirements(rawGr);
+      setShootProjectsList(rawProj);
     } catch (err) {
       console.error('Error loading calendar reference data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const refreshGraphicReqs = async () => {
+    try {
+      const res = await fetchApi('/graphic-reqs?all=true');
+      const raw = Array.isArray(res) ? res : (res?.data || res?.requirements || res?.items || []);
+      setGraphicRequirements(raw);
+    } catch (err) {
+      console.error('Failed to refresh graphic requirements:', err);
     }
   };
 
@@ -532,10 +545,11 @@ export default function CalendarPage() {
             </button>
           </div>
 
-          {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER') && (
+          {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'TECHNICAL_MANAGER' || user?.role === 'STAFF') && (
             <button
               onClick={() => {
                 resetForm();
+                refreshGraphicReqs();
                 setEditingEvent(null);
                 setShowAddModal(true);
               }}
@@ -996,7 +1010,10 @@ export default function CalendarPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div
-                    onClick={() => setFormData((prev) => ({ ...prev, eventSource: 'GRAPHIC_REQUIREMENT', shootId: '' }))}
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, eventSource: 'GRAPHIC_REQUIREMENT', shootId: '' }));
+                      refreshGraphicReqs();
+                    }}
                     className={`p-3.5 rounded-xl border cursor-pointer transition-all space-y-1 ${
                       formData.eventSource === 'GRAPHIC_REQUIREMENT'
                         ? 'bg-amber-950/40 border-amber-500 ring-1 ring-amber-500/40 text-amber-300'

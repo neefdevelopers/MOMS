@@ -25,6 +25,7 @@ export class GraphicReqsController {
     @Query('date') date?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('all') all?: string,
   ) {
     return this.graphicReqsService.findAll({
       projectId,
@@ -38,6 +39,7 @@ export class GraphicReqsController {
       date,
       dateFrom,
       dateTo,
+      all,
       userId: user?.id,
       role: user?.role,
     });

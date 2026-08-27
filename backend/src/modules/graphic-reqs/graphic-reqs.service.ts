@@ -17,6 +17,7 @@ export class GraphicReqsService {
     date?: string;
     dateFrom?: string;
     dateTo?: string;
+    all?: string;
     userId?: string;
     role?: string;
   } | string) {
@@ -47,8 +48,8 @@ export class GraphicReqsService {
       if (p.dateTo) where.createdAt.lte = new Date(p.dateTo);
     }
 
-    // Role-based query filtering for STAFF: only assigned tasks or projects
-    if (p.role === 'STAFF' && p.userId) {
+    // Role-based query filtering for STAFF: only assigned tasks or projects (unless all=true requested)
+    if (p.role === 'STAFF' && p.userId && p.all !== 'true' && p.all !== '1') {
       where.OR = [
         { tasks: { some: { assignedEmployees: { some: { userId: p.userId } } } } },
         { project: { assignedTeam: { some: { userId: p.userId } } } },
