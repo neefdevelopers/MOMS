@@ -59,6 +59,8 @@ model User {
   assignedCalendarEvents    MediaCalendarEvent[]      @relation("CalendarEventAssignedStaff")
   calendarRevisions         CalendarEventRevision[]
   calendarApprovalHistories CalendarApprovalHistory[]
+  createdScripts            Script[]                  @relation("ScriptCreator")
+  approvedScripts           Script[]                  @relation("ScriptApprover")
 }
 
 model Department {
@@ -359,8 +361,15 @@ model Script {
   technicalReviewApproved     Boolean      @default(false)
   mediaManagerReviewApproved  Boolean      @default(false)
   clientConfirmationRecorded  Boolean      @default(false)
+  createdById                 String?
+  createdBy                   User?        @relation("ScriptCreator", fields: [createdById], references: [id])
+  approvedById                String?
+  approvedBy                  User?        @relation("ScriptApprover", fields: [approvedById], references: [id])
+  approvedAt                  DateTime?
+  rejectedAt                  DateTime?
+  rejectionReason             String?
   createdAt                   DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  updatedAt                   DateTime     @updatedAt
 
   tasks              Task[]
   files              FileMetadata[]

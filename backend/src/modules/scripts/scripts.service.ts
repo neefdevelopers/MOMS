@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -89,6 +89,8 @@ export class ScriptsService {
         brand: true,
         product: true,
         campaign: true,
+        createdBy: { select: { id: true, name: true, role: true, email: true } },
+        approvedBy: { select: { id: true, name: true, role: true, email: true } },
         tasks: { include: { assignedEmployees: { include: { user: true } } } },
         files: true,
         scriptAssignments: { include: { user: { select: { id: true, name: true, role: true, avatarUrl: true } } } },
@@ -115,6 +117,8 @@ export class ScriptsService {
         brand: true,
         product: true,
         campaign: true,
+        createdBy: { select: { id: true, name: true, role: true, email: true } },
+        approvedBy: { select: { id: true, name: true, role: true, email: true } },
         tasks: { include: { assignedEmployees: { include: { user: true } } } },
         files: true,
         scriptAssignments: { include: { user: { select: { id: true, name: true, role: true, avatarUrl: true } } } },
@@ -379,6 +383,9 @@ export class ScriptsService {
     const count = await this.prisma.script.count();
     const autoScriptId = `SCR-${(count + 1).toString().padStart(6, '0')}`;
 
+    // Default status for created scripts is PENDING_MARKETING_APPROVAL unless explicitly set to DRAFT
+    const initialStatus = data.status === 'DRAFT' ? 'DRAFT' : 'PENDING_MARKETING_APPROVAL';
+
     const script = await this.prisma.script.create({
       data: {
         scriptId: autoScriptId,
@@ -393,17 +400,51 @@ export class ScriptsService {
         objective: data.objective,
         description: data.description,
         estimatedDuration: data.estimatedDuration || '30s',
-        status: data.status || 'DRAFT',
+        status: initialStatus,
         priority: data.priority || 'MEDIUM',
         remarks: data.remarks,
+        createdById: data.createdById || null,
       },
     });
+
     await this.logTimeline(
       script.id,
       'SCRIPT_CREATED',
-      `Script '${script.name}' created for project ${project.projectId}`,
+      `Script '${script.name}' created for project ${project.projectId} by ${data.createdByName || 'user'}`,
       data.createdById,
     );
+
+    if (initialStatus === 'PENDING_MARKETING_APPROVAL') {
+      await this.logTimeline(
+        script.id,
+        'SUBMITTED_FOR_APPROVAL',
+        `Script submitted for Marketing Manager approval`,
+        data.createdById,
+      );
+
+      // Create notification for Marketing Managers
+      const marketingManagers = await this.prisma.user.findMany({
+        where: { role: 'MARKETING_MANAGER' },
+      });
+
+      if (marketingManagers.length > 0) {
+        await this.prisma.notification.createMany({
+          data: marketingManagers.map((mm) => ({
+            userId: mm.id,
+            title: 'New Script Pending Approval',
+            message: `New Script "${script.scriptId}: ${script.name}" created by ${data.createdByName || 'team member'} requires Marketing Manager approval.`,
+            type: 'INFO',
+            linkUrl: '/scripts',
+            eventType: 'SCRIPT_APPROVAL_REQUEST',
+            entityType: 'SCRIPT',
+            entityId: script.id,
+            entityCode: script.scriptId,
+            scriptId: script.id,
+            projectId: script.projectId || null,
+          })),
+        });
+      }
+    }
 
     // Automated Task Creation Trigger 3: Automatically created from scripts
     const taskCount = await this.prisma.task.count();
@@ -548,5 +589,169 @@ export class ScriptsService {
     }
 
     return updated;
+  }
+
+  async approveScript(
+    scriptId: string,
+    user: { id: string; name?: string; role: string },
+    body: { action: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT'; comment?: string; rejectionReason?: string },
+  ) {
+    const script = await this.findOne(scriptId);
+
+    // Self-approval check (Section 11)
+    if (script.createdById && script.createdById === user.id && user.role !== 'ADMINISTRATOR' && user.role !== 'ADMIN') {
+      throw new ForbiddenException(
+        'Business Rule Violation: Self-approval is strictly prohibited. You cannot approve a script that you created.',
+      );
+    }
+
+    // Ensure user is Marketing Manager or Admin
+    if (user.role !== 'MARKETING_MANAGER' && user.role !== 'ADMINISTRATOR' && user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only Marketing Manager can approve or review scripts.');
+    }
+
+    const { action, comment, rejectionReason } = body;
+
+    if (action === 'APPROVE') {
+      await this.prisma.script.update({
+        where: { id: scriptId },
+        data: {
+          status: 'APPROVED',
+          approvedById: user.id,
+          approvedAt: new Date(),
+          mediaManagerReviewApproved: true,
+        },
+      });
+      await this.logTimeline(
+        scriptId,
+        'SCRIPT_APPROVED',
+        `Script approved by Marketing Manager ${user.name || ''}`,
+        user.id,
+      );
+
+      if (script.createdById) {
+        await this.prisma.notification.create({
+          data: {
+            userId: script.createdById,
+            title: 'Script Approved',
+            message: `Your Script "${script.scriptId}: ${script.name}" has been APPROVED by Marketing Manager.`,
+            type: 'SUCCESS',
+            linkUrl: '/scripts',
+            eventType: 'SCRIPT_APPROVED',
+            entityType: 'SCRIPT',
+            entityId: script.id,
+            entityCode: script.scriptId,
+            scriptId: script.id,
+          },
+        });
+      }
+    } else if (action === 'REQUEST_CHANGES') {
+      await this.prisma.script.update({
+        where: { id: scriptId },
+        data: {
+          status: 'CHANGES_REQUESTED',
+          remarks: comment || 'Marketing Manager requested revisions',
+        },
+      });
+      await this.logTimeline(
+        scriptId,
+        'REVISION_REQUESTED',
+        `Marketing Manager requested changes: ${comment || 'Revisions required'}`,
+        user.id,
+      );
+
+      if (script.createdById) {
+        await this.prisma.notification.create({
+          data: {
+            userId: script.createdById,
+            title: 'Script Revisions Requested',
+            message: `Marketing Manager requested changes on Script "${script.scriptId}: ${script.name}": ${comment || 'Revisions required'}`,
+            type: 'WARNING',
+            linkUrl: '/scripts',
+            eventType: 'SCRIPT_REVISION_REQUESTED',
+            entityType: 'SCRIPT',
+            entityId: script.id,
+            entityCode: script.scriptId,
+            scriptId: script.id,
+          },
+        });
+      }
+    } else if (action === 'REJECT') {
+      const reason = rejectionReason || comment || 'Script rejected by Marketing Manager';
+      await this.prisma.script.update({
+        where: { id: scriptId },
+        data: {
+          status: 'REJECTED',
+          rejectedAt: new Date(),
+          rejectionReason: reason,
+          remarks: reason,
+        },
+      });
+      await this.logTimeline(
+        scriptId,
+        'SCRIPT_REJECTED',
+        `Script rejected by Marketing Manager: ${reason}`,
+        user.id,
+      );
+
+      if (script.createdById) {
+        await this.prisma.notification.create({
+          data: {
+            userId: script.createdById,
+            title: 'Script Rejected',
+            message: `Your Script "${script.scriptId}: ${script.name}" was REJECTED: ${reason}`,
+            type: 'ERROR',
+            linkUrl: '/scripts',
+            eventType: 'SCRIPT_REJECTED',
+            entityType: 'SCRIPT',
+            entityId: script.id,
+            entityCode: script.scriptId,
+            scriptId: script.id,
+          },
+        });
+      }
+    }
+
+    return this.findOne(scriptId);
+  }
+
+  async resubmitScript(scriptId: string, user: { id: string; name?: string }) {
+    const script = await this.findOne(scriptId);
+    await this.prisma.script.update({
+      where: { id: scriptId },
+      data: {
+        status: 'PENDING_MARKETING_APPROVAL',
+      },
+    });
+
+    await this.logTimeline(
+      scriptId,
+      'SCRIPT_SUBMITTED',
+      `Script resubmitted for Marketing Manager approval by ${user.name || ''}`,
+      user.id,
+    );
+
+    const marketingManagers = await this.prisma.user.findMany({
+      where: { role: 'MARKETING_MANAGER' },
+    });
+
+    if (marketingManagers.length > 0) {
+      await this.prisma.notification.createMany({
+        data: marketingManagers.map((mm) => ({
+          userId: mm.id,
+          title: 'Resubmitted Script Pending Approval',
+          message: `Script "${script.scriptId}: ${script.name}" was resubmitted for Marketing Manager approval.`,
+          type: 'INFO',
+          linkUrl: '/scripts',
+          eventType: 'SCRIPT_RESUBMITTED',
+          entityType: 'SCRIPT',
+          entityId: script.id,
+          entityCode: script.scriptId,
+          scriptId: script.id,
+        })),
+      });
+    }
+
+    return this.findOne(scriptId);
   }
 }

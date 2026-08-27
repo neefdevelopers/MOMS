@@ -152,7 +152,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
       PermissionType.CREATE,
       PermissionType.EDIT,
       PermissionType.DELETE,
-      PermissionType.APPROVE,
       PermissionType.ASSIGN,
       PermissionType.EXPORT,
       PermissionType.ARCHIVE,
@@ -381,7 +380,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   [Role.SOCIAL_MEDIA_MANAGER]: {
     [ModuleType.DASHBOARD]: [PermissionType.VIEW],
     [ModuleType.PROJECTS]: [PermissionType.VIEW],
-    [ModuleType.SCRIPTS]: [PermissionType.VIEW],
+    [ModuleType.SCRIPTS]: [PermissionType.VIEW, PermissionType.CREATE, PermissionType.EDIT],
     [ModuleType.GRAPHIC_REQUIREMENTS]: [PermissionType.VIEW, PermissionType.CREATE, PermissionType.EDIT],
     [ModuleType.TASKS]: [PermissionType.VIEW],
     [ModuleType.EQUIPMENT]: [PermissionType.VIEW],
@@ -397,8 +396,8 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   },
   [Role.MARKETING_MANAGER]: {
     [ModuleType.DASHBOARD]: [PermissionType.VIEW],
-    [ModuleType.PROJECTS]: [],
-    [ModuleType.SCRIPTS]: [],
+    [ModuleType.PROJECTS]: [PermissionType.VIEW],
+    [ModuleType.SCRIPTS]: [PermissionType.VIEW, PermissionType.CREATE, PermissionType.EDIT, PermissionType.APPROVE],
     [ModuleType.GRAPHIC_REQUIREMENTS]: [],
     [ModuleType.TASKS]: [],
     [ModuleType.EQUIPMENT]: [],

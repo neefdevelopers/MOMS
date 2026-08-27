@@ -77,16 +77,37 @@ export class ScriptsController {
     return this.scriptsService.findOne(id);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @Post()
-  create(@Body() data: any) {
-    return this.scriptsService.create(data);
+  create(@Body() data: any, @CurrentUser() user: any) {
+    return this.scriptsService.create({
+      ...data,
+      createdById: user?.id,
+      createdByName: user?.name,
+      createdByRole: user?.role,
+    });
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @Put(':id')
-  update(@Param('id') id: string, @Body() data: any) {
-    return this.scriptsService.update(id, data);
+  update(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) {
+    return this.scriptsService.update(id, { ...data, updatedById: user?.id });
+  }
+
+  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/approve')
+  approveScript(
+    @Param('id') id: string,
+    @Body() body: { action: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT'; comment?: string; rejectionReason?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.scriptsService.approveScript(id, user, body);
+  }
+
+  @Roles(Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/resubmit')
+  resubmitScript(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.scriptsService.resubmitScript(id, user);
   }
 
   // --- Script Assignment Endpoints ---

@@ -64,21 +64,40 @@ export default function ClientReviewPage() {
   const [submittingReview, setSubmittingReview] = useState(false);
   const [copiedCaption, setCopiedCaption] = useState(false);
 
-  const loadEvents = async () => {
+  // Pending Scripts State for Marketing Manager
+  const [pendingScripts, setPendingScripts] = useState<any[]>([]);
+
+  const loadClientData = async () => {
     try {
-      const res = await fetchApi('/calendar');
-      const eventList = Array.isArray(res) ? res : [];
-      setEvents(eventList);
+      const [resEvents, resScripts] = await Promise.all([
+        fetchApi('/calendar'),
+        fetchApi('/scripts'),
+      ]);
+      setEvents(Array.isArray(resEvents) ? resEvents : []);
+      const scriptList = Array.isArray(resScripts) ? resScripts : [];
+      setPendingScripts(scriptList.filter((s: any) => s.status === 'PENDING_MARKETING_APPROVAL'));
     } catch (err) {
-      console.error('Failed to load client review events:', err);
+      console.error('Failed to load client review data:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadEvents();
+    loadClientData();
   }, []);
+
+  const handleReviewScript = async (scriptId: string, action: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT', comment?: string) => {
+    try {
+      await fetchApi(`/scripts/${scriptId}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({ action, comment }),
+      });
+      await loadClientData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to review script');
+    }
+  };
 
   const filteredEvents = events.filter((e) => {
     if (statusFilter === 'PENDING_CLIENT_APPROVAL') {
@@ -148,7 +167,7 @@ export default function ClientReviewPage() {
       setReviewModalAction(null);
       setCommentText('');
       setSelectedEventId(null); // Close pop-up on successful decision
-      await loadEvents();
+      await loadClientData();
     } catch (err: any) {
       alert(err.message || 'Failed to submit client decision.');
     } finally {
@@ -227,6 +246,96 @@ export default function ClientReviewPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Pending Script Approvals Section for Marketing Manager */}
+      <div className="bg-card border border-purple-900/60 p-5 rounded-2xl space-y-4 shadow-md">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-purple-400" />
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+              📜 Pending Script Approvals Queue
+            </h2>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800 text-xs font-bold font-mono">
+            {pendingScripts.length} Pending
+          </span>
+        </div>
+
+        {pendingScripts.length === 0 ? (
+          <p className="text-gray-500 italic text-xs py-2 text-center">
+            No scripts currently pending Marketing Manager approval.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            {pendingScripts.map((scr) => (
+              <div key={scr.id} className="bg-gray-900 border border-purple-900/60 p-4 rounded-xl space-y-3 shadow-sm hover:border-purple-500 transition-all flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-start font-mono">
+                    <span className="px-2 py-0.5 bg-purple-950 text-purple-300 border border-purple-800 rounded font-bold text-[10px]">
+                      {scr.scriptId}
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 bg-amber-950 text-amber-300 border border-amber-800 rounded font-bold">
+                      Pending Marketing Approval
+                    </span>
+                  </div>
+
+                  <h3 className="font-bold text-white text-sm font-mono">{scr.name}</h3>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] bg-gray-950 p-2.5 rounded-lg border border-gray-800 text-gray-300">
+                    <div><span className="text-gray-500">Client:</span> <strong>{scr.client?.name || 'N/A'}</strong></div>
+                    <div><span className="text-gray-500">Created By:</span> <strong className="text-indigo-300">{scr.createdBy?.name || (scr.createdById ? 'Staff Member' : 'Social Media Manager')}</strong></div>
+                    <div><span className="text-gray-500">Brand:</span> <strong className="text-purple-300">{scr.brand?.name || 'N/A'}</strong></div>
+                    <div><span className="text-gray-500">Priority:</span> <strong className="text-amber-400">{scr.priority}</strong></div>
+                    <div><span className="text-gray-500">Assigned Staff:</span> <strong className="text-amber-300">Not Assigned</strong></div>
+                    <div><span className="text-gray-500">Category:</span> {scr.category}</div>
+                  </div>
+
+                  {scr.description && (
+                    <p className="text-[11px] text-gray-300 italic line-clamp-2 bg-gray-950/60 p-2 rounded border border-gray-800">
+                      "{scr.description}"
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-gray-800">
+                  {scr.createdById === user?.id ? (
+                    <span className="text-[10px] text-red-400 font-bold italic">
+                      ⚠️ Self-Approval Prohibited (Created by You)
+                    </span>
+                  ) : (
+                    <div className="flex items-center gap-2 w-full justify-end">
+                      <button
+                        onClick={() => handleReviewScript(scr.id, 'APPROVE')}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg flex items-center gap-1 shadow-sm transition-all"
+                      >
+                        <Check className="w-3.5 h-3.5" /> Approve
+                      </button>
+                      <button
+                        onClick={() => {
+                          const comment = prompt('Enter changes requested for script:');
+                          if (comment) handleReviewScript(scr.id, 'REQUEST_CHANGES', comment);
+                        }}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-lg flex items-center gap-1 transition-all"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" /> Request Changes
+                      </button>
+                      <button
+                        onClick={() => {
+                          const reason = prompt('Enter rejection reason for script:');
+                          if (reason) handleReviewScript(scr.id, 'REJECT', reason);
+                        }}
+                        className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg flex items-center gap-1 transition-all"
+                      >
+                        <X className="w-3.5 h-3.5" /> Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Full Width Grid View of Event Request Cards */}

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
-import { FileText, UserPlus, X, MessageSquare, Send, Search, Filter, RotateCcw, SlidersHorizontal, Building2, Users, Layers, Check, Copy, Eye } from 'lucide-react';
+import { FileText, UserPlus, X, MessageSquare, Send, Search, Filter, RotateCcw, SlidersHorizontal, Building2, Users, Layers, Check, Copy, Eye, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
@@ -279,6 +279,37 @@ export default function ScriptsPage() {
     }
   };
 
+  const handleApproveScriptAction = async (scriptId: string, action: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT', comment?: string) => {
+    try {
+      setSaving(true);
+      await fetchApi(`/scripts/${scriptId}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({ action, comment }),
+      });
+      setSelectedScript(null);
+      await loadScripts();
+    } catch (err: any) {
+      alert(err.message || 'Script approval action failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResubmitScriptAction = async (scriptId: string) => {
+    try {
+      setSaving(true);
+      await fetchApi(`/scripts/${scriptId}/resubmit`, {
+        method: 'POST',
+      });
+      setSelectedScript(null);
+      await loadScripts();
+    } catch (err: any) {
+      alert(err.message || 'Failed to resubmit script');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const openInspector = (s: any) => {
     setSelectedScript(s);
     recordRecentAccess({
@@ -404,7 +435,7 @@ export default function ScriptsPage() {
           </p>
         </div>
 
-        {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+        {(user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
           <button
             onClick={() => setShowCreateModal(true)}
             className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-purple-600/30"
@@ -786,10 +817,10 @@ export default function ScriptsPage() {
                     <div><span className="text-gray-500">Client:</span> <strong className="text-gray-200">{s.client?.name}</strong></div>
                     <div><span className="text-gray-500">Brand:</span> <strong className="text-purple-400">[{s.brand?.shortCode}] {s.brand?.name}</strong></div>
                     <div><span className="text-gray-500">Product:</span> <strong className="text-emerald-400">{s.product?.name || 'N/A'}</strong></div>
-                    <div><span className="text-gray-500">Campaign:</span> {s.campaign?.name || 'N/A (Optional)'}</div>
+                    <div><span className="text-gray-500">Created By:</span> <strong className="text-indigo-300">{s.createdBy?.name || (s.createdById ? 'Staff Member' : 'Social Media Manager')}</strong></div>
                     <div><span className="text-gray-500">Category:</span> {s.category || 'Social Media'}</div>
-                    <div><span className="text-gray-500">Estimated Duration:</span> <strong className="text-cyan-400">{s.estimatedDuration || '30s'}</strong></div>
-                    <div><span className="text-gray-500">Current Status:</span> <strong className="text-blue-400">{s.status}</strong></div>
+                    <div><span className="text-gray-500">Assigned Staff:</span> <strong className="text-amber-300">{assignedStaffNames.length > 0 ? assignedStaffNames.join(', ') : 'Not Assigned'}</strong></div>
+                    <div><span className="text-gray-500">Approval Status:</span> <strong className={`${s.status === 'APPROVED' ? 'text-green-400' : s.status === 'PENDING_MARKETING_APPROVAL' ? 'text-amber-400' : s.status === 'CHANGES_REQUESTED' ? 'text-orange-400' : 'text-blue-400'}`}>{s.status === 'PENDING_MARKETING_APPROVAL' ? 'Pending Marketing Manager Approval' : s.status}</strong></div>
                   </div>
 
                   {s.objective && (
@@ -1598,6 +1629,85 @@ export default function ScriptsPage() {
                   )}
                 </div>
               </div>
+
+              {/* Marketing Manager Approval Controls */}
+              {user?.role === 'MARKETING_MANAGER' && selectedScript.status === 'PENDING_MARKETING_APPROVAL' && (
+                <div className="p-4 bg-amber-950/30 border border-amber-800/60 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-amber-300 text-xs flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-amber-400" /> Marketing Manager Script Approval Action
+                    </h4>
+                    {selectedScript.createdById === user.id && (
+                      <span className="text-[10px] bg-red-950 text-red-300 border border-red-800 px-2 py-0.5 rounded font-bold">
+                        ⚠️ Created by You (Self-Approval Prohibited)
+                      </span>
+                    )}
+                  </div>
+
+                  {selectedScript.createdById !== user.id ? (
+                    <div className="flex items-center gap-2 flex-wrap pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleApproveScriptAction(selectedScript.id, 'APPROVE')}
+                        disabled={saving}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5"
+                      >
+                        <Check className="w-4 h-4" /> Approve Script
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const comment = prompt('Enter revisions requested for creator:');
+                          if (comment) handleApproveScriptAction(selectedScript.id, 'REQUEST_CHANGES', comment);
+                        }}
+                        disabled={saving}
+                        className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5"
+                      >
+                        <RotateCcw className="w-4 h-4" /> Request Changes
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const reason = prompt('Enter rejection reason:');
+                          if (reason) handleApproveScriptAction(selectedScript.id, 'REJECT', reason);
+                        }}
+                        disabled={saving}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5"
+                      >
+                        <X className="w-4 h-4" /> Reject Script
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-amber-300 italic">
+                      Per business rules, you created this script. Independent approval by another Marketing Manager / Administrator is required.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Resubmit for Creator when Changes Requested */}
+              {selectedScript.status === 'CHANGES_REQUESTED' && (
+                <div className="p-4 bg-orange-950/30 border border-orange-800/60 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-orange-300 text-xs">Revisions Requested by Marketing Manager</span>
+                    <button
+                      type="button"
+                      onClick={() => handleResubmitScriptAction(selectedScript.id)}
+                      disabled={saving}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5"
+                    >
+                      🔄 Resubmit for Approval
+                    </button>
+                  </div>
+                  {selectedScript.remarks && (
+                    <p className="text-gray-300 text-xs italic bg-gray-900 p-2 rounded border border-gray-800">
+                      "{selectedScript.remarks}"
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-3 border-t border-gray-800">
               <button
