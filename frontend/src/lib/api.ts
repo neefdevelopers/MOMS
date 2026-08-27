@@ -44,6 +44,11 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}, time
   } catch (err: any) {
     clearTimeout(timeoutId);
 
+    // If err is an API response error (has statusCode), rethrow it directly so the exact message is displayed
+    if (err.statusCode) {
+      throw err;
+    }
+
     // Differentiate Network / Server / Cloudflare Tunnel Failure vs Standard HTTP Error
     if (err.name === 'AbortError') {
       const netErr: any = new Error('Request timed out while waiting for Office Operations Server response.');
