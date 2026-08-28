@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, ForbiddenException } from '@nestjs/common';
 import { GraphicReqsService } from './graphic-reqs.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -50,15 +50,21 @@ export class GraphicReqsController {
     return this.graphicReqsService.findOne(id);
   }
 
-  @Roles(Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER)
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
   @Post()
   create(@Body() data: any) {
     return this.graphicReqsService.create(data);
   }
 
-  @Roles(Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER)
   @Put(':id')
-  update(@Param('id') id: string, @Body() data: any) {
+  update(
+    @Param('id') id: string,
+    @Body() data: any,
+    @CurrentUser() user: any,
+  ) {
+    if (data.status === 'APPROVED' && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
+      throw new ForbiddenException('Only Marketing Manager can grant initial approval for Graphic Requirements');
+    }
     return this.graphicReqsService.update(id, data);
   }
 

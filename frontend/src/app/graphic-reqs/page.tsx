@@ -3,12 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Palette, Plus, Search, Layers, Calendar, Building2, Tag, CheckSquare, FileText, AlertCircle, ShieldAlert, SlidersHorizontal, RotateCcw, X, Flame, User } from 'lucide-react';
+import Link from 'next/link';
+import { Palette, Plus, Search, Layers, Calendar, Building2, Tag, CheckSquare, FileText, AlertCircle, ShieldAlert, SlidersHorizontal, RotateCcw, X, Flame, User, Clock } from 'lucide-react';
 import { SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
 import { usePagination } from '@/lib/usePagination';
 import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
+import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
 
 const DEFAULT_REQUIREMENT_TYPES = [
   'Poster',
@@ -72,31 +74,39 @@ const AVAILABLE_DELIVERABLE_FORMATS = [
 ];
 
 const WORKFLOW_PIPELINE = [
-  { step: 1, key: 'READY', label: 'Requirement Created', desc: 'Brief created & parent bound' },
-  { step: 2, key: 'ASSIGNED', label: 'Task Assigned', desc: 'Designers & roles assigned' },
-  { step: 3, key: 'IN_PROGRESS', label: 'Production', desc: 'Active visual design phase' },
-  { step: 4, key: 'WAITING_FOR_TECHNICAL_REVIEW', label: 'Technical Review', desc: 'Specs & resolution QC' },
-  { step: 5, key: 'WAITING_FOR_MEDIA_REVIEW', label: 'Media Manager Review', desc: 'Media Manager approval' },
-  { step: 6, key: 'WAITING_FOR_CLIENT_CONFIRMATION', label: 'Client Confirmation', desc: 'Client review & sign-off' },
-  { step: 7, key: 'COMPLETED', label: 'Completed', desc: 'Approved & exported' },
+  { step: 1, key: 'PENDING_MARKETING_APPROVAL', label: 'Marketing Approval', desc: 'Waiting for Marketing Manager sign-off' },
+  { step: 2, key: 'APPROVED', label: 'Approved', desc: 'Approved & ready for Media Manager task assignment' },
+  { step: 3, key: 'TASK_ASSIGNED', label: 'Task Assigned', desc: 'Staff & tasks assigned by Media Manager' },
+  { step: 4, key: 'IN_PROGRESS', label: 'Production', desc: 'Active visual design phase' },
+  { step: 5, key: 'TECHNICAL_REVIEW', label: 'Technical Review', desc: 'Specs & resolution QC' },
+  { step: 6, key: 'MEDIA_MANAGER_REVIEW', label: 'Media Manager Review', desc: 'Media Manager output review' },
+  { step: 7, key: 'COMPLETED', label: 'Completed', desc: 'Client confirmed & completed' },
 ];
 
 const getWorkflowStepIndex = (status: string) => {
   switch (status) {
+    case 'PENDING_MARKETING_APPROVAL':
+    case 'WAITING_FOR_MARKETING_APPROVAL':
     case 'DRAFT':
-    case 'READY':
       return 1;
-    case 'ASSIGNED':
+    case 'APPROVED':
+    case 'READY':
       return 2;
-    case 'IN_PROGRESS':
+    case 'ASSIGNED':
+    case 'TASK_ASSIGNED':
       return 3;
-    case 'WAITING_FOR_TECHNICAL_REVIEW':
+    case 'IN_PROGRESS':
+    case 'IN_PRODUCTION':
       return 4;
-    case 'WAITING_FOR_MEDIA_REVIEW':
+    case 'WAITING_FOR_TECHNICAL_REVIEW':
+    case 'TECHNICAL_REVIEW':
       return 5;
-    case 'WAITING_FOR_CLIENT_CONFIRMATION':
-    case 'CLIENT_REVISION_REQUESTED':
+    case 'WAITING_FOR_MEDIA_REVIEW':
+    case 'MEDIA_MANAGER_REVIEW':
       return 6;
+    case 'WAITING_FOR_CLIENT_CONFIRMATION':
+    case 'CLIENT_CONFIRMATION':
+    case 'CLIENT_REVISION_REQUESTED':
     case 'COMPLETED':
     case 'CLOSED':
       return 7;
@@ -114,6 +124,7 @@ export default function GraphicReqsPage() {
   const [productsList, setProductsList] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [convertModalReq, setConvertModalReq] = useState<any>(null);
   const [employeeResponsibilities, setEmployeeResponsibilities] = useState<Record<string, string[]>>({});
   const [selectedDeliverables, setSelectedDeliverables] = useState<string[]>(['Poster', 'Story']);
   const [uploadingCategory, setUploadingCategory] = useState<string | null>(null);
@@ -477,13 +488,13 @@ export default function GraphicReqsPage() {
           </div>
         </div>
 
-        {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
-          <button
-            onClick={() => setShowCreateModal(true)}
+        {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+          <Link
+            href="/calendar"
             className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg flex items-center gap-2 shadow-md shadow-amber-600/30 transition-colors text-xs"
           >
-            <Plus className="w-4 h-4" /> Create Graphic Requirement
-          </button>
+            <Calendar className="w-4 h-4" /> Schedule via Media Calendar
+          </Link>
         )}
       </div>
 
@@ -518,6 +529,53 @@ export default function GraphicReqsPage() {
 
       {/* User-Friendly Project-Style Filter Panel */}
       <div className="bg-card border border-border p-5 rounded-xl space-y-4 text-xs shadow-md">
+        {/* Quick View Tab Pills */}
+        <div className="flex items-center gap-2 pb-1 border-b border-gray-800 flex-wrap">
+          <button
+            onClick={() => {
+              setStatusFilter('ALL');
+              setSelectedEmployee('');
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              statusFilter === 'ALL' && !selectedEmployee
+                ? 'bg-amber-600 text-white shadow'
+                : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+            }`}
+          >
+            All Requirements
+          </button>
+
+          <button
+            onClick={() => {
+              setStatusFilter('PENDING_APPROVAL');
+              setSelectedEmployee('');
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              statusFilter === 'PENDING_APPROVAL'
+                ? 'bg-amber-500 text-slate-950 shadow'
+                : 'bg-gray-900 text-amber-400 hover:text-white border border-gray-800'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" /> Pending Approval
+          </button>
+
+          {user?.id && (
+            <button
+              onClick={() => {
+                setStatusFilter('ALL');
+                setSelectedEmployee(user.id);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                selectedEmployee === user.id
+                  ? 'bg-purple-600 text-white shadow'
+                  : 'bg-gray-900 text-purple-400 hover:text-white border border-gray-800'
+              }`}
+            >
+              <User className="w-3.5 h-3.5" /> My Requirements
+            </button>
+          )}
+        </div>
+
         {/* Top Search & Controls Row */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Keyword Search Input */}
@@ -847,8 +905,18 @@ export default function GraphicReqsPage() {
                   <h3 className="font-bold text-white text-sm mt-1">{g.name}</h3>
                 </div>
 
-                <span className={`px-2.5 py-1 rounded font-bold text-[10px] border ${getStatusBadge(g.status)}`}>
-                  {g.status}
+                <span
+                  className={`px-2.5 py-1 rounded font-bold text-[10px] border ${
+                    g.status === 'READY' || g.status === 'APPROVED'
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                      : g.status === 'WAITING_FOR_MEDIA_REVIEW' || g.status === 'PENDING_CLIENT_APPROVAL' || g.status === 'PENDING'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
+                      : 'bg-gray-800 text-gray-300 border-gray-700'
+                  }`}
+                >
+                  {g.status === 'WAITING_FOR_MEDIA_REVIEW' || g.status === 'PENDING_CLIENT_APPROVAL' || g.status === 'PENDING'
+                    ? 'PENDING MARKETING MANAGER APPROVAL'
+                    : g.status ? g.status.replace(/_/g, ' ') : 'PENDING MARKETING MANAGER APPROVAL'}
                 </span>
               </div>
 
@@ -882,15 +950,13 @@ export default function GraphicReqsPage() {
 
                   <div>
                     <span className="text-gray-500 font-bold block uppercase text-[9px]">Client</span>
-                    <span className="text-white font-bold flex items-center gap-1 truncate">
-                      🏢 {g.client?.name || 'N/A'}
-                    </span>
+                    <span className="text-white font-bold block truncate">{g.client?.name || 'Client'}</span>
                   </div>
 
                   <div>
                     <span className="text-gray-500 font-bold block uppercase text-[9px]">Brand</span>
-                    <span className="text-amber-300 font-bold flex items-center gap-1 truncate">
-                      🏷️ [{g.brand?.shortCode}] {g.brand?.name}
+                    <span className="text-amber-400 font-bold block truncate">
+                      [{g.brand?.shortCode || 'BN'}] {g.brand?.name || 'Brand'}
                     </span>
                   </div>
 
@@ -908,12 +974,12 @@ export default function GraphicReqsPage() {
                     </div>
                   )}
 
-                  {g.estimatedCompletion && (
-                    <div className="col-span-2">
-                      <span className="text-gray-500 font-bold block uppercase text-[9px]">Estimated Completion</span>
-                      <span className="text-gray-200 font-mono text-[10px]">📅 {new Date(g.estimatedCompletion).toLocaleDateString()}</span>
-                    </div>
-                  )}
+                  <div className="col-span-2 pt-1 border-t border-gray-900 flex items-center justify-between text-[10px]">
+                    <span className="text-gray-500 font-bold uppercase">Estimated Completion</span>
+                    <span className="text-gray-300 font-mono font-bold">
+                      {g.estimatedCompletion ? new Date(g.estimatedCompletion).toLocaleDateString() : 'Not Set'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -924,10 +990,11 @@ export default function GraphicReqsPage() {
                       (t.assignedEmployees || []).map((e: any) => e.user?.name)
                     ).filter(Boolean)
                   ));
+                  if (cardAssignedNames.length === 0) return <div />;
                   return (
                     <span className="text-[11px] text-gray-400">
-                      Assigned Staff: <strong className={cardAssignedNames.length > 0 ? "text-blue-300 font-semibold" : "text-amber-400 font-semibold"}>
-                        {cardAssignedNames.length > 0 ? cardAssignedNames.join(', ') : 'Not Assigned'}
+                      Assigned Staff: <strong className="text-blue-300 font-semibold">
+                        {cardAssignedNames.join(', ')}
                       </strong>
                     </span>
                   );
@@ -1380,14 +1447,41 @@ export default function GraphicReqsPage() {
 
                 <div className="flex items-center gap-2 flex-wrap">
                   {getWorkflowStepIndex(inspectedReq.status) === 1 && (
-                    <button
-                      onClick={() => handleUpdateStatus(inspectedReq.id, 'ASSIGNED')}
-                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow"
-                    >
-                      👉 Task Assigned ➔
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <span className="text-amber-300 font-semibold text-xs">
+                        ⏳ Waiting for Marketing Manager Approval
+                      </span>
+                      {user?.role === 'MARKETING_MANAGER' && (
+                        <button
+                          onClick={() => handleUpdateStatus(inspectedReq.id, 'APPROVED')}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs shadow"
+                        >
+                          ✓ Approve Requirement Now
+                        </button>
+                      )}
+                    </div>
                   )}
                   {getWorkflowStepIndex(inspectedReq.status) === 2 && (
+                    (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setConvertModalReq(inspectedReq)}
+                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow flex items-center gap-1"
+                        >
+                          ⚡ Convert to Task ➔
+                        </button>
+                        <button
+                          onClick={() => handleUpdateStatus(inspectedReq.id, 'TASK_ASSIGNED')}
+                          className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold rounded-lg text-xs border border-gray-700"
+                        >
+                          Mark Task Assigned
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-blue-300 text-xs font-semibold">Approved — Media Manager can assign staff now</span>
+                    )
+                  )}
+                  {getWorkflowStepIndex(inspectedReq.status) === 3 && (
                     <button
                       onClick={() => handleUpdateStatus(inspectedReq.id, 'IN_PROGRESS')}
                       className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded-lg text-xs shadow"
@@ -1395,7 +1489,7 @@ export default function GraphicReqsPage() {
                       ▶️ Start Production ➔
                     </button>
                   )}
-                  {getWorkflowStepIndex(inspectedReq.status) === 3 && (
+                  {getWorkflowStepIndex(inspectedReq.status) === 4 && (
                     <>
                       <button
                         onClick={() => handleUpdateStatus(inspectedReq.id, 'WAITING_FOR_TECHNICAL_REVIEW')}
@@ -1411,37 +1505,21 @@ export default function GraphicReqsPage() {
                       </button>
                     </>
                   )}
-                  {getWorkflowStepIndex(inspectedReq.status) === 4 && (
+                  {getWorkflowStepIndex(inspectedReq.status) === 5 && (
                     <button
                       onClick={() => handleUpdateStatus(inspectedReq.id, 'WAITING_FOR_MEDIA_REVIEW')}
                       className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg text-xs shadow"
                     >
-                      ✅ Pass Tech QC ➔ Media Review ➔
-                    </button>
-                  )}
-                  {getWorkflowStepIndex(inspectedReq.status) === 5 && (
-                    <button
-                      onClick={() => handleUpdateStatus(inspectedReq.id, 'WAITING_FOR_CLIENT_CONFIRMATION')}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs shadow"
-                    >
-                      📤 Send to Client Confirmation ➔
+                      👔 Media Manager Review ➔
                     </button>
                   )}
                   {getWorkflowStepIndex(inspectedReq.status) === 6 && (
-                    <>
-                      <button
-                        onClick={() => handleUpdateStatus(inspectedReq.id, 'COMPLETED')}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs shadow"
-                      >
-                        🎉 Client Approved (Complete)
-                      </button>
-                      <button
-                        onClick={() => handleUpdateStatus(inspectedReq.id, 'CLIENT_REVISION_REQUESTED')}
-                        className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-lg text-xs shadow"
-                      >
-                        ⚠️ Revision Requested
-                      </button>
-                    </>
+                    <button
+                      onClick={() => handleUpdateStatus(inspectedReq.id, 'WAITING_FOR_CLIENT_CONFIRMATION')}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow flex items-center gap-1"
+                    >
+                      📩 Send to Client Confirmation ➔
+                    </button>
                   )}
                   {inspectedReq.status === 'CLIENT_REVISION_REQUESTED' && (
                     <button
@@ -1559,63 +1637,63 @@ export default function GraphicReqsPage() {
                   </select>
                 </div>
 
-                {/* Assigned Employees */}
-                <div className="col-span-1 md:col-span-2 bg-gray-900/80 p-2.5 rounded-lg border border-gray-800/80 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400 font-bold text-[10px] uppercase">Assigned Staff</span>
-                    <span className="text-[10px] text-gray-500 font-mono">
-                      {inspectedReq.tasks?.length || 0} sub-tasks
-                    </span>
-                  </div>
-                  {(() => {
-                    const assignedNames = Array.from(new Set(
-                      (inspectedReq.tasks || []).flatMap((t: any) =>
-                        (t.assignedEmployees || []).map((e: any) => e.user?.name)
-                      ).filter(Boolean)
-                    ));
-                    return (
-                      <div className="space-y-2">
-                        {assignedNames.length > 0 ? (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {assignedNames.map((name: any) => (
-                              <span key={name} className="px-2.5 py-1 bg-blue-950 text-blue-300 border border-blue-800 rounded-lg font-semibold text-[11px] flex items-center gap-1.5 shadow-sm">
-                                <User className="w-3.5 h-3.5 text-blue-400" /> {name}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between gap-2 flex-wrap bg-gray-950/70 p-2 rounded-lg border border-gray-800">
-                            <span className="px-2.5 py-1 bg-amber-950/80 text-amber-300 border border-amber-800/80 rounded-md font-bold text-xs">
-                              Not Assigned
-                            </span>
-                            {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
-                              <div className="flex items-center gap-1.5">
-                                <select
-                                  value={assignStaffUserId}
-                                  onChange={(e) => setAssignStaffUserId(e.target.value)}
-                                  className="bg-gray-900 border border-gray-700 text-white px-2 py-1 rounded text-xs focus:outline-none"
-                                >
-                                  <option value="">-- Select Staff Member --</option>
-                                  {usersList.map((u) => (
-                                    <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                                  ))}
-                                </select>
-                                <button
-                                  type="button"
-                                  disabled={!assignStaffUserId || assigningStaff}
-                                  onClick={() => handleAssignStaffToReq(inspectedReq.id, assignStaffUserId)}
-                                  className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded transition-colors disabled:opacity-40"
-                                >
-                                  {assigningStaff ? 'Assigning…' : 'Assign Staff'}
-                                </button>
+                {/* Assigned Employees (Rendered ONLY after Marketing Manager approval) */}
+                {!['PENDING_MARKETING_APPROVAL', 'WAITING_FOR_MARKETING_APPROVAL', 'DRAFT', 'PENDING_CLIENT_APPROVAL', 'PENDING'].includes(inspectedReq.status) && (
+                  <div className="col-span-1 md:col-span-2 bg-gray-900/80 p-2.5 rounded-lg border border-gray-800/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 font-bold text-[10px] uppercase">Assigned Staff</span>
+                      <span className="text-[10px] text-gray-500 font-mono">
+                        {inspectedReq.tasks?.length || 0} sub-tasks
+                      </span>
+                    </div>
+                    {(() => {
+                      const assignedNames = Array.from(new Set(
+                        (inspectedReq.tasks || []).flatMap((t: any) =>
+                          (t.assignedEmployees || []).map((e: any) => e.user?.name)
+                        ).filter(Boolean)
+                      ));
+                      return (
+                        <div className="space-y-2">
+                          {assignedNames.length > 0 ? (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {assignedNames.map((name: any) => (
+                                <span key={name} className="px-2.5 py-1 bg-blue-950 text-blue-300 border border-blue-800 rounded-lg font-semibold text-[11px] flex items-center gap-1.5 shadow-sm">
+                                  <User className="w-3.5 h-3.5 text-blue-400" /> {name}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+                              <div className="flex items-center gap-1.5 w-full justify-between">
+                                <span className="text-gray-400 text-xs">Staff Not Assigned</span>
+                                <div className="flex items-center gap-1.5">
+                                  <select
+                                    value={assignStaffUserId}
+                                    onChange={(e) => setAssignStaffUserId(e.target.value)}
+                                    className="bg-gray-900 border border-gray-700 text-white px-2 py-1 rounded text-xs focus:outline-none"
+                                  >
+                                    <option value="">-- Select Staff Member --</option>
+                                    {usersList.map((u) => (
+                                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    disabled={!assignStaffUserId || assigningStaff}
+                                    onClick={() => handleAssignStaffToReq(inspectedReq.id, assignStaffUserId)}
+                                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded transition-colors disabled:opacity-40"
+                                  >
+                                    {assigningStaff ? 'Assigning…' : 'Assign Staff'}
+                                  </button>
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
+                            )
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
 
                 {/* Objective */}
                 <div className="col-span-1 md:col-span-2 bg-gray-900/80 p-2.5 rounded-lg border border-gray-800/80">
@@ -2015,6 +2093,31 @@ export default function GraphicReqsPage() {
           </div>
         </div>
       )}
+
+      {/* Task Conversion Modal Popup */}
+      <ConvertEventToTaskModal
+        isOpen={!!convertModalReq}
+        onClose={() => setConvertModalReq(null)}
+        onSuccess={() => {
+          loadData();
+        }}
+        eventData={
+          convertModalReq
+            ? {
+                title: convertModalReq.name,
+                parentType: 'GRAPHIC_REQ',
+                parentId: convertModalReq.id,
+                parentCode: convertModalReq.requirementId,
+                clientId: convertModalReq.clientId,
+                brandId: convertModalReq.brandId,
+                productId: convertModalReq.productId,
+                priority: convertModalReq.priority,
+                dueDate: convertModalReq.estimatedCompletion,
+                notes: convertModalReq.objective || convertModalReq.description,
+              }
+            : null
+        }
+      />
     </div>
   );
 }

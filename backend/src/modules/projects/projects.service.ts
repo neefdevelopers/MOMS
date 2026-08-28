@@ -22,6 +22,7 @@ export class ProjectsService {
     archived?: boolean;
     userId?: string;
     role?: string;
+    createdBy?: string;
   }) {
     const where: any = {};
     if (params.clientId) where.clientId = params.clientId;
@@ -30,8 +31,21 @@ export class ProjectsService {
     if (params.shootType) where.shootType = params.shootType;
     if (params.priority) where.priority = params.priority;
 
+    if (params.createdBy) {
+      where.OR = [
+        { createdById: params.createdBy },
+        { calendarEvent: { createdById: params.createdBy } },
+      ];
+    }
+
     if (params.archived) {
       where.status = ProjectStatus.ARCHIVED;
+    } else if (params.status === 'PENDING_APPROVAL' || params.status === 'PENDING') {
+      where.OR = [
+        { status: 'PENDING_CLIENT_APPROVAL' },
+        { status: 'PLANNED' },
+        { calendarEvent: { status: { in: ['PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW'] } } },
+      ];
     } else if (params.status && params.status !== 'ALL') {
       where.status = params.status;
     } else {
@@ -498,57 +512,6 @@ export class ProjectsService {
           entity: 'ShootProject',
           entityId: project.id,
           description: `Assigned ${data.teamUserIds.length} team members to project`,
-        },
-      });
-    }
-
-    // Automated Task Creation Trigger 2: Automatically created during project creation
-    const taskCount = await this.prisma.task.count();
-    const autoTaskId1 = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
-    const autoTaskId2 = `TSK-${(taskCount + 2).toString().padStart(6, '0')}`;
-
-    await this.prisma.task.createMany({
-      data: [
-        {
-          taskId: autoTaskId1,
-          title: `Initial Production Setup & Pre-shoot Coordination - ${project.name}`,
-          description: `Automated production task created during Project ${project.projectId} creation`,
-          projectId: project.id,
-          clientId: project.clientId,
-          brandId: project.brandId,
-          productId: project.productId || null,
-          priority: project.priority || Priority.MEDIUM,
-          dueDate: new Date(project.shootDate.getTime() - 86400000),
-          estimatedHours: 3.0,
-          status: TaskStatus.PENDING,
-        },
-        {
-          taskId: autoTaskId2,
-          title: `Location & Equipment Scouting / Reservation - ${project.name}`,
-          description: `Automated logistics task created during Project ${project.projectId} creation`,
-          projectId: project.id,
-          clientId: project.clientId,
-          brandId: project.brandId,
-          productId: project.productId || null,
-          priority: Priority.HIGH,
-          dueDate: new Date(project.shootDate),
-          estimatedHours: 4.0,
-          status: TaskStatus.PENDING,
-        },
-      ],
-    });
-
-    const createdTasks = await this.prisma.task.findMany({
-      where: { taskId: { in: [autoTaskId1, autoTaskId2] } },
-    });
-
-    for (const t of createdTasks) {
-      await this.prisma.taskTimeline.create({
-        data: {
-          taskId: t.id,
-          event: 'TASK_CREATED',
-          description: `Task ${t.taskId} ('${t.title}') automatically created during Project ${project.projectId} creation`,
-          userId,
         },
       });
     }

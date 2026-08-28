@@ -427,10 +427,13 @@ export default function EquipmentPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card border border-border p-6 rounded-xl shadow-lg">
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <Camera className="w-5 h-5 text-cyan-400" /> Equipment &amp; Asset Management
+            <Camera className="w-5 h-5 text-cyan-400" />
+            {user?.role === 'STAFF' ? 'My Assigned Equipment & Assets' : 'Equipment & Asset Management'}
           </h1>
           <p className="text-xs text-gray-400 mt-1">
-            Permanent inventory — all assets are company-owned. Retired equipment is archived, never deleted.
+            {user?.role === 'STAFF'
+              ? 'View and manage equipment assigned to you for active projects and shoot operations.'
+              : 'Permanent inventory — all assets are company-owned. Retired equipment is archived, never deleted.'}
           </p>
         </div>
 
@@ -440,7 +443,7 @@ export default function EquipmentPage() {
             <Building2 className="w-3.5 h-3.5 text-blue-400" />
             <span className="text-[11px] font-bold text-blue-300">Company Assets</span>
           </div>
-          {user?.role === 'MEDIA_MANAGER' && (
+          {(user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR') && (
             <button
               onClick={() => setShowAddModal(true)}
               className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg flex items-center gap-2 transition-colors shadow-lg shadow-cyan-600/30"
@@ -451,8 +454,9 @@ export default function EquipmentPage() {
         </div>
       </div>
 
-      {/* Equipment Dashboard Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+      {/* Equipment Dashboard Summary KPI Cards (Visible to Managers) */}
+      {user?.role !== 'STAFF' && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         <div className="bg-card border border-border p-4 rounded-xl space-y-1">
           <span className="text-[10px] text-gray-400 uppercase font-bold">Total Equipment</span>
           <div className="text-2xl font-bold text-white font-mono">
@@ -496,6 +500,7 @@ export default function EquipmentPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Filter Panel */}
       <div className="bg-card border border-border p-5 rounded-xl space-y-4 text-xs shadow-md">

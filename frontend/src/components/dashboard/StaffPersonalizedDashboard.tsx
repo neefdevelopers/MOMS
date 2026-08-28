@@ -164,8 +164,8 @@ export default function StaffPersonalizedDashboard({ user }: StaffPersonalizedDa
         </div>
       </div>
 
-      {/* KPI Metric Counter Bar (4 Cards) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* KPI Metric Counter Bar (6 Personal Cards) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="p-3.5 bg-zinc-950/80 border border-zinc-800/80 rounded-2xl space-y-1 shadow-lg">
           <div className="flex items-center justify-between text-zinc-400">
             <span className="text-[10px] font-bold uppercase tracking-wider">Today's Tasks</span>
@@ -198,11 +198,31 @@ export default function StaffPersonalizedDashboard({ user }: StaffPersonalizedDa
             <span className="text-[10px] font-bold uppercase tracking-wider">Assigned Scripts/Reqs</span>
             <FileText className="w-4 h-4 text-purple-400" />
           </div>
-          <div className="text-xl font-black text-purple-300 font-mono">
-            {assignedScripts.length + assignedGraphicReqs.length}
-          </div>
-          <span className="text-[10px] text-purple-400 font-semibold block">Deliverables & Scripts</span>
+          <div className="text-xl font-black text-purple-300 font-mono">{assignedScripts.length + assignedGraphicReqs.length}</div>
+          <span className="text-[10px] text-purple-400 font-semibold block">Content Items</span>
         </div>
+
+        <Link href="/equipment" className="p-3.5 bg-zinc-950/80 border border-zinc-800/80 hover:border-cyan-500/50 rounded-2xl space-y-1 shadow-lg transition-all group">
+          <div className="flex items-center justify-between text-zinc-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider">My Equipment</span>
+            <Sparkles className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+          </div>
+          <div className="text-xl font-black text-cyan-300 font-mono">{data?.assignedEquipmentCount || 0}</div>
+          <span className="text-[10px] text-cyan-400 font-semibold block flex items-center gap-1">
+            Assigned Assets <ArrowRight className="w-2.5 h-2.5" />
+          </span>
+        </Link>
+
+        <Link href="/attendance" className="p-3.5 bg-zinc-950/80 border border-zinc-800/80 hover:border-emerald-500/50 rounded-2xl space-y-1 shadow-lg transition-all group">
+          <div className="flex items-center justify-between text-zinc-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider">My Attendance</span>
+            <UserCheck className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+          </div>
+          <div className="text-sm font-black text-emerald-300 font-mono truncate">{data?.todayAttendanceStatus || 'Recorded'}</div>
+          <span className="text-[10px] text-emerald-400 font-semibold block flex items-center gap-1">
+            Log &amp; History <ArrowRight className="w-2.5 h-2.5" />
+          </span>
+        </Link>
       </div>
 
       {/* Grid: 1. Today's Tasks & 2. Upcoming Deadlines */}

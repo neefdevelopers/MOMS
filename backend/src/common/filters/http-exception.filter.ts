@@ -65,12 +65,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       // Log full stack trace internally for developers/monitoring
-      this.logger.error(`Unhandled Exception: ${exception.message}`, exception.stack);
+      this.logger.error(`Unhandled Exception [${exception.name}]: ${exception.message}`, exception.stack);
 
       const msg = exception.message || '';
+      const prismaCode = (exception as any).code;
+
       if (exception.name.includes('Prisma') || msg.includes('prisma') || msg.includes('database')) {
-        message = 'A database communication error occurred while processing your request.';
         errorName = 'DatabaseError';
+        if (prismaCode === 'P2002') {
+          message = 'A database unique constraint conflict occurred (record already exists).';
+        } else if (prismaCode === 'P2003') {
+          message = 'A database relational integrity error occurred (referenced parent record not found).';
+        } else if (prismaCode === 'P2025') {
+          message = 'The requested database record was not found or has been removed.';
+        } else {
+          message = 'A database communication error occurred while processing your request.';
+        }
       } else if (msg.includes('multer') || msg.includes('ENOENT') || msg.includes('file')) {
         message = 'A file storage operation error occurred.';
         errorName = 'FileStorageError';

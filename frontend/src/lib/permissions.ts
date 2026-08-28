@@ -167,11 +167,11 @@ export const MODULE_SUPPORTED_PERMISSIONS: Record<ModuleType, PermissionType[]> 
 export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionType[]>> = {
   MEDIA_MANAGER: {
     DASHBOARD: ['VIEW', 'CONFIGURE', 'EXPORT'],
-    PROJECTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
-    SCRIPTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
-    GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    PROJECTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    SCRIPTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     TASKS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
-    EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    EQUIPMENT: ['VIEW', 'APPROVE', 'ASSIGN', 'EXPORT'],
     CLIENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     BRANDS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     PRODUCTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
@@ -183,36 +183,36 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     SETTINGS: ['VIEW', 'EDIT', 'CONFIGURE'],
   },
   TECHNICAL_MANAGER: {
-    DASHBOARD: ['VIEW', 'CONFIGURE', 'EXPORT'],
-    PROJECTS: ['VIEW', 'EDIT', 'APPROVE', 'EXPORT'],
-    SCRIPTS: ['VIEW', 'EDIT', 'APPROVE', 'EXPORT'],
-    GRAPHIC_REQUIREMENTS: ['VIEW', 'EDIT', 'APPROVE', 'EXPORT'],
-    TASKS: ['VIEW', 'EDIT', 'ASSIGN', 'EXPORT'],
-    EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'CONFIGURE', 'EXPORT'],
-    CLIENTS: ['VIEW', 'EXPORT'],
-    BRANDS: ['VIEW', 'EXPORT'],
-    PRODUCTS: ['VIEW', 'EXPORT'],
+    DASHBOARD: ['VIEW', 'EXPORT'],
+    PROJECTS: ['VIEW', 'EDIT', 'EXPORT'],
+    SCRIPTS: ['VIEW', 'EDIT', 'EXPORT'],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'EDIT', 'EXPORT'],
+    TASKS: ['VIEW', 'EDIT', 'EXPORT'],
+    EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    CLIENTS: ['VIEW'],
+    BRANDS: ['VIEW'],
+    PRODUCTS: ['VIEW'],
     STAFF: [],
     REPORTS: ['VIEW', 'EXPORT'],
     CALENDAR: ['VIEW', 'EXPORT'],
-    COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT', 'ASSIGN'],
+    COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT'],
     ACTIVITY_LOGS: [],
     SETTINGS: [],
   },
   STAFF: {
     DASHBOARD: ['VIEW'],
     PROJECTS: ['VIEW'],
-    SCRIPTS: ['VIEW', 'EDIT'],
-    GRAPHIC_REQUIREMENTS: ['VIEW', 'EDIT'],
+    SCRIPTS: ['VIEW'],
+    GRAPHIC_REQUIREMENTS: ['VIEW'],
     TASKS: ['VIEW', 'EDIT'],
     EQUIPMENT: ['VIEW'],
     CLIENTS: [],
     BRANDS: [],
     PRODUCTS: [],
     STAFF: [],
-    REPORTS: ['VIEW'],
+    REPORTS: [],
     CALENDAR: ['VIEW'],
-    COMMUNICATIONS: ['VIEW', 'CREATE'],
+    COMMUNICATIONS: ['VIEW'],
     ACTIVITY_LOGS: [],
     SETTINGS: [],
   },
@@ -253,26 +253,26 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   SOCIAL_MEDIA_MANAGER: {
     DASHBOARD: ['VIEW'],
     PROJECTS: ['VIEW'],
-    SCRIPTS: ['VIEW'],
-    GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT'],
-    TASKS: ['VIEW'],
+    SCRIPTS: ['VIEW', 'CREATE', 'EDIT'],
+    GRAPHIC_REQUIREMENTS: [],
+    TASKS: ['VIEW', 'EDIT'],
     EQUIPMENT: ['VIEW'],
-    CLIENTS: ['VIEW'],
-    BRANDS: ['VIEW'],
-    PRODUCTS: ['VIEW'],
+    CLIENTS: [],
+    BRANDS: [],
+    PRODUCTS: [],
     STAFF: [],
-    REPORTS: ['VIEW'],
+    REPORTS: [],
     CALENDAR: ['VIEW', 'CREATE', 'EDIT'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
-    ACTIVITY_LOGS: ['VIEW'],
+    ACTIVITY_LOGS: [],
     SETTINGS: [],
   },
   MARKETING_MANAGER: {
     DASHBOARD: ['VIEW'],
-    PROJECTS: [],
-    SCRIPTS: [],
-    GRAPHIC_REQUIREMENTS: [],
-    TASKS: [],
+    PROJECTS: ['VIEW', 'APPROVE'],
+    SCRIPTS: ['VIEW', 'APPROVE'],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'APPROVE', 'EDIT'],
+    TASKS: ['VIEW'],
     EQUIPMENT: [],
     CLIENTS: ['VIEW'],
     BRANDS: ['VIEW'],
@@ -353,3 +353,39 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     SETTINGS: ['VIEW', 'EDIT', 'CONFIGURE'],
   },
 };
+
+export function hasModuleAccess(role: string, module: ModuleType): boolean {
+  if (!role) return false;
+  if (role === 'ADMIN' || role === 'ADMINISTRATOR') return true;
+  const permissions = ROLE_PERMISSION_MATRIX[role as Role]?.[module] || [];
+  return permissions.includes('VIEW');
+}
+
+export function canPerformAction(role: string, module: ModuleType, action: PermissionType): boolean {
+  if (!role) return false;
+  if (role === 'ADMIN' || role === 'ADMINISTRATOR') return true;
+  const permissions = ROLE_PERMISSION_MATRIX[role as Role]?.[module] || [];
+  return permissions.includes(action);
+}
+
+export function canAccessRoute(role: string, route: string): boolean {
+  if (!role) return false;
+  if (role === 'ADMIN' || role === 'ADMINISTRATOR') return true;
+
+  if (route.startsWith('/clients')) return hasModuleAccess(role, 'CLIENTS');
+  if (route.startsWith('/brands')) return hasModuleAccess(role, 'BRANDS');
+  if (route.startsWith('/products')) return hasModuleAccess(role, 'PRODUCTS');
+  if (route.startsWith('/projects')) return hasModuleAccess(role, 'PROJECTS');
+  if (route.startsWith('/scripts')) return hasModuleAccess(role, 'SCRIPTS');
+  if (route.startsWith('/graphic-reqs')) return hasModuleAccess(role, 'GRAPHIC_REQUIREMENTS');
+  if (route.startsWith('/tasks')) return hasModuleAccess(role, 'TASKS');
+  if (route.startsWith('/reports')) return hasModuleAccess(role, 'REPORTS');
+  if (route.startsWith('/calendar')) return hasModuleAccess(role, 'CALENDAR');
+  if (route.startsWith('/equipment')) return hasModuleAccess(role, 'EQUIPMENT');
+  if (route.startsWith('/attendance')) return role === 'MEDIA_MANAGER' || role === 'STAFF' || role === 'SOCIAL_MEDIA_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
+  if (route.startsWith('/client-review') || route.startsWith('/approvals')) {
+    return role === 'MARKETING_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
+  }
+
+  return true;
+}

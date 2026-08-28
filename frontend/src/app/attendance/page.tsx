@@ -114,10 +114,13 @@ export default function AttendancePage() {
       <div className="bg-card border border-border p-6 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
         <div className="space-y-1">
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <UserCheck className="w-5 h-5 text-emerald-400" /> Attendance Dashboard & Register
+            <UserCheck className="w-5 h-5 text-emerald-400" />
+            {user?.role === 'STAFF' ? 'My Personal Attendance Log' : 'Attendance Dashboard & Register'}
           </h1>
           <p className="text-xs text-gray-400">
-            Real-time tracking of Today's Attendance, Absent, Late, Half Day staff, Attendance %, and Monthly Summary.
+            {user?.role === 'STAFF'
+              ? 'View your daily attendance status, working hours, check-in log, and Media Manager remarks.'
+              : "Real-time tracking of Today's Attendance, Absent, Late, Half Day staff, Attendance %, and Monthly Summary."}
           </p>
         </div>
 
@@ -134,8 +137,8 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {/* DASHBOARD SUMMARY WIDGETS */}
-      {todaySummary && (
+      {/* DASHBOARD SUMMARY WIDGETS (Visible to Media Manager & Admins) */}
+      {user?.role !== 'STAFF' && todaySummary && (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* 1. Today's Attendance */}
           <div className="bg-gray-900/90 border border-emerald-900/40 p-4 rounded-xl space-y-1">
@@ -205,53 +208,50 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {/* Governance Banner */}
-      <div className="p-4 bg-gray-900/80 border border-emerald-900/40 rounded-xl space-y-2 text-xs">
-        <div className="font-bold text-emerald-300 flex items-center gap-2 uppercase tracking-wider text-[11px]">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" /> Attendance Governance Standard Compliance
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px] text-gray-300">
-          <div className="flex items-start gap-2 bg-gray-950 p-2.5 rounded border border-gray-800">
-            <UserCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-            <div>
-              <strong className="text-white">Media Manager Manual Recording:</strong> Attendance is recorded manually by the Media Manager for all employees.
+      {/* Governance Banner & Search Bar (Visible to Managers) */}
+      {user?.role !== 'STAFF' && (
+        <>
+          <div className="p-4 bg-gray-900/80 border border-emerald-900/40 rounded-xl space-y-2 text-xs">
+            <div className="font-bold text-emerald-300 flex items-center gap-2 uppercase tracking-wider text-[11px]">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" /> Attendance Governance Standard Compliance
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-gray-300">
+              <div className="flex items-start gap-2 bg-gray-950 p-2.5 rounded border border-gray-800">
+                <UserCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-white">Media Manager Authority:</strong> Attendance shall be recorded manually by the Media Manager.
+                </div>
+              </div>
+              <div className="flex items-start gap-2 bg-gray-950 p-2.5 rounded border border-gray-800">
+                <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-white">Employee Self-Marking Prohibited:</strong> Employees cannot alter attendance entries or mark self-attendance.
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex items-start gap-2 bg-gray-950 p-2.5 rounded border border-gray-800">
-            <History className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
-            <div>
-              <strong className="text-white">Permanent History:</strong> Attendance records shall remain permanent and are never deleted.
-            </div>
-          </div>
-          <div className="flex items-start gap-2 bg-gray-950 p-2.5 rounded border border-gray-800">
-            <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <strong className="text-white">Employee Self-Marking Prohibited:</strong> Employees cannot alter attendance entries or mark self-attendance.
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Search & Status Summary Bar */}
-      <div className="bg-card border border-border p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            placeholder="Search by Employee Name, Email, Department, Recorded By..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 focus:border-blue-500 rounded-xl pl-9 pr-3 py-2 text-white placeholder:text-gray-500 font-medium focus:outline-none"
-          />
-        </div>
+          <div className="bg-card border border-border p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search by Employee Name, Email, Department, Recorded By..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 focus:border-blue-500 rounded-xl pl-9 pr-3 py-2 text-white placeholder:text-gray-500 font-medium focus:outline-none"
+              />
+            </div>
 
-        <div className="flex items-center gap-3 text-gray-400 text-xs font-semibold">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400"></span> Present: {records.filter(r => r.attendance?.status === 'PRESENT').length}</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400"></span> Late: {records.filter(r => r.attendance?.status === 'LATE').length}</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-400"></span> Half Day: {records.filter(r => r.attendance?.status === 'HALF_DAY').length}</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400"></span> Absent: {records.filter(r => r.attendance?.status === 'ABSENT').length}</span>
-        </div>
-      </div>
+            <div className="flex items-center gap-3 text-gray-400 text-xs font-semibold">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400"></span> Present: {records.filter(r => r.attendance?.status === 'PRESENT').length}</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400"></span> Late: {records.filter(r => r.attendance?.status === 'LATE').length}</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-400"></span> Half Day: {records.filter(r => r.attendance?.status === 'HALF_DAY').length}</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400"></span> Absent: {records.filter(r => r.attendance?.status === 'ABSENT').length}</span>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Attendance Table */}
       {loading ? (

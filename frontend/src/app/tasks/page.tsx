@@ -18,6 +18,21 @@ export default function TasksPage() {
   const reassignUserParam = searchParams.get('reassignUser');
   const employeeIdParam = searchParams.get('employeeId');
   const taskIdParam = searchParams.get('taskId');
+  const createForTypeParam = searchParams.get('createForType');
+  const createForIdParam = searchParams.get('createForId');
+  const createForTitleParam = searchParams.get('title');
+
+  useEffect(() => {
+    if (createForTypeParam && createForIdParam) {
+      const pType = (createForTypeParam === 'GRAPHIC_REQ' || createForTypeParam === 'GRAPHIC_REQUIREMENT') ? 'GRAPHIC_REQ' : 'PROJECT';
+      setParentEntityType(pType);
+      setSelectedParentId(createForIdParam);
+      if (createForTitleParam) {
+        setTaskTitle(`[Task] ${createForTitleParam}`);
+      }
+      setShowCreateModal(true);
+    }
+  }, [createForTypeParam, createForIdParam, createForTitleParam]);
 
   const [tasks, setTasks] = useState<any[]>([]);
   const [capacity, setCapacity] = useState<any[]>([]);
@@ -471,11 +486,12 @@ export default function TasksPage() {
       </div>
 
       {/* Workload Capacity Section (Toggleable on click button) */}
-      <div className="bg-card border border-border rounded-xl shadow-md overflow-hidden">
-        <div
-          onClick={() => setShowCapacityEngine(!showCapacityEngine)}
-          className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer hover:bg-gray-800/40 transition-colors"
-        >
+      {(user?.role === 'MEDIA_MANAGER' || user?.role === 'TECHNICAL_MANAGER' || (user?.role as string) === 'ADMIN') && (
+        <div className="bg-card border border-border rounded-xl shadow-md overflow-hidden">
+          <div
+            onClick={() => setShowCapacityEngine(!showCapacityEngine)}
+            className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer hover:bg-gray-800/40 transition-colors"
+          >
           <div>
             <h2 className="text-sm font-bold text-white flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-400" /> Automated Continuous Workload &amp; Capacity Engine
@@ -666,6 +682,7 @@ export default function TasksPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* User-Friendly Project-Style Filter Panel */}
       <div className="bg-card border border-border p-5 rounded-xl space-y-4 text-xs shadow-md">
@@ -1224,29 +1241,29 @@ export default function TasksPage() {
 
               {/* Parent Entity Select Dropdown */}
               <div>
-                <label className="block text-gray-400 font-semibold mb-1 text-[10px]">2. Select Specific Parent *</label>
+                <label className="block text-gray-400 font-semibold mb-1 text-[10px]">2. Select Specific Parent (Optional)</label>
                 {parentEntityType === 'PROJECT' && (
                   <select
-                    required
                     value={selectedParentId}
                     onChange={(e) => setSelectedParentId(e.target.value)}
                     className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-white font-medium"
                   >
-                    <option value="">-- Choose Shoot Project --</option>
-                    {projectsList.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.projectId})</option>
-                    ))}
+                    <option value="">-- Standalone Task (No Parent Project) --</option>
+                    {projectsList
+                      .filter((p) => ['APPROVED', 'TASK_ASSIGNED', 'IN_PRODUCTION', 'TECHNICAL_REVIEW', 'MEDIA_MANAGER_REVIEW', 'CLIENT_CONFIRMATION', 'COMPLETED'].includes(p.status))
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.projectId}) - APPROVED</option>
+                      ))}
                   </select>
                 )}
 
                 {parentEntityType === 'SCRIPT' && (
                   <select
-                    required
                     value={selectedParentId}
                     onChange={(e) => setSelectedParentId(e.target.value)}
                     className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-white font-medium"
                   >
-                    <option value="">-- Choose Parent Script --</option>
+                    <option value="">-- Standalone Task (No Parent Script) --</option>
                     {scriptsList.map((s) => (
                       <option key={s.id} value={s.id}>{s.name} ({s.scriptId})</option>
                     ))}
@@ -1255,15 +1272,16 @@ export default function TasksPage() {
 
                 {parentEntityType === 'GRAPHIC_REQ' && (
                   <select
-                    required
                     value={selectedParentId}
                     onChange={(e) => setSelectedParentId(e.target.value)}
                     className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-white font-medium"
                   >
-                    <option value="">-- Choose Graphic Requirement --</option>
-                    {graphicReqsList.map((g) => (
-                      <option key={g.id} value={g.id}>{g.name} ({g.requirementId})</option>
-                    ))}
+                    <option value="">-- Standalone Task (No Parent Graphic Req) --</option>
+                    {graphicReqsList
+                      .filter((g) => ['READY', 'APPROVED', 'IN_PROGRESS', 'COMPLETED'].includes(g.status))
+                      .map((g) => (
+                        <option key={g.id} value={g.id}>{g.name} ({g.requirementId}) - READY</option>
+                      ))}
                   </select>
                 )}
               </div>
@@ -1320,44 +1338,46 @@ export default function TasksPage() {
 
               <div>
                 <label className="block text-gray-400 font-semibold mb-1 text-[10px]">Assign Employees (One or Multiple)</label>
-                <div className="space-y-1 max-h-32 overflow-y-auto bg-gray-950 border border-gray-700 rounded p-2">
-                  {staffUsersList.map((u) => {
-                    const empStatus = u.employeeProfile?.employmentStatus || u.status || 'ACTIVE';
-                    const isActive = empStatus === 'ACTIVE' && u.status === 'ACTIVE' && !u.isArchived;
+                {!selectedParentId ? (
+                  <div className="p-3 bg-amber-950/30 border border-amber-800/40 rounded text-amber-300 text-xs font-semibold">
+                    🔒 Select an Approved Shoot Project or Graphic Requirement above to assign staff.
+                  </div>
+                ) : (
+                  <div className="space-y-1 max-h-32 overflow-y-auto bg-gray-950 border border-gray-700 rounded p-2">
+                    {staffUsersList.map((u) => {
+                      const empStatus = u.employeeProfile?.employmentStatus || u.status || 'ACTIVE';
+                      const isActive = empStatus === 'ACTIVE' && u.status === 'ACTIVE' && !u.isArchived;
 
-                    return (
-                      <label
-                        key={u.id}
-                        className={`flex items-center gap-2 text-xs p-1 rounded ${
-                          isActive ? 'text-white cursor-pointer hover:bg-gray-900' : 'text-gray-500 bg-gray-950/60 cursor-not-allowed opacity-60'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          disabled={!isActive}
-                          checked={assignedStaffIds.includes(u.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) setAssignedStaffIds([...assignedStaffIds, u.id]);
-                            else setAssignedStaffIds(assignedStaffIds.filter((id) => id !== u.id));
-                          }}
-                          className="w-3.5 h-3.5 accent-blue-500 cursor-pointer disabled:cursor-not-allowed"
-                        />
-                        <span>
-                          {u.name} ({u.role}) {!isActive && <span className="text-amber-400 font-bold ml-1 font-mono">({empStatus} - Restricted)</span>}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
+                      return (
+                        <label
+                          key={u.id}
+                          className={`flex items-center gap-2 text-xs p-1 rounded ${
+                            isActive ? 'text-white cursor-pointer hover:bg-gray-900' : 'text-gray-500 bg-gray-950/60 cursor-not-allowed opacity-60'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={!isActive}
+                            checked={assignedStaffIds.includes(u.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setAssignedStaffIds([...assignedStaffIds, u.id]);
+                              else setAssignedStaffIds(assignedStaffIds.filter((id) => id !== u.id));
+                            }}
+                            className="w-3.5 h-3.5 accent-blue-500 cursor-pointer disabled:cursor-not-allowed"
+                          />
+                          <span>
+                            {u.name} ({u.role}) {!isActive && <span className="text-amber-400 font-bold ml-1 font-mono">({empStatus} - Restricted)</span>}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="sticky bottom-0 bg-gray-950/95 -mx-6 -mb-6 p-4 border-t border-gray-800 flex items-center justify-between gap-3 z-20 backdrop-blur-md">
                 <span className="text-[11px] text-gray-400 font-mono">
-                  {!selectedParentId ? (
-                    <span className="text-amber-400 font-bold">⚠️ Parent Entity Required</span>
-                  ) : (
-                    <span className="text-emerald-400 font-bold">✓ Ready to Create</span>
-                  )}
+                  <span className="text-emerald-400 font-bold">✓ Ready to Create</span>
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -1369,7 +1389,7 @@ export default function TasksPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={creating || !selectedParentId}
+                    disabled={creating}
                     className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs transition-all shadow-lg shadow-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                   >
                     {creating ? 'Creating...' : '✓ Create Task'}

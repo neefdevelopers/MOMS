@@ -25,15 +25,6 @@ export class EquipmentService {
       where.isArchived = false;
     }
 
-    // Role-based query filtering for STAFF: only assigned/requested equipment
-    if (role === 'STAFF' && userId) {
-      where.OR = [
-        { reservations: { some: { reservedById: userId } } },
-        { reservations: { some: { project: { assignedTeam: { some: { userId } } } } } },
-        { equipmentRequests: { some: { requestedById: userId } } },
-      ];
-    }
-
     return this.prisma.equipment.findMany({
       where,
       include: {
@@ -289,9 +280,8 @@ export class EquipmentService {
       throw new BadRequestException('Cannot request retired/archived equipment.');
     }
 
-    // Damaged equipment shall not be assigned until repaired
-    if (eqp.availability === EquipmentAvailability.DAMAGED) {
-      throw new BadRequestException('Damaged equipment shall not be assigned until repaired.');
+    if (eqp.availability !== EquipmentAvailability.AVAILABLE) {
+      throw new BadRequestException(`Equipment is currently ${eqp.availability} and cannot be assigned to another task.`);
     }
 
     const project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
@@ -299,7 +289,7 @@ export class EquipmentService {
       throw new NotFoundException('Project not found');
     }
 
-    return this.prisma.equipmentRequest.create({
+    const request = await this.prisma.equipmentRequest.create({
       data: {
         equipmentId: data.equipmentId,
         projectId: data.projectId,
@@ -316,6 +306,18 @@ export class EquipmentService {
         requestedBy: { select: { id: true, name: true, email: true, role: true } },
       },
     });
+
+    // Immediately update equipment availability to RESERVED so it cannot be assigned to another task simultaneously
+    await this.prisma.equipment.update({
+      where: { id: data.equipmentId },
+      data: {
+        availability: EquipmentAvailability.RESERVED,
+        status: 'RESERVED',
+        currentHolder: project.name,
+      },
+    });
+
+    return request;
   }
 
   async findRequests(userId?: string, isManager = false) {
@@ -367,7 +369,19 @@ export class EquipmentService {
     if (status === 'APPROVED') {
       await this.prisma.equipment.update({
         where: { id: req.equipmentId },
-        data: { availability: EquipmentAvailability.RESERVED },
+        data: {
+          availability: EquipmentAvailability.RESERVED,
+          status: 'RESERVED',
+        },
+      });
+    } else if (status === 'REJECTED') {
+      await this.prisma.equipment.update({
+        where: { id: req.equipmentId },
+        data: {
+          availability: EquipmentAvailability.AVAILABLE,
+          status: 'AVAILABLE',
+          currentHolder: null,
+        },
       });
     }
 
@@ -844,6 +858,9 @@ export class EquipmentService {
     const damaged = await this.prisma.equipment.count({
       where: { ...activeWhere, availability: EquipmentAvailability.DAMAGED },
     });
+    const lost = await this.prisma.equipment.count({
+      where: { ...activeWhere, availability: 'LOST' },
+    });
 
     const recentDate = new Date();
     recentDate.setDate(recentDate.getDate() - 7);
@@ -854,6 +871,29 @@ export class EquipmentService {
       },
     });
 
+    const pendingRequests = await this.prisma.equipmentRequest.count({
+      where: { status: 'PENDING' },
+    });
+
+    const pendingApprovals = await this.prisma.equipmentRequest.count({
+      where: { status: 'PENDING' },
+    });
+
+    const now = new Date();
+    const overdueReturns = await this.prisma.equipmentRequest.count({
+      where: {
+        status: { in: ['CHECKED_OUT', 'IN_USE'] },
+        expectedReturnDate: { lt: now },
+      },
+    });
+
+    const upcomingReservations = await this.prisma.equipmentReservation.count({
+      where: {
+        startDate: { gte: now },
+        status: 'RESERVED',
+      },
+    });
+
     return {
       total,
       available,
@@ -861,7 +901,496 @@ export class EquipmentService {
       checkedOut,
       underMaintenance,
       damaged,
+      lost,
       recentlyReturned,
+      pendingRequests,
+      pendingApprovals,
+      overdueReturns,
+      upcomingReservations,
+    };
+  }
+
+  // ─── Availability & Conflict Check ─────────────────────────────────────
+  async checkAvailability(dto: {
+    equipmentIds: string[];
+    startDate: string | Date;
+    endDate: string | Date;
+    projectId?: string;
+  }) {
+    const start = new Date(dto.startDate);
+    const end = new Date(dto.endDate);
+    const conflicts: any[] = [];
+    const availableItems: any[] = [];
+
+    for (const eqId of dto.equipmentIds) {
+      const eq = await this.prisma.equipment.findUnique({
+        where: { id: eqId },
+      });
+
+      if (!eq) {
+        conflicts.push({ equipmentId: eqId, reason: 'Equipment not found' });
+        continue;
+      }
+
+      if (eq.isArchived) {
+        conflicts.push({ equipmentId: eqId, equipmentName: eq.name, reason: 'Equipment is retired/archived' });
+        continue;
+      }
+
+      if (eq.availability === EquipmentAvailability.DAMAGED) {
+        conflicts.push({ equipmentId: eqId, equipmentName: eq.name, reason: 'Equipment is currently DAMAGED and unserviceable' });
+        continue;
+      }
+
+      if (eq.availability === EquipmentAvailability.UNDER_MAINTENANCE || eq.availability === 'MAINTENANCE') {
+        conflicts.push({ equipmentId: eqId, equipmentName: eq.name, reason: 'Equipment is UNDER MAINTENANCE' });
+        continue;
+      }
+
+      if (eq.availability === 'LOST') {
+        conflicts.push({ equipmentId: eqId, equipmentName: eq.name, reason: 'Equipment is marked as LOST' });
+        continue;
+      }
+
+      // Check conflicting reservations
+      const reservationConflict = await this.prisma.equipmentReservation.findFirst({
+        where: {
+          equipmentId: eqId,
+          status: 'RESERVED',
+          projectId: dto.projectId ? { not: dto.projectId } : undefined,
+          OR: [
+            { startDate: { lte: end }, endDate: { gte: start } },
+          ],
+        },
+        include: { project: { select: { id: true, name: true, projectId: true } } },
+      });
+
+      if (reservationConflict) {
+        conflicts.push({
+          equipmentId: eqId,
+          equipmentName: eq.name,
+          reason: `Reserved for Project ${reservationConflict.project?.name || reservationConflict.projectId}`,
+          conflictingProject: reservationConflict.project,
+          startDate: reservationConflict.startDate,
+          endDate: reservationConflict.endDate,
+        });
+        continue;
+      }
+
+      // Check active checkouts / requests
+      const activeRequestConflict = await this.prisma.equipmentRequest.findFirst({
+        where: {
+          equipmentId: eqId,
+          status: { in: ['CHECKED_OUT', 'IN_USE', 'APPROVED'] },
+          projectId: dto.projectId ? { not: dto.projectId } : undefined,
+          OR: [
+            { requiredDate: { lte: end }, expectedReturnDate: { gte: start } },
+          ],
+        },
+        include: { project: { select: { id: true, name: true, projectId: true } } },
+      });
+
+      if (activeRequestConflict) {
+        conflicts.push({
+          equipmentId: eqId,
+          equipmentName: eq.name,
+          reason: `Currently Checked Out / Approved for Project ${activeRequestConflict.project?.name || activeRequestConflict.projectId}`,
+          conflictingProject: activeRequestConflict.project,
+          requiredDate: activeRequestConflict.requiredDate,
+          expectedReturnDate: activeRequestConflict.expectedReturnDate,
+        });
+        continue;
+      }
+
+      availableItems.push(eq);
+    }
+
+    // Find suggested alternatives if conflicts exist
+    let alternatives: any[] = [];
+    if (conflicts.length > 0) {
+      const conflictCategories = conflicts.map((c) => c.equipmentName).filter(Boolean);
+      alternatives = await this.prisma.equipment.findMany({
+        where: {
+          isArchived: false,
+          availability: EquipmentAvailability.AVAILABLE,
+          id: { notIn: dto.equipmentIds },
+        },
+        take: 5,
+      });
+    }
+
+    return {
+      isAvailable: conflicts.length === 0,
+      availableCount: availableItems.length,
+      conflictCount: conflicts.length,
+      conflicts,
+      availableItems,
+      alternatives,
+    };
+  }
+
+  // ─── Equipment Preparation Stage ─────────────────────────────────────────
+  async prepareEquipment(
+    requestId: string,
+    dto: { accessoriesChecked?: string; preparationNotes?: string },
+    preparedById: string,
+  ) {
+    const req = await this.prisma.equipmentRequest.findUnique({
+      where: { id: requestId },
+      include: { equipment: true, project: true },
+    });
+
+    if (!req) throw new NotFoundException('Equipment request not found');
+    if (req.status !== 'APPROVED') {
+      throw new BadRequestException('Only approved equipment requests can be prepared for checkout.');
+    }
+
+    const updated = await this.prisma.equipmentRequest.update({
+      where: { id: requestId },
+      data: {
+        isPrepared: true,
+        preparedAt: new Date(),
+        preparedById,
+        preparationNotes: dto.preparationNotes || 'Accessories & condition verified.',
+        accessoriesChecked: dto.accessoriesChecked || 'Body, Lens, Battery, Charger, Case verified.',
+      },
+      include: { equipment: true, project: true },
+    });
+
+    // Log preparation movement
+    await this.prisma.equipmentMovement.create({
+      data: {
+        equipmentId: req.equipmentId,
+        projectId: req.projectId,
+        userId: preparedById,
+        action: 'PREPARED',
+        notes: `Prepared for checkout. Accessories: ${dto.accessoriesChecked || 'Verified'}. Notes: ${dto.preparationNotes || 'Ready'}`,
+      },
+    });
+
+    return updated;
+  }
+
+  // ─── Equipment Issue / Checkout & Handover Authorization ─────────────────
+  async issueEquipmentWithHandover(
+    requestId: string,
+    issuerId: string,
+    dto?: { condition?: string; accessoriesIncluded?: string; remarks?: string },
+  ) {
+    const req = await this.prisma.equipmentRequest.findUnique({
+      where: { id: requestId },
+      include: { equipment: true, project: true, requestedBy: true },
+    });
+
+    if (!req) throw new NotFoundException('Equipment request not found');
+    if (req.status !== 'APPROVED' && req.status !== 'CHECKED_OUT') {
+      throw new BadRequestException('Request must be APPROVED before equipment can be issued.');
+    }
+
+    const count = await this.prisma.equipmentHandoverAuthorization.count();
+    const autoAuthCode = `HND-${(count + 1).toString().padStart(6, '0')}`;
+
+    // 1. Create permanent Handover Authorization Record
+    const handover = await this.prisma.equipmentHandoverAuthorization.create({
+      data: {
+        authorizationId: autoAuthCode,
+        requestId: req.id,
+        equipmentId: req.equipmentId,
+        employeeId: req.requestedById,
+        issuedById: issuerId,
+        projectId: req.projectId,
+        condition: dto?.condition || req.equipment.condition || 'Good',
+        accessoriesIncluded: dto?.accessoriesIncluded || req.accessoriesChecked || 'Body, Battery, Charger, Case',
+        remarks: dto?.remarks || req.remarks || 'Authorized for physical shoot.',
+      },
+      include: {
+        equipment: true,
+        employee: { select: { id: true, name: true, email: true, role: true } },
+        issuedBy: { select: { id: true, name: true, email: true, role: true } },
+        project: true,
+      },
+    });
+
+    // 2. Update Request & Equipment status to CHECKED_OUT
+    await this.prisma.equipmentRequest.update({
+      where: { id: requestId },
+      data: {
+        status: 'CHECKED_OUT',
+        handoverAuthorizationId: handover.id,
+      },
+    });
+
+    await this.prisma.equipment.update({
+      where: { id: req.equipmentId },
+      data: {
+        availability: EquipmentAvailability.CHECKED_OUT,
+        status: EquipmentAvailability.CHECKED_OUT,
+        currentHolder: req.requestedBy?.name || 'Staff',
+      },
+    });
+
+    // 3. Log movement
+    await this.prisma.equipmentMovement.create({
+      data: {
+        equipmentId: req.equipmentId,
+        projectId: req.projectId,
+        userId: issuerId,
+        employeeId: req.requestedById,
+        approvedById: issuerId,
+        expectedReturnDate: req.expectedReturnDate,
+        action: EquipmentMovementAction.ISSUED,
+        notes: `Issued to ${req.requestedBy?.name}. Handover Auth: ${autoAuthCode}`,
+      },
+    });
+
+    // 4. Send notification for employee acknowledgement
+    await this.prisma.notification.create({
+      data: {
+        userId: req.requestedById,
+        title: 'Equipment Issued — Acknowledgement Required',
+        message: `Equipment ${req.equipment.name} (${req.equipment.equipmentId}) has been issued to you. Please acknowledge receipt.`,
+        type: 'SYSTEM',
+        linkUrl: `/equipment`,
+        entityId: req.id,
+        entityCode: autoAuthCode,
+        equipmentId: req.equipmentId,
+      },
+    });
+
+    return {
+      message: 'Equipment issued successfully and Handover Authorization generated.',
+      handoverAuthorization: handover,
+    };
+  }
+
+  // ─── Lost Equipment Reporting ───────────────────────────────────────────
+  async reportLostEquipment(
+    equipmentId: string,
+    dto: {
+      lastResponsibleEmployeeId?: string;
+      lastKnownLocation?: string;
+      lastKnownDate?: Date | string;
+      description: string;
+    },
+    reporterId: string,
+  ) {
+    const eqp = await this.findOne(equipmentId);
+    if (eqp.isArchived) {
+      throw new BadRequestException('Cannot report lost for retired/archived equipment.');
+    }
+
+    const updated = await this.prisma.equipment.update({
+      where: { id: equipmentId },
+      data: {
+        availability: 'LOST',
+        status: 'LOST',
+        lastResponsibleEmployeeId: dto.lastResponsibleEmployeeId || null,
+        lastKnownLocation: dto.lastKnownLocation || null,
+        lastKnownDate: dto.lastKnownDate ? new Date(dto.lastKnownDate) : new Date(),
+        lostNotes: dto.description,
+      },
+    });
+
+    // Log permanent movement timeline event
+    await this.prisma.equipmentMovement.create({
+      data: {
+        equipmentId,
+        userId: reporterId,
+        employeeId: dto.lastResponsibleEmployeeId,
+        action: 'LOST',
+        notes: `Marked as LOST. Location: ${dto.lastKnownLocation || 'Unknown'}. Notes: ${dto.description}`,
+      },
+    });
+
+    return updated;
+  }
+
+  // ─── Maintenance Record Management ─────────────────────────────────────
+  async createMaintenanceRecord(
+    dto: {
+      equipmentId: string;
+      maintenanceType: string;
+      performedBy: string;
+      cost?: number;
+      notes?: string;
+      scheduledDate?: Date | string;
+    },
+    userId: string,
+  ) {
+    const eqp = await this.findOne(dto.equipmentId);
+    if (eqp.isArchived) throw new BadRequestException('Cannot add maintenance for retired equipment.');
+
+    const count = await this.prisma.equipmentMaintenanceRecord.count();
+    const autoMntCode = `MNT-${(count + 1).toString().padStart(6, '0')}`;
+
+    const record = await this.prisma.equipmentMaintenanceRecord.create({
+      data: {
+        maintenanceId: autoMntCode,
+        equipmentId: dto.equipmentId,
+        maintenanceType: dto.maintenanceType.toUpperCase(),
+        performedBy: dto.performedBy,
+        cost: dto.cost ? parseFloat(dto.cost.toString()) : null,
+        notes: dto.notes,
+        scheduledDate: dto.scheduledDate ? new Date(dto.scheduledDate) : new Date(),
+        status: 'IN_PROGRESS',
+      },
+      include: { equipment: true },
+    });
+
+    // Mark equipment as UNDER_MAINTENANCE
+    await this.prisma.equipment.update({
+      where: { id: dto.equipmentId },
+      data: {
+        availability: EquipmentAvailability.UNDER_MAINTENANCE,
+        status: EquipmentAvailability.UNDER_MAINTENANCE,
+        maintenanceStatus: MaintenanceStatus.UNDER_REPAIR,
+      },
+    });
+
+    // Log movement
+    await this.prisma.equipmentMovement.create({
+      data: {
+        equipmentId: dto.equipmentId,
+        userId,
+        action: 'MAINTENANCE',
+        notes: `Maintenance ${autoMntCode} started: ${dto.maintenanceType}. Vendor/Tech: ${dto.performedBy}`,
+      },
+    });
+
+    return record;
+  }
+
+  async clearMaintenanceRecord(
+    recordId: string,
+    notes: string | undefined,
+    clearedById: string,
+  ) {
+    const record = await this.prisma.equipmentMaintenanceRecord.findUnique({
+      where: { id: recordId },
+      include: { equipment: true },
+    });
+
+    if (!record) throw new NotFoundException('Maintenance record not found');
+
+    const updated = await this.prisma.equipmentMaintenanceRecord.update({
+      where: { id: recordId },
+      data: {
+        status: 'COMPLETED',
+        completedDate: new Date(),
+        clearedById,
+        clearedAt: new Date(),
+        notes: notes ? `${record.notes || ''}\n[Clearance]: ${notes}` : record.notes,
+      },
+      include: { equipment: true, clearedBy: { select: { id: true, name: true, email: true, role: true } } },
+    });
+
+    // Check if equipment has any other active maintenance records
+    const otherActiveMnt = await this.prisma.equipmentMaintenanceRecord.findFirst({
+      where: {
+        equipmentId: record.equipmentId,
+        status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
+        id: { not: recordId },
+      },
+    });
+
+    if (!otherActiveMnt) {
+      await this.prisma.equipment.update({
+        where: { id: record.equipmentId },
+        data: {
+          availability: EquipmentAvailability.AVAILABLE,
+          status: EquipmentAvailability.AVAILABLE,
+          maintenanceStatus: MaintenanceStatus.OPERATIONAL,
+        },
+      });
+    }
+
+    // Log movement clearance
+    await this.prisma.equipmentMovement.create({
+      data: {
+        equipmentId: record.equipmentId,
+        userId: clearedById,
+        action: 'INSPECTED',
+        notes: `Maintenance ${record.maintenanceId} completed & cleared for operational deployment.`,
+      },
+    });
+
+    return updated;
+  }
+
+  async getMaintenanceRecords(equipmentId?: string) {
+    const where: any = {};
+    if (equipmentId) where.equipmentId = equipmentId;
+
+    return this.prisma.equipmentMaintenanceRecord.findMany({
+      where,
+      include: {
+        equipment: true,
+        clearedBy: { select: { id: true, name: true, email: true, role: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // ─── Permanent Audit Movement Timeline ────────────────────────────────────
+  async getEquipmentTimeline(equipmentId: string) {
+    return this.prisma.equipmentMovement.findMany({
+      where: { equipmentId },
+      include: {
+        user: { select: { id: true, name: true, email: true, role: true } },
+        employee: { select: { id: true, name: true, email: true, role: true } },
+        approvedBy: { select: { id: true, name: true, email: true, role: true } },
+        returnedBy: { select: { id: true, name: true, email: true, role: true } },
+        project: { select: { id: true, name: true, projectId: true } },
+      },
+      orderBy: { timestamp: 'desc' },
+    });
+  }
+
+  // ─── Equipment Reports ────────────────────────────────────────────────────
+  async getEquipmentReports() {
+    const totalCount = await this.prisma.equipment.count({ where: { isArchived: false } });
+    const availableCount = await this.prisma.equipment.count({ where: { isArchived: false, availability: EquipmentAvailability.AVAILABLE } });
+    const checkedOutCount = await this.prisma.equipment.count({ where: { isArchived: false, availability: { in: [EquipmentAvailability.CHECKED_OUT, EquipmentAvailability.IN_USE] } } });
+    const maintenanceCount = await this.prisma.equipment.count({ where: { isArchived: false, availability: EquipmentAvailability.UNDER_MAINTENANCE } });
+    const damagedCount = await this.prisma.equipment.count({ where: { isArchived: false, availability: EquipmentAvailability.DAMAGED } });
+    const lostCount = await this.prisma.equipment.count({ where: { isArchived: false, availability: 'LOST' } });
+
+    const utilizationRate = totalCount > 0 ? Math.round((checkedOutCount / totalCount) * 100) : 0;
+    const availabilityRate = totalCount > 0 ? Math.round((availableCount / totalCount) * 100) : 0;
+
+    const recentMovements = await this.prisma.equipmentMovement.findMany({
+      take: 20,
+      include: {
+        equipment: true,
+        user: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true, projectId: true } },
+      },
+      orderBy: { timestamp: 'desc' },
+    });
+
+    const activeCheckouts = await this.prisma.equipmentRequest.findMany({
+      where: { status: { in: ['CHECKED_OUT', 'IN_USE'] } },
+      include: {
+        equipment: true,
+        requestedBy: { select: { id: true, name: true, email: true } },
+        project: { select: { id: true, name: true, projectId: true } },
+      },
+      orderBy: { expectedReturnDate: 'asc' },
+    });
+
+    return {
+      summary: {
+        totalCount,
+        availableCount,
+        checkedOutCount,
+        maintenanceCount,
+        damagedCount,
+        lostCount,
+        utilizationRate,
+        availabilityRate,
+      },
+      recentMovements,
+      activeCheckouts,
     };
   }
 }

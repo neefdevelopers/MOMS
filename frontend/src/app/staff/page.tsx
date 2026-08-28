@@ -320,6 +320,11 @@ function StaffContent() {
       if (u.currentAvailability !== availabilityFilter) return false;
     }
 
+    // 7. System Role filter
+    if (roleFilter !== 'ALL') {
+      if (u.role !== roleFilter) return false;
+    }
+
     if (roleFilter !== 'ALL' && u.role !== roleFilter) return false;
 
     return true;
@@ -604,116 +609,152 @@ function StaffContent() {
                 }`}
               >
                 {/* Employee Header: Code, Avatar, Name & Status */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={u.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                      alt={u.name}
-                      className="w-12 h-12 rounded-full object-cover border border-zinc-700 shrink-0 shadow-sm"
-                    />
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[10px] font-bold text-cyan-400 px-1.5 py-0.5 bg-cyan-500/10 border border-cyan-500/30 rounded">
-                          {empCode}
-                        </span>
-                        <span className="text-[10px] text-gray-400 uppercase font-semibold font-mono">
-                          ID: {u.id.slice(0, 8)}
-                        </span>
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img
+                        src={u.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                        alt={u.name}
+                        className="w-11 h-11 rounded-full object-cover border border-zinc-700 shrink-0 shadow-sm"
+                      />
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-white text-sm truncate">{u.name}</h3>
+                        <p className="text-[11px] text-gray-400 flex items-center gap-1 font-mono truncate">
+                          <Mail className="w-3 h-3 text-gray-500 shrink-0" />{' '}
+                          {u.email === '[CONFIDENTIAL]' ? (
+                            <span className="text-gray-500 italic">[CONFIDENTIAL — Protected]</span>
+                          ) : (
+                            u.email
+                          )}
+                        </p>
                       </div>
-                      <h3 className="font-bold text-white text-sm mt-0.5">{u.name}</h3>
-                      <p className="text-[11px] text-gray-400 flex items-center gap-1 font-mono">
-                        <Mail className="w-3 h-3 text-gray-500" />{' '}
-                        {u.email === '[CONFIDENTIAL]' ? (
-                          <span className="text-gray-500 italic">[CONFIDENTIAL — Protected]</span>
-                        ) : (
-                          u.email
-                        )}
-                      </p>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border shrink-0 ${
+                          u.isArchived
+                            ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                            : empStatus === 'ACTIVE'
+                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                            : empStatus === 'SUSPENDED'
+                            ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                            : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                        }`}
+                      >
+                        {u.isArchived ? 'ARCHIVED' : empStatus}
+                      </span>
+
+                      {/* Current Availability (Available, Busy, Overloaded, Offline) */}
+                      <span
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase border shrink-0 font-mono ${
+                          u.currentAvailability === 'Overloaded'
+                            ? 'bg-red-950 text-red-300 border-red-800'
+                            : u.currentAvailability === 'Busy'
+                            ? 'bg-amber-950 text-amber-300 border-amber-800'
+                            : u.currentAvailability === 'Offline'
+                            ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                            : 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                        }`}
+                      >
+                        ● {u.currentAvailability || 'Available'}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-end gap-1">
-                    <span
-                      className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border shrink-0 ${
-                        u.isArchived
-                          ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                          : empStatus === 'ACTIVE'
-                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                          : empStatus === 'SUSPENDED'
-                          ? 'bg-red-500/20 text-red-400 border-red-500/30'
-                          : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                      }`}
-                    >
-                      {u.isArchived ? 'ARCHIVED' : empStatus}
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="font-mono text-[10px] font-bold text-cyan-400 px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/30 rounded">
+                      {empCode}
                     </span>
-
-                    {/* Current Availability (Available, Busy, Overloaded, Offline) */}
-                    <span
-                      className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase border shrink-0 font-mono ${
-                        u.currentAvailability === 'Overloaded'
-                          ? 'bg-red-950 text-red-300 border-red-800'
-                          : u.currentAvailability === 'Busy'
-                          ? 'bg-amber-950 text-amber-300 border-amber-800'
-                          : u.currentAvailability === 'Offline'
-                          ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                          : 'bg-emerald-950 text-emerald-300 border-emerald-800'
-                      }`}
-                    >
-                      ● {u.currentAvailability || 'Available'}
+                    <span className="text-[10px] text-gray-400 uppercase font-semibold font-mono">
+                      ID: {u.id.slice(0, 8)}
                     </span>
                   </div>
                 </div>
 
                 {/* Organizational Specs */}
-                <div className="space-y-1.5 pt-2 border-t border-border text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400 font-semibold flex items-center gap-1">
-                      <Briefcase className="w-3 h-3 text-blue-400" /> Designation:
+                <div className="space-y-2 pt-3 border-t border-border text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-400 font-semibold flex items-center gap-1 shrink-0">
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400" /> System Role:
                     </span>
-                    <strong className="text-white font-medium">{prof?.designation || 'Operations Staff'}</strong>
+                    <span
+                      className={`text-[10px] font-bold px-2.5 py-0.5 rounded border font-mono uppercase shrink-0 ${
+                        u.role === 'MEDIA_MANAGER'
+                          ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                          : u.role === 'TECHNICAL_MANAGER'
+                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                          : u.role === 'SOCIAL_MEDIA_MANAGER'
+                          ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                          : u.role === 'MARKETING_MANAGER'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      }`}
+                    >
+                      {u.role === 'MEDIA_MANAGER'
+                        ? 'Media Manager'
+                        : u.role === 'TECHNICAL_MANAGER'
+                        ? 'Technical Manager'
+                        : u.role === 'SOCIAL_MEDIA_MANAGER'
+                        ? 'Social Media Manager'
+                        : u.role === 'MARKETING_MANAGER'
+                        ? 'Marketing Manager'
+                        : 'Staff'}
+                    </span>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400 font-semibold flex items-center gap-1">
-                      <Building2 className="w-3 h-3 text-purple-400" /> Primary Dept:
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-gray-400 font-semibold flex items-center gap-1 shrink-0">
+                      <Briefcase className="w-3.5 h-3.5 text-blue-400" /> Designation:
                     </span>
-                    <span className="text-purple-300 font-bold">{prof?.department?.name || 'General Operations'}</span>
+                    <strong className="text-white font-medium text-right text-[11px] leading-tight">
+                      {prof?.designation || 'Operations Staff'}
+                    </strong>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-400 font-semibold flex items-center gap-1 shrink-0">
+                      <Building2 className="w-3.5 h-3.5 text-purple-400" /> Primary Dept:
+                    </span>
+                    <span className="text-purple-300 font-bold text-right text-[11px]">
+                      {prof?.department?.name || 'General Operations'}
+                    </span>
                   </div>
 
                   {prof?.additionalDepartments && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-400 font-semibold flex items-center gap-1">
-                        <Layers className="w-3 h-3 text-indigo-400" /> Additional Depts:
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-gray-400 font-semibold flex items-center gap-1 shrink-0">
+                        <Layers className="w-3.5 h-3.5 text-indigo-400" /> Additional Depts:
                       </span>
-                      <span className="text-indigo-300 text-[11px] truncate max-w-[160px]" title={prof.additionalDepartments}>
+                      <span className="text-indigo-300 text-[11px] text-right truncate" title={prof.additionalDepartments}>
                         {prof.additionalDepartments}
                       </span>
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400 font-semibold flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-amber-400" /> Joining Date:
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-400 font-semibold flex items-center gap-1 shrink-0">
+                      <Calendar className="w-3.5 h-3.5 text-amber-400" /> Joining Date:
                     </span>
-                    <span className="text-gray-300 font-mono">{joining}</span>
+                    <span className="text-gray-300 font-mono text-[11px] text-right">{joining}</span>
                   </div>
                 </div>
 
                 {/* Skills / Capabilities Badges */}
                 <div className="pt-2 border-t border-gray-800/60 space-y-1">
                   <span className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1">
-                    <Award className="w-3 h-3 text-amber-400" /> Skills &amp; Capabilities
+                    <Award className="w-3.5 h-3.5 text-amber-400" /> Skills &amp; Capabilities
                   </span>
                   <div className="flex items-center gap-1 flex-wrap">
                     {prof?.skills?.length > 0 ? (
                       prof.skills.map((s: any) => (
                         <span key={s.id} className="text-[9px] font-semibold px-2 py-0.5 bg-gray-800 text-gray-300 rounded border border-gray-700">
-                          {s.skill?.name || 'Skill'}
+                          {(s.skill?.name || 'Skill').replace(/&amp;/g, '&')}
                         </span>
                       ))
                     ) : (
                       <span className="text-[9px] font-semibold px-2 py-0.5 bg-gray-900 text-gray-400 rounded border border-gray-800">
-                        {prof?.designation?.includes('Editor') ? 'Video Editing • Color Grading' : 'Media Ops • Camera &amp; Sound'}
+                        {prof?.designation?.includes('Editor') ? 'Video Editing • Color Grading' : 'Media Ops • Camera & Sound'}
                       </span>
                     )}
                   </div>

@@ -39,15 +39,15 @@ export class EquipmentController {
     return this.equipmentService.getDashboardStats();
   }
 
-  // ─── Business Rule 1 & 2: Create with company ownership + inventory record ─
-  @Roles(Role.MEDIA_MANAGER)
+  // ─── Business Rule 1 & 2: Create master equipment record — Technical Manager Only ─
+  @Roles(Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Post()
   create(@Body() data: any) {
     return this.equipmentService.create(data);
   }
 
-  // ─── Business Rule 4: Retire (archive) equipment — replaces physical delete ─
-  @Roles(Role.MEDIA_MANAGER)
+  // ─── Business Rule 4: Retire (archive) equipment — Technical Manager Only ─
+  @Roles(Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Post(':id/retire')
   retire(
     @Param('id') id: string,
@@ -109,6 +109,26 @@ export class EquipmentController {
   }
 
   @Roles(Role.MEDIA_MANAGER)
+  @Post('requests/:id/prepare')
+  prepareEquipment(
+    @Param('id') id: string,
+    @Body() dto: { accessoriesChecked?: string; preparationNotes?: string },
+    @CurrentUser('id') preparedById: string,
+  ) {
+    return this.equipmentService.prepareEquipment(id, dto, preparedById);
+  }
+
+  @Roles(Role.MEDIA_MANAGER)
+  @Post('requests/:id/issue-handover')
+  issueEquipmentWithHandover(
+    @Param('id') id: string,
+    @Body() dto: { condition?: string; accessoriesIncluded?: string; remarks?: string },
+    @CurrentUser('id') issuerId: string,
+  ) {
+    return this.equipmentService.issueEquipmentWithHandover(id, issuerId, dto);
+  }
+
+  @Roles(Role.MEDIA_MANAGER)
   @Post('requests/:id/issue')
   issueEquipment(
     @Param('id') id: string,
@@ -123,6 +143,56 @@ export class EquipmentController {
     @CurrentUser('id') userId: string,
   ) {
     return this.equipmentService.acknowledgeReceipt(id, userId);
+  }
+
+  @Post('check-availability')
+  checkAvailability(
+    @Body() dto: { equipmentIds: string[]; startDate: string; endDate: string; projectId?: string },
+  ) {
+    return this.equipmentService.checkAvailability(dto);
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER)
+  @Post('lost')
+  reportLostEquipment(
+    @Body() dto: { equipmentId: string; lastResponsibleEmployeeId?: string; lastKnownLocation?: string; lastKnownDate?: string; description: string },
+    @CurrentUser('id') reporterId: string,
+  ) {
+    return this.equipmentService.reportLostEquipment(dto.equipmentId, dto, reporterId);
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER)
+  @Post('maintenance-records')
+  createMaintenanceRecord(
+    @Body() dto: { equipmentId: string; maintenanceType: string; performedBy: string; cost?: number; notes?: string; scheduledDate?: string },
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.equipmentService.createMaintenanceRecord(dto, userId);
+  }
+
+  @Roles(Role.MEDIA_MANAGER)
+  @Post('maintenance-records/:id/clear')
+  clearMaintenanceRecord(
+    @Param('id') id: string,
+    @Body('notes') notes: string | undefined,
+    @CurrentUser('id') clearedById: string,
+  ) {
+    return this.equipmentService.clearMaintenanceRecord(id, notes, clearedById);
+  }
+
+  @Get('maintenance-records')
+  getMaintenanceRecords(@Query('equipmentId') equipmentId?: string) {
+    return this.equipmentService.getMaintenanceRecords(equipmentId);
+  }
+
+  @Get('reports/summary')
+  getEquipmentReports() {
+    return this.equipmentService.getEquipmentReports();
+  }
+
+  @Get(':id/timeline')
+  getEquipmentTimeline(@Param('id') id: string) {
+    return this.equipmentService.getEquipmentTimeline(id);
   }
 
   @Post(':id/return-inspection')
@@ -161,7 +231,7 @@ export class EquipmentController {
     return this.equipmentService.getCategories();
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Post('categories')
   createCategory(@Body('name') name: string, @CurrentUser('id') userId: string) {
     return this.equipmentService.createCategory(name, userId);

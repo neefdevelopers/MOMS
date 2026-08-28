@@ -2,7 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { fetchApi } from '@/lib/api';
+import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
+import { ProjectEquipmentTab } from '@/components/projects/ProjectEquipmentTab';
 import { useAuth } from '@/lib/auth-context';
 import ActivityCommunicationThread from '@/components/communications/ActivityCommunicationThread';
 import { useBreadcrumbs } from '@/lib/breadcrumbs-context';
@@ -57,6 +60,7 @@ export default function ProjectDetailPage() {
   const [newGraphicTitle, setNewGraphicTitle] = useState('');
   const [showManageTeamModal, setShowManageTeamModal] = useState(false);
   const [showManageEquipmentModal, setShowManageEquipmentModal] = useState(false);
+  const [showConvertTaskModal, setShowConvertTaskModal] = useState(false);
 
   // Deliverables State
   const [deliverableName, setDeliverableName] = useState('');
@@ -405,6 +409,43 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Marketing Manager Approval Warning Banner */}
+        {['PENDING_MARKETING_APPROVAL', 'PLANNED', 'PENDING_CLIENT_APPROVAL'].includes(project.status) && (
+          <div className="p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl text-amber-300 text-xs flex items-center justify-between font-medium">
+            <span className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>
+                <strong>Waiting for Marketing Manager Approval</strong> — Task assignment and production are locked until approved.
+              </span>
+            </span>
+            {user?.role === 'MARKETING_MANAGER' && (
+              <button
+                onClick={() => handleStatusChange('APPROVED')}
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors shadow-md shadow-emerald-950"
+              >
+                ✓ Approve Project Now
+              </button>
+            )}
+          </div>
+        )}
+
+        {['APPROVED', 'READY_FOR_PRODUCTION'].includes(project.status) && (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+          <div className="p-3 bg-purple-950/40 border border-purple-500/40 rounded-xl text-purple-200 text-xs flex items-center justify-between font-medium">
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>
+                <strong>Marketing Manager Approved</strong> — Convert to Task &amp; Assign Staff now.
+              </span>
+            </span>
+            <button
+              onClick={() => setShowConvertTaskModal(true)}
+              className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs transition-colors shadow-md shadow-purple-950 flex items-center gap-1"
+            >
+              ⚡ Convert to Task ➔
+            </button>
+          </div>
+        )}
 
         {/* Progress Bar */}
         <div className="space-y-1 pt-2">
@@ -911,14 +952,18 @@ export default function ProjectDetailPage() {
                 </p>
               </div>
 
-              {user?.role === 'MEDIA_MANAGER' && (
+              {['PENDING_MARKETING_APPROVAL', 'PLANNED', 'PENDING_CLIENT_APPROVAL'].includes(project.status) ? (
+                <span className="p-2 bg-amber-950/40 border border-amber-500/40 rounded text-amber-300 font-semibold text-xs flex items-center gap-1">
+                  ⏳ Waiting for Marketing Manager Approval — Staff assignment locked until approved.
+                </span>
+              ) : (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') ? (
                 <button
                   onClick={() => setShowManageTeamModal(!showManageTeamModal)}
                   className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" /> Manage Team Members
                 </button>
-              )}
+              ) : null}
             </div>
 
             {/* Quick Manage Team Panel */}
@@ -1000,91 +1045,7 @@ export default function ProjectDetailPage() {
 
         {/* Tab 6: Equipment */}
         {activeTab === 'Equipment' && (
-          <div className="space-y-6 text-xs">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-purple-400" /> Reserved Equipment & Gear
-                </h3>
-                <p className="text-gray-400 text-[11px] mt-0.5">
-                  Production equipment reserved and issued for this shoot project.
-                </p>
-              </div>
-
-              {(user?.role === 'MEDIA_MANAGER' || user?.role === 'TECHNICAL_MANAGER') && (
-                <button
-                  onClick={() => setShowManageEquipmentModal(!showManageEquipmentModal)}
-                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-lg transition-colors flex items-center gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Reserve / Manage Equipment
-                </button>
-              )}
-            </div>
-
-            {/* Quick Manage Equipment Panel */}
-            {showManageEquipmentModal && (
-              <div className="p-4 bg-gray-900 border border-purple-900/50 rounded-xl space-y-3">
-                <h4 className="font-bold text-purple-300">Click equipment items to reserve or release for this project:</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {allEquipment.map((eq) => {
-                    const isReserved = project.equipmentReservations?.some((r: any) => r.equipmentId === eq.id);
-                    return (
-                      <button
-                        key={eq.id}
-                        onClick={() => handleToggleEquipment(eq.id)}
-                        className={`flex items-center justify-between p-2.5 rounded-lg border text-left transition-all ${
-                          isReserved
-                            ? 'bg-purple-600/20 border-purple-500 text-purple-200 font-semibold'
-                            : 'bg-card border-gray-800 text-gray-400 hover:text-white'
-                        }`}
-                      >
-                        <div className="truncate">
-                          <div className="text-xs text-white truncate font-bold">{eq.name}</div>
-                          <div className="text-[10px] text-gray-400 truncate font-mono">[{eq.category}] {eq.brand} {eq.model}</div>
-                        </div>
-                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-                          isReserved ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400'
-                        }`}>
-                          {isReserved ? 'Reserved' : 'Reserve'}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Equipment Grid */}
-            {project.equipmentReservations?.length === 0 ? (
-              <div className="p-6 text-center bg-gray-900/50 border border-gray-800 rounded-xl text-gray-400">
-                No equipment items reserved for this project yet. Click "Reserve / Manage Equipment" above to assign gear.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {project.equipmentReservations?.map((res: any) => {
-                  const eq = res.equipment;
-                  return (
-                    <div key={res.id} className="p-4 bg-gray-900 border border-gray-800 rounded-xl space-y-2">
-                      <div className="flex justify-between items-start font-mono text-[11px]">
-                        <span className="text-purple-400 font-bold">{eq?.equipmentId}</span>
-                        <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded text-[9px] font-bold">
-                          {res.status || 'RESERVED'}
-                        </span>
-                      </div>
-                      <h4 className="font-bold text-white text-sm">{eq?.name}</h4>
-                      <div className="text-gray-400 text-xs">
-                        Category: <strong className="text-gray-200">{eq?.category}</strong> • Model: <strong className="text-gray-200">{eq?.brand} {eq?.model}</strong>
-                      </div>
-                      <div className="text-[11px] text-gray-500 pt-1 border-t border-gray-800/60 flex justify-between">
-                        <span>Condition: <strong className="text-emerald-400">{eq?.condition || 'Good'}</strong></span>
-                        <span>S/N: {eq?.serialNumber}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <ProjectEquipmentTab project={project} onRefresh={loadProject} />
         )}
 
         {/* Tab 7: Deliverables */}
@@ -1475,6 +1436,31 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Task Conversion Modal Popup */}
+      <ConvertEventToTaskModal
+        isOpen={showConvertTaskModal}
+        onClose={() => setShowConvertTaskModal(false)}
+        onSuccess={() => {
+          loadProject();
+        }}
+        eventData={
+          project
+            ? {
+                title: project.name,
+                parentType: 'PROJECT',
+                parentId: project.id,
+                parentCode: project.projectId,
+                clientId: project.clientId,
+                brandId: project.brandId,
+                productId: project.productId,
+                priority: project.priority,
+                dueDate: project.shootDate,
+                notes: project.productionNotes,
+              }
+            : null
+        }
+      />
       </div>
     </div>
   );

@@ -28,8 +28,24 @@ export class GraphicReqsService {
     if (p.clientId) where.clientId = p.clientId;
     if (p.brandId) where.brandId = p.brandId;
     if (p.productId) where.productId = p.productId;
-    if (p.status && p.status !== 'ALL') where.status = p.status;
     if (p.priority && p.priority !== 'ALL') where.priority = p.priority;
+
+    if (p.createdBy) {
+      where.OR = [
+        { calendarEvent: { createdById: p.createdBy } },
+        { project: { createdById: p.createdBy } },
+      ];
+    }
+
+    if (p.status === 'PENDING_APPROVAL' || p.status === 'PENDING') {
+      where.OR = [
+        { status: 'WAITING_FOR_MEDIA_REVIEW' },
+        { status: 'PENDING_CLIENT_APPROVAL' },
+        { calendarEvent: { status: { in: ['PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW'] } } },
+      ];
+    } else if (p.status && p.status !== 'ALL') {
+      where.status = p.status;
+    }
 
     if (p.employeeId) {
       where.tasks = {
@@ -199,67 +215,6 @@ export class GraphicReqsService {
           graphicRequirementId: req.id,
           event: 'ASSIGNED',
           description: `Staff assigned to Graphic Requirement ${req.requirementId}`,
-        },
-      });
-    }
-
-    // Automated Task Creation Trigger 4: Automatically created from graphic requirements
-    const taskCount = await this.prisma.task.count();
-    const autoTaskId1 = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
-    const autoTaskId2 = `TSK-${(taskCount + 2).toString().padStart(6, '0')}`;
-
-    await this.prisma.task.createMany({
-      data: [
-        {
-          taskId: autoTaskId1,
-          title: `Graphic Asset Design & Key Visual Composition - ${req.name}`,
-          description: `Automated graphic task generated for Requirement ${req.requirementId}`,
-          projectId: req.projectId,
-          graphicRequirementId: req.id,
-          clientId: req.clientId,
-          brandId: req.brandId,
-          productId: req.productId || null,
-          priority: req.priority || 'MEDIUM',
-          dueDate: req.estimatedCompletion || new Date(Date.now() + 2 * 86400000),
-          estimatedHours: 3.0,
-          status: 'PENDING',
-        },
-        {
-          taskId: autoTaskId2,
-          title: `Final Graphic Export & Review Preparation - ${req.name}`,
-          description: `Automated graphic task generated for Requirement ${req.requirementId}`,
-          projectId: req.projectId,
-          graphicRequirementId: req.id,
-          clientId: req.clientId,
-          brandId: req.brandId,
-          productId: req.productId || null,
-          priority: req.priority || 'MEDIUM',
-          dueDate: req.estimatedCompletion || new Date(Date.now() + 3 * 86400000),
-          estimatedHours: 2.0,
-          status: 'PENDING',
-        },
-      ],
-    });
-
-    const createdTasks = await this.prisma.task.findMany({
-      where: { taskId: { in: [autoTaskId1, autoTaskId2] } },
-    });
-
-    for (const t of createdTasks) {
-      if (data.assignedUserIds && Array.isArray(data.assignedUserIds) && data.assignedUserIds.length > 0) {
-        await this.prisma.taskAssignment.createMany({
-          data: data.assignedUserIds.map((userId: string) => ({
-            taskId: t.id,
-            userId,
-          })),
-        });
-      }
-
-      await this.prisma.taskTimeline.create({
-        data: {
-          taskId: t.id,
-          event: 'TASK_CREATED',
-          description: `Task ${t.taskId} ('${t.title}') automatically created during Graphic Requirement ${req.requirementId} creation`,
         },
       });
     }

@@ -12,6 +12,8 @@ import { KeyboardShortcutsModal } from '../common/KeyboardShortcutsModal';
 import { useRouter, usePathname } from 'next/navigation';
 import Loading from '@/app/loading';
 
+import { RoleGuard } from '../common/RoleGuard';
+
 export function MainLayout({
   children,
   rightUtilityPanel,
@@ -64,7 +66,9 @@ export function MainLayout({
               <div className="flex-1 flex min-h-0 overflow-hidden">
                 {/* 3. Main Content Area */}
                 <main className="flex-1 p-6 overflow-y-auto min-w-0">
-                  <Suspense fallback={<Loading />}>{children}</Suspense>
+                  <RoleGuard>
+                    <Suspense fallback={<Loading />}>{children}</Suspense>
+                  </RoleGuard>
                 </main>
 
                 {/* 4. Right Utility Panel (Optional) */}

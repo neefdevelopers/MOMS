@@ -34,6 +34,7 @@ export interface NavItem {
   href: string;
   icon: React.ElementType;
   roles?: AppRole[];
+  mediaName?: string;
   staffName?: string;
   techName?: string;
   smmName?: string;
@@ -53,27 +54,34 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
     items: [
       {
         name: 'Dashboard',
-        staffName: 'Dashboard',
+        staffName: 'My Dashboard',
         techName: 'Technical Dashboard',
         smmName: 'Social Media Dashboard',
-        clientName: 'Client Portal Dashboard',
+        clientName: 'Marketing Manager Portal',
         href: '/',
         icon: LayoutDashboard,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
       {
-        name: 'Pending Client Approvals',
-        clientName: 'Pending Client Approvals',
+        name: 'Event Approval Session',
+        clientName: 'Event Approval Session',
         href: '/client-review',
         icon: CheckCircle2,
         roles: ['MARKETING_MANAGER'],
       },
       {
+        name: 'Script Approvals Session',
+        clientName: 'Script Approvals Session',
+        href: '/scripts?status=PENDING_MARKETING_APPROVAL',
+        icon: FileText,
+        roles: ['MARKETING_MANAGER'],
+      },
+      {
         name: 'Media Calendar',
-        staffName: 'My Calendar',
-        techName: 'Media Calendar',
+        staffName: 'My Calendar Work',
+        techName: 'Technical Calendar',
         smmName: 'Media Calendar',
-        clientName: 'Client Calendar View',
+        clientName: 'Calendar Schedule',
         href: '/calendar',
         icon: Calendar,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
@@ -81,49 +89,53 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: 'Production',
+    title: 'Production & Workflows',
     items: [
       {
         name: 'Projects',
-        staffName: 'My Projects',
-        techName: 'Projects',
+        staffName: 'Assigned Projects',
+        techName: 'Technical Projects',
         smmName: 'Production Projects',
+        clientName: 'Projects Overview',
         href: '/projects',
         icon: Film,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
       {
         name: 'Scripts',
-        staffName: 'My Scripts',
-        techName: 'Scripts (Tech Review)',
+        staffName: 'Assigned Scripts',
+        techName: 'Technical Scripts',
         smmName: 'Content Scripts',
+        clientName: 'Production Scripts',
         href: '/scripts',
         icon: FileText,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
       {
         name: 'Graphic Requirements',
-        staffName: 'My Graphic Reqs',
-        techName: 'Graphic Reqs (Tech Review)',
-        smmName: 'Graphic Requirements',
+        staffName: 'Assigned Graphic Reqs',
+        techName: 'Technical Graphic Reqs',
+        clientName: 'Graphic Requirements',
         href: '/graphic-reqs',
         icon: Palette,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'MARKETING_MANAGER'],
       },
       {
         name: 'Tasks',
         staffName: 'My Tasks',
-        techName: 'Tasks',
+        techName: 'Technical Tasks',
         smmName: 'My Tasks',
+        clientName: 'Operational Tasks',
         href: '/tasks',
         icon: CheckSquare,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
       {
-        name: 'Internal Approvals',
+        name: 'Technical Review',
+        techName: 'Technical Review',
         href: '/approvals',
         icon: CheckCircle2,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
+        roles: ['TECHNICAL_MANAGER'],
       },
     ],
   },
@@ -132,77 +144,58 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
     items: [
       {
         name: 'Clients',
-        clientName: 'My Assigned Clients',
-        smmName: 'Assigned Clients',
         href: '/clients',
         icon: Building2,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
+        roles: ['MEDIA_MANAGER'],
       },
       {
         name: 'Brands',
-        clientName: 'Client Brands',
-        smmName: 'Client Brands',
         href: '/brands',
         icon: BookmarkCheck,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
+        roles: ['MEDIA_MANAGER'],
       },
       {
         name: 'Products',
-        clientName: 'Client Products',
-        smmName: 'Client Products',
         href: '/products',
         icon: Package,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
+        roles: ['MEDIA_MANAGER'],
       },
       {
         name: 'Equipment',
+        mediaName: 'Equipment Approvals & Allocation',
         staffName: 'My Equipment',
-        techName: 'Equipment Technical',
+        smmName: 'My Equipment',
+        techName: 'Equipment Management',
         href: '/equipment',
         icon: Camera,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER'],
+      },
+      {
+        name: 'Attendance',
+        staffName: 'My Attendance',
+        smmName: 'My Attendance',
+        href: '/attendance',
+        icon: UserCheck,
+        roles: ['MEDIA_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER'],
       },
     ],
   },
   {
-    title: 'Workforce & Logs',
+    title: 'Management & Analytics',
     items: [
       {
-        name: 'Staff',
+        name: 'Staff Management',
         href: '/staff',
         icon: Users,
         roles: ['MEDIA_MANAGER'],
       },
       {
-        name: 'Attendance',
-        staffName: 'My Attendance',
-        href: '/attendance',
-        icon: UserCheck,
-        roles: ['MEDIA_MANAGER', 'STAFF'],
-      },
-      {
-        name: 'Communication',
-        staffName: 'My Communication',
-        techName: 'Communication',
-        clientName: 'Client Feedback Messages',
-        href: '/communication',
-        icon: MessageSquare,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
-      },
-      {
         name: 'Reports & Analytics',
-        staffName: 'My Reports',
         techName: 'Technical Reports',
-        clientName: 'Client Campaign Reports',
+        clientName: 'Approval Reports',
         href: '/reports',
         icon: BarChart3,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
-      },
-      {
-        name: 'Activity Center',
-        href: '/activity',
-        icon: Activity,
-        roles: ['MEDIA_MANAGER'],
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'MARKETING_MANAGER'],
       },
       {
         name: 'Settings & Formulas',
@@ -308,6 +301,8 @@ export function Sidebar() {
                 const displayName =
                   userRole === 'MARKETING_MANAGER' && item.clientName
                     ? item.clientName
+                    : userRole === 'MEDIA_MANAGER' && item.mediaName
+                    ? item.mediaName
                     : userRole === 'SOCIAL_MEDIA_MANAGER' && item.smmName
                     ? item.smmName
                     : userRole === 'STAFF' && item.staffName

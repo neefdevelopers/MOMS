@@ -19,6 +19,8 @@ import {
   ArrowRight,
   Flame,
   MessageSquare,
+  Camera,
+  UserCheck,
 } from 'lucide-react';
 
 export default function SocialMediaManagerDashboard() {
@@ -117,7 +119,7 @@ export default function SocialMediaManagerDashboard() {
       )}
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="p-4 rounded-xl bg-card border border-border space-y-2">
           <div className="flex items-center justify-between text-gray-400">
             <span className="text-xs font-bold uppercase tracking-wider">Drafts</span>
@@ -161,6 +163,32 @@ export default function SocialMediaManagerDashboard() {
             <span className="text-xs text-emerald-400 font-medium">Ready to Schedule</span>
           </div>
         </div>
+
+        <Link href="/equipment" className="p-4 rounded-xl bg-card border border-border hover:border-cyan-500/50 space-y-2 transition-all group">
+          <div className="flex items-center justify-between text-cyan-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-400">My Equipment</span>
+            <Camera className="w-5 h-5 group-hover:scale-110 transition-transform" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black text-cyan-300">My Assets</span>
+            <span className="text-xs text-cyan-400 font-medium flex items-center gap-0.5">
+              Assigned Gear <ArrowRight className="w-3 h-3" />
+            </span>
+          </div>
+        </Link>
+
+        <Link href="/attendance" className="p-4 rounded-xl bg-card border border-border hover:border-emerald-500/50 space-y-2 transition-all group">
+          <div className="flex items-center justify-between text-emerald-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-400">My Attendance</span>
+            <UserCheck className="w-5 h-5 group-hover:scale-110 transition-transform" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black text-emerald-300">My Log</span>
+            <span className="text-xs text-emerald-400 font-medium flex items-center gap-0.5">
+              Log &amp; Register <ArrowRight className="w-3 h-3" />
+            </span>
+          </div>
+        </Link>
       </div>
 
       {/* Main Grid */}

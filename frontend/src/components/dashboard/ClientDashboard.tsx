@@ -27,21 +27,22 @@ export default function ClientDashboard() {
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadClientDashboardData() {
-      try {
-        const [resEvents, resClients] = await Promise.all([
-          fetchApi('/calendar'),
-          fetchApi('/clients').catch(() => []),
-        ]);
-        setEvents(Array.isArray(resEvents) ? resEvents : []);
-        setClients(Array.isArray(resClients) ? resClients : []);
-      } catch (err) {
-        console.error('Error loading client dashboard data:', err);
-      } finally {
-        setLoading(false);
-      }
+  const loadClientDashboardData = async () => {
+    try {
+      const [resEvents, resClients] = await Promise.all([
+        fetchApi('/calendar').catch(() => []),
+        fetchApi('/clients').catch(() => []),
+      ]);
+      setEvents(Array.isArray(resEvents) ? resEvents : []);
+      setClients(Array.isArray(resClients) ? resClients : []);
+    } catch (err) {
+      console.error('Error loading client dashboard data:', err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadClientDashboardData();
   }, []);
 
@@ -193,12 +194,12 @@ export default function ClientDashboard() {
 
       {/* Main Content Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Pending Client Approval Stream (2 cols) */}
+        {/* Event Approval Session Stream (2 cols) */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-extrabold text-base text-white flex items-center gap-2">
               <Clock className="w-4 h-4 text-amber-400" />
-              Content Awaiting Your Approval ({pendingApprovals.length})
+              Event Approval Session ({pendingApprovals.length} Pending Sign-Off)
             </h3>
             <Link href="/client-review" className="text-xs font-bold text-amber-400 hover:underline flex items-center gap-1">
               View All <ChevronRight className="w-3.5 h-3.5" />
@@ -289,7 +290,7 @@ export default function ClientDashboard() {
               >
                 <span className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-amber-400" />
-                  Client Content Review Portal
+                  Event Approval Session
                 </span>
                 <ChevronRight className="w-4 h-4 text-gray-400" />
               </Link>

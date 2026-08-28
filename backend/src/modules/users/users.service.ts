@@ -276,8 +276,8 @@ export class UsersService {
 
   // Business Rule: Only the Media Manager may create employee records
   async createEmployee(data: any, operatorRole: string) {
-    if (operatorRole !== 'MEDIA_MANAGER') {
-      throw new ForbiddenException('Only the Media Manager may create employee records.');
+    if (operatorRole !== 'MEDIA_MANAGER' && operatorRole !== 'ADMINISTRATOR' && operatorRole !== 'ADMIN') {
+      throw new ForbiddenException('Only management users may create employee records.');
     }
 
     if (!data.name || !data.email || !data.password) {
@@ -398,10 +398,12 @@ export class UsersService {
       'assignedClientIds',
     ];
 
-    // Non-Media Manager restriction
-    if (currentUser.role !== 'MEDIA_MANAGER') {
+    const isManager = currentUser.role === 'MEDIA_MANAGER' || currentUser.role === 'ADMINISTRATOR' || currentUser.role === 'ADMIN';
+
+    // Non-Manager restriction
+    if (!isManager) {
       if (currentUser.id !== id) {
-        throw new ForbiddenException('Only the Media Manager may modify employee records.');
+        throw new ForbiddenException('Only management users may modify employee records.');
       }
 
       // If employee is editing their own profile, verify no restricted employee profile field is present
@@ -415,10 +417,10 @@ export class UsersService {
 
     // Media Manager or permitted self-update (e.g. avatarUrl)
     const userUpdateData: any = {};
-    if (data.name && currentUser.role === 'MEDIA_MANAGER') userUpdateData.name = data.name;
-    if (data.email && currentUser.role === 'MEDIA_MANAGER') userUpdateData.email = data.email.toLowerCase().trim();
-    if (data.role && currentUser.role === 'MEDIA_MANAGER') userUpdateData.role = data.role;
-    if (data.status && currentUser.role === 'MEDIA_MANAGER') userUpdateData.status = data.status;
+    if (data.name && isManager) userUpdateData.name = data.name;
+    if (data.email && isManager) userUpdateData.email = data.email.toLowerCase().trim();
+    if (data.role && isManager) userUpdateData.role = data.role;
+    if (data.status && isManager) userUpdateData.status = data.status;
     if (data.avatarUrl !== undefined) userUpdateData.avatarUrl = data.avatarUrl;
 
     if (Object.keys(userUpdateData).length > 0) {

@@ -3,8 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck, FileText, User } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck, FileText, User, ChevronLeft, ChevronRight, ArrowUpDown, MapPin } from 'lucide-react';
 import Link from 'next/link';
+import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
 
 export default function CalendarPage() {
   const { user } = useAuth();
@@ -17,9 +18,12 @@ export default function CalendarPage() {
   const [graphicRequirements, setGraphicRequirements] = useState<any[]>([]);
   const [shootProjectsList, setShootProjectsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [convertModalEvent, setConvertModalEvent] = useState<any>(null);
 
-  // View Mode: month, week, day
-  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
+  // View Mode: month, week, day, all
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day' | 'all'>('month');
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Project-Style Filtration Control Panel States
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,11 +65,12 @@ export default function CalendarPage() {
     });
   };
 
-  // 13 Mandatory Schedule Event Form State
+  // Mandatory Schedule Event Form State
   const [formData, setFormData] = useState({
     eventSource: 'GRAPHIC_REQUIREMENT' as 'GRAPHIC_REQUIREMENT' | 'SHOOT',
     graphicRequirementId: '',
     shootId: '',
+    projectId: '',
     title: '',
     clientId: '',
     brandId: '',
@@ -89,7 +94,20 @@ export default function CalendarPage() {
     influencerTalent: '',
     priority: 'MEDIUM',
     productionNotes: '',
+    remarks: '',
     saveAsDraft: false,
+
+    // Outdoor shoot operational fields
+    exactLocationAddress: '',
+    locationAccessDetails: '',
+    locationContact: '',
+    permitRequired: 'NO',
+    permitStatus: 'Not Applied',
+    expectedWeatherConditions: 'Sunny',
+    backupLocation: '',
+    callTime: '07:00 AM',
+    expectedWrapTime: '05:00 PM',
+    specialOutdoorRequirements: '',
   });
 
   // Marketing Manager Client Edit Modal State
@@ -305,15 +323,11 @@ export default function CalendarPage() {
     e.preventDefault();
 
     if (!formData.eventSource) {
-      alert('Event Source (GRAPHIC_REQUIREMENT or SHOOT) is required.');
-      return;
-    }
-    if (formData.eventSource === 'GRAPHIC_REQUIREMENT' && !formData.graphicRequirementId) {
-      alert('Please select an existing Graphic Requirement.');
+      alert('Event Type (Graphic Requirement or Project Shoot) is required.');
       return;
     }
     if (!formData.title.trim()) {
-      alert('Event / Project Name is required.');
+      alert('Requirement / Project Name is required.');
       return;
     }
     if (!formData.clientId) {
@@ -324,9 +338,24 @@ export default function CalendarPage() {
       alert('A valid active Brand is required.');
       return;
     }
-    if (!formData.shootDate) {
-      alert('Shoot Date is required.');
-      return;
+
+    if (formData.eventSource === 'GRAPHIC_REQUIREMENT') {
+      if (!formData.contentType) {
+        alert('Requirement Type is required.');
+        return;
+      }
+      if (!formData.platform) {
+        alert('Target Platform is required.');
+        return;
+      }
+      if (!formData.caption.trim()) {
+        alert('Objective / Design Brief is required.');
+        return;
+      }
+      if (!formData.clientApprovalDeadline && !formData.shootDate) {
+        alert('Target Completion Date is required.');
+        return;
+      }
     }
 
     const payload = {
@@ -381,11 +410,13 @@ export default function CalendarPage() {
     const existingTeam = eventItem.shootProjects?.[0]?.assignedTeam?.map((tm: any) => tm.userId) || [];
     const existingEq = eventItem.shootProjects?.[0]?.equipmentReservations?.map((res: any) => res.equipmentId) || [];
     const staffId = eventItem.assignedStaffId || eventItem.assignedStaff?.id || existingTeam[0] || '';
+    const outdoor = eventItem.shootProjects?.[0]?.outdoorDetails || {};
 
     setFormData({
       eventSource: eventItem.eventSource || (eventItem.graphicRequirementId ? 'GRAPHIC_REQUIREMENT' : 'SHOOT'),
       graphicRequirementId: eventItem.graphicRequirementId || '',
       shootId: eventItem.shootId || '',
+      projectId: eventItem.graphicRequirements?.[0]?.projectId || eventItem.shootProjects?.[0]?.id || '',
       title: eventItem.title || '',
       clientId: eventItem.clientId || '',
       brandId: eventItem.brandId || '',
@@ -409,7 +440,20 @@ export default function CalendarPage() {
       influencerTalent: eventItem.influencerTalent || '',
       priority: eventItem.priority || 'MEDIUM',
       productionNotes: eventItem.productionNotes || '',
+      remarks: eventItem.remarks || '',
       saveAsDraft: false,
+
+      // Outdoor shoot operational fields
+      exactLocationAddress: outdoor.exactLocationAddress || outdoor.locationAddress || eventItem.location || '',
+      locationAccessDetails: outdoor.locationAccessDetails || '',
+      locationContact: outdoor.locationContact || outdoor.locationContactPerson || '',
+      permitRequired: outdoor.permitRequired || 'NO',
+      permitStatus: outdoor.permitStatus || 'Not Applied',
+      expectedWeatherConditions: outdoor.expectedWeatherConditions || 'Sunny',
+      backupLocation: outdoor.backupLocation || '',
+      callTime: outdoor.callTime || '07:00 AM',
+      expectedWrapTime: outdoor.expectedWrapTime || '05:00 PM',
+      specialOutdoorRequirements: outdoor.specialOutdoorRequirements || '',
     });
     setShowAddModal(true);
   };
@@ -422,6 +466,7 @@ export default function CalendarPage() {
       eventSource: 'GRAPHIC_REQUIREMENT',
       graphicRequirementId: '',
       shootId: '',
+      projectId: '',
       title: '',
       clientId: defaultClient,
       brandId: defaultBrand,
@@ -445,7 +490,20 @@ export default function CalendarPage() {
       influencerTalent: '',
       priority: 'MEDIUM',
       productionNotes: '',
+      remarks: '',
       saveAsDraft: false,
+
+      // Outdoor shoot operational fields
+      exactLocationAddress: '',
+      locationAccessDetails: '',
+      locationContact: '',
+      permitRequired: 'NO',
+      permitStatus: 'Not Applied',
+      expectedWeatherConditions: 'Sunny',
+      backupLocation: '',
+      callTime: '07:00 AM',
+      expectedWrapTime: '05:00 PM',
+      specialOutdoorRequirements: '',
     });
   };
 
@@ -479,44 +537,127 @@ export default function CalendarPage() {
 
   const canCreateEvents = ['MEDIA_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'].includes(user?.role || '');
 
-  const filteredEvents = events.filter((evt) => {
-    const isApproved = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED'].includes(evt.status);
-    const isMyCreatedEvent = Boolean(
-      user?.id && (evt.createdById === user.id || evt.createdBy?.id === user.id)
-    );
+  // Helper to compute date range for Month, Week, or Day
+  const getPeriodRange = (mode: 'month' | 'week' | 'day' | 'all', refDate: Date) => {
+    if (mode === 'all') return { start: null, end: null };
 
-    // Business Rule: Unapproved/pending events on Media Calendar grid are ONLY shown if created by the logged in user or Marketing Manager
-    if (!isApproved && !isMyCreatedEvent && user?.role !== 'MARKETING_MANAGER') {
-      return false;
+    const year = refDate.getFullYear();
+    const month = refDate.getMonth();
+    const date = refDate.getDate();
+
+    if (mode === 'month') {
+      const start = new Date(year, month, 1, 0, 0, 0, 0);
+      const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+      return { start, end };
     }
 
-    if (statusFilter === 'OPERATIONAL' || !statusFilter) {
-      if (!isApproved) {
+    if (mode === 'week') {
+      const dayOfWeek = refDate.getDay();
+      const diffToMon = refDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+      const start = new Date(year, month, diffToMon, 0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      return { start, end };
+    }
+
+    // day mode
+    const start = new Date(year, month, date, 0, 0, 0, 0);
+    const end = new Date(year, month, date, 23, 59, 59, 999);
+    return { start, end };
+  };
+
+  const navigatePeriod = (direction: number) => {
+    setCurrentDate((prev) => {
+      const newDate = new Date(prev);
+      if (viewMode === 'month') {
+        newDate.setMonth(prev.getMonth() + direction);
+      } else if (viewMode === 'week') {
+        newDate.setDate(prev.getDate() + direction * 7);
+      } else if (viewMode === 'day') {
+        newDate.setDate(prev.getDate() + direction);
+      }
+      return newDate;
+    });
+  };
+
+  const getPeriodTitle = () => {
+    if (viewMode === 'all') return 'All Scheduled Events';
+    if (viewMode === 'month') {
+      return currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+    if (viewMode === 'week') {
+      const { start, end } = getPeriodRange('week', currentDate);
+      if (!start || !end) return '';
+      const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return `${startStr} – ${endStr}`;
+    }
+    if (viewMode === 'day') {
+      return currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    return '';
+  };
+
+  const filteredEvents = events
+    .filter((evt) => {
+      const isApproved = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED'].includes(evt.status);
+      const isMyCreatedEvent = Boolean(
+        user?.id && (evt.createdById === user.id || evt.createdBy?.id === user.id)
+      );
+
+      // Business Rule: Unapproved/pending events on Media Calendar grid are ONLY shown if created by the logged in user or Marketing Manager
+      if (!isApproved && !isMyCreatedEvent && user?.role !== 'MARKETING_MANAGER') {
         return false;
       }
-    } else if (statusFilter === 'PENDING_CLIENT_APPROVAL' || statusFilter === 'PENDING_CLIENT_REVIEW') {
-      // "My Pending Creations" tab strictly shows pending events created by THIS logged-in user
-      if ((evt.status !== 'PENDING_CLIENT_APPROVAL' && evt.status !== 'PENDING_CLIENT_REVIEW') || (!isMyCreatedEvent && user?.role !== 'MARKETING_MANAGER')) {
+
+      if (statusFilter === 'OPERATIONAL' || !statusFilter) {
+        if (!isApproved) {
+          return false;
+        }
+      } else if (statusFilter === 'PENDING_CLIENT_APPROVAL' || statusFilter === 'PENDING_CLIENT_REVIEW') {
+        // "My Pending Creations" tab strictly shows pending events created by THIS logged-in user
+        if ((evt.status !== 'PENDING_CLIENT_APPROVAL' && evt.status !== 'PENDING_CLIENT_REVIEW') || (!isMyCreatedEvent && user?.role !== 'MARKETING_MANAGER')) {
+          return false;
+        }
+      } else if (statusFilter !== 'ALL' && evt.status !== statusFilter) {
         return false;
       }
-    } else if (statusFilter !== 'ALL' && evt.status !== statusFilter) {
-      return false;
-    }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      const titleMatch = (evt.title || '').toLowerCase().includes(q);
-      const clientMatch = (evt.client?.name || '').toLowerCase().includes(q);
-      const brandMatch = (evt.brand?.name || '').toLowerCase().includes(q) || (evt.brand?.shortCode || '').toLowerCase().includes(q);
-      const productMatch = (evt.product?.name || '').toLowerCase().includes(q);
-      const talentMatch = (evt.influencerTalent || '').toLowerCase().includes(q);
-      const notesMatch = (evt.productionNotes || '').toLowerCase().includes(q);
-      if (!titleMatch && !clientMatch && !brandMatch && !productMatch && !talentMatch && !notesMatch) return false;
-    }
-    if (priorityFilter && evt.priority !== priorityFilter) return false;
-    if (dateFilter && (!evt.shootDate || !evt.shootDate.startsWith(dateFilter))) return false;
-    return true;
-  });
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const titleMatch = (evt.title || '').toLowerCase().includes(q);
+        const clientMatch = (evt.client?.name || '').toLowerCase().includes(q);
+        const brandMatch = (evt.brand?.name || '').toLowerCase().includes(q) || (evt.brand?.shortCode || '').toLowerCase().includes(q);
+        const productMatch = (evt.product?.name || '').toLowerCase().includes(q);
+        const talentMatch = (evt.influencerTalent || '').toLowerCase().includes(q);
+        const notesMatch = (evt.productionNotes || '').toLowerCase().includes(q);
+        if (!titleMatch && !clientMatch && !brandMatch && !productMatch && !talentMatch && !notesMatch) return false;
+      }
+      if (priorityFilter && evt.priority !== priorityFilter) return false;
+      if (dateFilter && (!evt.shootDate || !evt.shootDate.startsWith(dateFilter))) return false;
+
+      // View Mode Date Range Filter (Month / Week / Day)
+      if (viewMode !== 'all' && evt.shootDate) {
+        const evtDate = new Date(evt.shootDate);
+        const { start, end } = getPeriodRange(viewMode, currentDate);
+        if (start && end) {
+          if (evtDate < start || evtDate > end) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      const timeA = a.shootDate ? new Date(a.shootDate).getTime() : 0;
+      const timeB = b.shootDate ? new Date(b.shootDate).getTime() : 0;
+      if (timeA !== timeB) {
+        return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+      }
+      return (a.title || '').localeCompare(b.title || '');
+    });
 
   return (
     <div className="space-y-6">
@@ -531,7 +672,34 @@ export default function CalendarPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Period Navigation Controls */}
+          {viewMode !== 'all' && (
+            <div className="flex items-center bg-gray-900 border border-gray-800 rounded-lg p-1 text-xs">
+              <button
+                onClick={() => navigatePeriod(-1)}
+                className="p-1 text-gray-400 hover:text-white rounded hover:bg-gray-800 transition-colors"
+                title="Previous Period"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setCurrentDate(new Date())}
+                className="px-2.5 py-1 text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                title="Jump to Today"
+              >
+                Today
+              </button>
+              <button
+                onClick={() => navigatePeriod(1)}
+                className="p-1 text-gray-400 hover:text-white rounded hover:bg-gray-800 transition-colors"
+                title="Next Period"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {/* View Mode Toggle */}
           <div className="flex bg-gray-900 border border-gray-800 p-1 rounded-lg text-xs font-semibold">
             <button
@@ -552,7 +720,23 @@ export default function CalendarPage() {
             >
               Day
             </button>
+            <button
+              onClick={() => setViewMode('all')}
+              className={`px-3 py-1 rounded transition-colors ${viewMode === 'all' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              All
+            </button>
           </div>
+
+          {/* Sort Order Toggle */}
+          <button
+            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            className="px-3 py-1.5 bg-gray-900 border border-gray-800 hover:border-gray-700 text-gray-300 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            title="Toggle Date Sort Order"
+          >
+            <ArrowUpDown className="w-3.5 h-3.5 text-blue-400" />
+            <span>{sortOrder === 'asc' ? 'Earliest First' : 'Latest First'}</span>
+          </button>
 
           {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'TECHNICAL_MANAGER' || user?.role === 'STAFF') && (
             <button
@@ -836,12 +1020,35 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {/* Events Stream / Cards */}
+      {/* Events Stream / Cards Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-2">
+          <CalendarIcon className="w-4 h-4 text-blue-400" />
+          <h2 className="text-sm font-bold text-white capitalize">
+            {getPeriodTitle()}
+          </h2>
+          <span className="px-2 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800 text-[10px] font-mono font-bold">
+            {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'}
+          </span>
+        </div>
+        <div className="text-[11px] text-gray-400">
+          Sorted by Date ({sortOrder === 'asc' ? 'Earliest first' : 'Latest first'})
+        </div>
+      </div>
+
       {loading ? (
         <div className="p-8 text-center text-gray-400">Loading Calendar Events...</div>
       ) : filteredEvents.length === 0 ? (
-        <div className="p-8 text-center bg-card border border-border rounded-xl text-gray-400">
-          No calendar events scheduled for the selected filters.
+        <div className="p-8 text-center bg-card border border-border rounded-xl text-gray-400 space-y-2">
+          <p>No calendar events scheduled for <strong className="text-white">{getPeriodTitle()}</strong>.</p>
+          {viewMode !== 'all' && (
+            <button
+              onClick={() => setViewMode('all')}
+              className="text-xs text-blue-400 hover:underline font-semibold"
+            >
+              View All Scheduled Events
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -854,7 +1061,11 @@ export default function CalendarPage() {
             >
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-2">
-                  {eventItem.shootType === 'INDOOR' ? (
+                  {eventItem.eventSource === 'GRAPHIC_REQUIREMENT' ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                      <FileText className="w-3 h-3 text-amber-400" /> GRAPHIC REQ
+                    </span>
+                  ) : eventItem.shootType === 'INDOOR' ? (
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                       <Video className="w-3 h-3" /> INDOOR
                     </span>
@@ -884,29 +1095,34 @@ export default function CalendarPage() {
                 </p>
               </div>
 
-              {/* Assigned Staff & Source Info (Primary Operational Assignment) */}
-              <div className="text-[11px] bg-gray-950/80 p-2 rounded-lg border border-gray-800 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400 font-medium flex items-center gap-1">
-                    <User className="w-3 h-3 text-purple-400" /> Assigned Staff:
-                  </span>
-                  <span className="font-bold text-purple-300">
-                    {eventItem.assignedStaff?.name || eventItem.shootProjects?.[0]?.assignedTeam?.[0]?.user?.name || 'Not Assigned'}
+              {/* Event Source Info */}
+              {eventItem.eventSource && (
+                <div className="text-[10px] bg-gray-950/80 p-2 rounded-lg border border-gray-800 flex items-center justify-between text-gray-400 font-mono">
+                  <span>Source: {eventItem.eventSource.replace('_', ' ')}</span>
+                  <span className="text-amber-400 font-bold">
+                    {eventItem.graphicRequirement?.requirementId || eventItem.shoot?.projectId || 'Custom'}
                   </span>
                 </div>
-                {eventItem.eventSource && (
-                  <div className="flex items-center justify-between text-[10px] text-gray-400 border-t border-gray-800/80 pt-1 mt-1 font-mono">
-                    <span>Source: {eventItem.eventSource.replace('_', ' ')}</span>
-                    <span className="text-amber-400 font-bold">
-                      {eventItem.graphicRequirement?.requirementId || eventItem.shoot?.projectId || 'Custom'}
-                    </span>
-                  </div>
-                )}
-              </div>
+              )}
 
               {eventItem.influencerTalent && (
                 <div className="text-[11px] text-gray-300 bg-gray-900 p-2 rounded border border-gray-800">
                   Talent/Model: <strong className="text-white">{eventItem.influencerTalent}</strong>
+                </div>
+              )}
+
+              {/* Outdoor Logistics Info (when present) */}
+              {eventItem.shootProjects?.[0]?.outdoorDetails && (
+                <div className="text-[10px] bg-purple-950/40 p-2.5 rounded-lg border border-purple-800/60 space-y-1 text-purple-200">
+                  <div className="font-bold text-purple-300 uppercase flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-purple-400" /> Outdoor Shoot Details
+                  </div>
+                  <div><strong>Address:</strong> {eventItem.shootProjects[0].outdoorDetails.exactLocationAddress || eventItem.shootProjects[0].outdoorDetails.locationAddress}</div>
+                  <div><strong>Access:</strong> {eventItem.shootProjects[0].outdoorDetails.locationAccessDetails || 'Standard'}</div>
+                  <div className="flex justify-between pt-0.5 border-t border-purple-800/40 text-[9px]">
+                    <span>Permit: {eventItem.shootProjects[0].outdoorDetails.permitRequired === 'YES' ? `YES (${eventItem.shootProjects[0].outdoorDetails.permitStatus || 'Pending'})` : 'NO'}</span>
+                    <span className="font-mono">Call: {eventItem.shootProjects[0].outdoorDetails.callTime} • Wrap: {eventItem.shootProjects[0].outdoorDetails.expectedWrapTime}</span>
+                  </div>
                 </div>
               )}
 
@@ -934,19 +1150,30 @@ export default function CalendarPage() {
                   >
                     View Project <ArrowRight className="w-3 h-3" />
                   </Link>
-                ) : (
-                  user?.role === 'MEDIA_MANAGER' && (
-                    <Link
-                      href={`/projects?createFromEvent=${eventItem.id}`}
-                      className="text-blue-400 hover:underline font-bold text-[11px] flex items-center gap-1"
-                    >
-                      Convert to Project <ArrowRight className="w-3 h-3" />
-                    </Link>
-                  )
-                )}
+                ) : eventItem.graphicRequirement?.id ? (
+                  <Link
+                    href={`/graphic-reqs?reqId=${eventItem.graphicRequirement.id}`}
+                    className="text-amber-400 hover:underline font-bold text-[11px] flex items-center gap-1"
+                  >
+                    View Requirement <ArrowRight className="w-3 h-3" />
+                  </Link>
+                ) : null}
 
                 {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER') && eventItem.status !== 'CANCELLED' && (
                   <div className="flex gap-1.5 flex-wrap items-center">
+                    {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+                      ['APPROVED', 'READY', 'APPROVED_BY_MARKETING'].includes(eventItem.status) ||
+                      eventItem.shootProjects?.[0]?.status === 'APPROVED' ||
+                      eventItem.graphicRequirement?.status === 'READY'
+                    ) && (
+                      <button
+                        onClick={() => setConvertModalEvent(eventItem)}
+                        className="px-2 py-0.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow-sm"
+                        title="Convert approved event to task with staff assignment"
+                      >
+                        ⚡ Convert to Task ➔
+                      </button>
+                    )}
                     {(eventItem.status === 'DRAFT' || eventItem.status === 'CHANGES_REQUESTED') && (
                       <button
                         onClick={() => handleSubmitForApproval(eventItem.id)}
@@ -1025,16 +1252,16 @@ export default function CalendarPage() {
               </button>
             </div>
 
-            {/* SECTION 1: EVENT SOURCE / EVENT TYPE (REQUIRED) */}
+            {/* SECTION 1: EVENT TYPE & BASIC DETAILS */}
             <div className="space-y-4 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
               <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
-                Section 1 • Event Source &amp; Basic Details *
+                Section 1 • Event Type &amp; Basic Details *
               </span>
 
-              {/* Event Source Selection Radio Cards */}
+              {/* Event Type Selection Radio Cards */}
               <div className="space-y-2">
                 <label className="text-gray-200 font-bold text-xs block">
-                  EVENT SOURCE / EVENT TYPE <span className="text-red-400">*</span>
+                  EVENT TYPE <span className="text-red-400">*</span>
                 </label>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1052,7 +1279,7 @@ export default function CalendarPage() {
                     <div className="flex items-center justify-between">
                       <span className="font-black text-xs flex items-center gap-1.5 text-white">
                         <FileText className="w-4 h-4 text-amber-400" />
-                        1. GRAPHIC REQUIREMENT
+                        Graphic Requirement
                       </span>
                       <input
                         type="radio"
@@ -1063,7 +1290,7 @@ export default function CalendarPage() {
                       />
                     </div>
                     <p className="text-[10px] text-gray-400 leading-tight">
-                      Create event from an existing Graphic Requirement. Auto-populates client, brand, priority &amp; deadline.
+                      Create a complete Graphic Requirement brief &amp; schedule for client approval.
                     </p>
                   </div>
 
@@ -1071,108 +1298,57 @@ export default function CalendarPage() {
                     onClick={() => setFormData((prev) => ({ ...prev, eventSource: 'SHOOT', graphicRequirementId: '' }))}
                     className={`p-3.5 rounded-xl border cursor-pointer transition-all space-y-1 ${
                       formData.eventSource === 'SHOOT'
-                        ? 'bg-amber-950/40 border-amber-500 ring-1 ring-amber-500/40 text-amber-300'
+                        ? 'bg-blue-950/40 border-blue-500 ring-1 ring-blue-500/40 text-blue-300'
                         : 'bg-gray-900/60 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-black text-xs flex items-center gap-1.5 text-white">
                         <Video className="w-4 h-4 text-blue-400" />
-                        2. SHOOT
+                        Project Shoot
                       </span>
                       <input
                         type="radio"
                         name="eventSource"
                         checked={formData.eventSource === 'SHOOT'}
                         onChange={() => {}}
-                        className="accent-amber-500 cursor-pointer"
+                        className="accent-blue-500 cursor-pointer"
                       />
                     </div>
                     <p className="text-[10px] text-gray-400 leading-tight">
-                      Create event from a Shoot. Link existing shoot or enter new shoot schedule details.
+                      Create a complete Indoor/Outdoor Project Shoot schedule &amp; logistics.
                     </p>
                   </div>
                 </div>
-
-                {/* Conditional Field: Select Graphic Requirement */}
-                {formData.eventSource === 'GRAPHIC_REQUIREMENT' && (
-                  <div className="space-y-1.5 pt-2">
-                    <label className="text-amber-300 font-bold text-xs flex items-center justify-between">
-                      <span className="flex items-center gap-1">
-                        <FileText className="w-3.5 h-3.5 text-amber-400" /> Select Existing Graphic Requirement <span className="text-red-400">*</span>
-                      </span>
-                      <span className="text-[10px] text-gray-400 font-mono">
-                        ({graphicRequirements.length} available)
-                      </span>
-                    </label>
-                    <select
-                      required
-                      value={formData.graphicRequirementId}
-                      onChange={(e) => handleGraphicReqSelect(e.target.value)}
-                      className="w-full bg-gray-900 border border-amber-500/60 rounded-xl p-2.5 text-xs text-white font-semibold focus:outline-none focus:border-amber-400 shadow-inner"
-                    >
-                      <option value="">-- Select Existing Graphic Requirement --</option>
-                      {graphicRequirements.map((gr) => (
-                        <option key={gr.id} value={gr.id}>
-                          [{gr.requirementId || 'GR-REQ'}] {gr.name} — {gr.client?.name || 'Client'} ({gr.brand?.name || 'Brand'})
-                        </option>
-                      ))}
-                    </select>
-
-                    {graphicRequirements.length === 0 && (
-                      <p className="text-[11px] text-amber-400/90 italic pt-1 flex items-center gap-1">
-                        ⚠️ No Graphic Requirements currently exist in the database.
-                      </p>
-                    )}
-
-                    {formData.graphicRequirementId && (
-                      <div className="p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/40 text-[11px] text-amber-300 flex items-center justify-between shadow-sm">
-                        <span className="font-semibold">✨ Client, Brand, Title &amp; Deadline auto-populated from requirement</span>
-                        <span className="font-mono text-[10px] bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40 font-extrabold">
-                          AUTO-LINKED
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Conditional Field: Select Shoot */}
-                {formData.eventSource === 'SHOOT' && (
-                  <div className="space-y-1.5 pt-2">
-                    <label className="text-blue-300 font-bold text-xs flex items-center gap-1">
-                      <Video className="w-3.5 h-3.5" /> Select Existing Shoot (Optional Link)
-                    </label>
-                    <select
-                      value={formData.shootId}
-                      onChange={(e) => handleShootSelect(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-xs text-white font-semibold focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">-- None / Custom Shoot Schedule --</option>
-                      {shootProjectsList.map((sp) => (
-                        <option key={sp.id} value={sp.id}>
-                          [{sp.projectId || 'SP-PROJECT'}] {sp.name} ({sp.client?.name || 'Client'})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
               </div>
 
+              {/* Base Project Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-gray-800/80">
+                {formData.eventSource === 'SHOOT' && (
+                  <div className="col-span-2 flex items-center justify-between bg-blue-950/30 p-2.5 rounded-xl border border-blue-500/30">
+                    <span className="text-blue-300 font-bold text-xs">Project ID (Auto-Generated)</span>
+                    <span className="font-mono font-black text-xs text-blue-400 bg-blue-500/20 px-2.5 py-1 rounded border border-blue-500/40">
+                      SHOOT-AUTO
+                    </span>
+                  </div>
+                )}
+
                 <div className="col-span-2">
-                  <label className="text-gray-300 block mb-1 font-semibold">Event / Project Name *</label>
+                  <label className="text-gray-300 block mb-1 font-semibold">
+                    {formData.eventSource === 'SHOOT' ? 'Project Name *' : 'Requirement Name *'}
+                  </label>
                   <input
                     type="text"
                     required
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    placeholder="e.g. Summer Campaign Banner or Product Shoot"
+                    placeholder={formData.eventSource === 'SHOOT' ? 'e.g. Summer Collection Outdoor Shoot' : 'e.g. Product Banner Graphic'}
                     className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Client (Cascading) *</label>
+                  <label className="text-gray-300 block mb-1 font-semibold">Client *</label>
                   <select
                     required
                     value={formData.clientId}
@@ -1187,7 +1363,7 @@ export default function CalendarPage() {
                 </div>
 
                 <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Brand (Filtered) *</label>
+                  <label className="text-gray-300 block mb-1 font-semibold">Brand *</label>
                   <select
                     required
                     value={formData.brandId}
@@ -1201,7 +1377,7 @@ export default function CalendarPage() {
                   </select>
                 </div>
 
-                <div className="col-span-2 sm:col-span-1">
+                <div>
                   <label className="text-gray-300 block mb-1 font-semibold">Product (Optional)</label>
                   <select
                     value={formData.productId}
@@ -1214,272 +1390,481 @@ export default function CalendarPage() {
                     ))}
                   </select>
                 </div>
-              </div>
-            </div>
-
-            {/* SECTION 2: SCHEDULE & TIMINGS */}
-            <div className="space-y-3 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
-              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
-                Section 2 • Schedule & Timings
-              </span>
-
-              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-                <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Shoot Type *</label>
-                  <select
-                    value={formData.shootType}
-                    onChange={(e) => setFormData({ ...formData, shootType: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
-                  >
-                    <option value="INDOOR">INDOOR Studio</option>
-                    <option value="OUTDOOR">OUTDOOR Location</option>
-                  </select>
-                </div>
 
                 <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Shoot Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.shootDate}
-                    onChange={(e) => setFormData({ ...formData, shootDate: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Deadline Date</label>
-                  <input
-                    type="date"
-                    value={formData.deadline}
-                    onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Start Time *</label>
+                  <label className="text-gray-300 block mb-1 font-semibold">Campaign (Optional)</label>
                   <input
                     type="text"
-                    required
-                    value={formData.startTime}
-                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                    placeholder="09:00 AM"
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">End Time *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.endTime}
-                    onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                    placeholder="05:00 PM"
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* SECTION 3: LOCATION DETAILS */}
-            <div className="space-y-3 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
-              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
-                Section 3 • Location Details
-              </span>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Shoot Location *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    placeholder="e.g. Studio Floor 4, Media Ops HQ"
+                    value={formData.campaign}
+                    onChange={(e) => setFormData({ ...formData, campaign: e.target.value })}
+                    placeholder="e.g. Q3 Launch Campaign"
                     className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
                   />
                 </div>
 
-                <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Location Category *</label>
-                  <select
-                    value={formData.locationCategory}
-                    onChange={(e) => setFormData({ ...formData, locationCategory: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
-                  >
-                    <option value="Studio Bay">Studio Bay</option>
-                    <option value="Outdoor Field">Outdoor Field</option>
-                    <option value="Client Site">Client Site</option>
-                    <option value="Third-Party Location">Third-Party Location</option>
-                  </select>
-                </div>
+                {formData.eventSource === 'GRAPHIC_REQUIREMENT' && (
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="text-gray-300 block mb-1 font-semibold">Parent Shoot Project (Optional)</label>
+                    <select
+                      value={formData.projectId}
+                      onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                      className="w-full bg-gray-900 border border-purple-500/50 rounded p-2 text-white font-medium"
+                    >
+                      <option value="">-- Independent Graphic Requirement (No Parent Project) --</option>
+                      {shootProjectsList.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.projectId || 'SP'} • {p.name} ({p.client?.name || 'Client'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* SECTION 4: REQUIRED EQUIPMENT */}
-            <div className="space-y-4 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider block">
-                  Section 4 • Required Equipment (Available Gear)
-                </span>
-                <span className="text-[10px] text-gray-400">Click items to select/unselect gear instantly</span>
-              </div>
+            {/* SECTION 2: GRAPHIC REQUIREMENT DETAILS */}
+            {formData.eventSource === 'GRAPHIC_REQUIREMENT' && (
+              <div className="space-y-4 bg-amber-950/20 p-4 rounded-xl border border-amber-500/40 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-amber-400" /> Section 2 • Graphic Requirement Details *
+                  </span>
+                  <span className="font-mono text-[10px] bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40 text-amber-300 font-bold">
+                    ID: GR-AUTO
+                  </span>
+                </div>
 
-              <div>
-                {/* Custom Equipment Multi-Select Control */}
-                  <div className="flex items-center justify-between">
-                    <label className="text-gray-200 font-bold text-xs flex items-center gap-1.5">
-                      <span>Required Equipment (Available Gear)</span>
-                      <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-mono text-[10px] border border-blue-500/30">
-                        {formData.equipmentIds.length} Reserved
-                      </span>
-                    </label>
-                    {formData.equipmentIds.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, equipmentIds: [] })}
-                        className="text-[10px] text-blue-400 hover:underline font-semibold"
-                      >
-                        Clear All
-                      </button>
-                    )}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-gray-200 font-bold block mb-1">Requirement Type *</label>
+                    <select
+                      required
+                      value={formData.contentType}
+                      onChange={(e) => setFormData({ ...formData, contentType: e.target.value })}
+                      className="w-full bg-gray-900 border border-amber-500/60 rounded p-2 text-white font-bold"
+                    >
+                      <option value="Poster">Poster</option>
+                      <option value="Carousel">Carousel Post</option>
+                      <option value="Story">Story Design</option>
+                      <option value="Banner">Web / Social Banner</option>
+                      <option value="Thumbnail">Video Thumbnail</option>
+                      <option value="Social Media Post">Social Media Post</option>
+                      <option value="Motion Graphic">Motion Graphic</option>
+                      <option value="Infographic">Infographic</option>
+                      <option value="Header">Header / Cover</option>
+                      <option value="Custom">Custom Design</option>
+                    </select>
                   </div>
 
-                  {/* Selected Equipment Chips */}
-                  <div className="min-h-[38px] p-2 rounded-xl bg-gray-950/80 border border-gray-800 flex flex-wrap gap-1.5 items-center">
-                    {formData.equipmentIds.length === 0 ? (
-                      <span className="text-[11px] text-gray-500 italic px-1">
-                        No equipment reserved. Click gear below to select.
-                      </span>
-                    ) : (
-                      formData.equipmentIds.map((eqId) => {
-                        const eqObj = availableEquipment.find((eq) => eq.id === eqId);
-                        if (!eqObj) return null;
-                        return (
-                          <span
-                            key={eqId}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-950/60 text-blue-200 text-[11px] font-medium border border-blue-500/40"
-                          >
-                            <span>📷 {eqObj.name}</span>
-                            <span className="text-[9px] text-blue-300 font-mono opacity-80">({eqObj.category})</span>
-                            <button
-                              type="button"
-                              onClick={() => toggleEquipment(eqId)}
-                              className="hover:text-white p-0.5 text-blue-400 rounded-full"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        );
-                      })
-                    )}
+                  <div>
+                    <label className="text-gray-200 font-bold block mb-1">Target Platform *</label>
+                    <select
+                      required
+                      value={formData.platform}
+                      onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
+                      className="w-full bg-gray-900 border border-amber-500/60 rounded p-2 text-white font-bold"
+                    >
+                      <option value="Instagram">Instagram</option>
+                      <option value="Facebook">Facebook</option>
+                      <option value="LinkedIn">LinkedIn</option>
+                      <option value="YouTube">YouTube</option>
+                      <option value="Twitter/X">Twitter / X</option>
+                      <option value="Website">Website</option>
+                      <option value="Print">Print Media</option>
+                      <option value="Multi-Platform">Multi-Platform</option>
+                    </select>
                   </div>
 
-                  {/* Equipment Search Input */}
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-gray-500" />
+                  <div>
+                    <label className="text-gray-200 font-bold block mb-1">Priority *</label>
+                    <select
+                      required
+                      value={formData.priority}
+                      onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                      <option value="CRITICAL">Urgent</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-gray-200 font-bold block mb-1">Target Completion Date *</label>
                     <input
-                      type="text"
-                      placeholder="Search gear by name or category..."
-                      value={equipmentModalSearch}
-                      onChange={(e) => setEquipmentModalSearch(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                      type="date"
+                      required
+                      value={formData.clientApprovalDeadline}
+                      onChange={(e) => setFormData({ ...formData, clientApprovalDeadline: e.target.value, deadline: e.target.value, shootDate: e.target.value })}
+                      className="w-full bg-gray-900 border border-amber-500/60 rounded p-2 text-white font-bold"
                     />
                   </div>
 
-                  {/* Clickable Equipment Cards List */}
-                  <div className="max-h-44 overflow-y-auto space-y-1 pr-1 bg-gray-900/90 border border-gray-800 rounded-xl p-1.5 scrollbar-thin">
-                    {filteredEquipmentForModal.length === 0 ? (
-                      <div className="p-3 text-center text-gray-500 text-[11px]">No available equipment matches search.</div>
-                    ) : (
-                      filteredEquipmentForModal.map((eq) => {
-                        const isChecked = formData.equipmentIds.includes(eq.id);
-                        return (
-                          <div
-                            key={eq.id}
-                            onClick={() => toggleEquipment(eq.id)}
-                            className={`p-2 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
-                              isChecked
-                                ? 'bg-blue-950/40 border-blue-500/60 ring-1 ring-blue-500/30'
-                                : 'bg-gray-900/40 border-gray-800/80 hover:bg-gray-800/60 hover:border-gray-700'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 overflow-hidden">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => {}}
-                                className="w-3.5 h-3.5 accent-blue-500 rounded border-gray-700 bg-gray-800 cursor-pointer shrink-0"
-                              />
-                              <div className="truncate">
-                                <span className="text-xs font-semibold text-white flex items-center gap-1 truncate">
-                                  <span>📷</span> {eq.name}
-                                </span>
-                                <span className="text-[10px] text-gray-400 block truncate">{eq.category}</span>
-                              </div>
-                            </div>
-                            <span
-                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 ${
-                                isChecked
-                                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
-                                  : 'bg-gray-800 text-gray-400'
-                              }`}
-                            >
-                              {eq.category}
-                            </span>
-                          </div>
-                        );
-                      })
-                    )}
+                  <div className="col-span-2">
+                    <label className="text-gray-200 font-bold block mb-1">Objective / Design Brief *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.caption}
+                      onChange={(e) => setFormData({ ...formData, caption: e.target.value })}
+                      placeholder="e.g. Promote summer sale discount with vibrant product showcase"
+                      className="w-full bg-gray-900 border border-amber-500/60 rounded p-2 text-white font-medium"
+                    />
+                  </div>
+
+                  <div className="col-span-3">
+                    <label className="text-gray-300 font-semibold block mb-1">Detailed Specifications &amp; Copy (Optional)</label>
+                    <textarea
+                      rows={2}
+                      value={formData.productionNotes}
+                      onChange={(e) => setFormData({ ...formData, productionNotes: e.target.value })}
+                      placeholder="Specify dimensions (e.g. 1080x1350px), exact headline copy, color palette, brand guidelines..."
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                    ></textarea>
+                  </div>
+
+                  <div className="col-span-3">
+                    <label className="text-gray-300 font-semibold block mb-1">Remarks &amp; Special Instructions (Optional)</label>
+                    <textarea
+                      rows={2}
+                      value={formData.remarks}
+                      onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                      placeholder="Enter any permanent remarks, references, or special instructions..."
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                    ></textarea>
+                  </div>
+                </div>
+
+                {/* Produced Deliverables Formats Selection */}
+                <div className="p-3 bg-gray-900/80 border border-gray-800 rounded-xl space-y-2">
+                  <label className="text-gray-200 font-bold block text-xs">
+                    Produced Deliverables (Select all deliverable formats to generate)
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { name: 'Poster', icon: '🖼️' },
+                      { name: 'Story', icon: '📱' },
+                      { name: 'Carousel', icon: '🎠' },
+                      { name: 'Thumbnail', icon: '🎬' },
+                      { name: 'Banner', icon: '🚩' },
+                      { name: 'Motion Graphic', icon: '🎥' },
+                      { name: 'Social Media Post', icon: '📲' },
+                      { name: 'Advertisement', icon: '📣' },
+                      { name: 'Packaging Design', icon: '📦' },
+                      { name: 'Website Creative', icon: '🌐' },
+                    ].map((del) => (
+                      <span
+                        key={del.name}
+                        className="px-2 py-1 rounded bg-amber-950/60 border border-amber-500/40 text-amber-300 font-semibold text-[11px] flex items-center gap-1"
+                      >
+                        <span>{del.icon}</span>
+                        <span>{del.name}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-950/40 border border-amber-500/30 rounded-xl flex items-center justify-between text-amber-300 text-xs">
+                  <span>Initial Status (Awaiting Marketing Manager Approval):</span>
+                  <span className="font-mono font-bold bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40 text-[10px]">
+                    PENDING_MARKETING_APPROVAL
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 2: SHOOT SPECIFICS & SCHEDULE */}
+            {formData.eventSource === 'SHOOT' ? (
+              <div className="space-y-4 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
+                  Section 2 • Project Shoot Base Details *
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-semibold">Shoot Type *</label>
+                    <select
+                      required
+                      value={formData.shootType}
+                      onChange={(e) => setFormData({ ...formData, shootType: e.target.value })}
+                      className="w-full bg-gray-900 border border-blue-500/60 rounded p-2 text-white font-bold"
+                    >
+                      <option value="INDOOR">Indoor Shoot</option>
+                      <option value="OUTDOOR">Outdoor Shoot</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-semibold">Shoot Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.shootDate}
+                      onChange={(e) => setFormData({ ...formData, shootDate: e.target.value })}
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-semibold">Estimated Completion Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.deadline}
+                      onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                    />
+                  </div>
+
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="text-gray-300 block mb-1 font-semibold">Shoot Location *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      placeholder="e.g. Main Studio Floor or Kozhikode Beach"
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-semibold">Location Category *</label>
+                    <select
+                      value={formData.locationCategory}
+                      onChange={(e) => setFormData({ ...formData, locationCategory: e.target.value })}
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                    >
+                      <option value="Studio Bay">Studio Bay</option>
+                      <option value="Main Studio Floor">Main Studio Floor</option>
+                      <option value="On-Location">On-Location</option>
+                      <option value="Client Premises">Client Premises</option>
+                      <option value="Outdoor Landmark">Outdoor Landmark</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-semibold">Reporting Time (Call Time) *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.callTime || formData.startTime}
+                      onChange={(e) => setFormData({ ...formData, callTime: e.target.value, startTime: e.target.value })}
+                      placeholder="09:00 AM"
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-semibold">Expected Wrap-up Time *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.expectedWrapTime || formData.endTime}
+                      onChange={(e) => setFormData({ ...formData, expectedWrapTime: e.target.value, endTime: e.target.value })}
+                      placeholder="06:00 PM"
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono"
+                    />
+                  </div>
+
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="text-gray-300 block mb-1 font-semibold">Influencer / Talent *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.influencerTalent}
+                      onChange={(e) => setFormData({ ...formData, influencerTalent: e.target.value })}
+                      placeholder="e.g. Model Name / Talent Contact"
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-semibold">Project Priority *</label>
+                    <select
+                      value={formData.priority}
+                      onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                      <option value="CRITICAL">Urgent</option>
+                    </select>
+                  </div>
+
+                  <div className="col-span-1 sm:col-span-3">
+                    <label className="text-gray-300 block mb-1 font-semibold">Notes / Production Brief (Optional)</label>
+                    <textarea
+                      rows={2}
+                      value={formData.productionNotes}
+                      onChange={(e) => setFormData({ ...formData, productionNotes: e.target.value })}
+                      placeholder="Enter production brief, shot list notes, client instructions..."
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-medium"
+                    ></textarea>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-950/30 border border-amber-500/30 rounded-xl flex items-center justify-between text-amber-300 text-xs">
+                  <span>Current Status (Initial Approval State):</span>
+                  <span className="font-mono font-bold bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40 text-[10px]">
+                    PENDING_MARKETING_APPROVAL
+                  </span>
+                </div>
+              </div>
+            ) : null}
+
+            {/* DYNAMIC SECTION: OUTDOOR SHOOT DETAILS */}
+            {formData.eventSource === 'SHOOT' && (formData.shootType === 'OUTDOOR' || formData.shootType === 'Outdoor Shoot') && (
+              <div className="space-y-4 bg-purple-950/30 p-4 rounded-xl border border-purple-800/60 text-xs">
+                <span className="text-[11px] font-black text-purple-300 uppercase tracking-wider block flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-purple-400" /> --- OUTDOOR SHOOT DETAILS ---
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="text-gray-200 font-bold block mb-1">Exact Location / Address *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.exactLocationAddress}
+                      onChange={(e) => setFormData({ ...formData, exactLocationAddress: e.target.value })}
+                      placeholder="e.g. Kozhikode Beach, Kozhikode, Kerala"
+                      className="w-full bg-gray-900 border border-purple-500/50 rounded p-2 text-white font-medium"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="text-gray-200 font-bold block mb-1">Location Access Details *</label>
+                    <textarea
+                      rows={2}
+                      required
+                      value={formData.locationAccessDetails}
+                      onChange={(e) => setFormData({ ...formData, locationAccessDetails: e.target.value })}
+                      placeholder="e.g. Parking availability, entry point, road access, restricted access notes..."
+                      className="w-full bg-gray-900 border border-purple-500/50 rounded p-2 text-white"
+                    ></textarea>
+                  </div>
+
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-semibold">Location Contact</label>
+                    <input
+                      type="text"
+                      value={formData.locationContact}
+                      onChange={(e) => setFormData({ ...formData, locationContact: e.target.value })}
+                      placeholder="Contact Name / Phone / Manager"
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-gray-200 font-bold block mb-1">Permit Required *</label>
+                    <select
+                      required
+                      value={formData.permitRequired}
+                      onChange={(e) => setFormData({ ...formData, permitRequired: e.target.value })}
+                      className="w-full bg-gray-900 border border-purple-500/50 rounded p-2 text-white font-bold"
+                    >
+                      <option value="NO">NO</option>
+                      <option value="YES">YES</option>
+                    </select>
+                  </div>
+
+                  {formData.permitRequired === 'YES' && (
+                    <div>
+                      <label className="text-amber-300 font-bold block mb-1">Permit Status *</label>
+                      <select
+                        required
+                        value={formData.permitStatus}
+                        onChange={(e) => setFormData({ ...formData, permitStatus: e.target.value })}
+                        className="w-full bg-gray-900 border border-amber-500/60 rounded p-2 text-white font-bold"
+                      >
+                        <option value="Not Applied">Not Applied</option>
+                        <option value="Applied">Applied</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Rejected">Rejected</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-semibold">Expected Weather Conditions</label>
+                    <select
+                      value={formData.expectedWeatherConditions}
+                      onChange={(e) => setFormData({ ...formData, expectedWeatherConditions: e.target.value })}
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                    >
+                      <option value="Sunny">Sunny</option>
+                      <option value="Cloudy">Cloudy</option>
+                      <option value="Rain Expected">Rain Expected</option>
+                      <option value="Windy">Windy</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-semibold">Backup Location</label>
+                    <input
+                      type="text"
+                      value={formData.backupLocation}
+                      onChange={(e) => setFormData({ ...formData, backupLocation: e.target.value })}
+                      placeholder="e.g. Indoor Studio 4"
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-gray-200 font-bold block mb-1">Call Time *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.callTime}
+                      onChange={(e) => setFormData({ ...formData, callTime: e.target.value })}
+                      placeholder="07:00 AM"
+                      className="w-full bg-gray-900 border border-purple-500/50 rounded p-2 text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-gray-200 font-bold block mb-1">Expected Wrap Time *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.expectedWrapTime}
+                      onChange={(e) => setFormData({ ...formData, expectedWrapTime: e.target.value })}
+                      placeholder="05:00 PM"
+                      className="w-full bg-gray-900 border border-purple-500/50 rounded p-2 text-white font-mono"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="text-gray-300 block mb-1 font-semibold">Special Outdoor Requirements</label>
+                    <textarea
+                      rows={2}
+                      value={formData.specialOutdoorRequirements}
+                      onChange={(e) => setFormData({ ...formData, specialOutdoorRequirements: e.target.value })}
+                      placeholder="Power, tents, transport, safety gear, drone permissions..."
+                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                    ></textarea>
                   </div>
                 </div>
               </div>
+            )}
 
-            {/* SECTION 5: ADDITIONAL INFORMATION */}
-            <div className="space-y-3 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
-                Section 5 • Additional Information
-              </span>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Influencer / Talent</label>
-                  <input
-                    type="text"
-                    value={formData.influencerTalent}
-                    onChange={(e) => setFormData({ ...formData, influencerTalent: e.target.value })}
-                    placeholder="e.g. Devika (Model)"
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
-                  />
-                </div>
 
-                <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Priority</label>
-                  <select
-                    value={formData.priority}
-                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
-                  >
-                    <option value="LOW">LOW</option>
-                    <option value="MEDIUM">MEDIUM</option>
-                    <option value="HIGH">HIGH</option>
-                    <option value="CRITICAL">CRITICAL</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-gray-300 block mb-1 font-semibold">Notes / Remarks</label>
-                <textarea
-                  rows={2}
-                  value={formData.productionNotes}
-                  onChange={(e) => setFormData({ ...formData, productionNotes: e.target.value })}
-                  placeholder="Additional scheduling notes, shot list links..."
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
-                ></textarea>
-              </div>
+            {/* NOTES */}
+            <div className="space-y-2 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
+              <label className="text-gray-300 block mb-1 font-semibold">Notes (Optional)</label>
+              <textarea
+                rows={2}
+                value={formData.productionNotes}
+                onChange={(e) => setFormData({ ...formData, productionNotes: e.target.value })}
+                placeholder="Additional information or instructions for the project shoot..."
+                className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+              ></textarea>
             </div>
 
             <div className="flex justify-end gap-3 pt-3 border-t border-border">
@@ -1596,6 +1981,32 @@ export default function CalendarPage() {
           </form>
         </div>
       )}
+
+      {/* Task Conversion Modal Popup */}
+      <ConvertEventToTaskModal
+        isOpen={!!convertModalEvent}
+        onClose={() => setConvertModalEvent(null)}
+        onSuccess={() => {
+          // reload events
+          fetchApi('/calendar').then((res) => setEvents(Array.isArray(res) ? res : []));
+        }}
+        eventData={
+          convertModalEvent
+            ? {
+                title: convertModalEvent.title,
+                parentType: convertModalEvent.graphicRequirement?.id ? 'GRAPHIC_REQ' : 'PROJECT',
+                parentId: convertModalEvent.graphicRequirement?.id || convertModalEvent.shootProjects?.[0]?.id || '',
+                parentCode: convertModalEvent.graphicRequirement?.requirementId || convertModalEvent.shootProjects?.[0]?.projectId,
+                clientId: convertModalEvent.clientId,
+                brandId: convertModalEvent.brandId,
+                productId: convertModalEvent.productId,
+                priority: convertModalEvent.priority,
+                dueDate: convertModalEvent.clientApprovalDeadline || convertModalEvent.shootDate,
+                notes: convertModalEvent.productionNotes,
+              }
+            : null
+        }
+      />
     </div>
   );
 }

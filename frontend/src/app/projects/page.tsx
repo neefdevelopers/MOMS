@@ -22,6 +22,8 @@ import {
   RotateCcw,
   Search,
   Building2,
+  Clock,
+  User,
 } from 'lucide-react';
 import { SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
@@ -300,18 +302,63 @@ export default function ProjectsPage() {
           </p>
         </div>
 
-        {user?.role === 'MEDIA_MANAGER' && (
-          <button
-            onClick={openCreateModal}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-blue-600/30 w-max"
-          >
-            <Plus className="w-4 h-4" /> Create Shoot Project
-          </button>
-        )}
+        <Link
+          href="/calendar"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-blue-600/30 w-max"
+        >
+          <Calendar className="w-4 h-4" /> Schedule via Media Calendar
+        </Link>
       </div>
 
       {/* User-Friendly 11-Parameter Filter Control Panel */}
       <div className="bg-card border border-border p-5 rounded-xl space-y-4 text-xs shadow-md">
+        {/* Quick View Tab Pills */}
+        <div className="flex items-center gap-2 pb-1 border-b border-gray-800 flex-wrap">
+          <button
+            onClick={() => {
+              setSelectedStatus('');
+              setSelectedEmployee('');
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              !selectedStatus && !selectedEmployee
+                ? 'bg-blue-600 text-white shadow'
+                : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+            }`}
+          >
+            All Project Shoots
+          </button>
+
+          <button
+            onClick={() => {
+              setSelectedStatus('PENDING_APPROVAL');
+              setSelectedEmployee('');
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              selectedStatus === 'PENDING_APPROVAL'
+                ? 'bg-amber-500 text-slate-950 shadow'
+                : 'bg-gray-900 text-amber-400 hover:text-white border border-gray-800'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" /> Pending Approval
+          </button>
+
+          {user?.id && (
+            <button
+              onClick={() => {
+                setSelectedStatus('');
+                setSelectedEmployee(user.id);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                selectedEmployee === user.id
+                  ? 'bg-purple-600 text-white shadow'
+                  : 'bg-gray-900 text-purple-400 hover:text-white border border-gray-800'
+              }`}
+            >
+              <User className="w-3.5 h-3.5" /> My Project Shoots
+            </button>
+          )}
+        </div>
+
         {/* Top Primary Filter Row */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Main Keyword Search Bar */}
@@ -656,14 +703,16 @@ export default function ProjectsPage() {
                     />
                     <span
                       className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${
-                        proj.status === 'COMPLETED'
+                        proj.status === 'COMPLETED' || proj.status === 'APPROVED'
                           ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : proj.status === 'CLIENT_REVISION_REQUESTED'
-                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                          : proj.status === 'PLANNED' || proj.status === 'PENDING_CLIENT_APPROVAL' || proj.status === 'PENDING_MARKETING_APPROVAL' || proj.status === 'PENDING'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
                           : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                       }`}
                     >
-                      {proj.status ? proj.status.replace(/_/g, ' ') : 'PLANNED'}
+                      {proj.status === 'PLANNED' || proj.status === 'PENDING_CLIENT_APPROVAL' || proj.status === 'PENDING_MARKETING_APPROVAL' || proj.status === 'PENDING'
+                        ? 'PENDING MARKETING MANAGER APPROVAL'
+                        : proj.status ? proj.status.replace(/_/g, ' ') : 'PENDING MARKETING MANAGER APPROVAL'}
                     </span>
                   </div>
                 </div>
@@ -713,12 +762,12 @@ export default function ProjectsPage() {
                   </div>
                 )}
 
-                {/* Assigned Team Members */}
-                <div className="text-xs pt-1">
-                  <div className="text-[11px] font-medium text-gray-400 flex items-center gap-1 mb-1.5">
-                    <Users className="w-3.5 h-3.5 text-blue-400" /> Assigned Team:
-                  </div>
-                  {proj.assignedTeam && proj.assignedTeam.length > 0 ? (
+                {/* Assigned Team */}
+                {proj.assignedTeam && proj.assignedTeam.length > 0 && (
+                  <div className="text-xs pt-1 border-t border-border/50">
+                    <div className="text-[11px] font-medium text-gray-400 flex items-center gap-1 mb-1.5">
+                      <Users className="w-3.5 h-3.5 text-blue-400" /> Assigned Team:
+                    </div>
                     <div className="flex flex-wrap gap-1.5">
                       {proj.assignedTeam.map((member: any) => (
                         <span
@@ -730,12 +779,8 @@ export default function ProjectsPage() {
                         </span>
                       ))}
                     </div>
-                  ) : (
-                    <span className="px-2.5 py-0.5 bg-amber-950/80 text-amber-300 border border-amber-800/80 rounded-md font-bold text-[11px] inline-block">
-                      Not Assigned
-                    </span>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Reserved Equipment */}
                 <div className="text-xs pt-1 border-t border-border/50">

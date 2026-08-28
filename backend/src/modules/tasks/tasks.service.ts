@@ -344,62 +344,106 @@ export class TasksService {
       await this.validateActiveEmployees(data.assignedUserIds);
     }
 
-    // 1. Must belong to exactly one Parent Entity: Shoot Project, Script, or Graphic Requirement
-    if (!data.projectId && !data.scriptId && !data.graphicRequirementId) {
-      throw new BadRequestException(
-        'Every task must belong to one parent entity (Shoot Project, Script, or Graphic Requirement). Tasks cannot exist independently.',
-      );
-    }
+    const sanitizeId = (id: any) => (typeof id === 'string' && id.trim() !== '' && id !== 'null' && id !== 'undefined' ? id.trim() : null);
 
-    let project = null;
+    const inputProjectId = sanitizeId(data.projectId);
+    const inputScriptId = sanitizeId(data.scriptId);
+    const inputGraphicReqId = sanitizeId(data.graphicRequirementId);
+
+    let project: any = null;
     let scriptId: string | null = null;
     let graphicReqId: string | null = null;
 
-    if (data.parentEntityType === 'SCRIPT' || (data.scriptId && data.parentEntityType !== 'PROJECT')) {
-      const script = await this.prisma.script.findUnique({
-        where: { id: data.scriptId },
-        include: { project: true },
-      });
-      if (!script) throw new NotFoundException('Parent Script entity not found');
-      scriptId = script.id;
-      project = script.project;
-    } else if (data.parentEntityType === 'GRAPHIC_REQ' || (data.graphicRequirementId && data.parentEntityType !== 'PROJECT')) {
-      const graphicReq = await this.prisma.graphicRequirement.findUnique({
-        where: { id: data.graphicRequirementId },
-        include: { project: true },
-      });
-      if (!graphicReq) throw new NotFoundException('Parent Graphic Requirement entity not found');
-      graphicReqId = graphicReq.id;
-      project = graphicReq.project;
-    } else if (data.projectId) {
+    if (data.parentEntityType === 'SCRIPT' || (inputScriptId && data.parentEntityType !== 'PROJECT')) {
+      const script = inputScriptId
+        ? await this.prisma.script.findUnique({
+            where: { id: inputScriptId },
+            include: { project: true },
+          })
+        : null;
+      if (script) {
+        scriptId = script.id;
+        project = script.project;
+      }
+    } else if (data.parentEntityType === 'GRAPHIC_REQ' || (inputGraphicReqId && data.parentEntityType !== 'PROJECT')) {
+      const graphicReq = inputGraphicReqId
+        ? await this.prisma.graphicRequirement.findUnique({
+            where: { id: inputGraphicReqId },
+            include: { project: true },
+          })
+        : null;
+      if (graphicReq) {
+        graphicReqId = graphicReq.id;
+        project = graphicReq.project;
+      }
+    } else if (inputProjectId) {
       project = await this.prisma.shootProject.findUnique({
-        where: { id: data.projectId },
+        where: { id: inputProjectId },
         include: { client: true, brand: true, product: true },
       });
-      if (!project) throw new NotFoundException('Parent Shoot Project entity not found');
     }
 
-    if (!project) {
-      throw new BadRequestException(
-        'Every task must belong to one parent entity (Shoot Project, Script, or Graphic Requirement). Tasks cannot exist independently.',
-      );
+    // Enforce Business Rule: Shoot Projects must be APPROVED by Marketing Manager before task assignment (if bound to a project)
+    if (project && !graphicReqId && !scriptId) {
+      const allowedStatuses = ['APPROVED', 'TASK_ASSIGNED', 'IN_PRODUCTION', 'TECHNICAL_REVIEW', 'MEDIA_MANAGER_REVIEW', 'CLIENT_CONFIRMATION', 'COMPLETED'];
+      if (!allowedStatuses.includes(project.status)) {
+        throw new BadRequestException(
+          'Project Shoot must be approved by Marketing Manager before task assignment.'
+        );
+      }
     }
 
-    // 2. Generate Task ID TSK-00000X
-    const count = await this.prisma.task.count();
-    const autoTaskId = `TSK-${(count + 1).toString().padStart(6, '0')}`;
+    if (graphicReqId) {
+      const gReq = await this.prisma.graphicRequirement.findUnique({
+        where: { id: graphicReqId },
+      });
+      if (gReq) {
+        const allowedGrStatuses = ['READY', 'APPROVED', 'IN_PROGRESS', 'COMPLETED'];
+        if (!allowedGrStatuses.includes(gReq.status)) {
+          throw new BadRequestException(
+            'Graphic Requirement must be approved by Marketing Manager before task assignment.'
+          );
+        }
+      }
+    }
+
+    // Determine Client and Brand IDs
+    let clientId = project?.clientId || data.clientId;
+    let brandId = project?.brandId || data.brandId;
+    let productId = project?.productId || data.productId || null;
+
+    if (!clientId) {
+      const firstClient = await this.prisma.client.findFirst();
+      if (!firstClient) throw new BadRequestException('Client ID is required for task creation');
+      clientId = firstClient.id;
+    }
+    if (!brandId) {
+      const firstBrand = await this.prisma.brand.findFirst();
+      if (!firstBrand) throw new BadRequestException('Brand ID is required for task creation');
+      brandId = firstBrand.id;
+    }
+
+    // Generate Task ID TSK-00000X safely with collision loop
+    let taskCount = await this.prisma.task.count();
+    let autoTaskId = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
+    let existingTask = await this.prisma.task.findUnique({ where: { taskId: autoTaskId } });
+    while (existingTask) {
+      taskCount++;
+      autoTaskId = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
+      existingTask = await this.prisma.task.findUnique({ where: { taskId: autoTaskId } });
+    }
 
     const task = await this.prisma.task.create({
       data: {
         taskId: autoTaskId,
         title: data.title,
         description: data.description,
-        projectId: project.id,
-        scriptId: scriptId,
-        graphicRequirementId: graphicReqId,
-        clientId: project.clientId,
-        brandId: project.brandId,
-        productId: project.productId || null,
+        projectId: project?.id || (data.projectId ? data.projectId : null),
+        scriptId: scriptId || (data.scriptId ? data.scriptId : null),
+        graphicRequirementId: graphicReqId || (data.graphicRequirementId ? data.graphicRequirementId : null),
+        clientId: clientId,
+        brandId: brandId,
+        productId: productId,
         priority: data.priority || Priority.MEDIUM,
         dueDate: new Date(data.dueDate || Date.now() + 86400000),
         estimatedHours: parseFloat(data.estimatedHours) || 2.0,

@@ -65,14 +65,14 @@ export class UsersController {
     return this.usersService.findOne(id);
   }
 
-  // Business Rule: Only the Media Manager may create employee records
-  @Roles(Role.MEDIA_MANAGER)
+  // Business Rule: Only the Media Manager or Administrator may create employee records
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
   @Post()
   create(@Body() data: any, @CurrentUser() user: any) {
     return this.usersService.createEmployee(data, user.role);
   }
 
-  // Business Rule: Only Media Manager may modify employee records, employees shall not modify profile info
+  // Business Rule: Only Media Manager or Administrator may modify employee records, employees shall not modify profile info
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -82,29 +82,29 @@ export class UsersController {
     return this.usersService.updateEmployee(id, data, user);
   }
 
-  // Business Rule: Only the Media Manager may activate employee records
-  @Roles(Role.MEDIA_MANAGER)
+  // Business Rule: Only the Media Manager or Administrator may activate employee records
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
   @Post(':id/activate')
   activate(@Param('id') id: string, @CurrentUser() user: any) {
     return this.usersService.activateEmployee(id, user.role);
   }
 
-  // Business Rule: Only the Media Manager may deactivate employee records
-  @Roles(Role.MEDIA_MANAGER)
+  // Business Rule: Only the Media Manager or Administrator may deactivate employee records
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
   @Post(':id/deactivate')
   deactivate(@Param('id') id: string, @CurrentUser() user: any) {
     return this.usersService.deactivateEmployee(id, user.role);
   }
 
-  // Business Rule: Only the Media Manager may suspend employee records
-  @Roles(Role.MEDIA_MANAGER)
+  // Business Rule: Only the Media Manager or Administrator may suspend employee records
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
   @Post(':id/suspend')
   suspend(@Param('id') id: string, @CurrentUser() user: any) {
     return this.usersService.suspendEmployee(id, user.role);
   }
 
-  // Business Rule: Only the Media Manager may archive employee records
-  @Roles(Role.MEDIA_MANAGER)
+  // Business Rule: Only the Media Manager or Administrator may archive employee records
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
   @Post(':id/archive')
   archive(@Param('id') id: string, @CurrentUser() user: any) {
     return this.usersService.archiveEmployee(id, user.role);

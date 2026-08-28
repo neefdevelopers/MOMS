@@ -129,36 +129,7 @@ export default function ScriptsPage() {
     loadScripts();
   }, []);
 
-  const handleAssignEmployee = async () => {
-    if (!selectedScript || !assignUserId) return;
-    try {
-      await fetchApi(`/scripts/${selectedScript.id}/assignments`, {
-        method: 'POST',
-        body: JSON.stringify({ userId: assignUserId, responsibility: assignResponsibility }),
-      });
-      const updated = await fetchApi(`/scripts/${selectedScript.id}`);
-      setSelectedScript(updated);
-      setScripts((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-      setAssignUserId('');
-    } catch (err: any) {
-      alert(err.message || 'Failed to assign employee');
-    }
-  };
 
-  const handleRemoveAssignment = async (userId: string, responsibility: string) => {
-    if (!selectedScript) return;
-    try {
-      await fetchApi(`/scripts/${selectedScript.id}/assignments`, {
-        method: 'DELETE',
-        body: JSON.stringify({ userId, responsibility }),
-      });
-      const updated = await fetchApi(`/scripts/${selectedScript.id}`);
-      setSelectedScript(updated);
-      setScripts((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-    } catch (err: any) {
-      alert(err.message || 'Failed to remove assignment');
-    }
-  };
 
   const handleAddRemark = async () => {
     if (!selectedScript || !newRemarkText.trim()) return;
@@ -409,7 +380,11 @@ export default function ScriptsPage() {
     if (filterProduct !== 'ALL' && s.productId !== filterProduct) return false;
     if (filterLanguage !== 'ALL' && s.language !== filterLanguage) return false;
     if (filterCategory !== 'ALL' && s.category !== filterCategory) return false;
-    if (filterStatus !== 'ALL' && s.status !== filterStatus) return false;
+    if (filterStatus === 'PENDING_MARKETING_APPROVAL' || filterStatus === 'PENDING') {
+      if (!['PENDING_MARKETING_APPROVAL', 'DRAFT', 'PENDING_APPROVAL', 'CHANGES_REQUESTED'].includes(s.status)) return false;
+    } else if (filterStatus !== 'ALL' && s.status !== filterStatus) {
+      return false;
+    }
     if (filterPriority !== 'ALL' && s.priority !== filterPriority) return false;
     if (filterDate && (!s.createdAt?.startsWith(filterDate) && !s.project?.shootDate?.startsWith(filterDate))) return false;
     if (filterEmployee !== 'ALL') {
@@ -443,6 +418,77 @@ export default function ScriptsPage() {
             + Create New Script
           </button>
         )}
+      </div>
+
+      {user?.role === 'MARKETING_MANAGER' && (
+        <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/40 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center shrink-0 font-bold">
+              📜
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-purple-200">Marketing Manager Script Approval Session</h4>
+              <p className="text-xs text-purple-300/80">
+                Review submitted script storylines, approve production scripts, or request revisions.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setFilterStatus(filterStatus === 'PENDING_MARKETING_APPROVAL' ? 'ALL' : 'PENDING_MARKETING_APPROVAL')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ${
+              filterStatus === 'PENDING_MARKETING_APPROVAL'
+                ? 'bg-purple-600 text-white shadow-purple-600/30'
+                : 'bg-purple-900/60 hover:bg-purple-800 text-purple-200 border border-purple-700'
+            }`}
+          >
+            {filterStatus === 'PENDING_MARKETING_APPROVAL' ? '✓ Showing Pending Approvals' : `Filter Pending Approvals (${scripts.filter((s) => s.status === 'PENDING_MARKETING_APPROVAL' || s.status === 'DRAFT').length})`}
+          </button>
+        </div>
+      )}
+
+      {/* Quick Approval Status Filtration Bar (All / Pending / Approved) */}
+      <div className="flex items-center gap-2 border-b border-border pb-3 overflow-x-auto">
+        <button
+          onClick={() => setFilterStatus('ALL')}
+          className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-sm ${
+            filterStatus === 'ALL'
+              ? 'bg-blue-600 text-white shadow-blue-600/30'
+              : 'bg-card border border-border text-gray-400 hover:text-white'
+          }`}
+        >
+          <span>All Scripts</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-950 text-blue-300 border border-blue-500/40 font-mono font-bold">
+            {scripts.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setFilterStatus('PENDING_MARKETING_APPROVAL')}
+          className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-sm ${
+            filterStatus === 'PENDING_MARKETING_APPROVAL' || filterStatus === 'PENDING'
+              ? 'bg-amber-500 text-slate-950 shadow-amber-500/30 font-extrabold'
+              : 'bg-card border border-border text-gray-400 hover:text-white'
+          }`}
+        >
+          <span>⏳ Pending Approval</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-950 text-amber-300 border border-amber-500/40 font-mono font-bold">
+            {scripts.filter((s) => ['PENDING_MARKETING_APPROVAL', 'DRAFT', 'PENDING_APPROVAL', 'CHANGES_REQUESTED'].includes(s.status)).length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setFilterStatus('APPROVED')}
+          className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-sm ${
+            filterStatus === 'APPROVED'
+              ? 'bg-emerald-600 text-white shadow-emerald-600/30 font-extrabold'
+              : 'bg-card border border-border text-gray-400 hover:text-white'
+          }`}
+        >
+          <span>✓ Approved Scripts</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-500/40 font-mono font-bold">
+            {scripts.filter((s) => s.status === 'APPROVED').length}
+          </span>
+        </button>
       </div>
 
       {/* Project Filtration Session Control Panel */}
@@ -857,9 +903,32 @@ export default function ScriptsPage() {
                   )}
                 </div>
 
-                <div className="pt-2 border-t border-gray-800 flex items-center justify-between text-[11px] text-gray-400">
-                  <span>Assigned Staff: <strong className="text-gray-200">{assignedStaffNames.length > 0 ? assignedStaffNames.join(', ') : 'Unassigned'}</strong></span>
-                  <span className="text-[10px] font-mono text-gray-500">Click to View Details →</span>
+                <div className="pt-2 border-t border-gray-800 flex items-center justify-between text-[11px] text-gray-400 gap-2 flex-wrap">
+                  <span>Created by: <strong className="text-gray-200">{s.createdBy?.name || 'Writer'}</strong></span>
+
+                  {(user?.role === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMIN') && s.status !== 'APPROVED' ? (
+                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => handleApproveScriptAction(s.id, 'APPROVE')}
+                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded text-[10px] flex items-center gap-1 shadow-sm transition-colors"
+                      >
+                        ✓ Accept / Approve Script
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const comment = prompt('Enter revisions requested:');
+                          if (comment) handleApproveScriptAction(s.id, 'REQUEST_CHANGES', comment);
+                        }}
+                        className="px-2 py-1 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-300 font-bold rounded text-[10px] flex items-center gap-1"
+                      >
+                        🔄 Revision
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] font-mono text-gray-500">Click to View Details →</span>
+                  )}
                 </div>
               </div>
             );
@@ -910,7 +979,7 @@ export default function ScriptsPage() {
                 <div><span className="text-gray-500">Language:</span> <strong className="text-purple-300">{selectedScript.language}</strong></div>
                 <div><span className="text-gray-500">Category / Purpose:</span> <strong className="text-amber-300">{selectedScript.category}</strong></div>
                 <div><span className="text-gray-500">Objective:</span> <strong className="text-cyan-300">{selectedScript.objective || 'N/A'}</strong></div>
-                <div><span className="text-gray-500">Assigned Staff:</span> <strong className="text-gray-200">{selectedScript.tasks?.flatMap((t: any) => (t.assignedEmployees || []).map((e: any) => e.user?.name)).filter(Boolean).join(', ') || 'Unassigned'}</strong></div>
+                <div><span className="text-gray-500">Created By:</span> <strong className="text-gray-200">{selectedScript.createdBy?.name || 'Writer'}</strong></div>
                 <div><span className="text-gray-500">Created At:</span> {new Date(selectedScript.createdAt).toLocaleDateString()}</div>
                 <div><span className="text-gray-500">Total Revisions:</span> <strong className="text-amber-300 font-bold">{selectedScript.revisionCount || 0} (Maintained for reporting)</strong></div>
               </div>
@@ -1135,85 +1204,7 @@ export default function ScriptsPage() {
                 </div>
               </div>
 
-              {/* Assign Employees Panel */}
-              <div className="p-4 bg-gray-950 border border-blue-900/40 rounded-xl space-y-3">
-                <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-                  <h4 className="font-bold text-blue-300 text-xs flex items-center gap-1.5">
-                    <UserPlus className="w-4 h-4 text-blue-400" /> Assigned Employees
-                  </h4>
-                  <span className="text-[10px] text-gray-500">One employee may hold multiple responsibilities</span>
-                </div>
 
-                {/* Current Assignments */}
-                <div className="space-y-1.5">
-                  {(selectedScript.scriptAssignments || []).length === 0 ? (
-                    <div className="p-2 bg-gray-900 border border-gray-800 rounded-lg">
-                      <span className="px-2.5 py-1 bg-amber-950/80 text-amber-300 border border-amber-800/80 rounded-md font-bold text-xs">
-                        Not Assigned
-                      </span>
-                    </div>
-                  ) : (
-                    (selectedScript.scriptAssignments || []).map((a: any) => (
-                      <div key={a.id} className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-full bg-blue-700 flex items-center justify-center text-[10px] font-bold text-white">
-                            {a.user?.name?.[0]?.toUpperCase()}
-                          </div>
-                          <span className="text-gray-200 font-semibold text-[11px]">{a.user?.name}</span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300 border border-blue-800/50 font-semibold">
-                            {a.responsibility}
-                          </span>
-                        </div>
-                        {user?.role === 'MEDIA_MANAGER' && (
-                          <button
-                            onClick={() => handleRemoveAssignment(a.userId, a.responsibility)}
-                            className="text-red-400 hover:text-red-300"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Assign New Employee (Media Manager only) */}
-                {user?.role === 'MEDIA_MANAGER' && (
-                  <div className="flex items-center gap-2 pt-1 border-t border-gray-800">
-                    <select
-                      value={assignUserId}
-                      onChange={(e) => setAssignUserId(e.target.value)}
-                      className="flex-1 bg-gray-900 border border-gray-700 text-white px-2.5 py-2 rounded-lg text-[11px] focus:border-blue-500 focus:outline-none"
-                    >
-                      <option value="">Select Employee...</option>
-                      {(usersList || []).map((u: any) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} ({u.role})
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={assignResponsibility}
-                      onChange={(e) => setAssignResponsibility(e.target.value)}
-                      className="bg-gray-900 border border-gray-700 text-white px-2.5 py-2 rounded-lg text-[11px] focus:border-blue-500 focus:outline-none"
-                    >
-                      <option value="Writer">Writer</option>
-                      <option value="Shooter">Shooter</option>
-                      <option value="Video Editor">Video Editor</option>
-                      <option value="Motion Designer">Motion Designer</option>
-                      <option value="Graphic Designer">Graphic Designer</option>
-                      <option value="Reviewer">Reviewer</option>
-                    </select>
-                    <button
-                      onClick={handleAssignEmployee}
-                      disabled={!assignUserId}
-                      className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg text-[11px] disabled:opacity-40 flex items-center gap-1"
-                    >
-                      <UserPlus className="w-3.5 h-3.5" /> Assign
-                    </button>
-                  </div>
-                )}
-              </div>
 
               {/* Operational Timeline Section */}
               <div className="p-4 bg-gray-950 border border-emerald-900/40 rounded-xl space-y-3">
@@ -1631,59 +1622,51 @@ export default function ScriptsPage() {
               </div>
 
               {/* Marketing Manager Approval Controls */}
-              {user?.role === 'MARKETING_MANAGER' && selectedScript.status === 'PENDING_MARKETING_APPROVAL' && (
+              {(user?.role === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMIN') && selectedScript.status !== 'APPROVED' && (
                 <div className="p-4 bg-amber-950/30 border border-amber-800/60 rounded-xl space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="font-bold text-amber-300 text-xs flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 text-amber-400" /> Marketing Manager Script Approval Action
                     </h4>
-                    {selectedScript.createdById === user.id && (
-                      <span className="text-[10px] bg-red-950 text-red-300 border border-red-800 px-2 py-0.5 rounded font-bold">
-                        ⚠️ Created by You (Self-Approval Prohibited)
-                      </span>
-                    )}
+                    <span className="text-[10px] bg-purple-950 text-purple-300 border border-purple-800 px-2 py-0.5 rounded font-bold">
+                      Current Status: {selectedScript.status}
+                    </span>
                   </div>
 
-                  {selectedScript.createdById !== user.id ? (
-                    <div className="flex items-center gap-2 flex-wrap pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleApproveScriptAction(selectedScript.id, 'APPROVE')}
-                        disabled={saving}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5"
-                      >
-                        <Check className="w-4 h-4" /> Approve Script
-                      </button>
+                  <div className="flex items-center gap-2 flex-wrap pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleApproveScriptAction(selectedScript.id, 'APPROVE')}
+                      disabled={saving}
+                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg shadow-md transition-all flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4" /> Accept / Approve Script Now
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const comment = prompt('Enter revisions requested for creator:');
-                          if (comment) handleApproveScriptAction(selectedScript.id, 'REQUEST_CHANGES', comment);
-                        }}
-                        disabled={saving}
-                        className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5"
-                      >
-                        <RotateCcw className="w-4 h-4" /> Request Changes
-                      </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const comment = prompt('Enter revisions requested for creator:');
+                        if (comment) handleApproveScriptAction(selectedScript.id, 'REQUEST_CHANGES', comment);
+                      }}
+                      disabled={saving}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5"
+                    >
+                      <RotateCcw className="w-4 h-4" /> Request Revision
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const reason = prompt('Enter rejection reason:');
-                          if (reason) handleApproveScriptAction(selectedScript.id, 'REJECT', reason);
-                        }}
-                        disabled={saving}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5"
-                      >
-                        <X className="w-4 h-4" /> Reject Script
-                      </button>
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-amber-300 italic">
-                      Per business rules, you created this script. Independent approval by another Marketing Manager / Administrator is required.
-                    </p>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const reason = prompt('Enter rejection reason:');
+                        if (reason) handleApproveScriptAction(selectedScript.id, 'REJECT', reason);
+                      }}
+                      disabled={saving}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5"
+                    >
+                      <X className="w-4 h-4" /> Reject Script
+                    </button>
+                  </div>
                 </div>
               )}
 

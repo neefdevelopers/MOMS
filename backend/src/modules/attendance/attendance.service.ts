@@ -16,8 +16,8 @@ export class AttendanceService {
     }
 
     const userWhere: any = { isArchived: false };
-    // Rule: Staff members shall not view other employees' attendance records
-    if (currentUser?.role === 'STAFF') {
+    // Rule: Staff and Social Media Managers shall not view other employees' attendance records
+    if (currentUser?.role === 'STAFF' || currentUser?.role === 'SOCIAL_MEDIA_MANAGER') {
       userWhere.id = currentUser.id;
     }
 

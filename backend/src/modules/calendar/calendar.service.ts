@@ -105,6 +105,8 @@ export class CalendarService {
         },
         shootProjects: {
           include: {
+            indoorDetails: true,
+            outdoorDetails: true,
             equipmentReservations: {
               include: {
                 equipment: true,
@@ -145,6 +147,8 @@ export class CalendarService {
         },
         shootProjects: {
           include: {
+            indoorDetails: true,
+            outdoorDetails: true,
             equipmentReservations: {
               include: {
                 equipment: true,
@@ -201,40 +205,39 @@ export class CalendarService {
     let resolvedShoot: any = null;
 
     if (eventSource === 'GRAPHIC_REQUIREMENT') {
-      if (!data.graphicRequirementId) {
-        throw new BadRequestException('Graphic Requirement selection is required for Graphic Requirement event source.');
-      }
-      resolvedGraphicReq = await this.prisma.graphicRequirement.findUnique({
-        where: { id: data.graphicRequirementId },
-      });
-      if (!resolvedGraphicReq) {
-        throw new BadRequestException('Selected Graphic Requirement does not exist.');
-      }
+      if (data.graphicRequirementId) {
+        resolvedGraphicReq = await this.prisma.graphicRequirement.findUnique({
+          where: { id: data.graphicRequirementId },
+        });
+        if (!resolvedGraphicReq) {
+          throw new BadRequestException('Selected Graphic Requirement does not exist.');
+        }
 
-      // Check for duplicate calendar event for this Graphic Requirement
-      const existingGrEvent = await this.prisma.mediaCalendarEvent.findFirst({
-        where: {
-          graphicRequirementId: resolvedGraphicReq.id,
-          status: { notIn: ['CANCELLED', 'REJECTED'] },
-        },
-      });
-      if (existingGrEvent) {
-        throw new BadRequestException(`This Graphic Requirement already has a Media Calendar Event (ID: ${existingGrEvent.eventId || existingGrEvent.id}).`);
-      }
+        // Check for duplicate calendar event for this Graphic Requirement
+        const existingGrEvent = await this.prisma.mediaCalendarEvent.findFirst({
+          where: {
+            graphicRequirementId: resolvedGraphicReq.id,
+            status: { notIn: ['CANCELLED', 'REJECTED'] },
+          },
+        });
+        if (existingGrEvent) {
+          throw new BadRequestException(`This Graphic Requirement already has a Media Calendar Event (ID: ${existingGrEvent.eventId || existingGrEvent.id}).`);
+        }
 
-      // Auto-inherit source values if not provided
-      data.clientId = data.clientId || resolvedGraphicReq.clientId;
-      data.brandId = data.brandId || resolvedGraphicReq.brandId;
-      data.productId = data.productId || resolvedGraphicReq.productId;
-      data.title = data.title?.trim() || resolvedGraphicReq.name;
-      data.description = data.description || resolvedGraphicReq.description;
-      data.priority = data.priority || resolvedGraphicReq.priority;
-      if (!data.clientApprovalDeadline && resolvedGraphicReq.estimatedCompletion) {
-        data.clientApprovalDeadline = resolvedGraphicReq.estimatedCompletion;
+        // Auto-inherit source values if not provided
+        data.clientId = data.clientId || resolvedGraphicReq.clientId;
+        data.brandId = data.brandId || resolvedGraphicReq.brandId;
+        data.productId = data.productId || resolvedGraphicReq.productId;
+        data.title = data.title?.trim() || resolvedGraphicReq.name;
+        data.description = data.description || resolvedGraphicReq.description;
+        data.priority = data.priority || resolvedGraphicReq.priority;
+        if (!data.clientApprovalDeadline && resolvedGraphicReq.estimatedCompletion) {
+          data.clientApprovalDeadline = resolvedGraphicReq.estimatedCompletion;
+        }
+        data.contentType = data.contentType || resolvedGraphicReq.requirementType || 'Banner';
+        data.productionNotes = data.productionNotes || resolvedGraphicReq.remarks || resolvedGraphicReq.objective;
       }
-      data.contentType = data.contentType || resolvedGraphicReq.requirementType || 'Banner';
-      data.productionNotes = data.productionNotes || resolvedGraphicReq.remarks || resolvedGraphicReq.objective;
-    } else if (eventSource === 'SHOOT') {
+    } else if (eventSource === 'SHOOT' || eventSource === 'PROJECT_SHOOT') {
       if (data.shootId) {
         resolvedShoot = await this.prisma.shootProject.findUnique({
           where: { id: data.shootId },
@@ -363,16 +366,133 @@ export class CalendarService {
         },
       });
 
-      if (eventSource === 'GRAPHIC_REQUIREMENT' && resolvedGraphicReq) {
-        await tx.graphicRequirement.update({
-          where: { id: resolvedGraphicReq.id },
-          data: { calendarEventId: event.id },
-        });
-      } else if (eventSource === 'SHOOT' && resolvedShoot) {
-        await tx.shootProject.update({
-          where: { id: resolvedShoot.id },
-          data: { calendarEventId: event.id },
-        });
+      if (eventSource === 'GRAPHIC_REQUIREMENT') {
+        if (resolvedGraphicReq) {
+          await tx.graphicRequirement.update({
+            where: { id: resolvedGraphicReq.id },
+            data: { calendarEventId: event.id },
+          });
+        } else {
+          // Auto-create corresponding GraphicRequirement
+          let parentProjectId = data.projectId;
+          if (!parentProjectId) {
+            let existingProj = await tx.shootProject.findFirst({
+              where: { clientId: data.clientId, brandId: data.brandId },
+            });
+            if (!existingProj) {
+              const projCount = await tx.shootProject.count();
+              existingProj = await tx.shootProject.create({
+                data: {
+                  projectId: `SP-${(projCount + 1).toString().padStart(6, '0')}`,
+                  name: `[GR-CONTAINER] Graphic Requirements Project`,
+                  clientId: data.clientId,
+                  brandId: data.brandId,
+                  productId: data.productId || null,
+                  shootType: 'INDOOR',
+                  shootDate: new Date(data.shootDate || Date.now()),
+                  shootLocation: 'Media Ops Studio Bay',
+                  priority: data.priority || Priority.MEDIUM,
+                  status: 'PLANNED',
+                  createdById: activeUserId,
+                },
+              });
+            }
+            parentProjectId = existingProj.id;
+          }
+
+          const grCount = await tx.graphicRequirement.count();
+          const newGr = await tx.graphicRequirement.create({
+            data: {
+              requirementId: `GR-${(grCount + 1).toString().padStart(6, '0')}`,
+              name: data.title.trim(),
+              projectId: parentProjectId,
+              clientId: data.clientId,
+              brandId: data.brandId,
+              productId: data.productId || null,
+              calendarEventId: event.id,
+              requirementType: data.contentType || data.requirementType || 'Poster',
+              objective: data.caption || data.objective || data.description || null,
+              description: data.description || data.productionNotes || null,
+              priority: data.priority || Priority.MEDIUM,
+              estimatedCompletion: data.clientApprovalDeadline ? new Date(data.clientApprovalDeadline) : null,
+              status: initialStatus === 'APPROVED' ? 'APPROVED' : 'PENDING_MARKETING_APPROVAL',
+              remarks: data.remarks || data.productionNotes || null,
+            },
+          });
+
+          await tx.mediaCalendarEvent.update({
+            where: { id: event.id },
+            data: { graphicRequirementId: newGr.id },
+          });
+        }
+      } else if (eventSource === 'SHOOT' || eventSource === 'PROJECT_SHOOT') {
+        if (resolvedShoot) {
+          await tx.shootProject.update({
+            where: { id: resolvedShoot.id },
+            data: { calendarEventId: event.id },
+          });
+        } else {
+          // Auto-create corresponding ShootProject
+          const spCount = await tx.shootProject.count();
+          const newShoot = await tx.shootProject.create({
+            data: {
+              projectId: `SP-${(spCount + 1).toString().padStart(6, '0')}`,
+              name: data.title.trim(),
+              clientId: data.clientId,
+              brandId: data.brandId,
+              productId: data.productId || null,
+              calendarEventId: event.id,
+              shootType: data.shootType || ShootType.INDOOR,
+              shootDate: new Date(data.shootDate || Date.now()),
+              shootLocation: data.location || 'Main Studio Floor',
+              locationCategory: data.locationCategory || 'Studio Bay',
+              influencerTalent: data.influencerTalent || null,
+              priority: data.priority || Priority.MEDIUM,
+              status: initialStatus === 'APPROVED' ? 'APPROVED' : 'PENDING_MARKETING_APPROVAL',
+              estimatedCompletionDate: data.clientApprovalDeadline ? new Date(data.clientApprovalDeadline) : null,
+              notes: data.remarks || data.productionNotes || null,
+              createdById: activeUserId,
+            },
+          });
+
+          const isOutdoor = data.shootType === 'OUTDOOR' || data.shootType === 'Outdoor Shoot';
+          if (isOutdoor) {
+            await tx.outdoorShootDetails.create({
+              data: {
+                projectId: newShoot.id,
+                outdoorLocation: data.location || 'Outdoor Location',
+                locationAddress: data.exactLocationAddress || data.locationAddress || data.location || 'Outdoor Location Address',
+                exactLocationAddress: data.exactLocationAddress || data.locationAddress || data.location || null,
+                locationAccessDetails: data.locationAccessDetails || null,
+                locationContact: data.locationContact || data.locationContactPerson || null,
+                permitRequired: data.permitRequired || 'NO',
+                permitStatus: data.permitStatus || (data.permitRequired === 'YES' ? 'Pending' : 'NOT_REQUIRED'),
+                expectedWeatherConditions: data.expectedWeatherConditions || null,
+                backupLocation: data.backupLocation || null,
+                callTime: data.callTime || data.startTime || '07:00 AM',
+                expectedWrapTime: data.expectedWrapTime || data.endTime || '05:00 PM',
+                specialOutdoorRequirements: data.specialOutdoorRequirements || null,
+                permissionStatus: data.permitStatus || 'NOT_REQUIRED',
+                weatherStatus: data.expectedWeatherConditions || 'FAVORABLE',
+              },
+            });
+          } else {
+            await tx.indoorShootDetails.create({
+              data: {
+                projectId: newShoot.id,
+                studioName: data.location || 'Main Studio Floor',
+                studioAddress: data.exactLocationAddress || data.locationAddress || data.location || 'Main Studio Floor',
+                reportingTime: data.callTime || data.startTime || '09:00 AM',
+                wrapUpTime: data.expectedWrapTime || data.endTime || '06:00 PM',
+              },
+            });
+          }
+
+          await tx.mediaCalendarEvent.update({
+            where: { id: event.id },
+            data: { shootId: newShoot.id },
+          });
+        }
       }
 
       // Create Version 1 Revision Record

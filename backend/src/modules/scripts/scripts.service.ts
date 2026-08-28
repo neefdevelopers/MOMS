@@ -446,10 +446,19 @@ export class ScriptsService {
       }
     }
 
-    // Automated Task Creation Trigger 3: Automatically created from scripts
-    const taskCount = await this.prisma.task.count();
-    const autoTaskId1 = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
-    const autoTaskId2 = `TSK-${(taskCount + 2).toString().padStart(6, '0')}`;
+    // Automated Task Creation Trigger 3: Automatically created from scripts (collision-proof)
+    let tCount = await this.prisma.task.count();
+    let autoTaskId1 = `TSK-${(tCount + 1).toString().padStart(6, '0')}`;
+    while (await this.prisma.task.findUnique({ where: { taskId: autoTaskId1 } })) {
+      tCount++;
+      autoTaskId1 = `TSK-${(tCount + 1).toString().padStart(6, '0')}`;
+    }
+    tCount++;
+    let autoTaskId2 = `TSK-${(tCount + 1).toString().padStart(6, '0')}`;
+    while (await this.prisma.task.findUnique({ where: { taskId: autoTaskId2 } })) {
+      tCount++;
+      autoTaskId2 = `TSK-${(tCount + 1).toString().padStart(6, '0')}`;
+    }
 
     await this.prisma.task.createMany({
       data: [
