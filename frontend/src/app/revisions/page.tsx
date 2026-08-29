@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { MainLayout } from '@/components/layout/MainLayout';
 import { useAuth } from '@/lib/auth-context';
 import {
   RotateCcw,
@@ -148,8 +147,7 @@ export default function RevisionsPage() {
   const isMediaManager = (user?.role as string) === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN' || (user?.role as string) === 'ADMINISTRATOR';
 
   return (
-    <MainLayout>
-      <div className="space-y-6 text-xs max-w-7xl mx-auto">
+    <div className="space-y-6 text-xs max-w-7xl mx-auto">
         {/* Header Banner */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card border border-border p-6 rounded-xl shadow-lg">
           <div className="space-y-1">
@@ -483,6 +481,5 @@ export default function RevisionsPage() {
           )}
         </div>
       </div>
-    </MainLayout>
   );
 }
