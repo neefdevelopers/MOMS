@@ -94,7 +94,7 @@ export class GraphicReqsService {
       }
     }
 
-    return this.prisma.graphicRequirement.findMany({
+    const items = await this.prisma.graphicRequirement.findMany({
       where,
       include: {
         project: true,
@@ -116,6 +116,55 @@ export class GraphicReqsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    return this.syncGraphicRequirementStatuses(items);
+  }
+
+  private async syncGraphicRequirementStatuses(items: any[]) {
+    if (!items || !items.length) return items;
+
+    for (const item of items) {
+      let computedStatus = item.status;
+      const calStatus = item.calendarEvent?.status;
+      const isCalApproved = calStatus && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(calStatus);
+
+      const hasDeliverable = item.tasks?.some((t: any) => Boolean(t.activeDeliverableUrl));
+      const isTaskInProgress = item.tasks?.some((t: any) => t.status === 'IN_PROGRESS' || t.status === 'ACCEPTED');
+      const hasTasks = item.tasks && item.tasks.length > 0;
+
+      // Status progression MUST strictly depend on technical and media manager sign-offs
+      if (item.mediaManagerApproved && item.technicalReviewApproved) {
+        if (item.clientConfirmed || item.status === 'COMPLETED') {
+          computedStatus = 'COMPLETED';
+        } else {
+          computedStatus = 'WAITING_FOR_CLIENT_CONFIRMATION';
+        }
+      } else if (hasDeliverable) {
+        if (!item.technicalReviewApproved) {
+          computedStatus = 'WAITING_FOR_TECHNICAL_REVIEW';
+        } else if (!item.mediaManagerApproved) {
+          computedStatus = 'WAITING_FOR_MEDIA_REVIEW';
+        }
+      } else if (isTaskInProgress) {
+        computedStatus = 'IN_PROGRESS';
+      } else if (hasTasks) {
+        computedStatus = 'TASK_ASSIGNED';
+      } else if (isCalApproved && (item.status === 'PENDING_MARKETING_APPROVAL' || item.status === 'DRAFT' || item.status === 'READY')) {
+        computedStatus = 'APPROVED';
+      }
+
+      if (computedStatus !== item.status) {
+        await this.prisma.graphicRequirement.update({
+          where: { id: item.id },
+          data: {
+            status: computedStatus,
+          },
+        }).catch(() => null);
+        item.status = computedStatus;
+      }
+    }
+
+    return items;
   }
 
   async findOne(id: string) {
@@ -141,7 +190,8 @@ export class GraphicReqsService {
       },
     });
     if (!req) throw new NotFoundException('Graphic Requirement not found');
-    return req;
+    const [synced] = await this.syncGraphicRequirementStatuses([req]);
+    return synced;
   }
 
   async create(data: any) {

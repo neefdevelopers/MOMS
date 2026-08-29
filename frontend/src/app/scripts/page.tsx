@@ -10,6 +10,8 @@ import { FavoriteButton } from '@/components/common/FavoriteButton';
 import { recordRecentAccess } from '@/lib/recent-access';
 import { usePagination } from '@/lib/usePagination';
 import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
+import RevisionsTab from '@/components/revisions/RevisionsTab';
+import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
 
 export default function ScriptsPage() {
   const { user } = useAuth();
@@ -26,6 +28,7 @@ export default function ScriptsPage() {
   // Dedicated Storyline Popup States
   const [showDescriptionPopup, setShowDescriptionPopup] = useState(false);
   const [viewingScriptDescription, setViewingScriptDescription] = useState<any | null>(null);
+  const [revisionModalScript, setRevisionModalScript] = useState<any | null>(null);
 
   // Pagination Hook
   const { currentPage, setCurrentPage, pageSize, setPageSize, paginate } = usePagination();
@@ -954,9 +957,16 @@ export default function ScriptsPage() {
                   <span className="font-mono text-[10px] text-blue-400 font-bold bg-blue-950 px-2 py-0.5 rounded border border-blue-800">
                     {selectedScript.scriptId}
                   </span>
-                  <span className="font-mono text-[10px] text-amber-300 font-bold bg-amber-950 px-2 py-0.5 rounded border border-amber-800">
-                    🔄 Revision Count: {selectedScript.revisionCount || 0}
+                  <span className="font-mono text-[10px] text-amber-300 font-bold bg-amber-950 px-2 py-0.5 rounded border border-amber-800 flex items-center gap-1">
+                    🔄 Revisions: {selectedScript.revisionCount || 0}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setRevisionModalScript(selectedScript)}
+                    className="px-2.5 py-0.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow transition-colors"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Request Revision
+                  </button>
                 </div>
                 <h2 className="text-base font-bold text-white mt-1 font-mono">{selectedScript.name}</h2>
               <button
@@ -983,6 +993,31 @@ export default function ScriptsPage() {
                 <div><span className="text-gray-500">Created At:</span> {new Date(selectedScript.createdAt).toLocaleDateString()}</div>
                 <div><span className="text-gray-500">Total Revisions:</span> <strong className="text-amber-300 font-bold">{selectedScript.revisionCount || 0} (Maintained for reporting)</strong></div>
               </div>
+
+              {/* Active Revision Requested Status Banner */}
+              {(selectedScript.status === 'REVISION_REQUESTED' || selectedScript.status === 'CLIENT_REVISION_REQUESTED') && (
+                <div className="bg-amber-950/70 border border-amber-500 p-4 rounded-xl space-y-2 text-xs shadow-xl animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-300 font-extrabold text-xs flex items-center gap-2">
+                      <RotateCcw className="w-4 h-4 text-amber-400 animate-spin" /> Active Workflow Status: REVISION REQUESTED
+                    </span>
+                    <span className="px-2.5 py-0.5 bg-amber-600/40 text-amber-200 border border-amber-500/60 rounded font-mono font-bold text-[10px]">
+                      Revision #{selectedScript.revisionCount || 1}
+                    </span>
+                  </div>
+                  <p className="text-zinc-200 leading-relaxed">
+                    Reviewer requested changes for this script. The assigned script writer is making requested revisions before re-submitting.
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      onClick={() => setRevisionModalScript(selectedScript)}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow transition-colors"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Request Another Revision
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* 7-Step Script Revision Lifecycle Workflow Guide */}
               <div className="p-3 bg-gray-950 border border-amber-900/40 rounded-xl space-y-2">
@@ -1692,6 +1727,21 @@ export default function ScriptsPage() {
                 </div>
               )}
 
+              {/* Revision Cycles & Resubmission Controls */}
+              <div className="p-4 bg-gray-950 border border-gray-800 rounded-xl space-y-3">
+                <RevisionsTab
+                  entityType="SCRIPT"
+                  entityId={selectedScript.id}
+                  entityTitle={selectedScript.name}
+                  originalAssigneeId={selectedScript.assignedUserId || selectedScript.createdById}
+                  originalAssigneeName={selectedScript.assignedUser?.name || selectedScript.createdBy?.name}
+                  userRole={user?.role}
+                  userId={user?.id}
+                  currentStatus={selectedScript.status}
+                  onRefresh={loadScripts}
+                />
+              </div>
+
               <div className="flex justify-end gap-3 pt-3 border-t border-gray-800">
               <button
                 type="button"
@@ -2088,6 +2138,25 @@ export default function ScriptsPage() {
             </div>
           </div>
         </div>
+      )}
+      {/* Request Revision Form Modal */}
+      {revisionModalScript && (
+        <RequestRevisionModal
+          isOpen={Boolean(revisionModalScript)}
+          onClose={() => setRevisionModalScript(null)}
+          onSuccess={() => {
+            loadScripts();
+            if (selectedScript?.id === revisionModalScript.id) {
+              setSelectedScript({ ...selectedScript, status: 'REVISION_REQUESTED' });
+            }
+          }}
+          entityType="SCRIPT"
+          entityId={revisionModalScript.id}
+          entityTitle={revisionModalScript.name}
+          originalAssigneeId={revisionModalScript.assignedUserId || revisionModalScript.createdById}
+          originalAssigneeName={revisionModalScript.assignedUser?.name || revisionModalScript.createdBy?.name}
+          userRole={user?.role}
+        />
       )}
     </div>
   );

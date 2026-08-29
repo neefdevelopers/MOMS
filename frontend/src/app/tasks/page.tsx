@@ -11,6 +11,86 @@ import { FavoriteButton } from '@/components/common/FavoriteButton';
 import { usePagination } from '@/lib/usePagination';
 import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 import { ReassignmentRecommendationsModal } from '@/components/dashboard/ReassignmentRecommendationsModal';
+import RevisionsTab from '@/components/revisions/RevisionsTab';
+import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
+
+const TaskWorkflowTimeline = ({ task }: { task: any }) => {
+  if (!task) return null;
+
+  const isDirect = task.sourceType === 'DIRECT_TASK';
+
+  const eventStages = [
+    { key: 'PENDING_MARKETING_APPROVAL', label: 'Marketing Approval' },
+    { key: 'APPROVED', label: 'Approved' },
+    { key: 'ASSIGNED', label: 'Assigned' },
+    { key: 'ACCEPTED', label: 'Accepted' },
+    { key: 'IN_PROGRESS', label: 'In Progress' },
+    { key: 'WAITING_FOR_TECHNICAL_REVIEW', label: 'Technical Review' },
+    { key: 'WAITING_FOR_MEDIA_REVIEW', label: 'Media Review' },
+    { key: 'COMPLETED', label: 'Completed' },
+  ];
+
+  const directStages = [
+    { key: 'ASSIGNED', label: 'Assigned' },
+    { key: 'ACCEPTED', label: 'Accepted' },
+    { key: 'IN_PROGRESS', label: 'In Progress' },
+    { key: 'WAITING_FOR_TECHNICAL_REVIEW', label: 'Technical Review' },
+    { key: 'WAITING_FOR_MEDIA_REVIEW', label: 'Media Review' },
+    { key: 'COMPLETED', label: 'Completed' },
+  ];
+
+  const stages = isDirect ? directStages : eventStages;
+  const currentIdx = stages.findIndex((s) => s.key === task.status);
+
+  return (
+    <div className="bg-gray-950 border border-gray-800 p-3.5 rounded-xl space-y-2.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+          {isDirect ? '⚡ Direct Task Workflow Sequence' : '🎬 Event / Graphic Req Workflow Sequence'}
+        </span>
+        <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${
+          isDirect ? 'bg-purple-950 text-purple-300 border-purple-800' : 'bg-amber-950 text-amber-300 border-amber-800'
+        }`}>
+          {task.sourceType || 'DIRECT_TASK'}
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between overflow-x-auto py-1 px-1 gap-1">
+        {stages.map((stage, i) => {
+          const isCurrent = task.status === stage.key;
+          const isPassed = task.status === 'COMPLETED' ? true : currentIdx >= 0 && i < currentIdx;
+
+          return (
+            <React.Fragment key={stage.key}>
+              <div className="flex flex-col items-center min-w-[64px] text-center">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all ${
+                  isCurrent
+                    ? 'bg-amber-500 text-black font-extrabold ring-2 ring-amber-400 animate-pulse shadow-lg shadow-amber-500/50'
+                    : isPassed
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-gray-900 text-gray-500 border border-gray-800'
+                }`}>
+                  {isPassed ? '✓' : i + 1}
+                </div>
+                <span className={`text-[9px] mt-1 font-semibold leading-tight ${
+                  isCurrent ? 'text-amber-400 font-bold' : isPassed ? 'text-emerald-400' : 'text-gray-500'
+                }`}>
+                  {stage.label}
+                </span>
+              </div>
+
+              {i < stages.length - 1 && (
+                <div className={`h-0.5 flex-1 min-w-[8px] ${
+                  currentIdx >= 0 && i < currentIdx ? 'bg-emerald-500' : 'bg-gray-800'
+                }`} />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 export default function TasksPage() {
   const { user } = useAuth();
@@ -72,6 +152,7 @@ export default function TasksPage() {
 
   // Task Inspector Modal state (All 15 Mandatory Attributes)
   const [inspectedTask, setInspectedTask] = useState<any>(null);
+  const [revisionModalTask, setRevisionModalTask] = useState<any | null>(null);
   const [newRemarkText, setNewRemarkText] = useState('');
   const [submittingRemark, setSubmittingRemark] = useState(false);
   const [selectedTask, setSelectedTask] = useState<any>(null);
@@ -344,7 +425,17 @@ export default function TasksPage() {
   const handleAcknowledgeAcceptance = async (taskId: string) => {
     try {
       await fetchApi(`/tasks/${taskId}/accept`, { method: 'POST' });
+      alert('⚡ Task assignment accepted and acknowledged successfully!');
       loadData();
+      if (inspectedTask && inspectedTask.id === taskId) {
+        setInspectedTask((prev: any) => ({
+          ...prev,
+          status: 'ACCEPTED',
+          assignedEmployees: prev?.assignedEmployees?.map((a: any) =>
+            a.userId === user?.id ? { ...a, acceptanceStatus: 'ACCEPTED', acceptedAt: new Date().toISOString() } : a
+          ),
+        }));
+      }
     } catch (err: any) {
       alert(err.message || 'Failed to acknowledge task acceptance');
     }
@@ -1703,6 +1794,18 @@ export default function TasksPage() {
               <div>
                 <span className="font-mono text-blue-400 font-bold text-xs block">Task ID: {inspectedTask.taskId}</span>
                 <h3 className="text-lg font-bold text-white mt-0.5">{inspectedTask.title}</h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="font-mono text-[10px] text-amber-300 font-bold bg-amber-950 px-2 py-0.5 rounded border border-amber-800 flex items-center gap-1">
+                    🔄 Revisions: {inspectedTask.revisionCount || 0}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRevisionModalTask(inspectedTask)}
+                    className="px-2.5 py-0.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow transition-colors"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Request Revision
+                  </button>
+                </div>
               </div>
               <button
                 onClick={() => setInspectedTask(null)}
@@ -1711,6 +1814,33 @@ export default function TasksPage() {
                 ✕ Close
               </button>
             </div>
+
+            <TaskWorkflowTimeline task={inspectedTask} />
+
+            {/* Active Revision Requested Status Banner */}
+            {(inspectedTask.status === 'REVISION_REQUESTED' || inspectedTask.status === 'CLIENT_REVISION_REQUESTED') && (
+              <div className="bg-amber-950/70 border border-amber-500 p-4 rounded-xl space-y-2 text-xs shadow-xl animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-amber-300 font-extrabold text-xs flex items-center gap-2">
+                    <RotateCcw className="w-4 h-4 text-amber-400 animate-spin" /> Active Workflow Status: REVISION REQUESTED
+                  </span>
+                  <span className="px-2.5 py-0.5 bg-amber-600/40 text-amber-200 border border-amber-500/60 rounded font-mono font-bold text-[10px]">
+                    Revision #{inspectedTask.revisionCount || 1}
+                  </span>
+                </div>
+                <p className="text-zinc-200 leading-relaxed">
+                  Reviewer requested changes for this task. Assigned staff member is making requested revisions.
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={() => setRevisionModalTask(inspectedTask)}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" /> Request Another Revision
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Left Column */}
@@ -1828,16 +1958,32 @@ export default function TasksPage() {
 
               {/* Right Column */}
               <div className="space-y-3">
-                <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg">
-                  <span className="text-[10px] text-gray-500 font-bold block uppercase">Assigned Employees</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
+                <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Assigned Employees</span>
+                    {inspectedTask.assignedEmployees?.some((a: any) => a.userId === user?.id && a.acceptanceStatus !== 'ACCEPTED') && (
+                      <button
+                        type="button"
+                        onClick={() => handleAcknowledgeAcceptance(inspectedTask.id)}
+                        className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] rounded shadow flex items-center gap-1 transition-colors"
+                      >
+                        ✓ Accept Assignment
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
                     {(inspectedTask.assignedEmployees || []).length === 0 ? (
-                      <span className="text-gray-500 italic">No assigned staff</span>
+                      <span className="text-gray-500 italic text-xs">No assigned staff</span>
                     ) : (
                       inspectedTask.assignedEmployees.map((a: any) => (
-                        <span key={a.id} className="px-2 py-1 bg-gray-800 text-blue-300 rounded font-semibold text-[11px]">
-                          👤 {a.user?.name} ({a.user?.role})
-                        </span>
+                        <div key={a.id} className="px-2.5 py-1 bg-gray-950 border border-gray-800 rounded flex items-center gap-1.5 text-xs font-medium">
+                          <span className="text-gray-200">👤 {a.user?.name} <span className="text-gray-500 text-[10px]">({a.user?.role})</span></span>
+                          <span className={`text-[9px] font-mono px-1 rounded border ${
+                            a.acceptanceStatus === 'ACCEPTED' ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/40' : 'bg-amber-950/60 text-amber-400 border-amber-500/40'
+                          }`}>
+                            {a.acceptanceStatus === 'ACCEPTED' ? '✓ Accepted' : '⏳ Pending'}
+                          </span>
+                        </div>
                       ))
                     )}
                   </div>
@@ -1973,6 +2119,21 @@ export default function TasksPage() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Revision History & Workflow Controls */}
+            <div className="bg-gray-900 border border-amber-800/40 p-3 rounded-lg space-y-3">
+              <RevisionsTab
+                entityType="TASK"
+                entityId={inspectedTask.id}
+                entityTitle={inspectedTask.title}
+                originalAssigneeId={inspectedTask.assignedEmployees?.[0]?.userId}
+                originalAssigneeName={inspectedTask.assignedEmployees?.[0]?.user?.name}
+                userRole={user?.role}
+                userId={user?.id}
+                currentStatus={inspectedTask.status}
+                onRefresh={loadData}
+              />
             </div>
 
             <div className="flex justify-end pt-3 border-t border-border">
@@ -2276,6 +2437,112 @@ export default function TasksPage() {
         </div>
       )}
 
+      {/* Dedicated Upload Work Deliverable Output Modal */}
+      {uploadTask && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-lg space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono text-xs font-bold">
+                  {uploadTask.taskId}
+                </span>
+                <h3 className="font-bold text-white text-base">Upload Work Deliverable Output</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadTask(null);
+                  setUploadFileUrl('');
+                  setUploadFileName('');
+                }}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUploadDeliverable} className="space-y-4 text-xs">
+              {/* Task Details Summary */}
+              <div className="bg-gray-900/80 p-3 rounded-lg border border-gray-800 space-y-1">
+                <span className="text-[10px] text-gray-500 font-bold uppercase block">Target Task</span>
+                <p className="font-bold text-white text-sm">{uploadTask.title}</p>
+                <div className="flex items-center gap-2 text-[10px] text-gray-400 font-mono pt-1">
+                  <span>Current Version: <strong className="text-cyan-300">v{uploadTask.activeDeliverableVersion || 0}</strong></span>
+                  <span>•</span>
+                  <span>Will Upload as: <strong className="text-emerald-400">v{(uploadTask.activeDeliverableVersion || 0) + 1}</strong></span>
+                </div>
+              </div>
+
+              {/* Existing Deliverable Preview if available */}
+              {uploadTask.activeDeliverableUrl && (
+                <div className="p-2.5 bg-gray-950 border border-cyan-900/40 rounded-lg space-y-1">
+                  <span className="text-[10px] text-cyan-400 font-bold uppercase block">Current Active Deliverable:</span>
+                  <a
+                    href={uploadTask.activeDeliverableUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan-300 font-mono text-xs hover:underline block truncate font-semibold"
+                  >
+                    🔗 {uploadTask.activeDeliverableFileName || uploadTask.activeDeliverableUrl}
+                  </a>
+                </div>
+              )}
+
+              {/* Deliverable File Name / Label */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-gray-200 block text-xs">Deliverable Output Title / File Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Final_Banner_v1_1080x1350.png or Edited_Reel_Master_v2.mp4"
+                  value={uploadFileName}
+                  onChange={(e) => setUploadFileName(e.target.value)}
+                  className="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-white font-medium text-xs focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              {/* Deliverable Storage Link / File URL */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-gray-200 block text-xs">Deliverable File URL / Storage Link *</label>
+                <input
+                  type="url"
+                  required
+                  placeholder="e.g. https://storage.googleapis.com/... or https://drive.google.com/..."
+                  value={uploadFileUrl}
+                  onChange={(e) => setUploadFileUrl(e.target.value)}
+                  className="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+                />
+                <p className="text-[10px] text-gray-500">
+                  Provide direct file storage URL, Google Drive link, Frame.io link, or cloud asset link.
+                </p>
+              </div>
+
+              {/* Modal Buttons */}
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUploadTask(null);
+                    setUploadFileUrl('');
+                    setUploadFileName('');
+                  }}
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploadingDeliverable || !uploadFileUrl.trim() || !uploadFileName.trim()}
+                  className="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-extrabold text-xs shadow-lg shadow-cyan-600/20 disabled:opacity-50 transition-all"
+                >
+                  {uploadingDeliverable ? 'Uploading...' : '📤 Submit Deliverable Output'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Smart Reassignment Recommendations Modal */}
       <ReassignmentRecommendationsModal
         isOpen={Boolean(selectedOverloadedUserId)}
@@ -2285,6 +2552,25 @@ export default function TasksPage() {
           loadData();
         }}
       />
+      {/* Request Revision Form Modal */}
+      {revisionModalTask && (
+        <RequestRevisionModal
+          isOpen={Boolean(revisionModalTask)}
+          onClose={() => setRevisionModalTask(null)}
+          onSuccess={() => {
+            loadData();
+            if (inspectedTask?.id === revisionModalTask.id) {
+              setInspectedTask({ ...inspectedTask, status: 'REVISION_REQUESTED' });
+            }
+          }}
+          entityType="TASK"
+          entityId={revisionModalTask.id}
+          entityTitle={revisionModalTask.title}
+          originalAssigneeId={revisionModalTask.assignedEmployees?.[0]?.userId}
+          originalAssigneeName={revisionModalTask.assignedEmployees?.[0]?.user?.name}
+          userRole={user?.role}
+        />
+      )}
     </div>
   );
 }

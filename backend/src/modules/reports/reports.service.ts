@@ -766,21 +766,35 @@ export class ReportsService {
     };
   }
 
-  async getGlobalSearch(query: string) {
+  async getGlobalSearch(query: string, user?: any) {
     if (!query || query.trim().length === 0) return { results: [] };
     const q = query.trim();
+    const role = user?.role;
+
+    const isStaff = role === 'STAFF';
+    const isTechManager = role === 'TECHNICAL_MANAGER';
 
     const [clients, brands, products, projects, scripts, graphicReqs, tasks, equipment, staff, files] = await Promise.all([
-      this.prisma.client.findMany({ where: { OR: [{ name: { contains: q } }, { companyName: { contains: q } }] }, take: 5 }),
-      this.prisma.brand.findMany({ where: { OR: [{ name: { contains: q } }, { shortCode: { contains: q } }] }, take: 5 }),
-      this.prisma.product.findMany({ where: { OR: [{ name: { contains: q } }, { productCode: { contains: q } }] }, take: 5 }),
+      !isStaff && !isTechManager ? this.prisma.client.findMany({ where: { OR: [{ name: { contains: q } }, { companyName: { contains: q } }] }, take: 5 }) : Promise.resolve([]),
+      !isStaff && !isTechManager ? this.prisma.brand.findMany({ where: { OR: [{ name: { contains: q } }, { shortCode: { contains: q } }] }, take: 5 }) : Promise.resolve([]),
+      !isStaff && !isTechManager ? this.prisma.product.findMany({ where: { OR: [{ name: { contains: q } }, { productCode: { contains: q } }] }, take: 5 }) : Promise.resolve([]),
       this.prisma.shootProject.findMany({ where: { OR: [{ name: { contains: q } }, { projectId: { contains: q } }, { shootLocation: { contains: q } }] }, take: 5 }),
-      this.prisma.script.findMany({ where: { OR: [{ name: { contains: q } }, { scriptId: { contains: q } }] }, take: 5 }),
+      !isStaff ? this.prisma.script.findMany({ where: { OR: [{ name: { contains: q } }, { scriptId: { contains: q } }] }, take: 5 }) : Promise.resolve([]),
       this.prisma.graphicRequirement.findMany({ where: { OR: [{ name: { contains: q } }, { requirementId: { contains: q } }] }, take: 5 }),
-      this.prisma.task.findMany({ where: { OR: [{ title: { contains: q } }, { taskId: { contains: q } }] }, take: 5 }),
+      isStaff
+        ? this.prisma.task.findMany({
+            where: {
+              AND: [
+                { OR: [{ title: { contains: q } }, { taskId: { contains: q } }] },
+                { assignedEmployees: { some: { userId: user.id } } },
+              ],
+            },
+            take: 5,
+          })
+        : this.prisma.task.findMany({ where: { OR: [{ title: { contains: q } }, { taskId: { contains: q } }] }, take: 5 }),
       this.prisma.equipment.findMany({ where: { OR: [{ name: { contains: q } }, { equipmentId: { contains: q } }, { serialNumber: { contains: q } }] }, take: 5 }),
-      this.prisma.user.findMany({ where: { name: { contains: q } }, select: { id: true, name: true, role: true }, take: 5 }),
-      this.prisma.fileMetadata.findMany({ where: { fileName: { contains: q } }, take: 5 }),
+      !isStaff && !isTechManager ? this.prisma.user.findMany({ where: { name: { contains: q } }, select: { id: true, name: true, role: true }, take: 5 }) : Promise.resolve([]),
+      !isStaff ? this.prisma.fileMetadata.findMany({ where: { fileName: { contains: q } }, take: 5 }) : Promise.resolve([]),
     ]);
 
     return {
@@ -2130,7 +2144,7 @@ export class ReportsService {
         include: {
           project: { select: { id: true, name: true } },
         },
-        orderBy: { requestedAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
       }),
       this.prisma.script.findMany(),
       this.prisma.graphicRequirement.findMany(),
@@ -2376,7 +2390,7 @@ export class ReportsService {
 
     // 2. Employee Revision Count Breakdown
     const employeeRevisionBreakdown = users.map((u) => {
-      const userRevisionsRequested = revisions.filter((r) => r.requestedBy === u.id || r.requestedBy === u.name).length;
+      const userRevisionsRequested = revisions.filter((r) => r.requestedById === u.id).length;
 
       // Assign employee revisions based on project team assignments
       let userAssignedProjectRevisions = 0;

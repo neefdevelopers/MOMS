@@ -57,6 +57,10 @@ model User {
   handoverIssuedBy      EquipmentHandoverAuthorization[] @relation("HandoverIssuedBy")
   maintenanceClearedBy  EquipmentMaintenanceRecord[]     @relation("MaintenanceClearedBy")
 
+  revisionsRequested Revision[] @relation("RevisionRequestedBy")
+  revisionsOriginal  Revision[] @relation("RevisionOriginalAssignee")
+  revisionsAssigned  Revision[] @relation("RevisionAssignedTo")
+
   clientAssignments         ClientAssignment[]
   createdCalendarEvents     MediaCalendarEvent[]      @relation("CalendarEventCreator")
   assignedCalendarEvents    MediaCalendarEvent[]      @relation("CalendarEventAssignedStaff")
@@ -525,6 +529,9 @@ model Task {
   activeDeliverableUrl String?
   activeDeliverableFileName String?
   activeDeliverableVersion Int           @default(0)
+  sourceType          String             @default("DIRECT_TASK") // DIRECT_TASK, CALENDAR_EVENT, GRAPHIC_REQUIREMENT
+  technicalReviewApproved Boolean        @default(false)
+  mediaManagerApproved    Boolean        @default(false)
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
@@ -824,14 +831,33 @@ model ClientConfirmation {
 }
 
 model Revision {
-  id             String       @id @default(uuid())
-  projectId      String
-  project        ShootProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  revisionNumber Int
-  reason         String
-  requestedBy    String
-  requestedAt    DateTime     @default(now())
-  status         String       @default("IN_PROGRESS")
+  id                     String        @id @default(uuid())
+  entityType             String        @default("PROJECT") // PROJECT, TASK, SCRIPT, GRAPHIC_REQ, CALENDAR, DELIVERABLE
+  entityId               String
+  projectId              String?
+  project                ShootProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  revisionNumber         Int           @default(1)
+  reason                 String
+  detailedRequest        String
+  priority               String        @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  dueDate                DateTime?
+  specificArea           String?
+  reviewerComments       String?
+  reviewStage            String        @default("TECHNICAL_REVIEW") // TECHNICAL_REVIEW, MEDIA_REVIEW, CLIENT_REVIEW
+  requestedById          String
+  requestedBy            User          @relation("RevisionRequestedBy", fields: [requestedById], references: [id])
+  originalAssigneeId     String
+  originalAssignee       User          @relation("RevisionOriginalAssignee", fields: [originalAssigneeId], references: [id])
+  assignedToId           String
+  assignedTo             User          @relation("RevisionAssignedTo", fields: [assignedToId], references: [id])
+  status                 String        @default("REVISION_REQUESTED") // REVISION_REQUESTED, IN_PROGRESS, SUBMITTED, APPROVED
+  previousVersionUrl     String?
+  revisedVersionUrl      String?
+  referenceAttachmentUrl String?
+  submittedAt            DateTime?
+  resolvedAt             DateTime?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
 }
 
 model FileMetadata {

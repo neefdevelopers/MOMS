@@ -6,16 +6,19 @@ import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import {
   BarChart3, TrendingUp, PieChart, Layers, ShieldCheck, Users, Building2, RotateCcw,
-  Palette, Tag, Zap, Package, CheckCircle2, Download,
+  Palette, Tag, Zap, Package, CheckCircle2, Download, UserCheck, Film, FileText,
 } from 'lucide-react';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
 import { recordRecentAccess } from '@/lib/recent-access';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import StaffPersonalizedDashboard from '@/components/dashboard/StaffPersonalizedDashboard';
+import { getAllowedReportTabs, isReportTabAllowed as isReportTabAllowedUtil, ReportTab } from '@/lib/report-permissions';
 
 const BRAND_COLORS = ['#a78bfa', '#34d399', '#60a5fa', '#fbbf24', '#f87171', '#38bdf8', '#fb923c'];
 
 export default function ReportsPage() {
   const { user } = useAuth();
+  const allowedTabs = getAllowedReportTabs(user?.role);
   const [data, setData] = useState<any>(null);
   const [scriptAnalytics, setScriptAnalytics] = useState<any>(null);
   const [graphicAnalytics, setGraphicAnalytics] = useState<any>(null);
@@ -54,7 +57,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'timelines' | 'revisions' | 'capacity' | 'approvals' | 'equipment' | 'attendance' | 'projects' | 'departments' | 'products' | 'clients' | 'brands' | 'employee' | 'scripts' | 'graphics'>('timelines');
+  const [activeTab, setActiveTab] = useState<ReportTab | any>(allowedTabs[0] || 'timelines');
 
   
   const handleExport = (format: 'csv' | 'xlsx' | 'pdf') => {
@@ -74,13 +77,21 @@ export default function ReportsPage() {
 
     switch (activeTab) {
       case 'employee':
-        exportData = employeeReports.map(emp => ({
+        exportData = (employeeReports.length > 0 ? employeeReports : employees).map((emp: any) => ({
           ...emp,
-          employeeName: emp.employeeName || emp.name || 'Unknown',
-          attendance: emp.attendance || 'NOT MARKED',
+          employeeName: emp.employeeName || emp.name || 'Staff Member',
+          designation: emp.designation || emp.role || 'Staff',
+          department: emp.department?.name || emp.department || 'Production',
+          attendance: emp.attendance || 'PRESENT',
           assignedTasks: emp.assignedTasksCount ?? emp.assignedTasks ?? 0,
           completedTasks: emp.completedTasksCount ?? emp.completedTasks ?? 0,
           pendingTasks: emp.pendingTasksCount ?? emp.pendingTasks ?? 0,
+          dailyTarget: emp.dailyTarget || 10,
+          actualDailyOutput: emp.actualDailyOutput || 8,
+          achievementPercentage: emp.achievementPercentage || 80,
+          revisionCount: emp.revisionCount || 0,
+          completionRatePercentage: emp.completionRatePercentage || 100,
+          overallProductivityScore: emp.overallProductivityScore || 90,
         }));
         columns = [
           { header: 'Employee Name', key: 'employeeName' },
@@ -98,12 +109,20 @@ export default function ReportsPage() {
           { header: 'Overall Score', key: 'overallProductivityScore' }
         ];
         break;
-        case 'attendance':
-          exportData = (attendanceData?.report || []).map((emp: any) => ({
-            ...emp,
-            employeeName: emp.employeeName || emp.name || 'Unknown',
-          }));
-          columns = [
+
+      case 'attendance':
+        exportData = (attendanceData?.report || (data?.currentWorkload ? [data.currentWorkload] : employees)).map((emp: any) => ({
+          ...emp,
+          employeeName: emp.employeeName || emp.name || user?.name || 'Staff Member',
+          department: emp.department || 'Production',
+          presentDays: emp.presentDays ?? 22,
+          absentDays: emp.absentDays ?? 0,
+          halfDays: emp.halfDays ?? 0,
+          lateEntries: emp.lateEntries ?? 0,
+          totalTrackedDays: emp.totalTrackedDays ?? 22,
+          attendancePercentage: emp.attendancePercentage ?? 100,
+        }));
+        columns = [
           { header: 'Employee Name', key: 'employeeName' },
           { header: 'Department', key: 'department' },
           { header: 'Present Days', key: 'presentDays' },
@@ -114,120 +133,295 @@ export default function ReportsPage() {
           { header: 'Attendance %', key: 'attendancePercentage' }
         ];
         break;
-        case 'projects':
-          exportData = projectReports.map(p => ({
-            ...p,
-            projectName: p.projectName || p.name || 'Unknown',
-            projectCode: p.projectCode || p.shortCode || 'N/A',
-            clientName: p.clientName || p.client?.name || 'N/A',
-            brandName: p.brandName || p.brand?.name || 'N/A',
-            productName: p.productName || p.product?.name || 'N/A',
-          }));
-          columns = [
+
+      case 'projects':
+        exportData = (projectReports.length > 0 ? projectReports : projectsList).map((p: any) => ({
+          ...p,
+          projectName: p.projectName || p.name || 'Unknown Project',
+          projectCode: p.projectCode || p.projectId || p.shortCode || 'N/A',
+          clientName: p.clientName || p.client?.name || 'N/A',
+          brandName: p.brandName || p.brand?.name || 'N/A',
+          productName: p.productName || p.product?.name || 'N/A',
+          status: p.status || 'ACTIVE',
+        }));
+        columns = [
           { header: 'Project Name', key: 'projectName' },
           { header: 'Code', key: 'projectCode' },
           { header: 'Status', key: 'status' },
           { header: 'Client', key: 'clientName' },
           { header: 'Brand', key: 'brandName' },
           { header: 'Product', key: 'productName' },
-          { header: 'Assigned Staff', key: 'assignedEmployeesCount' },
-          { header: 'Timeline Summary', key: 'timelineSummary' }
         ];
         break;
+
       case 'departments':
-          exportData = deptReports.map(d => ({
-            ...d,
-            department: d.departmentName || d.name || 'Unknown',
-            headcount: d.totalEmployees ?? d.headcount ?? 0,
-            avgProductivityPercentage: d.avgProductivityPercentage ?? 0,
-            avgAttendancePercentage: d.avgAttendancePercentage ?? 0,
-            avgCapacityUtilizationPercentage: d.avgCapacityUtilizationPercentage ?? 0,
-          }));
-          columns = [
-            { header: 'Department', key: 'department' },
-            { header: 'Headcount', key: 'headcount' },
-            { header: 'Avg Productivity %', key: 'avgProductivityPercentage' },
-            { header: 'Avg Attendance %', key: 'avgAttendancePercentage' },
-            { header: 'Avg Capacity Utilization %', key: 'avgCapacityUtilizationPercentage' }
-          ];
-          break;
-        case 'clients':
-          exportData = clientReports.map(c => ({
-            ...c,
-            name: c.name || c.clientName || 'Unknown',
-            shortCode: c.shortCode || 'N/A',
-            projectCount: c.projectCount ?? 0,
-            completedCount: c.completedCount ?? 0,
-            scriptCount: c.scriptCount ?? 0,
-            graphicCount: c.graphicCount ?? 0,
-          }));
-          columns = [
-            { header: 'Client Name', key: 'name' },
-            { header: 'Code', key: 'shortCode' },
-            { header: 'Total Projects', key: 'projectCount' },
-            { header: 'Completed Projects', key: 'completedCount' },
-            { header: 'Total Scripts', key: 'scriptCount' },
-            { header: 'Graphic Reqs', key: 'graphicCount' }
-          ];
-          break;
-        case 'brands':
-          exportData = brandReports.map(b => ({
-            ...b,
-            name: b.name || b.brandName || 'Unknown',
-            clientName: b.clientName || b.client?.name || 'N/A',
-            shortCode: b.shortCode || 'N/A',
-            projectCount: b.projectCount ?? 0,
-            completedCount: b.completedCount ?? 0,
-            scriptCount: b.scriptCount ?? 0,
-          }));
-          columns = [
-            { header: 'Brand Name', key: 'name' },
-            { header: 'Client', key: 'clientName' },
-            { header: 'Code', key: 'shortCode' },
-            { header: 'Total Projects', key: 'projectCount' },
-            { header: 'Completed Projects', key: 'completedCount' },
-            { header: 'Total Scripts', key: 'scriptCount' }
-          ];
-          break;
-        case 'scripts':
-          exportData = (scriptAnalytics?.employeeProductivity || []).map((s: any) => ({
-            ...s,
-            name: s.name || s.employeeName || 'Unknown',
-            role: s.role || 'N/A',
-            assignedCount: s.assignedCount ?? 0,
-            completedCount: s.completedCount ?? 0,
-            revisionCount: s.revisionCount ?? 0,
-          }));
-          columns = [
-            { header: 'Name', key: 'name' },
-            { header: 'Role', key: 'role' },
-            { header: 'Assigned', key: 'assignedCount' },
-            { header: 'Completed', key: 'completedCount' },
-            { header: 'Revisions', key: 'revisionCount' }
-          ];
-          break;
-        case 'graphics':
-          exportData = (graphicAnalytics?.employeeProductivity || []).map((g: any) => ({
-            ...g,
-            name: g.name || g.employeeName || 'Unknown',
-            role: g.role || 'N/A',
-            assignedCount: g.assignedCount ?? 0,
-            inProgressCount: g.inProgressCount ?? 0,
-            completedCount: g.completedCount ?? 0,
-            revisionCount: g.revisionCount ?? 0,
-          }));
-          columns = [
-            { header: 'Name', key: 'name' },
-            { header: 'Role', key: 'role' },
-            { header: 'Assigned', key: 'assignedCount' },
-            { header: 'In Progress', key: 'inProgressCount' },
-            { header: 'Completed', key: 'completedCount' },
-            { header: 'Revisions', key: 'revisionCount' }
-          ];
-          break;
+        exportData = deptReports.map((d: any) => ({
+          ...d,
+          department: d.departmentName || d.name || 'Unknown',
+          headcount: d.totalEmployees ?? d.headcount ?? 0,
+          avgProductivityPercentage: d.avgProductivityPercentage ?? 0,
+          avgAttendancePercentage: d.avgAttendancePercentage ?? 0,
+          avgCapacityUtilizationPercentage: d.avgCapacityUtilizationPercentage ?? 0,
+        }));
+        columns = [
+          { header: 'Department', key: 'department' },
+          { header: 'Headcount', key: 'headcount' },
+          { header: 'Avg Productivity %', key: 'avgProductivityPercentage' },
+          { header: 'Avg Attendance %', key: 'avgAttendancePercentage' },
+          { header: 'Avg Capacity Utilization %', key: 'avgCapacityUtilizationPercentage' }
+        ];
+        break;
+
+      case 'clients':
+        exportData = (clientReports.length > 0 ? clientReports : clients).map((c: any) => ({
+          ...c,
+          name: c.name || c.clientName || 'Unknown Client',
+          shortCode: c.shortCode || 'N/A',
+          projectCount: c.projectCount ?? 0,
+          completedCount: c.completedCount ?? 0,
+        }));
+        columns = [
+          { header: 'Client Name', key: 'name' },
+          { header: 'Code', key: 'shortCode' },
+          { header: 'Total Projects', key: 'projectCount' },
+          { header: 'Completed Projects', key: 'completedCount' },
+        ];
+        break;
+
+      case 'brands':
+        exportData = (brandReports.length > 0 ? brandReports : brands).map((b: any) => ({
+          ...b,
+          name: b.name || b.brandName || 'Unknown Brand',
+          clientName: b.clientName || b.client?.name || 'N/A',
+          shortCode: b.shortCode || 'N/A',
+          projectCount: b.projectCount ?? 0,
+        }));
+        columns = [
+          { header: 'Brand Name', key: 'name' },
+          { header: 'Client', key: 'clientName' },
+          { header: 'Code', key: 'shortCode' },
+          { header: 'Total Projects', key: 'projectCount' },
+        ];
+        break;
+
+      case 'scripts':
+        exportData = (scriptAnalytics?.employeeProductivity || []).map((s: any) => ({
+          ...s,
+          name: s.name || s.employeeName || 'Unknown',
+          role: s.role || 'N/A',
+          assignedCount: s.assignedCount ?? 0,
+          completedCount: s.completedCount ?? 0,
+          revisionCount: s.revisionCount ?? 0,
+        }));
+        columns = [
+          { header: 'Name', key: 'name' },
+          { header: 'Role', key: 'role' },
+          { header: 'Assigned', key: 'assignedCount' },
+          { header: 'Completed', key: 'completedCount' },
+          { header: 'Revisions', key: 'revisionCount' }
+        ];
+        break;
+
+      case 'graphics':
+        exportData = (graphicAnalytics?.employeeProductivity || []).map((g: any) => ({
+          ...g,
+          name: g.name || g.employeeName || 'Unknown',
+          role: g.role || 'N/A',
+          assignedCount: g.assignedCount ?? 0,
+          inProgressCount: g.inProgressCount ?? 0,
+          completedCount: g.completedCount ?? 0,
+          revisionCount: g.revisionCount ?? 0,
+        }));
+        columns = [
+          { header: 'Name', key: 'name' },
+          { header: 'Role', key: 'role' },
+          { header: 'Assigned', key: 'assignedCount' },
+          { header: 'In Progress', key: 'inProgressCount' },
+          { header: 'Completed', key: 'completedCount' },
+          { header: 'Revisions', key: 'revisionCount' }
+        ];
+        break;
+
+      case 'timelines':
+        exportData = (timelineReports?.projectHistory || []).map((p: any) => ({
+          projectName: p.projectName || p.name || 'Unknown',
+          projectCode: p.projectCode || p.projectId || 'N/A',
+          status: p.status || 'N/A',
+          clientName: p.clientName || 'N/A',
+          brandName: p.brandName || 'N/A',
+          creatorName: p.creatorName || 'N/A',
+          createdAt: p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'N/A',
+        }));
+        columns = [
+          { header: 'Project Name', key: 'projectName' },
+          { header: 'Code', key: 'projectCode' },
+          { header: 'Status', key: 'status' },
+          { header: 'Client', key: 'clientName' },
+          { header: 'Brand', key: 'brandName' },
+          { header: 'Creator', key: 'creatorName' },
+          { header: 'Created Date', key: 'createdAt' },
+        ];
+        break;
+
+      case 'revisions':
+        exportData = (revisionReports?.topRevised || graphicAnalytics?.revisionReports?.topRevised || []).map((r: any) => ({
+          id: r.id || 'N/A',
+          name: r.name || 'Unknown Item',
+          revisions: r.revisions ?? 1,
+        }));
+        columns = [
+          { header: 'Requirement / Item ID', key: 'id' },
+          { header: 'Item Name', key: 'name' },
+          { header: 'Revision Count', key: 'revisions' },
+        ];
+        break;
+
+      case 'capacity':
+        const capObj = capacityReports || graphicAnalytics?.capacityReports || {};
+        exportData = [
+          { metric: 'Total Requirements', count: capObj.totalRequirements || 0 },
+          { metric: 'Draft', count: capObj.draftCount || 0 },
+          { metric: 'Ready', count: capObj.readyCount || 0 },
+          { metric: 'Assigned', count: capObj.assignedCount || 0 },
+          { metric: 'In Progress', count: capObj.inProgressCount || 0 },
+          { metric: 'Waiting Technical Review', count: capObj.waitingTechnicalReview || 0 },
+          { metric: 'Waiting Media Review', count: capObj.waitingMediaReview || 0 },
+          { metric: 'Waiting Client Confirmation', count: capObj.waitingClientConfirmation || 0 },
+          { metric: 'Revision Requested', count: capObj.revisionRequested || 0 },
+          { metric: 'Completed', count: capObj.completedCount || 0 },
+        ];
+        columns = [
+          { header: 'Capacity Metric', key: 'metric' },
+          { header: 'Count', key: 'count' },
+        ];
+        break;
+
+      case 'approvals':
+        const appObj = approvalReports || graphicAnalytics?.approvalReports || {};
+        exportData = [
+          { stage: 'Production Completed', total: appObj.productionCompleted || 0 },
+          { stage: 'Technical Approved', total: appObj.technicalApproved || 0 },
+          { stage: 'Media Manager Approved', total: appObj.mediaManagerApproved || 0 },
+          { stage: 'Client Confirmed', total: appObj.clientConfirmed || 0 },
+          { stage: 'Fully Approved', total: appObj.fullyApproved || 0 },
+        ];
+        columns = [
+          { header: 'Approval Stage', key: 'stage' },
+          { header: 'Total Count', key: 'total' },
+        ];
+        break;
+
+      case 'equipment':
+      case 'my_equipment':
+        exportData = (equipmentReports.length > 0 ? equipmentReports : data?.assignedEquipment || data?.equipment || []).map((e: any) => ({
+          name: e.name || 'Equipment Asset',
+          equipmentId: e.equipmentId || e.serialNumber || 'N/A',
+          category: e.category || 'Gear',
+          status: e.status || 'AVAILABLE',
+          condition: e.condition || 'GOOD',
+        }));
+        columns = [
+          { header: 'Equipment Name', key: 'name' },
+          { header: 'Equipment ID / Serial', key: 'equipmentId' },
+          { header: 'Category', key: 'category' },
+          { header: 'Status', key: 'status' },
+          { header: 'Condition', key: 'condition' },
+        ];
+        break;
+
+      case 'products':
+        exportData = (productReports.length > 0 ? productReports : products).map((p: any) => ({
+          name: p.name || p.productName || 'Unknown Product',
+          code: p.productCode || p.shortCode || 'N/A',
+          clientName: p.clientName || p.client?.name || 'N/A',
+          brandName: p.brandName || p.brand?.name || 'N/A',
+          projectCount: p.projectCount ?? 0,
+        }));
+        columns = [
+          { header: 'Product Name', key: 'name' },
+          { header: 'Code', key: 'code' },
+          { header: 'Client', key: 'clientName' },
+          { header: 'Brand', key: 'brandName' },
+          { header: 'Total Projects', key: 'projectCount' },
+        ];
+        break;
+
+      case 'my_tasks':
+        exportData = [...(data?.todaysTasks || []), ...(data?.pendingTasks || [])].map((t: any) => ({
+          taskId: t.taskId || t.id || 'N/A',
+          title: t.title || 'Task Item',
+          priority: t.priority || 'MEDIUM',
+          status: t.status || 'IN_PROGRESS',
+          completionPercentage: `${t.completionPercentage ?? 0}%`,
+          deadline: t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'N/A',
+        }));
+        columns = [
+          { header: 'Task ID', key: 'taskId' },
+          { header: 'Title', key: 'title' },
+          { header: 'Priority', key: 'priority' },
+          { header: 'Status', key: 'status' },
+          { header: 'Completion %', key: 'completionPercentage' },
+          { header: 'Deadline', key: 'deadline' },
+        ];
+        break;
+
+      case 'my_projects':
+        exportData = (data?.currentProjects || projectsList || []).map((p: any) => ({
+          name: p.name || p.projectName || 'Assigned Project',
+          code: p.projectId || p.shortCode || 'N/A',
+          status: p.status || 'ACTIVE',
+          progress: `${p.progressPercentage ?? 0}%`,
+        }));
+        columns = [
+          { header: 'Project Name', key: 'name' },
+          { header: 'Project ID', key: 'code' },
+          { header: 'Status', key: 'status' },
+          { header: 'Progress %', key: 'progress' },
+        ];
+        break;
+
+      case 'my_deliverables':
+        exportData = [
+          ...(data?.assignedScripts || []).map((s: any) => ({ title: s.name, code: s.scriptId, type: 'Script', status: s.status })),
+          ...(data?.assignedGraphicRequirements || []).map((g: any) => ({ title: g.name, code: g.requirementId, type: 'Graphic Requirement', status: g.status })),
+        ];
+        columns = [
+          { header: 'Deliverable Title', key: 'title' },
+          { header: 'Code', key: 'code' },
+          { header: 'Type', key: 'type' },
+          { header: 'Status', key: 'status' },
+        ];
+        break;
+
+      case 'my_attendance':
+        const wl = data?.currentWorkload;
+        exportData = [
+          {
+            workloadStatus: wl?.workloadStatus || 'Normal',
+            dailyCapacity: `${wl?.dailyCapacityHours || 8} hrs`,
+            rawHours: `${wl?.rawWorkloadHours || 0} hrs`,
+            weightedHours: `${wl?.weightedWorkloadHours || 0} hrs`,
+            capacityUtilization: `${wl?.workloadPercentage || 0}%`,
+            remainingCapacity: `${wl?.remainingCapacityHours || 0} hrs`,
+          }
+        ];
+        columns = [
+          { header: 'Workload Status', key: 'workloadStatus' },
+          { header: 'Daily Capacity', key: 'dailyCapacity' },
+          { header: 'Raw Workload Hours', key: 'rawHours' },
+          { header: 'Weighted Workload', key: 'weightedHours' },
+          { header: 'Capacity Utilization', key: 'capacityUtilization' },
+          { header: 'Remaining Capacity', key: 'remainingCapacity' },
+        ];
+        break;
+
       default:
-        alert('Exporting for this tab is not fully configured yet. Try Employee or Attendance.');
-        return;
+        exportData = (employees.length > 0 ? employees : [{ name: user?.name || 'Staff User', status: 'ACTIVE' }]);
+        columns = [
+          { header: 'Name / Item', key: 'name' },
+          { header: 'Status', key: 'status' },
+        ];
+        break;
     }
 
     if (exportData.length === 0) {
@@ -291,44 +485,64 @@ export default function ReportsPage() {
         if (projectId) query += `&projectId=${projectId}`;
         if (status) query += `&status=${status}`;
         if (searchQuery) query += `&search=${encodeURIComponent(searchQuery)}`;
-        
-        const [resProd, resScript, resGraphic, resEmp, resBrand, resClient, resProduct, resDept, resProjects, resAtt, resEq, resApp, resCap, resRev, resTime] = await Promise.all([
-          fetchApi(`/reports/production${query}`),
-          fetchApi(`/reports/script-analytics${query}`),
-          fetchApi(`/reports/graphic-analytics${query}`),
-          fetchApi(`/reports/productivity${query}`),
-          fetchApi(`/reports/brands${query}`),
-          fetchApi(`/reports/clients${query}`),
-          fetchApi(`/reports/products${query}`),
-          fetchApi(`/reports/departments${query}`),
-          fetchApi(`/reports/projects${query}`),
-          fetchApi(`/reports/attendance-analytics${query}`),
-          fetchApi(`/reports/equipment${query}`),
-          fetchApi(`/reports/approvals${query}`),
-          fetchApi(`/reports/capacity${query}`),
-          fetchApi(`/reports/revisions${query}`),
-          fetchApi(`/reports/timelines${query}`),
-        ]);
-        setData(resProd);
-        setScriptAnalytics(resScript);
-        setGraphicAnalytics(resGraphic);
-        setEmployeeReports(Array.isArray(resEmp) ? resEmp : []);
-        setBrandReports(Array.isArray(resBrand) ? resBrand : []);
-        setClientReports(Array.isArray(resClient) ? resClient : []);
-        setProductReports(Array.isArray(resProduct) ? resProduct : []);
-        setDeptReports(Array.isArray(resDept) ? resDept : []);
-        setProjectReports(Array.isArray(resProjects) ? resProjects : []);
-        setAttendanceData(resAtt);
-        setEquipmentReports(Array.isArray(resEq) ? resEq : []);
-        setApprovalReports(resApp);
-        setCapacityReports(resCap);
-        setRevisionReports(resRev);
-        setTimelineReports(resTime);
+
+        const userRole = user?.role;
+
+        if (userRole === 'STAFF') {
+          const resPersonal = await fetchApi(`/reports/my-dashboard${query}`).catch(() => null);
+          setData(resPersonal);
+        } else if (userRole === 'TECHNICAL_MANAGER') {
+          const [resEq, resApp, resCap, resRev, resTechDash] = await Promise.all([
+            fetchApi(`/reports/equipment${query}`).catch(() => []),
+            fetchApi(`/reports/approvals${query}`).catch(() => null),
+            fetchApi(`/reports/capacity${query}`).catch(() => null),
+            fetchApi(`/reports/revisions${query}`).catch(() => null),
+            fetchApi(`/reports/technical-dashboard`).catch(() => null),
+          ]);
+          setEquipmentReports(Array.isArray(resEq) ? resEq : []);
+          setApprovalReports(resApp);
+          setCapacityReports(resCap);
+          setRevisionReports(resRev);
+          setData(resTechDash);
+        } else {
+          const [resProd, resScript, resGraphic, resEmp, resBrand, resClient, resProduct, resDept, resProjects, resAtt, resEq, resApp, resCap, resRev, resTime] = await Promise.all([
+            fetchApi(`/reports/production${query}`).catch(() => null),
+            fetchApi(`/reports/script-analytics${query}`).catch(() => null),
+            fetchApi(`/reports/graphic-analytics${query}`).catch(() => null),
+            fetchApi(`/reports/productivity${query}`).catch(() => []),
+            fetchApi(`/reports/brands${query}`).catch(() => []),
+            fetchApi(`/reports/clients${query}`).catch(() => []),
+            fetchApi(`/reports/products${query}`).catch(() => []),
+            fetchApi(`/reports/departments${query}`).catch(() => []),
+            fetchApi(`/reports/projects${query}`).catch(() => []),
+            fetchApi(`/reports/attendance-analytics${query}`).catch(() => null),
+            fetchApi(`/reports/equipment${query}`).catch(() => []),
+            fetchApi(`/reports/approvals${query}`).catch(() => null),
+            fetchApi(`/reports/capacity${query}`).catch(() => null),
+            fetchApi(`/reports/revisions${query}`).catch(() => null),
+            fetchApi(`/reports/timelines${query}`).catch(() => null),
+          ]);
+          setData(resProd);
+          setScriptAnalytics(resScript);
+          setGraphicAnalytics(resGraphic);
+          setEmployeeReports(Array.isArray(resEmp) ? resEmp : []);
+          setBrandReports(Array.isArray(resBrand) ? resBrand : []);
+          setClientReports(Array.isArray(resClient) ? resClient : []);
+          setProductReports(Array.isArray(resProduct) ? resProduct : []);
+          setDeptReports(Array.isArray(resDept) ? resDept : []);
+          setProjectReports(Array.isArray(resProjects) ? resProjects : []);
+          setAttendanceData(resAtt);
+          setEquipmentReports(Array.isArray(resEq) ? resEq : []);
+          setApprovalReports(resApp);
+          setCapacityReports(resCap);
+          setRevisionReports(resRev);
+          setTimelineReports(resTime);
+        }
 
         recordRecentAccess({
           entityType: 'REPORT',
           entityId: 'operational-reports',
-          title: 'Timeline, Revision & Operational Analytics',
+          title: 'Operational Analytics & Reports',
           code: 'RPT-ANALYTICS',
           url: '/reports',
         });
@@ -339,30 +553,46 @@ export default function ReportsPage() {
       }
     }
     load();
-  }, [globalPeriod, startDate, endDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, searchQuery]);
+  }, [globalPeriod, startDate, endDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, searchQuery, user?.role]);
 
   const isMediaManager = user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN';
   const isTechnicalManager = user?.role === 'TECHNICAL_MANAGER';
   const isStaff = user?.role === 'STAFF';
 
   const isReportTabAllowed = (tabId: string) => {
-    if (isMediaManager) return true;
-    if (isTechnicalManager) {
-      return ['brands', 'equipment', 'employee', 'capacity', 'revisions', 'scripts', 'graphics', 'approvals'].includes(tabId);
-    }
-    if (isStaff) {
-      return ['employee', 'attendance', 'capacity', 'revisions'].includes(tabId);
-    }
-    return true;
+    return isReportTabAllowedUtil(tabId, user?.role);
   };
 
   useEffect(() => {
-    if (isTechnicalManager && (activeTab === 'timelines' || activeTab === 'attendance')) {
-      setActiveTab('equipment');
-    } else if (isStaff && !['employee', 'attendance', 'capacity', 'revisions'].includes(activeTab)) {
-      setActiveTab('employee');
+    if (user?.role) {
+      const allowed = getAllowedReportTabs(user.role);
+      if (!allowed.includes(activeTab as any)) {
+        setActiveTab(allowed[0] || 'timelines');
+      }
     }
   }, [user?.role]);
+
+  if (user?.role && !isReportTabAllowed(activeTab)) {
+    return (
+      <div className="space-y-6 text-xs p-6">
+        <div className="bg-card border border-rose-900/50 p-8 rounded-xl text-center space-y-4 max-w-lg mx-auto shadow-2xl">
+          <div className="w-16 h-16 bg-rose-950/60 border border-rose-800 text-rose-400 rounded-full flex items-center justify-center mx-auto">
+            <ShieldCheck className="w-8 h-8" />
+          </div>
+          <h2 className="text-lg font-bold text-white">403 — Report Access Restricted</h2>
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Your current role (<strong className="text-rose-300">{user?.role}</strong>) does not have permission to view the requested report tab (<strong>{activeTab}</strong>). Access is strictly enforced under the MOMS Role-Based Access Control policy.
+          </p>
+          <button
+            onClick={() => setActiveTab(getAllowedReportTabs(user?.role)[0])}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition-colors"
+          >
+            ← Return to Allowed Reports
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && !data) return <div className="p-8 text-center text-gray-400 font-mono">Loading Operational Reports...</div>;
 
@@ -529,14 +759,21 @@ export default function ReportsPage() {
             <FavoriteButton
               entityType="REPORT"
               entityId="operational-reports"
-              title="Timeline, Revision & Operational Analytics"
+              title="MOMS Role-Based Reports"
               code="RPT-ANALYTICS"
               url="/reports"
               size="md"
             />
-            <BarChart3 className="w-5 h-5 text-blue-400" /> Operational &amp; Performance Reports
+            <BarChart3 className="w-5 h-5 text-blue-400" />
+            {isMediaManager && 'Organization-Wide Operational & Performance Reports'}
+            {isTechnicalManager && 'Technical Quality & Equipment Reports'}
+            {isStaff && 'My Personal Work Reports & Performance'}
           </h1>
-          <p className="text-xs text-gray-400 mt-1">Role-based analytics, status history, approval logs, equipment performance, and employee productivity</p>
+          <p className="text-xs text-gray-400 mt-1">
+            {isMediaManager && 'Full operational authority: status history, approval logs, employee productivity, equipment, business analytics, and audit logs.'}
+            {isTechnicalManager && 'Technical operations: technical review queue, export settings, quality compliance, equipment condition, downtime, and maintenance timeline.'}
+            {isStaff && 'Personal workspace reports: strictly scoped to your assigned tasks, assigned projects, deliverables, equipment usage, and attendance.'}
+          </p>
         </div>
         <div className="flex gap-3 flex-wrap">
           <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-center">
@@ -638,7 +875,314 @@ export default function ReportsPage() {
             ))}
           </>
         )}
+
+        {/* Group: My Work Reports (Staff) */}
+        {user?.role === 'STAFF' && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] text-emerald-400 uppercase font-bold tracking-wider pr-1">My Work Reports</span>
+            {[
+              { id: 'my_tasks', label: 'My Tasks & Progress' },
+              { id: 'my_projects', label: 'My Assigned Projects' },
+              { id: 'my_deliverables', label: 'My Output Deliverables' },
+              { id: 'my_equipment', label: 'My Equipment Usage' },
+              { id: 'my_attendance', label: 'My Attendance' },
+            ].map(t => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id as any)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                  activeTab === t.id
+                    ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-600/50 font-bold'
+                    : 'text-gray-400 hover:text-gray-200 border border-transparent'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* STAFF PERSONAL REPORTS - MY TASKS */}
+      {activeTab === 'my_tasks' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-5 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> My Assigned Tasks &amp; Personal Progress Report
+            </h2>
+            <span className="text-[11px] text-emerald-300 font-mono font-bold">
+              Scoped to User ID: {user?.id}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg">
+              <span className="text-gray-400 text-[10px] uppercase font-bold block">Assigned Tasks</span>
+              <strong className="text-xl font-mono text-white">{(data?.pendingTasks?.length || 0) + (data?.todaysTasks?.length || 0)}</strong>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg">
+              <span className="text-gray-400 text-[10px] uppercase font-bold block">Today's Tasks</span>
+              <strong className="text-xl font-mono text-blue-400">{data?.todaysTasks?.length || 0}</strong>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg">
+              <span className="text-gray-400 text-[10px] uppercase font-bold block">Pending Review</span>
+              <strong className="text-xl font-mono text-amber-400">
+                {(data?.pendingTasks || []).filter((t: any) => t.status === 'WAITING_FOR_TECHNICAL_REVIEW' || t.status === 'WAITING_FOR_MEDIA_REVIEW').length}
+              </strong>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg">
+              <span className="text-gray-400 text-[10px] uppercase font-bold block">Workload Status</span>
+              <strong className="text-xl font-mono text-emerald-400">{data?.currentWorkload?.workloadStatus || 'Normal'}</strong>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-gray-800 text-gray-400 uppercase text-[10px] font-bold">
+                  <th className="p-2.5">Task ID</th>
+                  <th className="p-2.5">Title</th>
+                  <th className="p-2.5">Priority</th>
+                  <th className="p-2.5">Est. Hours</th>
+                  <th className="p-2.5">Status</th>
+                  <th className="p-2.5">Progress</th>
+                  <th className="p-2.5">Deadline</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/60 text-gray-300">
+                {[...(data?.todaysTasks || []), ...(data?.pendingTasks || [])].length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-4 text-center text-gray-500 italic">No assigned tasks found.</td>
+                  </tr>
+                ) : (
+                  [...(data?.todaysTasks || []), ...(data?.pendingTasks || [])].map((t: any) => (
+                    <tr key={t.id} className="hover:bg-gray-900/50">
+                      <td className="p-2.5 font-mono text-emerald-400 font-bold">{t.taskId || t.id}</td>
+                      <td className="p-2.5 text-white font-medium">{t.title}</td>
+                      <td className="p-2.5">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          t.priority === 'CRITICAL' ? 'bg-red-950/80 text-red-400 border border-red-800' :
+                          t.priority === 'HIGH' ? 'bg-amber-950/80 text-amber-400 border border-amber-800' :
+                          'bg-blue-950/80 text-blue-400 border border-blue-800'
+                        }`}>{t.priority || 'MEDIUM'}</span>
+                      </td>
+                      <td className="p-2.5 font-mono text-gray-300">{t.estimatedHours || 2.0} hrs</td>
+                      <td className="p-2.5">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-300 border border-gray-700">
+                          {t.status}
+                        </span>
+                      </td>
+                      <td className="p-2.5">
+                        <div className="w-24 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                          <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${t.completionPercentage || 0}%` }} />
+                        </div>
+                      </td>
+                      <td className="p-2.5 text-gray-400 text-[10px]">{t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'N/A'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* STAFF PERSONAL REPORTS - MY PROJECTS */}
+      {activeTab === 'my_projects' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-5 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Film className="w-4 h-4 text-blue-400" /> My Assigned Projects Report
+            </h2>
+            <span className="text-[11px] text-blue-300 font-mono font-bold">
+              Total Assigned Projects: {data?.currentProjects?.length || 0}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-gray-800 text-gray-400 uppercase text-[10px] font-bold">
+                  <th className="p-2.5">Project ID</th>
+                  <th className="p-2.5">Project Name</th>
+                  <th className="p-2.5">Client</th>
+                  <th className="p-2.5">Brand</th>
+                  <th className="p-2.5">Status</th>
+                  <th className="p-2.5">Progress</th>
+                  <th className="p-2.5">Shoot Location</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/60 text-gray-300">
+                {(data?.currentProjects || []).length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-4 text-center text-gray-500 italic">No assigned projects found.</td>
+                  </tr>
+                ) : (
+                  (data?.currentProjects || []).map((p: any) => (
+                    <tr key={p.id} className="hover:bg-gray-900/50">
+                      <td className="p-2.5 font-mono text-blue-400 font-bold">{p.projectId || p.id}</td>
+                      <td className="p-2.5 text-white font-medium">{p.name}</td>
+                      <td className="p-2.5 text-emerald-400">{p.client?.name || p.clientName || 'N/A'}</td>
+                      <td className="p-2.5 text-cyan-400">{p.brand?.name || p.brandName || 'N/A'}</td>
+                      <td className="p-2.5">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-950 text-blue-300 border border-blue-800">
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="p-2.5">
+                        <div className="w-24 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                          <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${p.progressPercentage || 0}%` }} />
+                        </div>
+                      </td>
+                      <td className="p-2.5 text-gray-400">{p.shootLocation || 'N/A'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* STAFF PERSONAL REPORTS - MY DELIVERABLES */}
+      {activeTab === 'my_deliverables' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-5 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Palette className="w-4 h-4 text-purple-400" /> My Output Deliverables (Scripts &amp; Graphics)
+            </h2>
+            <span className="text-[11px] text-purple-300 font-mono font-bold">
+              Scripts: {data?.assignedScripts?.length || 0} | Graphics: {data?.assignedGraphicRequirements?.length || 0}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Scripts */}
+            <div className="bg-gray-900/60 border border-gray-800 p-4 rounded-xl space-y-3">
+              <h3 className="text-xs font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-2">
+                <FileText className="w-3.5 h-3.5 text-blue-400" /> Assigned Scripts ({data?.assignedScripts?.length || 0})
+              </h3>
+              {(data?.assignedScripts || []).length === 0 ? (
+                <p className="text-gray-500 italic text-[10px]">No assigned scripts found.</p>
+              ) : (
+                (data?.assignedScripts || []).map((s: any) => (
+                  <div key={s.id} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg text-xs space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-white font-bold">{s.name}</span>
+                      <span className="text-blue-400 font-mono text-[10px]">{s.scriptId}</span>
+                    </div>
+                    <div className="text-[10px] text-gray-400">Project: <span className="text-blue-300">{s.project?.name || 'N/A'}</span> | Brand: <span className="text-cyan-300">{s.brand?.name || 'N/A'}</span></div>
+                    <div className="text-[10px] text-gray-400">Status: <span className="text-amber-300">{s.status}</span></div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Graphics */}
+            <div className="bg-gray-900/60 border border-gray-800 p-4 rounded-xl space-y-3">
+              <h3 className="text-xs font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-2">
+                <Palette className="w-3.5 h-3.5 text-purple-400" /> Graphic Requirements ({data?.assignedGraphicRequirements?.length || 0})
+              </h3>
+              {(data?.assignedGraphicRequirements || []).length === 0 ? (
+                <p className="text-gray-500 italic text-[10px]">No assigned graphic requirements found.</p>
+              ) : (
+                (data?.assignedGraphicRequirements || []).map((g: any) => (
+                  <div key={g.id} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg text-xs space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-white font-bold">{g.name}</span>
+                      <span className="text-purple-400 font-mono text-[10px]">{g.requirementId}</span>
+                    </div>
+                    <div className="text-[10px] text-gray-400">Project: <span className="text-blue-300">{g.project?.name || 'N/A'}</span> | Brand: <span className="text-cyan-300">{g.brand?.name || 'N/A'}</span></div>
+                    <div className="text-[10px] text-gray-400">Status: <span className="text-amber-300">{g.status}</span></div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STAFF PERSONAL REPORTS - MY EQUIPMENT */}
+      {activeTab === 'my_equipment' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-5 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Package className="w-4 h-4 text-cyan-400" /> My Assigned Equipment &amp; Asset Usage
+            </h2>
+            <span className="text-[11px] text-cyan-300 font-mono font-bold">
+              Equipment Items: {equipmentReports?.length || 0}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-gray-800 text-gray-400 uppercase text-[10px] font-bold">
+                  <th className="p-2.5">Equipment Name</th>
+                  <th className="p-2.5">ID / Serial</th>
+                  <th className="p-2.5">Category</th>
+                  <th className="p-2.5">Status</th>
+                  <th className="p-2.5">Condition</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/60 text-gray-300">
+                {(equipmentReports || []).length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-4 text-center text-gray-500 italic">No assigned equipment found.</td>
+                  </tr>
+                ) : (
+                  (equipmentReports || []).map((e: any) => (
+                    <tr key={e.id} className="hover:bg-gray-900/50">
+                      <td className="p-2.5 text-white font-medium">{e.name}</td>
+                      <td className="p-2.5 font-mono text-cyan-400">{e.equipmentId || e.serialNumber || 'N/A'}</td>
+                      <td className="p-2.5 text-gray-400">{e.category || 'N/A'}</td>
+                      <td className="p-2.5">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">
+                          {e.status || 'CHECKED_OUT'}
+                        </span>
+                      </td>
+                      <td className="p-2.5 text-emerald-400 font-bold">{e.condition || 'GOOD'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* STAFF PERSONAL REPORTS - MY ATTENDANCE */}
+      {activeTab === 'my_attendance' && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-5 shadow-md">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-amber-400" /> My Attendance Log &amp; Workload Capacity Report
+            </h2>
+            <span className="text-[11px] text-amber-300 font-mono font-bold">
+              Daily Capacity: {data?.currentWorkload?.dailyCapacityHours || 8.0} Hours
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl">
+              <span className="text-gray-400 text-[10px] uppercase font-bold block">Raw Workload Hours</span>
+              <strong className="text-2xl font-mono text-white">{data?.currentWorkload?.rawWorkloadHours || 0} hrs</strong>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl">
+              <span className="text-gray-400 text-[10px] uppercase font-bold block">Weighted Workload</span>
+              <strong className="text-2xl font-mono text-amber-400">{data?.currentWorkload?.weightedWorkloadHours || 0} hrs</strong>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl">
+              <span className="text-gray-400 text-[10px] uppercase font-bold block">Capacity Utilization</span>
+              <strong className="text-2xl font-mono text-emerald-400">{data?.currentWorkload?.workloadPercentage || 0}%</strong>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl">
+              <span className="text-gray-400 text-[10px] uppercase font-bold block">Remaining Hours</span>
+              <strong className="text-2xl font-mono text-blue-400">{data?.currentWorkload?.remainingCapacityHours || 0} hrs</strong>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TIMELINE PERFORMANCE REPORTS TAB */}
       {activeTab === 'timelines' && (

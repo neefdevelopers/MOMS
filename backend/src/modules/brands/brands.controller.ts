@@ -26,13 +26,13 @@ export class BrandsController {
     return this.brandsService.findOne(id, user);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @Post()
   create(@Body() data: any) {
     return this.brandsService.create(data);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @Put(':id')
   update(@Param('id') id: string, @Body() data: any) {
     return this.brandsService.update(id, data);

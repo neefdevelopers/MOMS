@@ -61,7 +61,7 @@ export class EquipmentService {
 
   async create(data: any) {
     const count = await this.prisma.equipment.count();
-    const autoEqpId = `EQP-${(count + 1).toString().padStart(6, '0')}`;
+    const autoEqpId = data.equipmentId || `EQ-${(count + 1).toString().padStart(6, '0')}`;
 
     // Business Rule 1: ownedBy always forced to 'COMPANY'
     // Business Rule 2: Permanent inventory record created with acquisition details
@@ -74,9 +74,10 @@ export class EquipmentService {
         model: data.model,
         serialNumber: data.serialNumber || `SN-${Date.now()}`,
         condition: data.condition || 'Good',
-        availability: EquipmentAvailability.AVAILABLE,
-        maintenanceStatus: MaintenanceStatus.OPERATIONAL,
-        internalNotes: data.notes,
+        availability: data.status || EquipmentAvailability.AVAILABLE,
+        maintenanceStatus: data.maintenanceStatus || MaintenanceStatus.OPERATIONAL,
+        storageLocation: data.storageLocation || null,
+        internalNotes: data.internalNotes || data.notes || null,
 
         // Business Rule 1 — Company ownership, always enforced
         ownedBy: 'COMPANY',
@@ -152,6 +153,17 @@ export class EquipmentService {
     if (eqp.isArchived) {
       throw new BadRequestException('Cannot reserve retired/archived equipment.');
     }
+
+    // Business Rule 11: Equipment allocation is locked until Media Manager approves project
+    const project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+    const approvedStatuses = ['APPROVED', 'CLIENT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PROGRESS'];
+    if (!approvedStatuses.includes(project.status)) {
+      throw new BadRequestException('Equipment allocation is locked until Media Manager approves the project.');
+    }
+
     // Ensure equipment is free (available) before reserving
     if (eqp.availability !== EquipmentAvailability.AVAILABLE) {
       throw new BadRequestException(`Cannot reserve equipment that is currently ${eqp.availability.toLowerCase()}.`);
@@ -1392,5 +1404,127 @@ export class EquipmentService {
       recentMovements,
       activeCheckouts,
     };
+  }
+
+  // ─── Technical Manager Global Monitoring ──────────────────────────────────
+  async getMonitoringData() {
+    const items = await this.prisma.equipment.findMany({
+      include: {
+        reservations: {
+          where: { status: 'RESERVED' },
+          include: {
+            project: { select: { id: true, name: true, projectId: true } },
+            reservedBy: { select: { id: true, name: true } },
+          },
+          take: 1,
+        },
+        requests: {
+          where: { status: { in: ['CHECKED_OUT', 'IN_USE', 'APPROVED'] } },
+          include: {
+            project: { select: { id: true, name: true, projectId: true } },
+            requestedBy: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+        movements: {
+          take: 1,
+          orderBy: { timestamp: 'desc' },
+          include: {
+            user: { select: { id: true, name: true } },
+            employee: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { equipmentId: 'asc' },
+    });
+
+    return items.map((eq) => {
+      const activeReq = eq.requests[0];
+      const activeRes = eq.reservations[0];
+      const lastMovement = eq.movements[0];
+
+      return {
+        id: eq.id,
+        equipmentId: eq.equipmentId,
+        name: eq.name,
+        category: eq.category,
+        brand: eq.brand,
+        model: eq.model,
+        serialNumber: eq.serialNumber,
+        currentStatus: eq.availability,
+        storageLocation: eq.storageLocation || 'Studio Storage Bay',
+        currentEmployee: activeReq?.requestedBy?.name || lastMovement?.employee?.name || eq.currentHolder || 'Unassigned',
+        assignedProject: activeReq?.project?.name || activeRes?.project?.name || 'N/A',
+        checkoutDate: activeReq?.requiredDate || lastMovement?.timestamp || null,
+        expectedReturnDate: activeReq?.expectedReturnDate || activeRes?.endDate || null,
+        condition: eq.condition,
+        maintenanceStatus: eq.maintenanceStatus,
+        lastInspection: lastMovement?.timestamp || eq.updatedAt,
+        lastUpdated: eq.updatedAt,
+        isArchived: eq.isArchived,
+      };
+    });
+  }
+
+  // ─── Staff Personal Equipment ─────────────────────────────────────────────
+  async getMyEquipment(userId: string) {
+    const myRequests = await this.prisma.equipmentRequest.findMany({
+      where: { requestedById: userId },
+      include: {
+        equipment: true,
+        project: { select: { id: true, name: true, projectId: true } },
+        reviewedBy: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const myHandovers = await this.prisma.equipmentHandoverAuthorization.findMany({
+      where: { employeeId: userId },
+      include: {
+        equipment: true,
+        project: { select: { id: true, name: true } },
+        issuedBy: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const myMovements = await this.prisma.equipmentMovement.findMany({
+      where: { employeeId: userId },
+      include: {
+        equipment: true,
+        project: { select: { id: true, name: true } },
+      },
+      orderBy: { timestamp: 'desc' },
+    });
+
+    return {
+      requests: myRequests,
+      handovers: myHandovers,
+      movements: myMovements,
+    };
+  }
+
+  // ─── Update Master Equipment Record — Media Manager & Admin ───────────────
+  async update(id: string, data: any) {
+    const existing = await this.findOne(id);
+    const updated = await this.prisma.equipment.update({
+      where: { id: existing.id },
+      data: {
+        name: data.name !== undefined ? data.name : existing.name,
+        category: data.category !== undefined ? data.category : existing.category,
+        brand: data.brand !== undefined ? data.brand : existing.brand,
+        model: data.model !== undefined ? data.model : existing.model,
+        serialNumber: data.serialNumber !== undefined ? data.serialNumber : existing.serialNumber,
+        condition: data.condition !== undefined ? data.condition : existing.condition,
+        storageLocation: data.storageLocation !== undefined ? data.storageLocation : existing.storageLocation,
+        internalNotes: data.internalNotes !== undefined ? data.internalNotes : (data.notes !== undefined ? data.notes : existing.internalNotes),
+        purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : existing.purchaseDate,
+        purchaseCost: data.purchaseCost !== undefined ? parseFloat(data.purchaseCost) : existing.purchaseCost,
+        purchaseRef: data.purchaseRef !== undefined ? data.purchaseRef : existing.purchaseRef,
+      },
+    });
+
+    return updated;
   }
 }

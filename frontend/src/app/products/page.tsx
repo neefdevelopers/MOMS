@@ -132,7 +132,7 @@ function ProductsContent() {
           </p>
         </div>
 
-        {user?.role === 'MEDIA_MANAGER' && (
+        {((user?.role as string) === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMIN' || (user?.role as string) === 'ADMINISTRATOR') && (
           <button
             onClick={() => {
               resetForm();
@@ -257,7 +257,7 @@ function ProductsContent() {
                   </td>
 
                   <td className="p-4 text-right">
-                    {user?.role === 'MEDIA_MANAGER' && (
+                    {((user?.role as string) === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMIN' || (user?.role as string) === 'ADMINISTRATOR') && (
                       <button
                         onClick={() => openEdit(prod)}
                         className="px-2 py-1 bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30 rounded font-semibold text-[11px] inline-flex items-center gap-1"

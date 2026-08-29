@@ -134,7 +134,7 @@ function BrandsContent() {
           </p>
         </div>
 
-        {user?.role === 'MEDIA_MANAGER' && (
+        {((user?.role as string) === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMIN' || (user?.role as string) === 'ADMINISTRATOR') && (
           <button
             onClick={() => {
               resetForm();
@@ -238,7 +238,7 @@ function BrandsContent() {
                 <span>Products: <strong className="text-white">{brand.products?.length || 0}</strong></span>
                 <span>Projects: <strong className="text-white">{brand._count?.projects || 0}</strong></span>
 
-                {user?.role === 'MEDIA_MANAGER' && (
+                {((user?.role as string) === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMIN' || (user?.role as string) === 'ADMINISTRATOR') && (
                   <button
                     onClick={() => openEdit(brand)}
                     className="px-2 py-1 bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30 rounded font-semibold text-[11px] flex items-center gap-1"

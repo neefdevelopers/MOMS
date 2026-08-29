@@ -25,6 +25,7 @@ import { SearchModule } from './modules/search/search.module';
 import { FavoritesModule } from './modules/favorites/favorites.module';
 import { RecentAccessModule } from './modules/recent-access/recent-access.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
+import { RevisionsModule } from './modules/revisions/revisions.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/permissions/permissions.guard';
@@ -56,6 +57,7 @@ import { PermissionsGuard } from './common/permissions/permissions.guard';
     FavoritesModule,
     RecentAccessModule,
     PermissionsModule,
+    RevisionsModule,
   ],
   providers: [
     // Global Guard Chain - executed in strict order on every request:

@@ -36,3 +36,7 @@ yarn-error.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local uploads & build cache
+backend/uploads/
+*.tsbuildinfo

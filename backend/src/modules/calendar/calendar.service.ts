@@ -884,6 +884,22 @@ export class CalendarService {
         data: eventUpdates,
       });
 
+      // Synchronize linked GraphicRequirement status and approval flags
+      const targetGrStatus = action === 'APPROVE' ? 'APPROVED' : action === 'REQUEST_CHANGES' ? 'CHANGES_REQUESTED' : 'REJECTED';
+      const gReqId = event.graphicRequirementId;
+      const gReqWhere = gReqId
+        ? { OR: [{ id: gReqId }, { calendarEventId: event.id }] }
+        : { calendarEventId: event.id };
+
+      await tx.graphicRequirement.updateMany({
+        where: gReqWhere,
+        data: {
+          status: targetGrStatus,
+          clientConfirmed: action === 'APPROVE',
+          mediaManagerApproved: action === 'APPROVE',
+        },
+      });
+
       // Get current active revision
       const currentRevision = event.revisions.find((r) => r.version === event.version);
 

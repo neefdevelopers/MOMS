@@ -25,15 +25,32 @@ export class CommunicationsService {
     userId?: string,
     role?: string,
   ) {
+    let userName = '';
+    if (userId) {
+      try {
+        const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+        if (u) userName = u.name;
+      } catch (e) {}
+    }
+
     const where: any = {};
 
-    // STAFF role filtering: only authorized communications sent by or assigned to user
-    if (role === 'STAFF' && userId) {
-      where.OR = [
+    // STAFF & non-Admin role filtering: include communications sent by, assigned to, or mentioning the user, plus child replies
+    if (role !== 'MEDIA_MANAGER' && role !== 'ADMIN' && role !== 'ADMINISTRATOR' && userId) {
+      const userConditions: any[] = [
         { senderId: userId },
         { assignedToId: userId },
         { project: { assignedTeam: { some: { userId } } } },
+        { parentId: { not: null } },
       ];
+      if (userName) {
+        userConditions.push(
+          { recipients: { contains: userName } },
+          { content: { contains: `@${userName.split(' ')[0]}` } },
+          { content: { contains: userName } }
+        );
+      }
+      where.OR = userConditions;
     }
     if (entityType && entityType !== 'ALL') {
       where.entityType = entityType;
@@ -42,11 +59,17 @@ export class CommunicationsService {
       where.entityId = entityId;
     }
     if (search) {
-      where.OR = [
+      const searchOR = [
         { subject: { contains: search } },
         { content: { contains: search } },
         { recipients: { contains: search } },
       ];
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, { OR: searchOR }];
+        delete where.OR;
+      } else {
+        where.OR = searchOR;
+      }
     }
     if (isRemark === 'true') {
       where.isRemark = true;
@@ -95,6 +118,55 @@ export class CommunicationsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // ─── ENSURE FULL THREAD CONVERSATIONS (PARENTS + ALL REPLIES) ARE LOADED ───
+    const matchedIds = new Set(communications.map((c: any) => c.id));
+    const parentIdsToFetch = Array.from(
+      new Set(
+        communications
+          .filter((c: any) => c.parentId && !matchedIds.has(c.parentId))
+          .map((c: any) => c.parentId)
+      )
+    );
+
+    if (parentIdsToFetch.length > 0) {
+      const parentComms = await (this.prisma.communication as any).findMany({
+        where: { id: { in: parentIdsToFetch } },
+        include: {
+          sender: { select: { id: true, name: true, role: true, avatarUrl: true } },
+          assignedTo: { select: { id: true, name: true, role: true, avatarUrl: true } },
+          resolvedBy: { select: { id: true, name: true, role: true, avatarUrl: true } },
+          project: { select: { id: true, projectId: true, name: true } },
+          attachments: true,
+        },
+      });
+      parentComms.forEach((p: any) => {
+        if (!matchedIds.has(p.id)) {
+          communications.push(p);
+          matchedIds.add(p.id);
+        }
+      });
+    }
+
+    const allParentIds = communications.map((c: any) => c.id);
+    if (allParentIds.length > 0) {
+      const childReplies = await (this.prisma.communication as any).findMany({
+        where: { parentId: { in: allParentIds } },
+        include: {
+          sender: { select: { id: true, name: true, role: true, avatarUrl: true } },
+          assignedTo: { select: { id: true, name: true, role: true, avatarUrl: true } },
+          resolvedBy: { select: { id: true, name: true, role: true, avatarUrl: true } },
+          project: { select: { id: true, projectId: true, name: true } },
+          attachments: true,
+        },
+      });
+      childReplies.forEach((r: any) => {
+        if (!matchedIds.has(r.id)) {
+          communications.push(r);
+          matchedIds.add(r.id);
+        }
+      });
+    }
 
     // Enrich with operational entity details if not already loaded via project
     const enriched = await Promise.all(
@@ -432,6 +504,11 @@ export class CommunicationsService {
     },
     senderId: string,
   ) {
+    const validSender = await this.prisma.user.findUnique({ where: { id: senderId }, select: { id: true } }).catch(() => null);
+    if (!validSender) {
+      throw new BadRequestException('Authenticated user record not found in system database.');
+    }
+
     let resolvedProjectId = data.projectId || null;
     const isAnnouncement = data.type === 'ANNOUNCEMENT' || Boolean(data.isAnnouncement);
     const isRemark = Boolean(data.isRemark);
@@ -480,17 +557,52 @@ export class CommunicationsService {
       if (data.entityType === 'PROJECT') {
         resolvedProjectId = data.entityId;
       } else if (data.entityType === 'SCRIPT') {
-        const script = await this.prisma.script.findUnique({ where: { id: data.entityId }, select: { projectId: true } });
+        const script = await this.prisma.script.findUnique({ where: { id: data.entityId }, select: { projectId: true } }).catch(() => null);
         if (script) resolvedProjectId = script.projectId;
       } else if (data.entityType === 'GRAPHIC_REQ') {
-        const req = await this.prisma.graphicRequirement.findUnique({ where: { id: data.entityId }, select: { projectId: true } });
+        const req = await this.prisma.graphicRequirement.findUnique({ where: { id: data.entityId }, select: { projectId: true } }).catch(() => null);
         if (req) resolvedProjectId = req.projectId;
       } else if (data.entityType === 'TASK') {
-        const task = await this.prisma.task.findUnique({ where: { id: data.entityId }, select: { projectId: true } });
+        const task = await this.prisma.task.findUnique({ where: { id: data.entityId }, select: { projectId: true } }).catch(() => null);
         if (task) resolvedProjectId = task.projectId;
       } else if (data.entityType === 'APPROVAL' || data.entityType === 'REVIEW') {
-        const app = await this.prisma.approval.findUnique({ where: { id: data.entityId }, select: { projectId: true } });
+        const app = await this.prisma.approval.findUnique({ where: { id: data.entityId }, select: { projectId: true } }).catch(() => null);
         if (app) resolvedProjectId = app.projectId;
+      }
+    }
+
+    // Safely validate that resolvedProjectId actually exists in ShootProject table to prevent FK P2003 error
+    if (resolvedProjectId) {
+      const validProject = await this.prisma.shootProject.findUnique({
+        where: { id: resolvedProjectId },
+        select: { id: true },
+      }).catch(() => null);
+      if (!validProject) {
+        resolvedProjectId = null;
+      }
+    }
+
+    // Safely validate assignedToId
+    let validAssignedToId = data.assignedToId || null;
+    if (validAssignedToId) {
+      const validUser = await this.prisma.user.findUnique({
+        where: { id: validAssignedToId },
+        select: { id: true },
+      }).catch(() => null);
+      if (!validUser) {
+        validAssignedToId = null;
+      }
+    }
+
+    // Safely validate parentId
+    let validParentId = isRemark ? null : (data.parentId || null);
+    if (validParentId) {
+      const validParent = await (this.prisma.communication as any).findUnique({
+        where: { id: validParentId },
+        select: { id: true },
+      }).catch(() => null);
+      if (!validParent) {
+        validParentId = null;
       }
     }
 
@@ -519,7 +631,7 @@ export class CommunicationsService {
       data: {
         entityType: isAnnouncement ? 'SYSTEM' : (data.entityType || 'PROJECT'),
         entityId: isAnnouncement ? 'COMPANY' : (data.entityId || 'SYS'),
-        parentId: isRemark ? null : (data.parentId || null),
+        parentId: validParentId,
         projectId: resolvedProjectId,
         isRemark,
         isBlocker,
@@ -527,7 +639,7 @@ export class CommunicationsService {
         priority: isAnnouncement ? priority : 'NORMAL_PRIORITY',
         blockerReason,
         blockerStatus: isBlocker ? 'OPEN' : null, // BUSINESS RULE 6: always OPEN on creation
-        assignedToId: data.assignedToId || null,
+        assignedToId: validAssignedToId,
         subject: data.subject || (isRemark ? 'Operational Remark' : isAnnouncement ? (priority === 'HIGH_PRIORITY' ? '🚨 Company Announcement (High Priority)' : 'Company Announcement') : isBlocker ? `[BLOCKER] ${blockerReason?.replace(/_/g, ' ')}` : 'Operational Communication'),
         recipients: isRemark ? 'N/A (Operational Remark)' : isAnnouncement ? 'All Company Employees' : (data.recipients || 'All Assigned Team Members'),
         type: isAnnouncement ? 'ANNOUNCEMENT' : (data.type || ('GENERAL_NOTE' as any)),

@@ -37,6 +37,7 @@ export type ModuleType =
   | 'REPORTS'
   | 'CALENDAR'
   | 'COMMUNICATIONS'
+  | 'REVISIONS'
   | 'ACTIVITY_LOGS'
   | 'SETTINGS';
 
@@ -157,6 +158,7 @@ export const MODULE_SUPPORTED_PERMISSIONS: Record<ModuleType, PermissionType[]> 
   REPORTS: ['VIEW', 'EXPORT', 'CONFIGURE'],
   CALENDAR: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
   COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'ARCHIVE', 'RESTORE'],
+  REVISIONS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
   ACTIVITY_LOGS: ['VIEW', 'EXPORT'],
   SETTINGS: ['VIEW', 'EDIT', 'CONFIGURE'],
 };
@@ -171,24 +173,25 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     SCRIPTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     TASKS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
-    EQUIPMENT: ['VIEW', 'APPROVE', 'ASSIGN', 'EXPORT'],
-    CLIENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
-    BRANDS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
-    PRODUCTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    CLIENTS: ['VIEW'],
+    BRANDS: ['VIEW'],
+    PRODUCTS: ['VIEW'],
     STAFF: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     REPORTS: ['VIEW', 'EXPORT', 'CONFIGURE'],
     CALENDAR: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
     COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'ARCHIVE', 'RESTORE'],
+    REVISIONS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT'],
     ACTIVITY_LOGS: ['VIEW', 'EXPORT'],
     SETTINGS: ['VIEW', 'EDIT', 'CONFIGURE'],
   },
   TECHNICAL_MANAGER: {
     DASHBOARD: ['VIEW', 'EXPORT'],
     PROJECTS: ['VIEW', 'EDIT', 'EXPORT'],
-    SCRIPTS: ['VIEW', 'EDIT', 'EXPORT'],
+    SCRIPTS: [],
     GRAPHIC_REQUIREMENTS: ['VIEW', 'EDIT', 'EXPORT'],
     TASKS: ['VIEW', 'EDIT', 'EXPORT'],
-    EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    EQUIPMENT: ['VIEW', 'EDIT'],
     CLIENTS: ['VIEW'],
     BRANDS: ['VIEW'],
     PRODUCTS: ['VIEW'],
@@ -196,6 +199,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     REPORTS: ['VIEW', 'EXPORT'],
     CALENDAR: ['VIEW', 'EXPORT'],
     COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT'],
+    REVISIONS: ['VIEW', 'CREATE', 'EDIT', 'APPROVE'],
     ACTIVITY_LOGS: [],
     SETTINGS: [],
   },
@@ -210,9 +214,10 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     BRANDS: [],
     PRODUCTS: [],
     STAFF: [],
-    REPORTS: [],
+    REPORTS: ['VIEW'],
     CALENDAR: ['VIEW'],
     COMMUNICATIONS: ['VIEW'],
+    REVISIONS: ['VIEW', 'EDIT'],
     ACTIVITY_LOGS: [],
     SETTINGS: [],
   },
@@ -230,6 +235,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     REPORTS: ['VIEW'],
     CALENDAR: ['VIEW'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
+    REVISIONS: ['VIEW'],
     ACTIVITY_LOGS: [],
     SETTINGS: [],
   },
@@ -247,14 +253,15 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     REPORTS: ['VIEW', 'EXPORT'],
     CALENDAR: ['VIEW'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
+    REVISIONS: ['VIEW'],
     ACTIVITY_LOGS: [],
     SETTINGS: [],
   },
   SOCIAL_MEDIA_MANAGER: {
     DASHBOARD: ['VIEW'],
-    PROJECTS: ['VIEW'],
+    PROJECTS: ['VIEW', 'CREATE', 'EDIT'],
     SCRIPTS: ['VIEW', 'CREATE', 'EDIT'],
-    GRAPHIC_REQUIREMENTS: [],
+    GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT'],
     TASKS: ['VIEW', 'EDIT'],
     EQUIPMENT: ['VIEW'],
     CLIENTS: [],
@@ -264,6 +271,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     REPORTS: [],
     CALENDAR: ['VIEW', 'CREATE', 'EDIT'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
+    REVISIONS: ['VIEW', 'CREATE', 'EDIT'],
     ACTIVITY_LOGS: [],
     SETTINGS: [],
   },
@@ -274,13 +282,14 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     GRAPHIC_REQUIREMENTS: ['VIEW', 'APPROVE', 'EDIT'],
     TASKS: ['VIEW'],
     EQUIPMENT: [],
-    CLIENTS: ['VIEW'],
-    BRANDS: ['VIEW'],
-    PRODUCTS: ['VIEW'],
+    CLIENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    BRANDS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
+    PRODUCTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     STAFF: [],
     REPORTS: ['VIEW'],
     CALENDAR: ['VIEW', 'APPROVE'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
+    REVISIONS: ['VIEW', 'APPROVE'],
     ACTIVITY_LOGS: [],
     SETTINGS: [],
   },
@@ -298,6 +307,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     REPORTS: ['VIEW'],
     CALENDAR: ['VIEW'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
+    REVISIONS: ['VIEW'],
     ACTIVITY_LOGS: [],
     SETTINGS: [],
   },
@@ -315,6 +325,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     REPORTS: ['VIEW'],
     CALENDAR: ['VIEW'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
+    REVISIONS: ['VIEW'],
     ACTIVITY_LOGS: [],
     SETTINGS: [],
   },
@@ -332,6 +343,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     REPORTS: ['VIEW', 'EXPORT', 'CONFIGURE'],
     CALENDAR: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
     COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'ARCHIVE', 'RESTORE'],
+    REVISIONS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     ACTIVITY_LOGS: ['VIEW', 'EXPORT'],
     SETTINGS: ['VIEW', 'EDIT', 'CONFIGURE'],
   },
@@ -349,6 +361,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     REPORTS: ['VIEW', 'EXPORT', 'CONFIGURE'],
     CALENDAR: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
     COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'ARCHIVE', 'RESTORE'],
+    REVISIONS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     ACTIVITY_LOGS: ['VIEW', 'EXPORT'],
     SETTINGS: ['VIEW', 'EDIT', 'CONFIGURE'],
   },
@@ -381,10 +394,19 @@ export function canAccessRoute(role: string, route: string): boolean {
   if (route.startsWith('/tasks')) return hasModuleAccess(role, 'TASKS');
   if (route.startsWith('/reports')) return hasModuleAccess(role, 'REPORTS');
   if (route.startsWith('/calendar')) return hasModuleAccess(role, 'CALENDAR');
-  if (route.startsWith('/equipment')) return hasModuleAccess(role, 'EQUIPMENT');
+  if (route.startsWith('/equipment/create')) {
+    return role === 'MEDIA_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
+  }
+  if (route.startsWith('/equipment/my')) return true;
+  if (route.startsWith('/equipment')) {
+    return role === 'MEDIA_MANAGER' || role === 'TECHNICAL_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
+  }
   if (route.startsWith('/attendance')) return role === 'MEDIA_MANAGER' || role === 'STAFF' || role === 'SOCIAL_MEDIA_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
-  if (route.startsWith('/client-review') || route.startsWith('/approvals')) {
+  if (route.startsWith('/client-review')) {
     return role === 'MARKETING_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
+  }
+  if (route.startsWith('/approvals')) {
+    return role === 'TECHNICAL_MANAGER' || role === 'MEDIA_MANAGER' || role === 'MARKETING_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
   }
 
   return true;

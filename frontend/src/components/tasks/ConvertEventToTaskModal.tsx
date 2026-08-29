@@ -122,20 +122,31 @@ export default function ConvertEventToTaskModal({
         body: JSON.stringify(payload),
       });
 
-      // Submit equipment requests if equipment selected for Shoot Project
-      if (selectedEquipmentIds.length > 0 && eventData.parentType === 'PROJECT' && validParentId) {
+      // Submit equipment requests if equipment selected during event conversion
+      if (selectedEquipmentIds.length > 0) {
         for (const eqId of selectedEquipmentIds) {
           try {
-            await fetchApi('/equipment/requests', {
-              method: 'POST',
-              body: JSON.stringify({
-                equipmentId: eqId,
-                projectId: validParentId,
-                purpose: `Task Conversion: ${taskTitle.trim()}`,
-                requiredDate: new Date().toISOString().split('T')[0],
-                expectedReturnDate: taskDueDate || new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
-              }),
-            });
+            if (eventData.parentType === 'PROJECT' && validParentId) {
+              await fetchApi('/equipment/requests', {
+                method: 'POST',
+                body: JSON.stringify({
+                  equipmentId: eqId,
+                  projectId: validParentId,
+                  purpose: `Task Conversion: ${taskTitle.trim()}`,
+                  requiredDate: new Date().toISOString().split('T')[0],
+                  expectedReturnDate: taskDueDate || new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
+                }),
+              });
+            } else {
+              // Reserve/allocate equipment directly for Graphic Requirement or general task conversion
+              await fetchApi(`/equipment/${eqId}/status`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                  availability: 'RESERVED',
+                  notes: `Allocated for Task Conversion: ${taskTitle.trim()}`,
+                }),
+              }).catch(() => null);
+            }
           } catch (err) {
             console.error('Failed to submit equipment request for converting event:', err);
           }
@@ -310,70 +321,68 @@ export default function ConvertEventToTaskModal({
             )}
           </div>
 
-          {/* Equipment Requirements for Shoot Projects */}
-          {eventData.parentType === 'PROJECT' && (
-            <div>
-              <label className="block text-gray-300 font-bold mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Camera className="w-4 h-4 text-cyan-400" />
-                  <span>Equipment Requirements (Optional)</span>
-                </span>
-                <span className="text-[10px] text-cyan-400 font-mono">
-                  {selectedEquipmentIds.length} Selected
-                </span>
-              </label>
+          {/* Equipment Requirements / Allocation */}
+          <div>
+            <label className="block text-gray-300 font-bold mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Camera className="w-4 h-4 text-cyan-400" />
+                <span>Equipment Allocation / Requirements (Optional)</span>
+              </span>
+              <span className="text-[10px] text-cyan-400 font-mono">
+                {selectedEquipmentIds.length} Selected
+              </span>
+            </label>
 
-              {loadingEquipment ? (
-                <div className="p-3 text-center text-gray-400 bg-gray-950 rounded-lg border border-gray-800">
-                  Loading equipment inventory…
-                </div>
-              ) : (
-                <div className="space-y-1.5 max-h-40 overflow-y-auto bg-gray-950 border border-gray-800 rounded-xl p-2.5 scrollbar-thin">
-                  {equipmentList.length === 0 ? (
-                    <div className="text-gray-500 italic text-center py-2 text-[11px]">No equipment items found in inventory.</div>
-                  ) : (
-                    equipmentList.map((eq) => {
-                      const isAvailable = eq.availability === 'AVAILABLE';
-                      const isChecked = selectedEquipmentIds.includes(eq.id);
+            {loadingEquipment ? (
+              <div className="p-3 text-center text-gray-400 bg-gray-950 rounded-lg border border-gray-800">
+                Loading equipment inventory…
+              </div>
+            ) : (
+              <div className="space-y-1.5 max-h-40 overflow-y-auto bg-gray-950 border border-gray-800 rounded-xl p-2.5 scrollbar-thin">
+                {equipmentList.length === 0 ? (
+                  <div className="text-gray-500 italic text-center py-2 text-[11px]">No equipment items found in inventory.</div>
+                ) : (
+                  equipmentList.map((eq) => {
+                    const isAvailable = eq.availability === 'AVAILABLE';
+                    const isChecked = selectedEquipmentIds.includes(eq.id);
 
-                      return (
-                        <label
-                          key={eq.id}
-                          className={`flex items-center justify-between p-2 rounded-lg border transition-all ${
-                            isChecked
-                              ? 'bg-cyan-950/40 border-cyan-500/60 text-cyan-200 font-bold'
-                              : isAvailable
-                              ? 'bg-gray-900/50 border-gray-800 text-gray-300 hover:bg-gray-800/60 cursor-pointer'
-                              : 'bg-gray-950/60 border-gray-900 text-gray-500 opacity-50 cursor-not-allowed'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <input
-                              type="checkbox"
-                              disabled={!isAvailable}
-                              checked={isChecked}
-                              onChange={(e) => {
-                                if (e.target.checked) setSelectedEquipmentIds([...selectedEquipmentIds, eq.id]);
-                                else setSelectedEquipmentIds(selectedEquipmentIds.filter((id) => id !== eq.id));
-                              }}
-                              className="w-4 h-4 accent-cyan-500 cursor-pointer disabled:cursor-not-allowed"
-                            />
-                            <span className="truncate font-medium">📷 {eq.name} <span className="font-mono text-[10px] text-gray-400">({eq.equipmentId})</span></span>
-                          </div>
+                    return (
+                      <label
+                        key={eq.id}
+                        className={`flex items-center justify-between p-2 rounded-lg border transition-all ${
+                          isChecked
+                            ? 'bg-cyan-950/40 border-cyan-500/60 text-cyan-200 font-bold'
+                            : isAvailable
+                            ? 'bg-gray-900/50 border-gray-800 text-gray-300 hover:bg-gray-800/60 cursor-pointer'
+                            : 'bg-gray-950/60 border-gray-900 text-gray-500 opacity-50 cursor-not-allowed'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <input
+                            type="checkbox"
+                            disabled={!isAvailable}
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedEquipmentIds([...selectedEquipmentIds, eq.id]);
+                              else setSelectedEquipmentIds(selectedEquipmentIds.filter((id) => id !== eq.id));
+                            }}
+                            className="w-4 h-4 accent-cyan-500 cursor-pointer disabled:cursor-not-allowed"
+                          />
+                          <span className="truncate font-medium">📷 {eq.name} <span className="font-mono text-[10px] text-gray-400">({eq.equipmentId})</span></span>
+                        </div>
 
-                          <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase border ${
-                            isAvailable ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-red-500/15 text-red-400 border-red-500/30'
-                          }`}>
-                            {isAvailable ? 'AVAILABLE' : `${eq.availability} - UNAVAILABLE`}
-                          </span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                        <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase border ${
+                          isAvailable ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-red-500/15 text-red-400 border-red-500/30'
+                        }`}>
+                          {isAvailable ? 'AVAILABLE' : `${eq.availability} - UNAVAILABLE`}
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Task Brief / Instructions */}
           <div>

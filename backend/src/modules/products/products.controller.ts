@@ -26,13 +26,13 @@ export class ProductsController {
     return this.productsService.findOne(id, user);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @Post()
   create(@Body() data: any) {
     return this.productsService.create(data);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @Put(':id')
   update(@Param('id') id: string, @Body() data: any) {
     return this.productsService.update(id, data);

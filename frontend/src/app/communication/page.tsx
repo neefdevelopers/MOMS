@@ -43,10 +43,23 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
+const DEFAULT_COMMUNICATION_TYPES = [
+  { key: 'GENERAL_NOTE', label: 'General Note' },
+  { key: 'APPROVAL_REQUEST', label: 'Approval Request' },
+  { key: 'QUESTION', label: 'Question' },
+  { key: 'CLARIFICATION', label: 'Clarification' },
+  { key: 'REQUIREMENT', label: 'Requirement' },
+  { key: 'REVIEW_COMMENT', label: 'Review Comment' },
+  { key: 'ISSUE_REPORT', label: 'Issue Report' },
+  { key: 'BLOCKER', label: 'Blocker' },
+  { key: 'INFORMATION', label: 'Information' },
+  { key: 'ANNOUNCEMENT', label: 'Announcement' },
+];
+
 export default function CommunicationPage() {
   const { user } = useAuth();
   const [communications, setCommunications] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>(DEFAULT_COMMUNICATION_TYPES);
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +76,11 @@ export default function CommunicationPage() {
   const [filterEntryType, setFilterEntryType] = useState<'ALL' | 'COMMUNICATION' | 'REMARK' | 'OPEN_BLOCKERS'>('ALL');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
+  // Requirement 6 View Tabs: Inbox, Sent, Requests, All Communications (RBAC gated)
+  const [activeViewTab, setActiveViewTab] = useState<'INBOX' | 'SENT' | 'REQUESTS' | 'ALL'>('INBOX');
+
   // Note Creation Modal State
+  const [modalPriority, setModalPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'>('MEDIUM');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [entities, setEntities] = useState<any>({});
   const [modalEntryMode, setModalEntryMode] = useState<'COMMUNICATION' | 'REMARK'>('COMMUNICATION');
@@ -212,7 +229,7 @@ export default function CommunicationPage() {
     if (entities && entities[type] && entities[type].length > 0) {
       setModalEntityId(entities[type][0].id);
     } else {
-      setModalEntityId('');
+      setModalEntityId('GENERAL');
     }
   };
 
@@ -224,12 +241,7 @@ export default function CommunicationPage() {
     const isAnnouncementType = modalCategory === 'ANNOUNCEMENT';
     const isApprovalReq = modalCategory === 'APPROVAL_REQUEST';
     const isBlockerReq = modalCategory === 'BLOCKER' || modalCategory === 'ISSUE_REPORT';
-
-    // ─── BUSINESS RULE 1 & 3: Entity required for all non-announcement comms ─
-    if (!isAnnouncementType && !modalEntityId) {
-      alert('Policy Violation (Rule 1 & 3): Every communication must belong to an operational entity. Please select a module and entity before submitting.');
-      return;
-    }
+    const effectiveEntityId = modalEntityId || 'GENERAL';
 
     // ─── BUSINESS RULE 5: Content required for communications (not remarks) ──
     if (!modalContent.trim()) {
@@ -250,18 +262,19 @@ export default function CommunicationPage() {
         method: 'POST',
         body: JSON.stringify({
           entityType: modalType,
-          entityId: modalEntityId,
+          entityId: effectiveEntityId,
           isRemark,
           type: isRemark ? 'GENERAL_NOTE' : modalCategory,
-          subject: modalSubject.trim() || (isRemark ? 'Operational Remark' : isBlockerReq ? `[BLOCKER] ${modalBlockerReason.replace(/_/g, ' ')}` : undefined),
+          subject: modalSubject.trim() || (isRemark ? 'Operational Remark' : isBlockerReq ? `[BLOCKER] ${modalBlockerReason.replace(/_/g, ' ')}` : 'Operational Communication'),
           recipients: isRemark
             ? 'N/A (Operational Remark)'
             : isApprovalReq
             ? modalTargetRole === 'MEDIA_MANAGER'
               ? 'Media Manager (Approval Request)'
               : 'Technical Manager (Approval Request)'
-            : (modalRecipients.trim() || undefined),
+            : (modalRecipients.trim() || 'All Assigned Team Members'),
           status: isRemark ? 'CLOSED' : modalStatus,
+          priority: modalPriority,
           targetRole: isApprovalReq ? modalTargetRole : undefined,
           blockerReason: isBlockerReq ? modalBlockerReason : undefined,
           assignedToId: isBlockerReq && modalAssignedToId ? modalAssignedToId : undefined,
@@ -947,6 +960,59 @@ export default function CommunicationPage() {
         </div>
       </div>
 
+      {/* Requirement 6 Navigation View Tabs: Inbox, Sent, Requests, All Communications */}
+      <div className="flex items-center gap-2 border-b border-border pb-3 overflow-x-auto">
+        <button
+          onClick={() => setActiveViewTab('INBOX')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+            activeViewTab === 'INBOX'
+              ? 'bg-blue-600/20 text-blue-300 border-blue-500/50 shadow-md'
+              : 'bg-zinc-900/60 text-gray-400 hover:text-white border-zinc-800'
+          }`}
+        >
+          <Bell className="w-4 h-4 text-blue-400" />
+          <span>Inbox</span>
+        </button>
+
+        <button
+          onClick={() => setActiveViewTab('SENT')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+            activeViewTab === 'SENT'
+              ? 'bg-purple-600/20 text-purple-300 border-purple-500/50 shadow-md'
+              : 'bg-zinc-900/60 text-gray-400 hover:text-white border-zinc-800'
+          }`}
+        >
+          <Send className="w-4 h-4 text-purple-400" />
+          <span>Sent</span>
+        </button>
+
+        <button
+          onClick={() => setActiveViewTab('REQUESTS')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+            activeViewTab === 'REQUESTS'
+              ? 'bg-amber-600/20 text-amber-300 border-amber-500/50 shadow-md'
+              : 'bg-zinc-900/60 text-gray-400 hover:text-white border-zinc-800'
+          }`}
+        >
+          <AlertCircle className="w-4 h-4 text-amber-400" />
+          <span>Requests (Approvals, Blockers &amp; Issues)</span>
+        </button>
+
+        {(user?.role === 'MEDIA_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+          <button
+            onClick={() => setActiveViewTab('ALL')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+              activeViewTab === 'ALL'
+                ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/50 shadow-md'
+                : 'bg-zinc-900/60 text-gray-400 hover:text-white border-zinc-800'
+            }`}
+          >
+            <Layers className="w-4 h-4 text-emerald-400" />
+            <span>All Communication (Admin)</span>
+          </button>
+        )}
+      </div>
+
       {/* MOMS 11-Parameter Filtration Control Panel */}
       <div className="bg-card border border-border p-5 rounded-xl space-y-4 text-xs shadow-md">
         {/* Search Bar & Action Buttons */}
@@ -1144,15 +1210,25 @@ export default function CommunicationPage() {
 
             <div className="space-y-1">
               <label className="text-[11px] text-gray-400 font-semibold flex items-center gap-1">
-                <Users className="w-3 h-3 text-purple-400" /> Recipient Search
+                <Users className="w-3 h-3 text-purple-400" /> Recipient Filter (Search / Select Staff)
               </label>
-              <input
-                type="text"
-                placeholder="Filter by recipient..."
+              <select
                 value={selectedRecipient}
                 onChange={(e) => setSelectedRecipient(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-700 text-zinc-200 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none placeholder-zinc-600"
-              />
+                className="w-full bg-zinc-950 border border-zinc-700 text-zinc-200 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none"
+              >
+                <option value="">All Recipients</option>
+                <option value="Media Manager">👑 Media Manager</option>
+                <option value="Technical Manager">🛠️ Technical Manager</option>
+                <option value="All Assigned Team Members">🌐 All Assigned Team Members</option>
+                <optgroup label="All Staff Members">
+                  {usersList.map((u) => (
+                    <option key={u.id} value={u.name}>
+                      👤 {u.name} — {u.role.replace(/_/g, ' ')}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
             </div>
 
             <div className="space-y-1">
@@ -1189,32 +1265,63 @@ export default function CommunicationPage() {
 
       {/* Communications Feed */}
       <div className="space-y-3">
-        {loading ? (
-          <div className="p-12 text-center text-gray-400 bg-card border border-border rounded-xl flex items-center justify-center gap-2">
-            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            Loading operational activity feed...
-          </div>
-        ) : communications.length === 0 ? (
-          <div className="p-12 text-center bg-card border border-border rounded-xl text-gray-400 space-y-3">
-            <MessageSquare className="w-8 h-8 text-gray-600 mx-auto" />
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-zinc-300">No operational entries found matching filter criteria</p>
-              <p className="text-xs text-gray-500">
-                Try resetting filters or post an entry linked to any operational record.
-              </p>
-              {(searchQuery || activeFiltersCount > 0) && (
-                <button
-                  onClick={resetAllFilters}
-                  className="mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium text-xs transition-colors"
-                >
-                  Reset All Filters
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          communications.map((comm) => renderCardThread(comm, false))
-        )}
+        {(() => {
+          const displayed = communications.filter((comm) => {
+            if (activeViewTab === 'SENT') {
+              return comm.senderId === user?.id;
+            }
+            if (activeViewTab === 'INBOX') {
+              const isNotSender = comm.senderId !== user?.id;
+              const hasExternalReply = comm.replies && comm.replies.some((r: any) => r.senderId !== user?.id);
+              const isAssigned = comm.assignedToId === user?.id;
+              const isMentioned = user?.name && (
+                (comm.recipients && comm.recipients.includes(user.name)) ||
+                (comm.content && comm.content.includes(`@${user.name.split(' ')[0]}`))
+              );
+              return isNotSender || hasExternalReply || isAssigned || isMentioned;
+            }
+            if (activeViewTab === 'REQUESTS') {
+              return (
+                ['APPROVAL_REQUEST', 'CLARIFICATION', 'REQUIREMENT', 'ISSUE_REPORT', 'BLOCKER'].includes(comm.type) ||
+                Boolean(comm.isBlocker)
+              );
+            }
+            return true;
+          });
+
+          if (loading) {
+            return (
+              <div className="p-12 text-center text-gray-400 bg-card border border-border rounded-xl flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                Loading operational activity feed...
+              </div>
+            );
+          }
+
+          if (displayed.length === 0) {
+            return (
+              <div className="p-12 text-center bg-card border border-border rounded-xl text-gray-400 space-y-3">
+                <MessageSquare className="w-8 h-8 text-gray-600 mx-auto" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-zinc-300">No operational entries found for this view</p>
+                  <p className="text-xs text-gray-500">
+                    Try switching tabs, resetting filters, or logging a new operational communication entry.
+                  </p>
+                  {(searchQuery || activeFiltersCount > 0) && (
+                    <button
+                      onClick={resetAllFilters}
+                      className="mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium text-xs transition-colors"
+                    >
+                      Reset All Filters
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          return displayed.map((comm) => renderCardThread(comm, false));
+        })()}
       </div>
 
       {/* Log Operational Entry Modal */}
@@ -1329,16 +1436,100 @@ export default function CommunicationPage() {
                       </select>
                     </div>
                   ) : (
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-gray-300 font-semibold">Recipient(s) (Mandatory):</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. All Team Members..."
-                        value={modalRecipients}
-                        onChange={(e) => setModalRecipients(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-zinc-200 text-xs focus:outline-none focus:border-blue-500"
-                      />
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] text-gray-300 font-semibold flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5 text-purple-400" /> Recipient(s) (Select or Search Staff):
+                        </label>
+                        <span className="text-[10px] text-purple-400 font-mono font-bold">
+                          {usersList.length} Staff Members
+                        </span>
+                      </div>
+
+                      {/* Dropdown to select preset roles or specific staff */}
+                      <select
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (!val) return;
+                          if (val === 'ALL_TEAM') {
+                            setModalRecipients('All Assigned Team Members');
+                          } else {
+                            setModalRecipients((prev) => {
+                              if (!prev || prev === 'All Assigned Team Members') return val;
+                              if (prev.includes(val)) return prev;
+                              return `${prev}, ${val}`;
+                            });
+                          }
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-zinc-200 text-xs focus:outline-none focus:border-blue-500 font-medium"
+                      >
+                        <option value="">-- Choose Preset or Select Staff Member --</option>
+                        <option value="ALL_TEAM">🌐 All Assigned Team Members</option>
+                        <option value="Media Manager">👑 Media Manager</option>
+                        <option value="Technical Manager">🛠️ Technical Manager</option>
+                        <optgroup label="All Staff Members">
+                          {usersList.map((u) => (
+                            <option key={u.id} value={`${u.name} (${u.role.replace(/_/g, ' ')})`}>
+                              👤 {u.name} — {u.role.replace(/_/g, ' ')} ({u.email})
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+
+                      {/* Editable Recipient Field */}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          placeholder="Selected recipients will appear here..."
+                          value={modalRecipients}
+                          onChange={(e) => setModalRecipients(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2 pr-12 text-zinc-200 text-xs focus:outline-none focus:border-blue-500 font-mono"
+                        />
+                        {modalRecipients && (
+                          <button
+                            type="button"
+                            onClick={() => setModalRecipients('')}
+                            className="absolute right-2 top-2 text-gray-400 hover:text-white text-[10px] font-bold bg-zinc-800 px-1.5 py-0.5 rounded"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+
+                      {/* All Staff Quick-Tag Pills */}
+                      {usersList.length > 0 && (
+                        <div className="space-y-1 pt-1">
+                          <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider block">
+                            Quick Add Staff:
+                          </span>
+                          <div className="flex items-center gap-1 overflow-x-auto pb-1 custom-scrollbar">
+                            {usersList.map((staff) => {
+                              const isSelected = modalRecipients.includes(staff.name);
+                              return (
+                                <button
+                                  key={staff.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setModalRecipients((prev) => {
+                                      if (!prev || prev === 'All Assigned Team Members') return `${staff.name} (${staff.role.replace(/_/g, ' ')})`;
+                                      if (prev.includes(staff.name)) return prev;
+                                      return `${prev}, ${staff.name} (${staff.role.replace(/_/g, ' ')})`;
+                                    });
+                                  }}
+                                  className={`px-2 py-0.5 rounded text-[10px] transition-all whitespace-nowrap font-medium border ${
+                                    isSelected
+                                      ? 'bg-purple-600/30 text-purple-200 border-purple-500 font-bold'
+                                      : 'bg-zinc-900 text-gray-300 hover:bg-purple-600/20 hover:text-purple-300 border-zinc-700'
+                                  }`}
+                                >
+                                  + {staff.name} <span className="text-[9px] text-gray-400">({staff.role.replace(/_/g, ' ')})</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1393,7 +1584,6 @@ export default function CommunicationPage() {
                     <option value="REVIEW">Review Item</option>
                   </select>
                 </div>
-
                 <div className="space-y-1">
                   <label className="text-[11px] text-gray-300 font-semibold">4. Linked Operational Record:</label>
                   <select
@@ -1408,7 +1598,7 @@ export default function CommunicationPage() {
                         </option>
                       ))
                     ) : (
-                      <option value="">No active records found for this module</option>
+                      <option value="GENERAL">GENERAL — General Operational Context</option>
                     )}
                   </select>
                 </div>
@@ -1493,7 +1683,7 @@ export default function CommunicationPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={!modalEntityId || !modalContent.trim() || submitting}
+                  disabled={!modalContent.trim() || submitting}
                   className={`px-4 py-2 ${
                     modalEntryMode === 'REMARK'
                       ? 'bg-amber-600 hover:bg-amber-500'

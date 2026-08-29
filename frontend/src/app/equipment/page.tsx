@@ -30,6 +30,7 @@ import { PaginationControls } from '@/components/common/PaginationControls';
 import { recordRecentAccess } from '@/lib/recent-access';
 import { usePagination } from '@/lib/usePagination';
 import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
+import { RoleGuard } from '@/components/common/RoleGuard';
 
 export default function EquipmentPage() {
   const { user } = useAuth();
@@ -112,8 +113,7 @@ export default function EquipmentPage() {
   const [showDamageSection, setShowDamageSection] = useState(false);
   const [updatingRepairId, setUpdatingRepairId] = useState<string | null>(null);
   const [repairStatusForm, setRepairStatusForm] = useState({ repairStatus: 'IN_REPAIR', repairNotes: '' });
-
-  const canManage = user?.role === 'MEDIA_MANAGER' || user?.role === 'TECHNICAL_MANAGER';
+  const canManage = user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR';
 
   const loadEquipment = async () => {
     try {
@@ -421,21 +421,20 @@ export default function EquipmentPage() {
   });
 
   return (
-    <div className="space-y-6 text-xs">
+    <RoleGuard>
+      <div className="space-y-6 text-xs">
 
-      {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card border border-border p-6 rounded-xl shadow-lg">
-        <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <Camera className="w-5 h-5 text-cyan-400" />
-            {user?.role === 'STAFF' ? 'My Assigned Equipment & Assets' : 'Equipment & Asset Management'}
-          </h1>
-          <p className="text-xs text-gray-400 mt-1">
-            {user?.role === 'STAFF'
-              ? 'View and manage equipment assigned to you for active projects and shoot operations.'
-              : 'Permanent inventory — all assets are company-owned. Retired equipment is archived, never deleted.'}
-          </p>
-        </div>
+        {/* Header Banner */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card border border-border p-6 rounded-xl shadow-lg">
+          <div>
+            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+              <Camera className="w-5 h-5 text-cyan-400" />
+              Technical Manager Master Equipment Inventory
+            </h1>
+            <p className="text-xs text-gray-400 mt-1">
+              Permanent company equipment master management workspace. All assets belong strictly to the COMPANY.
+            </p>
+          </div>
 
         {/* Business Rule 1: Company ownership badge */}
         <div className="flex items-center gap-3">
@@ -443,7 +442,7 @@ export default function EquipmentPage() {
             <Building2 className="w-3.5 h-3.5 text-blue-400" />
             <span className="text-[11px] font-bold text-blue-300">Company Assets</span>
           </div>
-          {(user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR') && (
+          {(user?.role === 'MEDIA_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
             <button
               onClick={() => setShowAddModal(true)}
               className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg flex items-center gap-2 transition-colors shadow-lg shadow-cyan-600/30"
@@ -756,8 +755,8 @@ export default function EquipmentPage() {
                     <AlertTriangle className="w-3.5 h-3.5 text-red-400" /> File Damage Report
                   </button>
 
-                  {/* Business Rule 4: Retire action replaces delete — Media Manager authority */}
-                  {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+                  {/* Business Rule 4: Retire action replaces delete — Technical Manager authority */}
+                  {(user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR') && (
                     <button
                       onClick={() => setRetireTargetId(eqp.id)}
                       className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-red-900/40 border border-zinc-700 hover:border-red-700/50 text-zinc-400 hover:text-red-300 rounded-lg text-[11px] font-semibold transition-colors"
@@ -1789,5 +1788,6 @@ export default function EquipmentPage() {
       )}
 
     </div>
+    </RoleGuard>
   );
 }

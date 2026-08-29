@@ -37,9 +37,9 @@ export class ClientsController {
 
   /**
    * POST /api/v1/clients
-   * Creates a new client record. Restricted to Media Manager.
+   * Creates a new client record. Restricted to Marketing Manager.
    */
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @RequirePermission(ModuleType.CLIENTS, PermissionType.CREATE)
   @Post()
   create(@Body() data: any) {
@@ -48,9 +48,9 @@ export class ClientsController {
 
   /**
    * PATCH /api/v1/clients/:id
-   * Partially updates a client record. Restricted to Media Manager.
+   * Partially updates a client record. Restricted to Marketing Manager.
    */
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @RequirePermission(ModuleType.CLIENTS, PermissionType.EDIT)
   @Patch(':id')
   update(@Param('id') id: string, @Body() data: any) {
@@ -60,9 +60,9 @@ export class ClientsController {
   /**
    * DELETE /api/v1/clients/:id
    * Soft-deletes a client (sets status=INACTIVE, isArchived=true).
-   * Blocked if the client has active projects. Restricted to Media Manager.
+   * Blocked if the client has active projects. Restricted to Marketing Manager.
    */
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @RequirePermission(ModuleType.CLIENTS, PermissionType.DELETE)
   @HttpCode(HttpStatus.OK)
   @Delete(':id')

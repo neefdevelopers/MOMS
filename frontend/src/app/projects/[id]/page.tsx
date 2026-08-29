@@ -11,6 +11,8 @@ import ActivityCommunicationThread from '@/components/communications/ActivityCom
 import { useBreadcrumbs } from '@/lib/breadcrumbs-context';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
 import { recordRecentAccess } from '@/lib/recent-access';
+import RevisionsTab from '@/components/revisions/RevisionsTab';
+import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
 import {
   Film,
   FileText,
@@ -31,6 +33,7 @@ import {
   Plus,
   Check,
   X,
+  RotateCcw,
 } from 'lucide-react';
 
 export default function ProjectDetailPage() {
@@ -61,6 +64,7 @@ export default function ProjectDetailPage() {
   const [showManageTeamModal, setShowManageTeamModal] = useState(false);
   const [showManageEquipmentModal, setShowManageEquipmentModal] = useState(false);
   const [showConvertTaskModal, setShowConvertTaskModal] = useState(false);
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
 
   // Deliverables State
   const [deliverableName, setDeliverableName] = useState('');
@@ -304,6 +308,7 @@ export default function ProjectDetailPage() {
 
   const tabs = [
     'Overview',
+    'Revisions',
     'Scripts',
     'Graphic Requirements',
     'Tasks',
@@ -382,6 +387,7 @@ export default function ProjectDetailPage() {
                   <option value="IN_PROGRESS">In Progress</option>
                   <option value="WAITING_FOR_TECHNICAL_REVIEW">Waiting for Technical Review</option>
                   <option value="WAITING_FOR_MEDIA_REVIEW">Waiting for Media Review</option>
+                  <option value="REVISION_REQUESTED">Revision Requested</option>
                   <option value="WAITING_FOR_CLIENT_CONFIRMATION">Waiting for Client Confirmation</option>
                   <option value="CLIENT_REVISION_REQUESTED">Client Revision Requested</option>
                   <option value="COMPLETED">Completed</option>
@@ -389,6 +395,13 @@ export default function ProjectDetailPage() {
                   <option value="ARCHIVED">Archived</option>
                   <option value="CANCELLED">Cancelled</option>
                 </select>
+                <button
+                  type="button"
+                  onClick={() => setShowRevisionModal(true)}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-[11px] flex items-center gap-1 shadow transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3" /> Request Revision
+                </button>
               </div>
             </div>
 
@@ -447,6 +460,30 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
+        {(project.status === 'REVISION_REQUESTED' || project.status === 'CLIENT_REVISION_REQUESTED') && (
+          <div className="p-4 bg-amber-950/60 border border-amber-500/80 rounded-xl text-xs space-y-2 shadow-lg animate-in fade-in duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-amber-300 font-extrabold flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-amber-400 animate-spin" /> Active Workflow Status: REVISION REQUESTED
+              </span>
+              <span className="px-2.5 py-0.5 bg-amber-600/30 text-amber-200 border border-amber-500/50 rounded font-mono font-bold text-[10px]">
+                Revision #{project.revisionCount || 1}
+              </span>
+            </div>
+            <p className="text-zinc-200">
+              Reviewer requested changes. The assigned team is actively revising production deliverables.
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={() => setShowRevisionModal(true)}
+                className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1 shadow"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Request Another Revision
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Progress Bar */}
         <div className="space-y-1 pt-2">
           <div className="flex justify-between text-xs font-semibold text-gray-300">
@@ -479,6 +516,20 @@ export default function ProjectDetailPage() {
       {/* Tab Content Display */}
       <div className="bg-card border border-border p-6 rounded-xl min-h-[400px]">
         {/* Tab 1: Overview */}
+        {activeTab === 'Revisions' && (
+          <RevisionsTab
+            entityType="PROJECT"
+            entityId={project.id}
+            entityTitle={project.name}
+            originalAssigneeId={project.assignedTeam?.[0]?.userId}
+            originalAssigneeName={project.assignedTeam?.[0]?.user?.name}
+            userRole={user?.role}
+            userId={user?.id}
+            currentStatus={project.status}
+            onRefresh={loadProject}
+          />
+        )}
+
         {activeTab === 'Overview' && (
           <div className="space-y-6 text-xs">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1461,6 +1512,22 @@ export default function ProjectDetailPage() {
             : null
         }
       />
+      {/* Request Revision Form Modal */}
+      {showRevisionModal && project && (
+        <RequestRevisionModal
+          isOpen={showRevisionModal}
+          onClose={() => setShowRevisionModal(false)}
+          onSuccess={() => {
+            loadProject();
+          }}
+          entityType="PROJECT"
+          entityId={project.id}
+          entityTitle={project.name}
+          originalAssigneeId={project.assignedTeam?.[0]?.userId}
+          originalAssigneeName={project.assignedTeam?.[0]?.user?.name}
+          userRole={user?.role}
+        />
+      )}
       </div>
     </div>
   );

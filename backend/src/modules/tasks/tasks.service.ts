@@ -80,7 +80,7 @@ export class TasksService {
       ];
     }
 
-    return this.prisma.task.findMany({
+    const tasks = await this.prisma.task.findMany({
       where,
       include: {
         project: { select: { id: true, projectId: true, name: true } },
@@ -96,6 +96,31 @@ export class TasksService {
       },
       orderBy: { dueDate: 'asc' },
     });
+
+    return this.syncTaskSourceTypes(tasks);
+  }
+
+  private async syncTaskSourceTypes(tasks: any[]) {
+    if (!tasks || !tasks.length) return tasks;
+    for (const t of tasks) {
+      let computed = t.sourceType || 'DIRECT_TASK';
+      if (t.graphicRequirementId || t.graphicRequirement) {
+        computed = 'GRAPHIC_REQUIREMENT';
+      } else if (t.projectId || t.scriptId) {
+        computed = 'CALENDAR_EVENT';
+      } else {
+        computed = 'DIRECT_TASK';
+      }
+
+      if (computed !== t.sourceType) {
+        await this.prisma.task.update({
+          where: { id: t.id },
+          data: { sourceType: computed },
+        }).catch(() => null);
+        t.sourceType = computed;
+      }
+    }
+    return tasks;
   }
 
   async findOne(id: string) {
@@ -132,7 +157,8 @@ export class TasksService {
       });
     }
     if (!task) throw new NotFoundException('Task not found');
-    return task;
+    const [synced] = await this.syncTaskSourceTypes([task]);
+    return synced;
   }
 
   private async logTimelineEvent(
@@ -396,14 +422,73 @@ export class TasksService {
     if (graphicReqId) {
       const gReq = await this.prisma.graphicRequirement.findUnique({
         where: { id: graphicReqId },
+        include: { calendarEvent: true },
       });
       if (gReq) {
-        const allowedGrStatuses = ['READY', 'APPROVED', 'IN_PROGRESS', 'COMPLETED'];
-        if (!allowedGrStatuses.includes(gReq.status)) {
+        const isApproved =
+          ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'TASK_ASSIGNED'].includes(gReq.status) ||
+          (gReq.calendarEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'TASK_ASSIGNED'].includes(gReq.calendarEvent.status));
+
+        if (!isApproved && (gReq.status === 'PENDING_MARKETING_APPROVAL' || gReq.status === 'REJECTED' || gReq.status === 'CANCELLED')) {
           throw new BadRequestException(
             'Graphic Requirement must be approved by Marketing Manager before task assignment.'
           );
         }
+      } else {
+        const calEvent = await this.prisma.mediaCalendarEvent.findUnique({
+          where: { id: graphicReqId },
+        });
+        if (calEvent) {
+          const isCalApproved = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'TASK_ASSIGNED'].includes(calEvent.status);
+          if (!isCalApproved && (calEvent.status === 'PENDING_MARKETING_APPROVAL' || calEvent.status === 'REJECTED' || calEvent.status === 'CANCELLED')) {
+            throw new BadRequestException(
+              'Graphic Requirement must be approved by Marketing Manager before task assignment.'
+            );
+          }
+        }
+      }
+    }
+
+    // Determine Source Type (DIRECT_TASK, CALENDAR_EVENT, GRAPHIC_REQUIREMENT)
+    let sourceType = 'DIRECT_TASK';
+    let isMarketingApproved = true;
+
+    if (data.calendarEventId || (graphicReqId && !data.graphicRequirementId)) {
+      const isCal = await this.prisma.mediaCalendarEvent.findFirst({
+        where: { OR: [{ id: graphicReqId || '' }, { id: data.calendarEventId || '' }] },
+      });
+      if (isCal) {
+        sourceType = 'CALENDAR_EVENT';
+        isMarketingApproved = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'TASK_ASSIGNED'].includes(isCal.status);
+      }
+    }
+
+    if (sourceType === 'DIRECT_TASK' && (graphicReqId || data.graphicRequirementId)) {
+      const targetGr = graphicReqId || data.graphicRequirementId;
+      const gReq = await this.prisma.graphicRequirement.findUnique({
+        where: { id: targetGr },
+        include: { calendarEvent: true },
+      });
+      if (gReq) {
+        sourceType = 'GRAPHIC_REQUIREMENT';
+        isMarketingApproved =
+          ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'TASK_ASSIGNED'].includes(gReq.status) ||
+          (gReq.calendarEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'IN_PROGRESS', 'COMPLETED'].includes(gReq.calendarEvent.status));
+      }
+    }
+
+    // Determine initial status based on sourceType and Marketing Approval
+    let initialTaskStatus = data.assignedUserIds?.length ? TaskStatus.ASSIGNED : TaskStatus.PENDING;
+    if (sourceType !== 'DIRECT_TASK') {
+      if (!isMarketingApproved) {
+        initialTaskStatus = TaskStatus.PENDING_MARKETING_APPROVAL;
+        if (data.assignedUserIds?.length) {
+          throw new BadRequestException(
+            'Marketing Manager approval is required before assigning staff to Event or Graphic Requirement work.'
+          );
+        }
+      } else {
+        initialTaskStatus = data.assignedUserIds?.length ? TaskStatus.ASSIGNED : TaskStatus.APPROVED;
       }
     }
 
@@ -447,7 +532,8 @@ export class TasksService {
         priority: data.priority || Priority.MEDIUM,
         dueDate: new Date(data.dueDate || Date.now() + 86400000),
         estimatedHours: parseFloat(data.estimatedHours) || 2.0,
-        status: data.assignedUserIds?.length ? TaskStatus.ASSIGNED : TaskStatus.PENDING,
+        status: initialTaskStatus,
+        sourceType: sourceType,
         remarks: data.remarks,
       },
     });
@@ -481,8 +567,24 @@ export class TasksService {
     await this.logTimelineEvent(task.id, 'TASK_CREATED', `Task ${task.taskId} ('${task.title}') created`, managerUserId);
 
     // 2. Log TASK_ASSIGNED if employees assigned
-    if (data.assignedUserIds?.length) {
-      await this.logTimelineEvent(task.id, 'TASK_ASSIGNED', `Task assigned to ${data.assignedUserIds.length} employee(s)`, managerUserId);
+    // Update linked Graphic Requirement status to TASK_ASSIGNED or IN_PROGRESS
+    const targetGrId = task.graphicRequirementId || graphicReqId;
+    if (targetGrId) {
+      let gId = targetGrId;
+      const gReq = await this.prisma.graphicRequirement.findUnique({ where: { id: targetGrId } });
+      if (!gReq) {
+        const calEv = await this.prisma.mediaCalendarEvent.findUnique({ where: { id: targetGrId } });
+        if (calEv?.graphicRequirementId) gId = calEv.graphicRequirementId;
+      }
+      if (gId) {
+        await this.prisma.graphicRequirement.updateMany({
+          where: { id: gId },
+          data: {
+            status: data.assignedUserIds?.length ? 'TASK_ASSIGNED' : 'IN_PROGRESS',
+            mediaManagerApproved: true,
+          },
+        }).catch(() => null);
+      }
     }
 
     return task;
@@ -564,6 +666,29 @@ export class TasksService {
       }
     }
 
+    // Strict Workflow Stage Transition Validations
+    if (data.status === TaskStatus.IN_PROGRESS) {
+      const isAccepted = task.status === TaskStatus.ACCEPTED || task.assignedEmployees?.some((a: any) => a.acceptanceStatus === 'ACCEPTED');
+      if (!isAccepted && task.status !== TaskStatus.IN_PROGRESS) {
+        throw new BadRequestException('Task must be explicitly accepted by the assigned employee before starting production.');
+      }
+    }
+
+    if (data.status === TaskStatus.WAITING_FOR_MEDIA_REVIEW) {
+      if (!task.technicalReviewApproved && user.role !== Role.TECHNICAL_MANAGER && user.role !== Role.ADMINISTRATOR) {
+        throw new BadRequestException('Task must pass Technical Manager review before moving to Media Manager Review.');
+      }
+    }
+
+    if (data.status === TaskStatus.COMPLETED) {
+      if (user.role === Role.STAFF) {
+        throw new ForbiddenException('Staff members cannot directly mark tasks as Completed. Tasks must undergo Technical and Media Manager review.');
+      }
+      if (!task.mediaManagerApproved && user.role !== Role.MEDIA_MANAGER && user.role !== Role.ADMINISTRATOR) {
+        throw new BadRequestException('Task must pass Media Manager review before being marked as Completed.');
+      }
+    }
+
     const newDueDate = data.dueDate ? new Date(data.dueDate) : undefined;
     const isDeadlineChanged = newDueDate && newDueDate.getTime() !== new Date(task.dueDate).getTime();
 
@@ -609,7 +734,7 @@ export class TasksService {
     }
 
     // 4. Notification & Log: Task Completed
-    if (data.status === TaskStatus.COMPLETED || data.completionPercentage === 100) {
+    if (data.status === TaskStatus.COMPLETED) {
       await this.logTimelineEvent(task.id, 'COMPLETED', `Task completed (100% completion achieved)`, user.id);
       await this.sendTaskNotifications(
         task.id,
@@ -678,6 +803,42 @@ export class TasksService {
     }
 
     return this.findOne(task.id);
+  }
+
+  async startProduction(taskId: string, user: any) {
+    const task = await this.findOne(taskId);
+    
+    // Check Marketing Approval gating for event-bound work
+    if (task.sourceType !== 'DIRECT_TASK' && task.status === TaskStatus.PENDING_MARKETING_APPROVAL) {
+      throw new BadRequestException('Marketing Manager approval is required before starting production.');
+    }
+
+    const assignment = task.assignedEmployees?.find((a: any) => a.userId === user.id);
+    const isAssigned = Boolean(assignment);
+    const isAccepted = assignment?.acceptanceStatus === 'ACCEPTED' || task.status === TaskStatus.ACCEPTED;
+
+    if (user.role === Role.STAFF && !isAssigned) {
+      throw new ForbiddenException('Staff members can only start production on tasks assigned to them.');
+    }
+
+    if (!isAccepted && task.status !== TaskStatus.IN_PROGRESS) {
+      throw new BadRequestException('Task must be explicitly accepted by assigned employee before production can start.');
+    }
+
+    const updated = await this.prisma.task.update({
+      where: { id: task.id },
+      data: { status: TaskStatus.IN_PROGRESS },
+    });
+
+    if (task.graphicRequirementId) {
+      await this.prisma.graphicRequirement.updateMany({
+        where: { id: task.graphicRequirementId },
+        data: { status: 'IN_PROGRESS' },
+      }).catch(() => null);
+    }
+
+    await this.logTimelineEvent(task.id, 'PROGRESS_UPDATED', `Production started by ${user.name}`, user.id);
+    return updated;
   }
 
   async addRemark(taskId: string, message: string, user: any) {
@@ -755,6 +916,20 @@ export class TasksService {
 
     // 6. Log FILE_UPLOADED
     await this.logTimelineEvent(task.id, 'FILE_UPLOADED', `Work deliverable Version v${newVersion} (${fileName}) uploaded by ${user.name}`, user.id);
+
+    if (task.graphicRequirementId) {
+      await this.prisma.graphicRequirement.updateMany({
+        where: { id: task.graphicRequirementId },
+        data: { status: 'WAITING_FOR_TECHNICAL_REVIEW', technicalReviewApproved: false },
+      }).catch(() => null);
+    }
+
+    if (task.projectId) {
+      await this.prisma.shootProject.updateMany({
+        where: { id: task.projectId },
+        data: { status: 'WAITING_FOR_TECHNICAL_REVIEW' },
+      }).catch(() => null);
+    }
 
     return {
       task: updatedTask,

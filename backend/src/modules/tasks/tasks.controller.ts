@@ -97,6 +97,11 @@ export class TasksController {
     return this.tasksService.acknowledgeTaskAcceptance(id, user);
   }
 
+  @Post(':id/start-production')
+  startProduction(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.tasksService.startProduction(id, user);
+  }
+
   @Post(':id/remarks')
   addRemark(
     @Param('id') id: string,

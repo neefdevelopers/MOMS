@@ -150,7 +150,7 @@ export class ProjectsService {
         tasks: { include: { assignedEmployees: { include: { user: true } } } },
         approvals: { include: { reviewer: true }, orderBy: { reviewedAt: 'desc' } },
         clientConfirmations: { orderBy: { createdAt: 'desc' } },
-        revisions: { orderBy: { requestedAt: 'desc' } },
+        revisions: { orderBy: { createdAt: 'desc' } },
         equipmentReservations: { include: { equipment: true } },
         equipmentMovements: { include: { equipment: true, user: true }, orderBy: { timestamp: 'desc' } },
         files: { include: { uploadedBy: true }, orderBy: { createdAt: 'desc' } },
@@ -384,8 +384,13 @@ export class ProjectsService {
       }
     }
 
-    // 6. Reserve / Assign Equipment if provided
-    if (data.equipmentIds && Array.isArray(data.equipmentIds)) {
+    // 6. Reserve / Assign Equipment if provided (Requires Approved Project)
+    if (data.equipmentIds && Array.isArray(data.equipmentIds) && data.equipmentIds.length > 0) {
+      const approvedStatuses = ['APPROVED', 'CLIENT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PROGRESS'];
+      if (!approvedStatuses.includes(project.status)) {
+        throw new BadRequestException('Equipment allocation is locked until Media Manager approves the project.');
+      }
+
       for (const eqId of data.equipmentIds) {
         const res = await this.prisma.equipmentReservation.create({
           data: {
@@ -545,6 +550,12 @@ export class ProjectsService {
     }
 
     if (data.equipmentIds && Array.isArray(data.equipmentIds)) {
+      const approvedStatuses = ['APPROVED', 'CLIENT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PROGRESS'];
+      const targetStatus = data.status || existing.status;
+      if (!approvedStatuses.includes(targetStatus)) {
+        throw new BadRequestException('Equipment allocation is locked until Media Manager approves the project.');
+      }
+
       const existingReservations = await this.prisma.equipmentReservation.findMany({
         where: { projectId: id },
       });

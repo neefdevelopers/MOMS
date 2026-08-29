@@ -11,6 +11,8 @@ import { FavoriteButton } from '@/components/common/FavoriteButton';
 import { usePagination } from '@/lib/usePagination';
 import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
+import RevisionsTab from '@/components/revisions/RevisionsTab';
+import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
 
 const DEFAULT_REQUIREMENT_TYPES = [
   'Poster',
@@ -97,6 +99,8 @@ const getWorkflowStepIndex = (status: string) => {
       return 3;
     case 'IN_PROGRESS':
     case 'IN_PRODUCTION':
+    case 'REVISION_REQUESTED':
+    case 'CLIENT_REVISION_REQUESTED':
       return 4;
     case 'WAITING_FOR_TECHNICAL_REVIEW':
     case 'TECHNICAL_REVIEW':
@@ -124,6 +128,7 @@ export default function GraphicReqsPage() {
   const [productsList, setProductsList] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [revisionModalReq, setRevisionModalReq] = useState<any | null>(null);
   const [convertModalReq, setConvertModalReq] = useState<any>(null);
   const [employeeResponsibilities, setEmployeeResponsibilities] = useState<Record<string, string[]>>({});
   const [selectedDeliverables, setSelectedDeliverables] = useState<string[]>(['Poster', 'Story']);
@@ -157,6 +162,7 @@ export default function GraphicReqsPage() {
 
   // Inspector & Create Modal States
   const [inspectedReq, setInspectedReq] = useState<any>(null);
+  const [showAssetVault, setShowAssetVault] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const [assignStaffUserId, setAssignStaffUserId] = useState('');
@@ -415,8 +421,9 @@ export default function GraphicReqsPage() {
         return 'bg-cyan-950 text-cyan-300 border-cyan-800';
       case 'WAITING_FOR_CLIENT_CONFIRMATION':
         return 'bg-indigo-950 text-indigo-300 border-indigo-800';
+      case 'REVISION_REQUESTED':
       case 'CLIENT_REVISION_REQUESTED':
-        return 'bg-orange-950 text-orange-300 border-orange-800';
+        return 'bg-amber-950 text-amber-300 border-amber-500 font-extrabold shadow-sm animate-pulse';
       case 'COMPLETED':
         return 'bg-emerald-950 text-emerald-300 border-emerald-800';
       case 'CLOSED':
@@ -1243,9 +1250,7 @@ export default function GraphicReqsPage() {
                             type="button"
                             onClick={() => {
                               if (isDelSelected) {
-                                if (selectedDeliverables.length > 1) {
-                                  setSelectedDeliverables(selectedDeliverables.filter((d) => d !== del.name));
-                                }
+                                setSelectedDeliverables(selectedDeliverables.filter((d) => d !== del.name));
                               } else {
                                 setSelectedDeliverables([...selectedDeliverables, del.name]);
                               }
@@ -1432,106 +1437,32 @@ export default function GraphicReqsPage() {
                   );
                 })}
               </div>
+            </div>
 
-              {/* Workflow State Advance Actions */}
-              <div className="p-3 bg-gray-900/90 border border-gray-800 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                <div>
-                  <span className="text-gray-400 text-[10px] uppercase font-bold block">Current Active Phase</span>
-                  <strong className="text-amber-300 font-bold">
-                    {WORKFLOW_PIPELINE.find((wp) => wp.step === getWorkflowStepIndex(inspectedReq.status))?.label}
-                  </strong>
-                  <span className="text-gray-500 text-[10px] block mt-0.5">
-                    {WORKFLOW_PIPELINE.find((wp) => wp.step === getWorkflowStepIndex(inspectedReq.status))?.desc}
+            {/* Active Revision Requested Status Banner */}
+            {(inspectedReq.status === 'REVISION_REQUESTED' || inspectedReq.status === 'CLIENT_REVISION_REQUESTED') && (
+              <div className="bg-amber-950/70 border border-amber-500 p-4 rounded-xl space-y-2 text-xs shadow-xl animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-amber-300 font-extrabold text-xs flex items-center gap-2">
+                    <RotateCcw className="w-4 h-4 text-amber-400 animate-spin" /> Active Workflow Phase: REVISION REQUESTED
+                  </span>
+                  <span className="px-2.5 py-0.5 bg-amber-600/40 text-amber-200 border border-amber-500/60 rounded font-mono font-bold text-[10px]">
+                    Revision #{inspectedReq.revisionCount || 1}
                   </span>
                 </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  {getWorkflowStepIndex(inspectedReq.status) === 1 && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-amber-300 font-semibold text-xs">
-                        ⏳ Waiting for Marketing Manager Approval
-                      </span>
-                      {user?.role === 'MARKETING_MANAGER' && (
-                        <button
-                          onClick={() => handleUpdateStatus(inspectedReq.id, 'APPROVED')}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs shadow"
-                        >
-                          ✓ Approve Requirement Now
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {getWorkflowStepIndex(inspectedReq.status) === 2 && (
-                    (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') ? (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setConvertModalReq(inspectedReq)}
-                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow flex items-center gap-1"
-                        >
-                          ⚡ Convert to Task ➔
-                        </button>
-                        <button
-                          onClick={() => handleUpdateStatus(inspectedReq.id, 'TASK_ASSIGNED')}
-                          className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold rounded-lg text-xs border border-gray-700"
-                        >
-                          Mark Task Assigned
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-blue-300 text-xs font-semibold">Approved — Media Manager can assign staff now</span>
-                    )
-                  )}
-                  {getWorkflowStepIndex(inspectedReq.status) === 3 && (
-                    <button
-                      onClick={() => handleUpdateStatus(inspectedReq.id, 'IN_PROGRESS')}
-                      className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded-lg text-xs shadow"
-                    >
-                      ▶️ Start Production ➔
-                    </button>
-                  )}
-                  {getWorkflowStepIndex(inspectedReq.status) === 4 && (
-                    <>
-                      <button
-                        onClick={() => handleUpdateStatus(inspectedReq.id, 'WAITING_FOR_TECHNICAL_REVIEW')}
-                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs shadow"
-                      >
-                        🔍 Technical Review ➔
-                      </button>
-                      <button
-                        onClick={() => handleUpdateStatus(inspectedReq.id, 'WAITING_FOR_MEDIA_REVIEW')}
-                        className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg text-xs shadow"
-                      >
-                        👔 Media Manager Review ➔
-                      </button>
-                    </>
-                  )}
-                  {getWorkflowStepIndex(inspectedReq.status) === 5 && (
-                    <button
-                      onClick={() => handleUpdateStatus(inspectedReq.id, 'WAITING_FOR_MEDIA_REVIEW')}
-                      className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg text-xs shadow"
-                    >
-                      👔 Media Manager Review ➔
-                    </button>
-                  )}
-                  {getWorkflowStepIndex(inspectedReq.status) === 6 && (
-                    <button
-                      onClick={() => handleUpdateStatus(inspectedReq.id, 'WAITING_FOR_CLIENT_CONFIRMATION')}
-                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow flex items-center gap-1"
-                    >
-                      📩 Send to Client Confirmation ➔
-                    </button>
-                  )}
-                  {inspectedReq.status === 'CLIENT_REVISION_REQUESTED' && (
-                    <button
-                      onClick={() => handleUpdateStatus(inspectedReq.id, 'IN_PROGRESS')}
-                      className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded-lg text-xs shadow"
-                    >
-                      🔄 Resume Production Revision
-                    </button>
-                  )}
+                <p className="text-zinc-200 leading-relaxed">
+                  Reviewer requested changes. Assigned employee is currently revising deliverables before re-submitting for Technical Review.
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={() => setRevisionModalReq(inspectedReq)}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" /> Request Another Revision
+                  </button>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Structured Attributes Inspector Grid */}
             <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
@@ -1613,10 +1544,10 @@ export default function GraphicReqsPage() {
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleUpdateStatus(inspectedReq.id, 'REVISION_REQUESTED')}
-                      className="px-2 py-1 bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800 rounded font-bold text-[10px] transition-colors"
+                      onClick={() => setRevisionModalReq(inspectedReq)}
+                      className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] transition-colors flex items-center gap-1 shadow"
                     >
-                      + Request Revision
+                      <RotateCcw className="w-3 h-3" /> Request Revision
                     </button>
                   </div>
                 </div>
@@ -1715,79 +1646,6 @@ export default function GraphicReqsPage() {
               </div>
             </div>
 
-            {/* 4 Mandatory Completion Criteria Matrix */}
-            <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
-              <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-                <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                  ✅ 4 Completion Sign-off Criteria Matrix
-                </span>
-                <span className="text-[10px] text-gray-400 font-mono">
-                  {inspectedReq.status === 'COMPLETED' ? '🎉 REQUIREMENT COMPLETED' : '⏳ Workflow In-Progress'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
-                {/* 1. Production Complete */}
-                <div className={`p-3 rounded-xl border space-y-1 ${inspectedReq.files?.length > 0 ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300' : 'bg-gray-900 border-gray-800 text-gray-400'}`}>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs">1. Production Complete</span>
-                    <span>{inspectedReq.files?.length > 0 ? '✅' : '⏳'}</span>
-                  </div>
-                  <span className="text-[10px] block opacity-80">
-                    {inspectedReq.files?.length > 0 ? 'Export File Ready' : 'Pending Export Upload'}
-                  </span>
-                </div>
-
-                {/* 2. Technical Review Approved */}
-                <label className={`p-3 rounded-xl border space-y-1 cursor-pointer transition-colors ${inspectedReq.technicalReviewApproved ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300' : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-700'}`}>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs">2. Technical Review</span>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(inspectedReq.technicalReviewApproved)}
-                      onChange={(e) => handleToggleCompletionMilestone('technicalReviewApproved', e.target.checked)}
-                      className="rounded accent-emerald-500"
-                    />
-                  </div>
-                  <span className="text-[10px] block opacity-80">
-                    {inspectedReq.technicalReviewApproved ? 'Approved by Specs QC' : 'Pending Technical Review'}
-                  </span>
-                </label>
-
-                {/* 3. Media Manager Approved */}
-                <label className={`p-3 rounded-xl border space-y-1 cursor-pointer transition-colors ${inspectedReq.mediaManagerApproved ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300' : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-700'}`}>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs">3. Media Manager</span>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(inspectedReq.mediaManagerApproved)}
-                      onChange={(e) => handleToggleCompletionMilestone('mediaManagerApproved', e.target.checked)}
-                      className="rounded accent-emerald-500"
-                    />
-                  </div>
-                  <span className="text-[10px] block opacity-80">
-                    {inspectedReq.mediaManagerApproved ? 'Manager Sign-off Done' : 'Pending Manager Review'}
-                  </span>
-                </label>
-
-                {/* 4. Client Confirmation Recorded */}
-                <label className={`p-3 rounded-xl border space-y-1 cursor-pointer transition-colors ${inspectedReq.clientConfirmed ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300' : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-700'}`}>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs">4. Client Confirmation</span>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(inspectedReq.clientConfirmed)}
-                      onChange={(e) => handleToggleCompletionMilestone('clientConfirmed', e.target.checked)}
-                      className="rounded accent-emerald-500"
-                    />
-                  </div>
-                  <span className="text-[10px] block opacity-80">
-                    {inspectedReq.clientConfirmed ? 'Client Confirmation Recorded' : 'Pending Client Confirmation'}
-                  </span>
-                </label>
-              </div>
-            </div>
-
             {/* Produced Deliverables Vault (Outputs Manifest) */}
             <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
               <div className="flex items-center justify-between border-b border-gray-800 pb-2">
@@ -1847,75 +1705,68 @@ export default function GraphicReqsPage() {
               </div>
             </div>
 
-            {/* Design Assets & File Attachment Vault (8 Mandatory Categories) */}
-            <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
-              <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-                <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+            {/* Design Assets & File Attachment Vault (Minimal Collapsible Grid) */}
+            <div className="bg-gray-950 border border-gray-800 p-3 rounded-xl space-y-2">
+              <div
+                onClick={() => setShowAssetVault(!showAssetVault)}
+                className="flex items-center justify-between cursor-pointer select-none border-b border-gray-800/60 pb-1.5"
+              >
+                <span className="text-[11px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
                   📁 Design Assets &amp; File Attachments (8 Categories)
+                  <span className="text-[10px] text-gray-400 font-mono font-normal">
+                    ({inspectedReq.files?.length || 0} File(s) Uploaded)
+                  </span>
                 </span>
-                <span className="text-[10px] text-gray-400 font-mono">
-                  {inspectedReq.files?.length || 0} File(s) Uploaded
+                <span className="text-[10px] text-cyan-400 font-bold hover:underline">
+                  {showAssetVault ? '▼ Collapse' : '▶ Expand Categories'}
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
-                {GRAPHIC_FILE_CATEGORIES.map((cat) => {
-                  const catFiles = (inspectedReq.files || []).filter(
-                    (f: any) => f.attachmentCategory === cat.key || f.fileCategory === cat.key
-                  );
+              {showAssetVault && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] animate-in fade-in duration-150">
+                  {GRAPHIC_FILE_CATEGORIES.map((cat) => {
+                    const catFiles = (inspectedReq.files || []).filter(
+                      (f: any) => f.attachmentCategory === cat.key || f.fileCategory === cat.key
+                    );
 
-                  return (
-                    <div key={cat.key} className="bg-gray-900/80 p-3 rounded-lg border border-gray-800/80 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="font-bold text-white flex items-center gap-1 text-xs">
-                            {cat.icon} {cat.label}
-                          </span>
-                          <span className="text-[9px] text-gray-500 block">{cat.desc}</span>
-                        </div>
-
-                        <label className="cursor-pointer px-2 py-1 bg-gray-800 hover:bg-gray-700 text-cyan-300 border border-cyan-800/50 rounded font-semibold text-[10px] flex items-center gap-1 transition-colors">
-                          {uploadingCategory === cat.key ? (
-                            'Uploading...'
-                          ) : (
-                            <>+ Attach File</>
+                    return (
+                      <div key={cat.key} className="bg-gray-900/90 p-2 rounded-lg border border-gray-800/80 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span className="text-sm">{cat.icon}</span>
+                          <span className="font-semibold text-gray-200 text-[11px] truncate">{cat.label}</span>
+                          {catFiles.length > 0 && (
+                            <span className="px-1.5 py-0.2 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded font-mono text-[9px] font-bold">
+                              {catFiles.length}
+                            </span>
                           )}
-                          <input
-                            type="file"
-                            className="hidden"
-                            onChange={(e) => handleFileUpload(e, cat.key)}
-                            disabled={uploadingCategory === cat.key}
-                          />
-                        </label>
-                      </div>
+                        </div>
 
-                      {catFiles.length === 0 ? (
-                        <div className="text-[10px] text-gray-500 italic p-1 bg-gray-950/60 rounded border border-gray-800/40">
-                          No {cat.label.toLowerCase()} attached yet.
+                        <div className="flex items-center gap-1 shrink-0">
+                          {catFiles.length > 0 && (
+                            <a
+                              href={catFiles[0].fileUrl || `http://localhost:4000${catFiles[0].storagePath}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-cyan-400 hover:underline text-[10px] font-bold px-1.5 py-0.5 bg-cyan-950/60 rounded border border-cyan-800/60"
+                            >
+                              View ↗
+                            </a>
+                          )}
+                          <label className="cursor-pointer px-2 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded font-semibold text-[10px] transition-colors">
+                            {uploadingCategory === cat.key ? '…' : '+ Attach'}
+                            <input
+                              type="file"
+                              className="hidden"
+                              onChange={(e) => handleFileUpload(e, cat.key)}
+                              disabled={uploadingCategory === cat.key}
+                            />
+                          </label>
                         </div>
-                      ) : (
-                        <div className="space-y-1">
-                          {catFiles.map((f: any) => (
-                            <div key={f.id} className="p-1.5 bg-gray-950 border border-gray-800 rounded flex items-center justify-between text-[10px]">
-                              <span className="text-gray-200 font-medium truncate max-w-[170px]">
-                                📄 {f.fileName}
-                              </span>
-                              <a
-                                href={f.fileUrl || `http://localhost:4000${f.storagePath}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-cyan-400 hover:underline font-bold"
-                              >
-                                View ↗
-                              </a>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Generated Tasks */}
@@ -1941,6 +1792,21 @@ export default function GraphicReqsPage() {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Revision Cycles & Resubmission Controls */}
+            <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
+              <RevisionsTab
+                entityType="GRAPHIC_REQ"
+                entityId={inspectedReq.id}
+                entityTitle={inspectedReq.name}
+                originalAssigneeId={inspectedReq.tasks?.[0]?.assignedEmployees?.[0]?.userId}
+                originalAssigneeName={inspectedReq.tasks?.[0]?.assignedEmployees?.[0]?.user?.name}
+                userRole={user?.role}
+                userId={user?.id}
+                currentStatus={inspectedReq.status}
+                onRefresh={loadData}
+              />
             </div>
 
             {/* Activity & Revision History Timeline */}
@@ -2118,6 +1984,25 @@ export default function GraphicReqsPage() {
             : null
         }
       />
+      {/* Request Revision Form Modal */}
+      {revisionModalReq && (
+        <RequestRevisionModal
+          isOpen={Boolean(revisionModalReq)}
+          onClose={() => setRevisionModalReq(null)}
+          onSuccess={() => {
+            loadData();
+            if (inspectedReq?.id === revisionModalReq.id) {
+              setInspectedReq({ ...inspectedReq, status: 'REVISION_REQUESTED' });
+            }
+          }}
+          entityType="GRAPHIC_REQ"
+          entityId={revisionModalReq.id}
+          entityTitle={revisionModalReq.name}
+          originalAssigneeId={revisionModalReq.tasks?.[0]?.assignedEmployees?.[0]?.userId}
+          originalAssigneeName={revisionModalReq.tasks?.[0]?.assignedEmployees?.[0]?.user?.name}
+          userRole={user?.role}
+        />
+      )}
     </div>
   );
 }

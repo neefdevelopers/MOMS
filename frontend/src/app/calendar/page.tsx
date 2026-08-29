@@ -95,6 +95,7 @@ export default function CalendarPage() {
     priority: 'MEDIUM',
     productionNotes: '',
     remarks: '',
+    selectedDeliverables: ['Poster', 'Story'] as string[],
     saveAsDraft: false,
 
     // Outdoor shoot operational fields
@@ -441,6 +442,7 @@ export default function CalendarPage() {
       priority: eventItem.priority || 'MEDIUM',
       productionNotes: eventItem.productionNotes || '',
       remarks: eventItem.remarks || '',
+      selectedDeliverables: eventItem.selectedDeliverables || ['Poster', 'Story'],
       saveAsDraft: false,
 
       // Outdoor shoot operational fields
@@ -491,6 +493,7 @@ export default function CalendarPage() {
       priority: 'MEDIUM',
       productionNotes: '',
       remarks: '',
+      selectedDeliverables: ['Poster', 'Story'],
       saveAsDraft: false,
 
       // Outdoor shoot operational fields
@@ -1539,7 +1542,7 @@ export default function CalendarPage() {
                 {/* Produced Deliverables Formats Selection */}
                 <div className="p-3 bg-gray-900/80 border border-gray-800 rounded-xl space-y-2">
                   <label className="text-gray-200 font-bold block text-xs">
-                    Produced Deliverables (Select all deliverable formats to generate)
+                    Produced Deliverables (Click to select/deselect deliverable formats to generate) *
                   </label>
                   <div className="flex flex-wrap gap-1.5">
                     {[
@@ -1553,15 +1556,30 @@ export default function CalendarPage() {
                       { name: 'Advertisement', icon: '📣' },
                       { name: 'Packaging Design', icon: '📦' },
                       { name: 'Website Creative', icon: '🌐' },
-                    ].map((del) => (
-                      <span
-                        key={del.name}
-                        className="px-2 py-1 rounded bg-amber-950/60 border border-amber-500/40 text-amber-300 font-semibold text-[11px] flex items-center gap-1"
-                      >
-                        <span>{del.icon}</span>
-                        <span>{del.name}</span>
-                      </span>
-                    ))}
+                    ].map((del) => {
+                      const isSelected = (formData.selectedDeliverables || ['Poster', 'Story']).includes(del.name);
+                      return (
+                        <button
+                          key={del.name}
+                          type="button"
+                          onClick={() => {
+                            const current = formData.selectedDeliverables || ['Poster', 'Story'];
+                            const next = isSelected
+                              ? current.filter((d) => d !== del.name)
+                              : [...current, del.name];
+                            setFormData((prev) => ({ ...prev, selectedDeliverables: next }));
+                          }}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-amber-500 text-gray-950 border-amber-400 font-bold shadow-md scale-[1.02]'
+                              : 'bg-gray-950 text-gray-400 border-gray-800 hover:border-gray-700'
+                          }`}
+                        >
+                          <span>{del.icon}</span>
+                          <span>{del.name}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1993,10 +2011,10 @@ export default function CalendarPage() {
         eventData={
           convertModalEvent
             ? {
-                title: convertModalEvent.title,
-                parentType: convertModalEvent.graphicRequirement?.id ? 'GRAPHIC_REQ' : 'PROJECT',
-                parentId: convertModalEvent.graphicRequirement?.id || convertModalEvent.shootProjects?.[0]?.id || '',
-                parentCode: convertModalEvent.graphicRequirement?.requirementId || convertModalEvent.shootProjects?.[0]?.projectId,
+                title: convertModalEvent.title || '',
+                parentType: (convertModalEvent.graphicRequirement?.id || convertModalEvent.graphicRequirementId || convertModalEvent.eventSource === 'GRAPHIC_REQUIREMENT') ? 'GRAPHIC_REQ' : 'PROJECT',
+                parentId: convertModalEvent.graphicRequirement?.id || convertModalEvent.graphicRequirementId || convertModalEvent.shootProjects?.[0]?.id || convertModalEvent.shootId || convertModalEvent.id,
+                parentCode: convertModalEvent.graphicRequirement?.requirementId || convertModalEvent.shootProjects?.[0]?.projectId || convertModalEvent.eventId || convertModalEvent.id,
                 clientId: convertModalEvent.clientId,
                 brandId: convertModalEvent.brandId,
                 productId: convertModalEvent.productId,

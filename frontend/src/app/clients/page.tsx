@@ -198,7 +198,7 @@ function ClientsContent() {
           </p>
         </div>
 
-        {user?.role === 'MEDIA_MANAGER' && (
+        {((user?.role as string) === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMIN' || (user?.role as string) === 'ADMINISTRATOR') && (
           <button
             onClick={() => {
               resetForm();
@@ -346,7 +346,7 @@ function ClientsContent() {
                       </button>
 
                       {/* Edit Action */}
-                      {user?.role === 'MEDIA_MANAGER' && (
+                      {((user?.role as string) === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMIN' || (user?.role as string) === 'ADMINISTRATOR') && (
                         <button
                           onClick={() => openEdit(client)}
                           className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded font-semibold text-[11px] inline-flex items-center gap-1"
@@ -357,7 +357,7 @@ function ClientsContent() {
                       )}
 
                       {/* Archive Action */}
-                      {user?.role === 'MEDIA_MANAGER' && client.status !== 'ARCHIVED' && (
+                      {((user?.role as string) === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMIN' || (user?.role as string) === 'ADMINISTRATOR') && client.status !== 'ARCHIVED' && (
                         <button
                           onClick={() => handleArchiveClient(client)}
                           className="px-2 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded font-semibold text-[11px] inline-flex items-center gap-1"

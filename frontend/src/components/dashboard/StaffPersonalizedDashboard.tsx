@@ -55,6 +55,18 @@ export default function StaffPersonalizedDashboard({ user }: StaffPersonalizedDa
     loadPersonalizedDashboard();
   }, []);
 
+  const handleAcceptTask = async (taskId: string) => {
+    try {
+      setTaskUpdatingId(taskId);
+      await fetchApi(`/tasks/${taskId}/accept`, { method: 'POST' });
+      loadPersonalizedDashboard();
+    } catch (err) {
+      console.error('Failed to accept task:', err);
+    } finally {
+      setTaskUpdatingId(null);
+    }
+  };
+
   const handleUpdateTaskStatus = async (taskId: string, newStatus: string) => {
     try {
       setTaskUpdatingId(taskId);
@@ -261,24 +273,40 @@ export default function StaffPersonalizedDashboard({ user }: StaffPersonalizedDa
                     <span>Project: <strong className="text-zinc-200">{t.project?.name || 'Assigned Task'}</strong></span>
 
                     <div className="flex items-center gap-1.5">
-                      {t.status !== 'IN_PROGRESS' && (
+                      {t.assignedEmployees?.some((a: any) => a.userId === user?.id && a.acceptanceStatus !== 'ACCEPTED') ? (
                         <button
-                          onClick={() => handleUpdateTaskStatus(t.id, 'IN_PROGRESS')}
+                          onClick={() => handleAcceptTask(t.id)}
                           disabled={taskUpdatingId === t.id}
-                          className="px-2 py-0.5 rounded bg-blue-950 hover:bg-blue-900 text-blue-300 border border-blue-800 text-[9px] font-bold"
+                          className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-extrabold flex items-center gap-1 shadow"
                         >
-                          Start Task
+                          <CheckCircle2 className="w-2.5 h-2.5" /> Accept Task
                         </button>
-                      )}
-                      {t.status !== 'COMPLETED' && (
+                      ) : (t.status === 'ACCEPTED' || t.assignedEmployees?.some((a: any) => a.userId === user?.id && a.acceptanceStatus === 'ACCEPTED')) && t.status !== 'IN_PROGRESS' && t.status !== 'COMPLETED' ? (
                         <button
-                          onClick={() => handleUpdateTaskStatus(t.id, 'COMPLETED')}
+                          onClick={async () => {
+                            try {
+                              setTaskUpdatingId(t.id);
+                              await fetchApi(`/tasks/${t.id}/start-production`, { method: 'POST' });
+                              loadPersonalizedDashboard();
+                            } catch (err: any) {
+                              alert(err.message || 'Failed to start production');
+                            } finally {
+                              setTaskUpdatingId(null);
+                            }
+                          }}
                           disabled={taskUpdatingId === t.id}
-                          className="px-2 py-0.5 rounded bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 text-[9px] font-bold flex items-center gap-1"
+                          className="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-[9px] flex items-center gap-1 shadow"
                         >
-                          <CheckCircle2 className="w-2.5 h-2.5" /> Complete
+                          ▶️ Start Production
                         </button>
-                      )}
+                      ) : t.status === 'IN_PROGRESS' ? (
+                        <Link
+                          href={`/tasks?taskId=${t.id}`}
+                          className="px-2 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-extrabold text-[9px] flex items-center gap-1 shadow"
+                        >
+                          📤 Upload Deliverable
+                        </Link>
+                      ) : null}
                     </div>
                   </div>
                 </div>
