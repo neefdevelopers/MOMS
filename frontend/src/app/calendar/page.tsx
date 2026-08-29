@@ -1211,18 +1211,26 @@ export default function CalendarPage() {
 
                 {user?.role === 'MARKETING_MANAGER' && (
                   <div className="flex gap-1.5 flex-wrap items-center">
-                    <button
-                      onClick={() => openClientEdit(eventItem)}
-                      className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded font-bold text-[10px] flex items-center gap-1 shadow-sm"
-                    >
-                      <Clock className="w-3 h-3" /> Edit Deadline &amp; Priority
-                    </button>
-                    <Link
-                      href="/client-review"
-                      className="px-2.5 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded font-bold text-[10px] flex items-center gap-1"
-                    >
-                      <ShieldCheck className="w-3 h-3" /> Review Portal
-                    </Link>
+                    {['PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'DRAFT'].includes(eventItem.status) ? (
+                      <>
+                        <button
+                          onClick={() => openClientEdit(eventItem)}
+                          className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded font-bold text-[10px] flex items-center gap-1 shadow-sm"
+                        >
+                          <Clock className="w-3 h-3" /> Edit Deadline &amp; Priority
+                        </button>
+                        <Link
+                          href="/client-review"
+                          className="px-2.5 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded font-bold text-[10px] flex items-center gap-1"
+                        >
+                          <ShieldCheck className="w-3 h-3" /> Review Portal
+                        </Link>
+                      </>
+                    ) : (
+                      <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/80 px-2.5 py-1 rounded-lg flex items-center gap-1">
+                        ✓ Approved &amp; Handed Over to Media Operations
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

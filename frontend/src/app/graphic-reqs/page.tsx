@@ -1558,7 +1558,8 @@ export default function GraphicReqsPage() {
                   <select
                     value={inspectedReq.status}
                     onChange={(e) => handleUpdateStatus(inspectedReq.id, e.target.value)}
-                    className={`w-full font-bold text-xs p-1.5 rounded border focus:outline-none ${getStatusBadge(inspectedReq.status)}`}
+                    disabled={user?.role === 'MARKETING_MANAGER' && inspectedReq.status !== 'PENDING_MARKETING_APPROVAL' && inspectedReq.status !== 'DRAFT'}
+                    className={`w-full font-bold text-xs p-1.5 rounded border focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${getStatusBadge(inspectedReq.status)}`}
                   >
                     {GRAPHIC_REQUIREMENT_STATUSES.map((s) => (
                       <option key={s.value} value={s.value} className="bg-gray-950 text-white font-normal">

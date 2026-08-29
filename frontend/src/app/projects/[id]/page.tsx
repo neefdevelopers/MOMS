@@ -379,7 +379,8 @@ export default function ProjectDetailPage() {
                 <select
                   value={project.status}
                   onChange={(e) => handleStatusChange(e.target.value)}
-                  className="text-[11px] font-bold px-2.5 py-1 bg-purple-950/60 text-purple-300 border border-purple-700/50 rounded-lg focus:outline-none focus:border-purple-500 cursor-pointer"
+                  disabled={user?.role === 'MARKETING_MANAGER' && !['DRAFT', 'PLANNED'].includes(project.status)}
+                  className="text-[11px] font-bold px-2.5 py-1 bg-purple-950/60 text-purple-300 border border-purple-700/50 rounded-lg focus:outline-none focus:border-purple-500 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="DRAFT">Draft</option>
                   <option value="PLANNED">Planned</option>
