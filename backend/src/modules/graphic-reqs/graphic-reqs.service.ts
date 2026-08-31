@@ -1,5 +1,6 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { canUserViewEvent, canUserViewRequirement } from '../../common/utils/event-auth';
 
 @Injectable()
 export class GraphicReqsService {
@@ -38,10 +39,15 @@ export class GraphicReqsService {
     }
 
     if (p.status === 'PENDING_APPROVAL' || p.status === 'PENDING') {
+      const UNAPPROVED_STATUSES = ['PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'DRAFT', 'CHANGES_REQUESTED', 'PENDING_MARKETING_APPROVAL'];
       where.OR = [
         { status: 'WAITING_FOR_MEDIA_REVIEW' },
         { status: 'PENDING_CLIENT_APPROVAL' },
-        { calendarEvent: { status: { in: ['PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW'] } } },
+        { status: 'PENDING_MARKETING_APPROVAL' },
+        { status: 'DRAFT' },
+        { calendarEvent: { status: { in: UNAPPROVED_STATUSES } } },
+        { sourceForCalendarEvents: { some: { status: { in: UNAPPROVED_STATUSES } } } },
+        { project: { calendarEvent: { status: { in: UNAPPROVED_STATUSES } } } },
       ];
     } else if (p.status && p.status !== 'ALL') {
       where.status = p.status;
@@ -69,6 +75,7 @@ export class GraphicReqsService {
       where.OR = [
         { tasks: { some: { assignedEmployees: { some: { userId: p.userId } } } } },
         { project: { assignedTeam: { some: { userId: p.userId } } } },
+        { project: { createdById: p.userId } },
       ];
     }
 
@@ -94,17 +101,51 @@ export class GraphicReqsService {
       }
     }
 
+    // Execution roles (TECHNICAL_MANAGER, etc.) can ONLY view graphic requirements once approved by Marketing Manager (or if assigned/created by themselves).
+    const APPROVED_CALENDAR_STATUSES = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'];
+    const CREATOR_AND_APPROVER_ROLES = ['SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMIN', 'ADMINISTRATOR', 'STAFF'];
+
+    if (p.role && !CREATOR_AND_APPROVER_ROLES.includes(p.role) && p.userId) {
+      const eventVisibilityFilter = {
+        OR: [
+          { calendarEventId: null },
+          { calendarEvent: { status: { in: APPROVED_CALENDAR_STATUSES } } },
+          { calendarEvent: { createdById: p.userId } },
+          { sourceForCalendarEvents: { some: { status: { in: APPROVED_CALENDAR_STATUSES } } } },
+          { sourceForCalendarEvents: { some: { createdById: p.userId } } },
+          { project: { calendarEvent: { status: { in: APPROVED_CALENDAR_STATUSES } } } },
+          { project: { calendarEvent: { createdById: p.userId } } },
+          { tasks: { some: { assignedEmployees: { some: { userId: p.userId } } } } },
+          { project: { assignedTeam: { some: { userId: p.userId } } } },
+        ],
+      };
+
+      if (where.AND) {
+        where.AND = Array.isArray(where.AND) ? [...where.AND, eventVisibilityFilter] : [where.AND, eventVisibilityFilter];
+      } else {
+        where.AND = [eventVisibilityFilter];
+      }
+    }
+
     const items = await this.prisma.graphicRequirement.findMany({
       where,
       include: {
-        project: true,
+        project: { include: { calendarEvent: true } },
         client: true,
         brand: true,
         calendarEvent: true,
+        sourceForCalendarEvents: { include: { createdBy: { select: { id: true, name: true, role: true } } } },
         product: true,
         campaign: true,
         tasks: { include: { assignedEmployees: { include: { user: true } } } },
         files: true,
+        deliverables: {
+          include: {
+            createdBy: { select: { id: true, name: true, role: true } },
+            assignedStaff: { select: { id: true, name: true, role: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
         timeline: {
           include: { user: { select: { id: true, name: true, role: true } } },
           orderBy: { createdAt: 'desc' },
@@ -117,7 +158,13 @@ export class GraphicReqsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return this.syncGraphicRequirementStatuses(items);
+    const syncedItems = await this.syncGraphicRequirementStatuses(items);
+    if (p.userId && p.role) {
+      return syncedItems.filter((item: any) =>
+        canUserViewRequirement({ id: p.userId, role: p.role }, item),
+      );
+    }
+    return syncedItems;
   }
 
   private async syncGraphicRequirementStatuses(items: any[]) {
@@ -128,29 +175,46 @@ export class GraphicReqsService {
       const calStatus = item.calendarEvent?.status;
       const isCalApproved = calStatus && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(calStatus);
 
-      const hasDeliverable = item.tasks?.some((t: any) => Boolean(t.activeDeliverableUrl));
-      const isTaskInProgress = item.tasks?.some((t: any) => t.status === 'IN_PROGRESS' || t.status === 'ACCEPTED');
-      const hasTasks = item.tasks && item.tasks.length > 0;
+      const deliverables = item.deliverables || [];
+      const tasks = item.tasks || [];
 
-      // Status progression MUST strictly depend on technical and media manager sign-offs
-      if (item.mediaManagerApproved && item.technicalReviewApproved) {
-        if (item.clientConfirmed || item.status === 'COMPLETED') {
-          computedStatus = 'COMPLETED';
-        } else {
-          computedStatus = 'WAITING_FOR_CLIENT_CONFIRMATION';
-        }
-      } else if (hasDeliverable) {
-        if (!item.technicalReviewApproved) {
-          computedStatus = 'WAITING_FOR_TECHNICAL_REVIEW';
-        } else if (!item.mediaManagerApproved) {
+      const hasProducedDeliverables = deliverables.length > 0 || tasks.some((t: any) => Boolean(t.activeDeliverableUrl));
+      const allDeliverablesCompletedOrSubmitted = deliverables.length > 0 && deliverables.every((d: any) => d.status === 'COMPLETED' || d.status === 'SUBMITTED');
+      const isTaskInProgress = tasks.some((t: any) => t.status === 'IN_PROGRESS' || t.status === 'ACCEPTED');
+      const isTaskAccepted = tasks.some((t: any) => t.status === 'ACCEPTED' || (t.assignedEmployees || []).some((e: any) => e.acceptanceStatus === 'ACCEPTED'));
+      const hasTasks = tasks.length > 0;
+
+      // 100% Automatic Status Progression based on actual staff work & deliverables
+      if (allDeliverablesCompletedOrSubmitted || item.status === 'COMPLETED' || (item.mediaManagerApproved && item.technicalReviewApproved)) {
+        computedStatus = item.clientConfirmed ? 'COMPLETED' : (item.status === 'COMPLETED' ? 'COMPLETED' : 'WAITING_FOR_CLIENT_CONFIRMATION');
+      } else if (hasProducedDeliverables) {
+        if (item.technicalReviewApproved) {
           computedStatus = 'WAITING_FOR_MEDIA_REVIEW';
+        } else {
+          computedStatus = 'WAITING_FOR_TECHNICAL_REVIEW';
         }
       } else if (isTaskInProgress) {
         computedStatus = 'IN_PROGRESS';
-      } else if (hasTasks) {
+      } else if (isTaskAccepted || hasTasks) {
         computedStatus = 'TASK_ASSIGNED';
       } else if (isCalApproved && (item.status === 'PENDING_MARKETING_APPROVAL' || item.status === 'DRAFT' || item.status === 'READY')) {
         computedStatus = 'APPROVED';
+      }
+
+      // Calculate automatic progress percentage
+      let computedProgress = 10;
+      if (computedStatus === 'COMPLETED' || computedStatus === 'APPROVED') {
+        computedProgress = 100;
+      } else if (computedStatus === 'WAITING_FOR_CLIENT_CONFIRMATION') {
+        computedProgress = 95;
+      } else if (computedStatus === 'WAITING_FOR_MEDIA_REVIEW') {
+        computedProgress = 90;
+      } else if (computedStatus === 'WAITING_FOR_TECHNICAL_REVIEW') {
+        computedProgress = 75;
+      } else if (computedStatus === 'IN_PROGRESS') {
+        computedProgress = 45;
+      } else if (computedStatus === 'TASK_ASSIGNED') {
+        computedProgress = 25;
       }
 
       if (computedStatus !== item.status) {
@@ -162,23 +226,49 @@ export class GraphicReqsService {
         }).catch(() => null);
         item.status = computedStatus;
       }
+
+      // Automatically update task completion percentages for associated tasks
+      if (hasTasks) {
+        for (const task of tasks) {
+          if (task.completionPercentage !== computedProgress && task.status !== 'COMPLETED') {
+            await this.prisma.task.update({
+              where: { id: task.id },
+              data: {
+                completionPercentage: computedProgress,
+                ...(computedStatus === 'IN_PROGRESS' && { status: 'IN_PROGRESS' }),
+                ...(computedStatus === 'WAITING_FOR_TECHNICAL_REVIEW' && { status: 'WAITING_FOR_REVIEW' }),
+                ...(computedStatus === 'COMPLETED' && { status: 'COMPLETED', completionPercentage: 100 }),
+              },
+            }).catch(() => null);
+            task.completionPercentage = computedProgress;
+          }
+        }
+      }
     }
 
     return items;
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: any) {
     const req = await this.prisma.graphicRequirement.findUnique({
       where: { id },
       include: {
-        project: true,
+        project: { include: { calendarEvent: true } },
         client: true,
         brand: true,
         calendarEvent: true,
+        sourceForCalendarEvents: { include: { createdBy: { select: { id: true, name: true, role: true } } } },
         product: true,
         campaign: true,
         tasks: { include: { assignedEmployees: { include: { user: true } } } },
         files: true,
+        deliverables: {
+          include: {
+            createdBy: { select: { id: true, name: true, role: true } },
+            assignedStaff: { select: { id: true, name: true, role: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
         timeline: {
           include: { user: { select: { id: true, name: true, role: true } } },
           orderBy: { createdAt: 'desc' },
@@ -190,6 +280,13 @@ export class GraphicReqsService {
       },
     });
     if (!req) throw new NotFoundException('Graphic Requirement not found');
+
+    if (user && user.id && user.role) {
+      if (!canUserViewRequirement({ id: user.id, role: user.role }, req)) {
+        throw new ForbiddenException('Access Denied: Requirement waiting for Marketing Approval is hidden from Technical Manager.');
+      }
+    }
+
     const [synced] = await this.syncGraphicRequirementStatuses([req]);
     return synced;
   }
@@ -231,7 +328,7 @@ export class GraphicReqsService {
         description: data.description,
         priority: data.priority || 'MEDIUM',
         estimatedCompletion: data.estimatedCompletion ? new Date(data.estimatedCompletion) : null,
-        status: data.status || 'DRAFT',
+        status: data.status || 'APPROVED',
         remarks: data.remarks,
       },
       include: {
@@ -416,6 +513,236 @@ export class GraphicReqsService {
     });
 
     return remark;
+  }
+
+  private isStaffAssignedToReq(req: any, userId: string): boolean {
+    if (!req || !userId) return false;
+    const isTaskAssigned =
+      Array.isArray(req.tasks) &&
+      req.tasks.some(
+        (t: any) =>
+          t.assignedToId === userId ||
+          (Array.isArray(t.assignedEmployees) &&
+            t.assignedEmployees.some((e: any) => e.userId === userId || e.employeeId === userId || e.user?.id === userId)),
+      );
+    if (isTaskAssigned) return true;
+
+    if (req.createdById === userId) return true;
+
+    return false;
+  }
+
+  async getDeliverables(id: string, user?: any) {
+    const req = await this.findOne(id, user);
+    const deliverables = await this.prisma.graphicRequirementDeliverable.findMany({
+      where: { graphicRequirementId: id },
+      include: {
+        createdBy: { select: { id: true, name: true, role: true } },
+        assignedStaff: { select: { id: true, name: true, role: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return deliverables;
+  }
+
+  async addDeliverable(id: string, data: any, user: any) {
+    const req = await this.prisma.graphicRequirement.findUnique({
+      where: { id },
+      include: {
+        project: { include: { assignedTeam: true } },
+        tasks: { include: { assignedEmployees: true } },
+      },
+    });
+    if (!req) throw new NotFoundException('Graphic Requirement not found');
+
+    const isAssigned = this.isStaffAssignedToReq(req, user?.id);
+    if (!isAssigned && user?.role !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
+      throw new ForbiddenException(
+        'Only the assigned staff member to whom this Graphic Requirement is assigned can add produced deliverable outputs.',
+      );
+    }
+
+    const deliverable = await this.prisma.graphicRequirementDeliverable.create({
+      data: {
+        graphicRequirementId: id,
+        name: data.name || data.title || 'Produced Deliverable',
+        type: data.type || 'Graphic Asset',
+        description: data.description || '',
+        fileUrl: data.fileUrl || null,
+        fileName: data.fileName || null,
+        fileSize: data.fileSize ? Number(data.fileSize) : null,
+        status: data.status || 'DRAFT',
+        remarks: data.remarks || '',
+        submissionDate: data.status === 'SUBMITTED' ? new Date() : (data.submissionDate ? new Date(data.submissionDate) : null),
+        createdById: user?.id,
+        assignedStaffId: user?.id,
+      },
+      include: {
+        createdBy: { select: { id: true, name: true, role: true } },
+        assignedStaff: { select: { id: true, name: true, role: true } },
+      },
+    });
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user?.id,
+        action: 'GRAPHIC_REQUIREMENT_DELIVERABLE_CREATED',
+        entity: 'GRAPHIC_REQUIREMENT',
+        entityId: id,
+        description: `Created produced deliverable "${deliverable.name}" for Graphic Requirement ${req.requirementId}`,
+      },
+    }).catch(() => null);
+
+    await this.prisma.graphicRequirementTimeline.create({
+      data: {
+        graphicRequirementId: id,
+        userId: user?.id,
+        event: 'DELIVERABLE_ADDED',
+        description: `Added produced deliverable: ${deliverable.name} (${deliverable.type})`,
+      },
+    });
+
+    // Advance associated tasks progress percentage to 75%
+    await this.prisma.task.updateMany({
+      where: { graphicRequirementId: id },
+      data: {
+        completionPercentage: 75,
+        status: 'WAITING_FOR_REVIEW',
+      },
+    }).catch(() => null);
+
+    return deliverable;
+  }
+
+  async updateDeliverable(deliverableId: string, data: any, user: any) {
+    const deliverable = await this.prisma.graphicRequirementDeliverable.findUnique({
+      where: { id: deliverableId },
+      include: {
+        graphicRequirement: {
+          include: {
+            project: { include: { assignedTeam: true } },
+            tasks: { include: { assignedEmployees: true } },
+          },
+        },
+      },
+    });
+    if (!deliverable) throw new NotFoundException('Deliverable output not found');
+
+    const isAssigned = this.isStaffAssignedToReq(deliverable.graphicRequirement, user?.id);
+    if (!isAssigned && deliverable.createdById !== user?.id && deliverable.assignedStaffId !== user?.id && user?.role !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
+      throw new ForbiddenException(
+        'Only the assigned staff member to whom this Graphic Requirement is assigned can modify this produced deliverable output.',
+      );
+    }
+
+    const updated = await this.prisma.graphicRequirementDeliverable.update({
+      where: { id: deliverableId },
+      data: {
+        ...(data.name && { name: data.name }),
+        ...(data.type && { type: data.type }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.fileUrl !== undefined && { fileUrl: data.fileUrl }),
+        ...(data.fileName !== undefined && { fileName: data.fileName }),
+        ...(data.fileSize !== undefined && { fileSize: Number(data.fileSize) }),
+        ...(data.status && { status: data.status }),
+        ...(data.remarks !== undefined && { remarks: data.remarks }),
+        ...(data.submissionDate !== undefined && { submissionDate: data.submissionDate ? new Date(data.submissionDate) : null }),
+      },
+      include: {
+        createdBy: { select: { id: true, name: true, role: true } },
+        assignedStaff: { select: { id: true, name: true, role: true } },
+      },
+    });
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user?.id,
+        action: 'GRAPHIC_REQUIREMENT_DELIVERABLE_UPDATED',
+        entity: 'GRAPHIC_REQUIREMENT',
+        entityId: deliverable.graphicRequirementId,
+        description: `Updated produced deliverable "${updated.name}" for Graphic Requirement ${deliverable.graphicRequirement?.requirementId}`,
+      },
+    }).catch(() => null);
+
+    return updated;
+  }
+
+  async updateDeliverableStatus(deliverableId: string, status: string, user: any) {
+    const deliverable = await this.prisma.graphicRequirementDeliverable.findUnique({
+      where: { id: deliverableId },
+      include: {
+        graphicRequirement: {
+          include: {
+            project: { include: { assignedTeam: true } },
+            tasks: { include: { assignedEmployees: true } },
+          },
+        },
+      },
+    });
+    if (!deliverable) throw new NotFoundException('Deliverable output not found');
+
+    const isAssigned = this.isStaffAssignedToReq(deliverable.graphicRequirement, user?.id);
+    if (!isAssigned && deliverable.createdById !== user?.id && deliverable.assignedStaffId !== user?.id && user?.role !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
+      throw new ForbiddenException(
+        'Only the assigned staff member to whom this Graphic Requirement is assigned can update deliverable status.',
+      );
+    }
+
+    const updated = await this.prisma.graphicRequirementDeliverable.update({
+      where: { id: deliverableId },
+      data: {
+        status,
+        ...(status === 'SUBMITTED' && { submissionDate: new Date() }),
+      },
+    });
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user?.id,
+        action: 'GRAPHIC_REQUIREMENT_DELIVERABLE_STATUS_CHANGED',
+        entity: 'GRAPHIC_REQUIREMENT',
+        entityId: deliverable.graphicRequirementId,
+        description: `Updated deliverable "${deliverable.name}" status to ${status}`,
+      },
+    }).catch(() => null);
+
+    return updated;
+  }
+
+  async deleteDeliverable(deliverableId: string, user: any) {
+    const deliverable = await this.prisma.graphicRequirementDeliverable.findUnique({
+      where: { id: deliverableId },
+      include: {
+        graphicRequirement: {
+          include: {
+            project: { include: { assignedTeam: true } },
+            tasks: { include: { assignedEmployees: true } },
+          },
+        },
+      },
+    });
+    if (!deliverable) throw new NotFoundException('Deliverable output not found');
+
+    const isAssigned = this.isStaffAssignedToReq(deliverable.graphicRequirement, user?.id);
+    if (!isAssigned && deliverable.createdById !== user?.id && deliverable.assignedStaffId !== user?.id && user?.role !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
+      throw new ForbiddenException(
+        'Only the assigned staff member to whom this Graphic Requirement is assigned can delete this deliverable.',
+      );
+    }
+
+    await this.prisma.graphicRequirementDeliverable.delete({ where: { id: deliverableId } });
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user?.id,
+        action: 'GRAPHIC_REQUIREMENT_DELIVERABLE_DELETED',
+        entity: 'GRAPHIC_REQUIREMENT',
+        entityId: deliverable.graphicRequirementId,
+        description: `Deleted produced deliverable "${deliverable.name}" from Graphic Requirement ${deliverable.graphicRequirement?.requirementId}`,
+      },
+    }).catch(() => null);
+
+    return { success: true };
   }
 }
 

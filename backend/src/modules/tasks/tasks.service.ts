@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TaskStatus, Priority, Role } from '../../common/enums';
+import { canUserViewTask } from '../../common/utils/event-auth';
 
 @Injectable()
 export class TasksService {
@@ -123,7 +124,7 @@ export class TasksService {
     return tasks;
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: any) {
     let task = await this.prisma.task.findUnique({
       where: { id },
       include: {
@@ -157,6 +158,9 @@ export class TasksService {
       });
     }
     if (!task) throw new NotFoundException('Task not found');
+    if (user && !canUserViewTask(user, task)) {
+      throw new ForbiddenException('You are not authorized to view this task.');
+    }
     const [synced] = await this.syncTaskSourceTypes([task]);
     return synced;
   }
@@ -681,10 +685,10 @@ export class TasksService {
     }
 
     if (data.status === TaskStatus.COMPLETED) {
-      if (user.role === Role.STAFF) {
+      if (user.role === Role.STAFF && task.taskType !== 'REVISION' && task.sourceType !== 'REVISION') {
         throw new ForbiddenException('Staff members cannot directly mark tasks as Completed. Tasks must undergo Technical and Media Manager review.');
       }
-      if (!task.mediaManagerApproved && user.role !== Role.MEDIA_MANAGER && user.role !== Role.ADMINISTRATOR) {
+      if (task.taskType !== 'REVISION' && task.sourceType !== 'REVISION' && !task.mediaManagerApproved && user.role !== Role.MEDIA_MANAGER && user.role !== Role.ADMINISTRATOR) {
         throw new BadRequestException('Task must pass Media Manager review before being marked as Completed.');
       }
     }
@@ -742,6 +746,25 @@ export class TasksService {
         `Task ${task.taskId} ('${task.title}') has been marked as COMPLETED 🎉`,
         'TASK_COMPLETED',
       );
+
+      // Automatically sync completion to linked Revision record if applicable
+      if (task.revisionId) {
+        await this.prisma.revision.update({
+          where: { id: task.revisionId },
+          data: {
+            status: 'COMPLETED',
+            resolvedAt: new Date(),
+          },
+        }).catch(() => null);
+      } else {
+        await this.prisma.revision.updateMany({
+          where: { taskId: task.id },
+          data: {
+            status: 'COMPLETED',
+            resolvedAt: new Date(),
+          },
+        }).catch(() => null);
+      }
     }
 
     // Update parent project progress percentage
@@ -780,16 +803,19 @@ export class TasksService {
       });
     }
 
-    // Update main task status to ACCEPTED if currently PENDING or ASSIGNED
+    // Update main task status to ACCEPTED and progress to 25% if currently PENDING or ASSIGNED
     if (task.status === TaskStatus.PENDING || task.status === TaskStatus.ASSIGNED) {
       await this.prisma.task.update({
         where: { id: task.id },
-        data: { status: TaskStatus.ACCEPTED },
+        data: {
+          status: TaskStatus.ACCEPTED,
+          completionPercentage: Math.max(task.completionPercentage, 25),
+        },
       });
     }
 
     // 3. Log EMPLOYEE_ACCEPTED
-    await this.logTimelineEvent(task.id, 'EMPLOYEE_ACCEPTED', `Task receipt acknowledged & ACCEPTED by ${user.name}`, user.id);
+    await this.logTimelineEvent(task.id, 'EMPLOYEE_ACCEPTED', `Task receipt acknowledged & ACCEPTED by ${user.name} (Progress: 25%)`, user.id);
 
     if (task.scriptId) {
       await this.prisma.scriptTimeline.create({
@@ -827,7 +853,10 @@ export class TasksService {
 
     const updated = await this.prisma.task.update({
       where: { id: task.id },
-      data: { status: TaskStatus.IN_PROGRESS },
+      data: {
+        status: TaskStatus.IN_PROGRESS,
+        completionPercentage: Math.max(task.completionPercentage, 45),
+      },
     });
 
     if (task.graphicRequirementId) {
@@ -837,7 +866,7 @@ export class TasksService {
       }).catch(() => null);
     }
 
-    await this.logTimelineEvent(task.id, 'PROGRESS_UPDATED', `Production started by ${user.name}`, user.id);
+    await this.logTimelineEvent(task.id, 'PROGRESS_UPDATED', `Production started by ${user.name} (Progress: 45%)`, user.id);
     return updated;
   }
 
@@ -903,14 +932,15 @@ export class TasksService {
       },
     });
 
-    // 2. Overwrite / replace active deliverable slot on Task
+    // 2. Overwrite / replace active deliverable slot on Task and advance progress to 75%
     const updatedTask = await this.prisma.task.update({
       where: { id: task.id },
       data: {
         activeDeliverableUrl: data.fileUrl.trim(),
         activeDeliverableFileName: fileName,
         activeDeliverableVersion: newVersion,
-        status: task.status === TaskStatus.PENDING ? TaskStatus.IN_PROGRESS : task.status,
+        status: TaskStatus.WAITING_FOR_REVIEW,
+        completionPercentage: Math.max(task.completionPercentage, 75),
       },
     });
 

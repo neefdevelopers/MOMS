@@ -14,10 +14,28 @@ import { ReassignmentRecommendationsModal } from '@/components/dashboard/Reassig
 import RevisionsTab from '@/components/revisions/RevisionsTab';
 import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
 
+const isTaskRevision = (t: any) =>
+  Boolean(
+    t?.taskType === 'REVISION' ||
+    t?.sourceType === 'REVISION' ||
+    t?.revisionId ||
+    t?.title?.toLowerCase().includes('revision')
+  );
+
 const TaskWorkflowTimeline = ({ task }: { task: any }) => {
   if (!task) return null;
 
+  const isRevision = isTaskRevision(task);
   const isDirect = task.sourceType === 'DIRECT_TASK';
+
+  const revisionStages = [
+    { key: 'ASSIGNED', label: 'Assigned' },
+    { key: 'ACCEPTED', label: 'Accepted' },
+    { key: 'IN_PROGRESS', label: 'In Progress' },
+    { key: 'WAITING_FOR_TECHNICAL_REVIEW', label: 'Technical Review' },
+    { key: 'WAITING_FOR_MEDIA_REVIEW', label: 'Media Review' },
+    { key: 'COMPLETED', label: 'Completed' },
+  ];
 
   const eventStages = [
     { key: 'PENDING_MARKETING_APPROVAL', label: 'Marketing Approval' },
@@ -39,20 +57,48 @@ const TaskWorkflowTimeline = ({ task }: { task: any }) => {
     { key: 'COMPLETED', label: 'Completed' },
   ];
 
-  const stages = isDirect ? directStages : eventStages;
+  const stages = isRevision ? revisionStages : isDirect ? directStages : eventStages;
   const currentIdx = stages.findIndex((s) => s.key === task.status);
 
+  const parentTitle =
+    task.graphicRequirement?.name ||
+    task.script?.name ||
+    task.project?.name ||
+    task.client?.name ||
+    'Parent Event';
+
   return (
-    <div className="bg-gray-950 border border-gray-800 p-3.5 rounded-xl space-y-2.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-          {isDirect ? '⚡ Direct Task Workflow Sequence' : '🎬 Event / Graphic Req Workflow Sequence'}
+    <div className={`border p-3.5 rounded-xl space-y-2.5 ${
+      isRevision
+        ? 'bg-amber-950/40 border-amber-800/60 shadow-lg shadow-amber-950/20'
+        : 'bg-gray-950 border-gray-800'
+    }`}>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <span className="text-[10px] text-gray-300 font-bold uppercase tracking-wider flex items-center gap-1.5">
+          {isRevision ? (
+            <>
+              <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+              🔄 Revision Task Workflow Progress
+            </>
+          ) : isDirect ? (
+            '⚡ Direct Task Workflow Sequence'
+          ) : (
+            '🎬 Event / Graphic Req Workflow Sequence'
+          )}
         </span>
-        <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${
-          isDirect ? 'bg-purple-950 text-purple-300 border-purple-800' : 'bg-amber-950 text-amber-300 border-amber-800'
-        }`}>
-          {task.sourceType || 'DIRECT_TASK'}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {isRevision && (
+            <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-900/60 text-amber-200 border border-amber-700/80 flex items-center gap-1">
+              🔗 Linked to Parent: <strong className="text-amber-300">{parentTitle}</strong>
+            </span>
+          )}
+          <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${
+            isRevision ? 'bg-amber-950 text-amber-300 border-amber-800' :
+            isDirect ? 'bg-purple-950 text-purple-300 border-purple-800' : 'bg-amber-950 text-amber-300 border-amber-800'
+          }`}>
+            {isRevision ? 'REVISION_TASK' : task.sourceType || 'DIRECT_TASK'}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center justify-between overflow-x-auto py-1 px-1 gap-1">
@@ -1110,10 +1156,15 @@ export default function TasksPage() {
                             size="sm"
                           />
                           <div className="space-y-0.5 min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                               <span className="font-mono text-[9px] text-blue-400 font-bold bg-blue-950/40 border border-blue-900/40 px-1 py-0.2 rounded shrink-0">
                                 {task.taskId}
                               </span>
+                              {(task.taskType === 'REVISION' || task.sourceType === 'REVISION' || task.revisionId || task.title?.toLowerCase().includes('revision')) && (
+                                <span className="font-mono text-[9px] text-amber-300 font-extrabold bg-amber-950/80 border border-amber-700/80 px-1.5 py-0.5 rounded shrink-0 flex items-center gap-1 shadow-sm shadow-amber-900/50">
+                                  🔄 REVISION
+                                </span>
+                              )}
                               <span className="font-semibold text-gray-100 text-xs truncate">{task.title}</span>
                             </div>
                             {task.description && (
@@ -1798,13 +1849,15 @@ export default function TasksPage() {
                   <span className="font-mono text-[10px] text-amber-300 font-bold bg-amber-950 px-2 py-0.5 rounded border border-amber-800 flex items-center gap-1">
                     🔄 Revisions: {inspectedTask.revisionCount || 0}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setRevisionModalTask(inspectedTask)}
-                    className="px-2.5 py-0.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow transition-colors"
-                  >
-                    <RotateCcw className="w-3 h-3" /> Request Revision
-                  </button>
+                  {!isTaskRevision(inspectedTask) && (
+                    <button
+                      type="button"
+                      onClick={() => setRevisionModalTask(inspectedTask)}
+                      className="px-2.5 py-0.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow transition-colors"
+                    >
+                      <RotateCcw className="w-3 h-3" /> Request Revision
+                    </button>
+                  )}
                 </div>
               </div>
               <button
@@ -1814,6 +1867,26 @@ export default function TasksPage() {
                 ✕ Close
               </button>
             </div>
+
+            {/* Linked Parent Event Banner for Separate Revision Task */}
+            {isTaskRevision(inspectedTask) && (
+              <div className="bg-amber-950/60 border border-amber-500/60 p-3 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs shadow-md animate-in fade-in duration-150">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2.5 py-0.5 bg-amber-600/30 text-amber-200 border border-amber-500/60 rounded font-mono font-bold text-[10px] flex items-center gap-1">
+                    🔄 Separate Revision Task
+                  </span>
+                  <span className="text-zinc-200 text-xs">
+                    Linked to Parent Event / Item:{' '}
+                    <strong className="text-amber-300 font-bold">
+                      {inspectedTask.script?.name || inspectedTask.graphicRequirement?.name || inspectedTask.project?.name || inspectedTask.client?.name || 'Parent Event / Production Item'}
+                    </strong>
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 bg-emerald-950/60 text-emerald-400 border border-emerald-800 rounded font-mono text-[10px] font-bold">
+                  Individual Task Progress: {inspectedTask.completionPercentage || 0}%
+                </span>
+              </div>
+            )}
 
             <TaskWorkflowTimeline task={inspectedTask} />
 
@@ -1831,14 +1904,16 @@ export default function TasksPage() {
                 <p className="text-zinc-200 leading-relaxed">
                   Reviewer requested changes for this task. Assigned staff member is making requested revisions.
                 </p>
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    onClick={() => setRevisionModalTask(inspectedTask)}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow transition-colors"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" /> Request Another Revision
-                  </button>
-                </div>
+                {!isTaskRevision(inspectedTask) && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      onClick={() => setRevisionModalTask(inspectedTask)}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow transition-colors"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Request Another Revision
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2122,19 +2197,22 @@ export default function TasksPage() {
             </div>
 
             {/* Revision History & Workflow Controls */}
-            <div className="bg-gray-900 border border-amber-800/40 p-3 rounded-lg space-y-3">
-              <RevisionsTab
-                entityType="TASK"
-                entityId={inspectedTask.id}
-                entityTitle={inspectedTask.title}
-                originalAssigneeId={inspectedTask.assignedEmployees?.[0]?.userId}
-                originalAssigneeName={inspectedTask.assignedEmployees?.[0]?.user?.name}
-                userRole={user?.role}
-                userId={user?.id}
-                currentStatus={inspectedTask.status}
-                onRefresh={loadData}
-              />
-            </div>
+            {!isTaskRevision(inspectedTask) && (
+              <div className="bg-gray-900 border border-amber-800/40 p-3 rounded-lg space-y-3">
+                <RevisionsTab
+                  entityType="TASK"
+                  entityId={inspectedTask.id}
+                  entityTitle={inspectedTask.title}
+                  originalAssigneeId={inspectedTask.assignedEmployees?.[0]?.userId}
+                  originalAssigneeName={inspectedTask.assignedEmployees?.[0]?.user?.name}
+                  userRole={user?.role}
+                  userId={user?.id}
+                  currentStatus={inspectedTask.status}
+                  isRevision={isTaskRevision(inspectedTask)}
+                  onRefresh={loadData}
+                />
+              </div>
+            )}
 
             <div className="flex justify-end pt-3 border-t border-border">
               <button
@@ -2569,6 +2647,7 @@ export default function TasksPage() {
           originalAssigneeId={revisionModalTask.assignedEmployees?.[0]?.userId}
           originalAssigneeName={revisionModalTask.assignedEmployees?.[0]?.user?.name}
           userRole={user?.role}
+          isRevision={isTaskRevision(revisionModalTask)}
         />
       )}
     </div>

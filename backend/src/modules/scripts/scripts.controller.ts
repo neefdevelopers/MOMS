@@ -7,6 +7,7 @@ import { Role } from '../../common/enums';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.MARKETING_MANAGER, Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER, Role.ADMINISTRATOR)
 @Controller('scripts')
 export class ScriptsController {
   constructor(private readonly scriptsService: ScriptsService) {}
@@ -73,8 +74,8 @@ export class ScriptsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.scriptsService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.scriptsService.findOne(id, user);
   }
 
   @Roles(Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)

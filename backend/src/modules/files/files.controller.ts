@@ -37,8 +37,8 @@ export class FilesController {
   uploadFile(
     @UploadedFile() file: MulterFile,
     @Body() data: { projectId: string; scriptId?: string; graphicRequirementId?: string; folderCategory?: string; attachmentCategory?: string },
-    @CurrentUser('id') uploadedById: string,
+    @CurrentUser() user: any,
   ) {
-    return this.filesService.saveFileMetadataAndPhysicalDisk(file, data, uploadedById);
+    return this.filesService.saveFileMetadataAndPhysicalDisk(file, data, user);
   }
 }

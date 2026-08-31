@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { canUserViewScript } from '../../common/utils/event-auth';
 
 @Injectable()
 export class ScriptsService {
@@ -108,7 +109,7 @@ export class ScriptsService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: any) {
     const script = await this.prisma.script.findUnique({
       where: { id },
       include: {
@@ -134,6 +135,11 @@ export class ScriptsService {
       },
     });
     if (!script) throw new NotFoundException('Script not found');
+
+    if (user && !canUserViewScript(user, script)) {
+      throw new ForbiddenException('You are not authorized to view this script.');
+    }
+
     return script;
   }
 

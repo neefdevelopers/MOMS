@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { canUserViewEvent, canUserViewRequirement } from '../../common/utils/event-auth';
 
 export interface GlobalSearchResultItem {
   id: string;
@@ -565,8 +566,10 @@ export class SearchService implements OnModuleInit {
             orderBy: { shootDate: 'desc' },
           });
 
-          if (records.length > 0) {
-            results['Calendar Events'] = records.map((ev) => ({
+          const filteredRecords = user ? records.filter((ev) => canUserViewEvent(user, ev)) : records;
+
+          if (filteredRecords.length > 0) {
+            results['Calendar Events'] = filteredRecords.map((ev) => ({
               id: ev.id,
               entityType: 'Calendar Event',
               name: ev.title,
@@ -823,7 +826,7 @@ class CalendarEventsSearchProvider implements ISearchProvider {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async search(q: string, tokens: string[]): Promise<GlobalSearchResultItem[]> {
+  async search(q: string, tokens: string[], user?: any): Promise<GlobalSearchResultItem[]> {
     const orClauses: any[] = [{ title: { contains: q } }, { shootType: { contains: q } }];
     for (const t of tokens) {
       orClauses.push({ title: { contains: t } });
@@ -841,7 +844,9 @@ class CalendarEventsSearchProvider implements ISearchProvider {
       orderBy: { shootDate: 'desc' },
     });
 
-    return records.map((ev) => ({
+    const filteredRecords = user ? records.filter((ev) => canUserViewEvent(user, ev)) : records;
+
+    return filteredRecords.map((ev) => ({
       id: ev.id,
       entityType: 'Calendar Event',
       name: ev.title,
@@ -993,7 +998,7 @@ class GraphicRequirementsSearchProvider implements ISearchProvider {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async search(q: string, tokens: string[]): Promise<GlobalSearchResultItem[]> {
+  async search(q: string, tokens: string[], user?: { id: string; role: string }): Promise<GlobalSearchResultItem[]> {
     const orClauses: any[] = [{ name: { contains: q } }, { requirementId: { contains: q } }];
 
     for (const t of tokens) {
@@ -1013,15 +1018,19 @@ class GraphicRequirementsSearchProvider implements ISearchProvider {
     const records = await this.prisma.graphicRequirement.findMany({
       where: { OR: orClauses },
       include: {
-        project: { include: { client: { select: { name: true } }, brand: { select: { name: true } } } },
+        project: { include: { client: { select: { name: true } }, brand: { select: { name: true } }, calendarEvent: true } },
         client: { select: { name: true } },
         brand: { select: { name: true } },
+        calendarEvent: true,
+        sourceForCalendarEvents: { include: { createdBy: { select: { id: true, name: true, role: true } } } },
       },
-      take: 8,
+      take: 12,
       orderBy: { updatedAt: 'desc' },
     });
 
-    return records.map((g) => ({
+    const filteredRecords = user ? records.filter((g) => canUserViewRequirement(user, g)) : records;
+
+    return filteredRecords.map((g) => ({
       id: g.id,
       entityType: 'Graphic Requirement',
       name: g.name,
@@ -1034,7 +1043,7 @@ class GraphicRequirementsSearchProvider implements ISearchProvider {
       lastUpdatedDate: (g.updatedAt || g.createdAt).toISOString(),
       priority: g.priority,
       module: this.moduleDisplayName,
-      url: `/graphic-requirements?reqId=${g.id}`,
+      url: `/graphic-reqs?reqId=${g.id}`,
       subtitle: `${g.requirementId || 'GRQ'} • Project: ${g.project?.name || 'Graphic'} • ${g.requirementType}`,
     }));
   }

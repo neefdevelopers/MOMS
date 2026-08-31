@@ -32,6 +32,8 @@ import { usePagination } from '@/lib/usePagination';
 import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 import { RoleGuard } from '@/components/common/RoleGuard';
 
+import MyEquipmentPage from './my/page';
+
 export default function EquipmentPage() {
   const { user } = useAuth();
   const [equipment, setEquipment] = useState<any[]>([]);
@@ -77,20 +79,24 @@ export default function EquipmentPage() {
   });
   const [submittingReserve, setSubmittingReserve] = useState(false);
 
-  const [equipmentRequests, setEquipmentRequests] = useState<any[]>([]);
-  const [requestTargetEqp, setRequestTargetEqp] = useState<any | null>(null);
-  const [requestForm, setRequestForm] = useState({
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [allocateTargetEqp, setAllocateTargetEqp] = useState<any | null>(null);
+  const [allocateForm, setAllocateForm] = useState({
+    employeeId: '',
     projectId: '',
-    purpose: '',
-    requiredDate: new Date().toISOString().split('T')[0],
+    purpose: 'Production shoot allocation',
+    startDate: new Date().toISOString().split('T')[0],
     expectedReturnDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
     remarks: '',
+    accessoriesIncluded: 'Standard accessories verified',
+    condition: 'Good - Operational',
   });
-  const [submittingRequest, setSubmittingRequest] = useState(false);
-  const [showRequestsTab, setShowRequestsTab] = useState(false);
+  const [submittingAllocate, setSubmittingAllocate] = useState(false);
+
+  const [equipmentRequests, setEquipmentRequests] = useState<any[]>([]);
+  const [showRequestsTab, setShowRequestsTab] = useState(true);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
-  const [acknowledgeTargetReq, setAcknowledgeTargetReq] = useState<any | null>(null);
 
   const [inspectionTargetEqp, setInspectionTargetEqp] = useState<any | null>(null);
   const [inspectionForm, setInspectionForm] = useState({
@@ -113,24 +119,29 @@ export default function EquipmentPage() {
   const [showDamageSection, setShowDamageSection] = useState(false);
   const [updatingRepairId, setUpdatingRepairId] = useState<string | null>(null);
   const [repairStatusForm, setRepairStatusForm] = useState({ repairStatus: 'IN_REPAIR', repairNotes: '' });
-  const canManage = user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR';
+  const canManage = user?.role === 'MEDIA_MANAGER' || user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR';
 
   const loadEquipment = async () => {
     try {
-      const [active, archived, stats, projList, reqList, dmgList] = await Promise.all([
+      const [active, archived, stats, projList, userList, dmgList, reqList] = await Promise.all([
         fetchApi('/equipment'),
         fetchApi('/equipment/archived'),
         fetchApi('/equipment/dashboard').catch(() => null),
         fetchApi('/projects').catch(() => []),
-        fetchApi('/equipment/requests').catch(() => []),
+        fetchApi('/users').catch(() => []),
         fetchApi('/equipment/damage-reports').catch(() => []),
+        fetchApi('/equipment/requests').catch(() => []),
       ]);
       setEquipment(Array.isArray(active) ? active : []);
       setArchivedEquipment(Array.isArray(archived) ? archived : []);
       if (stats) setDashboardStats(stats);
       if (Array.isArray(projList)) setProjects(projList);
-      if (Array.isArray(reqList)) setEquipmentRequests(reqList);
+      if (Array.isArray(userList)) {
+        setUsersList(userList);
+        if (userList.length > 0) setAllocateForm((prev) => ({ ...prev, employeeId: userList[0].id }));
+      }
       if (Array.isArray(dmgList)) setDamageReports(dmgList);
+      if (Array.isArray(reqList)) setEquipmentRequests(reqList);
     } catch (err) {
       console.error(err);
     } finally {
@@ -198,35 +209,25 @@ export default function EquipmentPage() {
     }
   };
 
-  const handleSubmitEquipmentRequest = async (e: React.FormEvent) => {
+  const handleAllocateDirectly = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requestTargetEqp || !requestForm.projectId || !requestForm.purpose || !requestForm.requiredDate || !requestForm.expectedReturnDate) {
-      alert('Please fill in all required fields (Project, Purpose, Required Date, Expected Return Date).');
+    if (!allocateTargetEqp || !allocateForm.employeeId || !allocateForm.expectedReturnDate) {
+      alert('Please select an employee recipient and expected return date.');
       return;
     }
-    setSubmittingRequest(true);
+    setSubmittingAllocate(true);
     try {
-      await fetchApi('/equipment/requests', {
+      await fetchApi(`/equipment/${allocateTargetEqp.id}/allocate`, {
         method: 'POST',
-        body: JSON.stringify({
-          equipmentId: requestTargetEqp.id,
-          ...requestForm,
-        }),
+        body: JSON.stringify(allocateForm),
       });
-      alert(`Equipment Request for "${requestTargetEqp.name}" submitted successfully!`);
-      setRequestTargetEqp(null);
-      setRequestForm({
-        projectId: '',
-        purpose: '',
-        requiredDate: new Date().toISOString().split('T')[0],
-        expectedReturnDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-        remarks: '',
-      });
+      alert(`Equipment "${allocateTargetEqp.name}" directly allocated & issued successfully!`);
+      setAllocateTargetEqp(null);
       loadEquipment();
     } catch (err: any) {
-      alert(err.message || 'Failed to submit equipment request');
+      alert(err.message || 'Failed to allocate equipment.');
     } finally {
-      setSubmittingRequest(false);
+      setSubmittingAllocate(false);
     }
   };
 
@@ -236,6 +237,7 @@ export default function EquipmentPage() {
         method: 'PATCH',
         body: JSON.stringify({ status, reviewNotes }),
       });
+      alert(`Equipment Request ${status.toLowerCase()} successfully!`);
       setReviewingId(null);
       setReviewNotes('');
       loadEquipment();
@@ -256,18 +258,7 @@ export default function EquipmentPage() {
     }
   };
 
-  const handleAcknowledgeReceipt = async (requestId: string) => {
-    try {
-      const res = await fetchApi(`/equipment/requests/${requestId}/acknowledge`, {
-        method: 'POST',
-      });
-      alert(`Receipt acknowledged! Digital acknowledgement recorded for ${res.acknowledgement?.employeeName} on ${res.acknowledgement?.date} at ${res.acknowledgement?.time}. (Replaces physical signature)`);
-      setAcknowledgeTargetReq(null);
-      loadEquipment();
-    } catch (err: any) {
-      alert(err.message || 'Failed to acknowledge equipment receipt');
-    }
-  };
+
 
   const handleReturnInspection = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -420,6 +411,10 @@ export default function EquipmentPage() {
     return true;
   });
 
+  if ((user?.role as string) === 'STAFF') {
+    return <MyEquipmentPage />;
+  }
+
   return (
     <RoleGuard>
       <div className="space-y-6 text-xs">
@@ -454,7 +449,7 @@ export default function EquipmentPage() {
       </div>
 
       {/* Equipment Dashboard Summary KPI Cards (Visible to Managers) */}
-      {user?.role !== 'STAFF' && (
+      {(user?.role as string) !== 'STAFF' && (
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         <div className="bg-card border border-border p-4 rounded-xl space-y-1">
           <span className="text-[10px] text-gray-400 uppercase font-bold">Total Equipment</span>
@@ -766,23 +761,25 @@ export default function EquipmentPage() {
                   )}
                 </div>
               )}
-              {/* For Staff (Employees): Submit Equipment Request instead of direct checkout */}
-              {user?.role === 'STAFF' && eqp.availability === 'AVAILABLE' && (
+              {canManage && (eqp.availability === 'AVAILABLE' || eqp.availability === 'RESERVED') && (
                 <div className="pt-2 border-t border-gray-800">
                   <button
                     onClick={() => {
-                      setRequestTargetEqp(eqp);
-                      setRequestForm({
+                      setAllocateTargetEqp(eqp);
+                      setAllocateForm({
+                        employeeId: usersList[0]?.id || '',
                         projectId: projects[0]?.id || '',
-                        purpose: '',
-                        requiredDate: new Date().toISOString().split('T')[0],
+                        purpose: 'Production shoot allocation',
+                        startDate: new Date().toISOString().split('T')[0],
                         expectedReturnDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
                         remarks: '',
+                        accessoriesIncluded: 'Standard accessories verified',
+                        condition: 'Good - Operational',
                       });
                     }}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[11px] font-bold transition-colors shadow-md shadow-blue-600/30"
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold transition-colors shadow"
                   >
-                    <ArrowRightLeft className="w-3.5 h-3.5" /> Submit Equipment Request
+                    <ArrowRightLeft className="w-3.5 h-3.5" /> Allocate / Issue Equipment
                   </button>
                 </div>
               )}
@@ -839,164 +836,117 @@ export default function EquipmentPage() {
         </div>
       )}
 
-      {/* Equipment Requests Queue Section */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden shadow-md">
-        <button
-          onClick={() => setShowRequestsTab(!showRequestsTab)}
-          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-800/40 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <ArrowRightLeft className="w-4 h-4 text-blue-400" />
-            <span className="font-bold text-white text-sm">
-              {canManage ? 'Equipment Requests Queue (Manager Approval)' : 'My Equipment Requests'}
-            </span>
-            <span className="px-2.5 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full text-[10px] font-bold">
-              {equipmentRequests.length} total ({equipmentRequests.filter((r) => r.status === 'PENDING').length} pending)
-            </span>
-          </div>
-          {showRequestsTab ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-        </button>
 
-        {showRequestsTab && (
-          <div className="px-5 pb-5 border-t border-border space-y-4 pt-4">
-            {equipmentRequests.length === 0 ? (
-              <p className="text-gray-500 text-center py-6 italic">No equipment requests found.</p>
-            ) : (
-              <div className="space-y-3">
-                {equipmentRequests.map((req) => (
-                  <div key={req.id} className="p-4 bg-gray-900/80 border border-gray-800 rounded-xl space-y-2">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-gray-800 pb-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-white text-sm">{req.equipment?.name}</span>
-                          <span className="text-xs text-cyan-400 font-mono">({req.equipment?.equipmentId})</span>
+
+      {/* Equipment Requests Queue Section (Media Manager Review Queue) */}
+      {(user?.role === 'MEDIA_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden shadow-md">
+          <button
+            onClick={() => setShowRequestsTab(!showRequestsTab)}
+            className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-800/40 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <ArrowRightLeft className="w-4 h-4 text-emerald-400" />
+              <span className="font-bold text-white text-sm">
+                Staff Equipment Requests Queue (Manager Approval)
+              </span>
+              <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-[10px] font-bold">
+                {equipmentRequests.length} Total ({equipmentRequests.filter((r) => r.status === 'PENDING').length} Pending)
+              </span>
+            </div>
+            <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${showRequestsTab ? 'rotate-90' : ''}`} />
+          </button>
+
+          {showRequestsTab && (
+            <div className="px-5 pb-5 border-t border-border space-y-4 pt-4 text-xs">
+              {equipmentRequests.length === 0 ? (
+                <p className="text-gray-500 text-center py-6 italic">No staff equipment requests submitted.</p>
+              ) : (
+                <div className="space-y-3">
+                  {equipmentRequests.map((req) => (
+                    <div key={req.id} className="p-4 bg-gray-900/80 border border-gray-800 rounded-xl space-y-2">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-gray-800 pb-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-white text-sm">{req.equipment?.name}</span>
+                            <span className="text-xs text-cyan-400 font-mono">({req.equipment?.equipmentId})</span>
+                          </div>
+                          <p className="text-xs text-gray-400">
+                            Project: <strong className="text-purple-300">{req.project?.name}</strong> • Requested By: <strong className="text-emerald-300">{req.requestedBy?.name}</strong> ({req.requestedBy?.role})
+                          </p>
                         </div>
-                        <p className="text-xs text-gray-400">
-                          Project: <strong className="text-gray-200">{req.project?.name}</strong> • Requested By: <strong className="text-blue-300">{req.requestedBy?.name}</strong> ({req.requestedBy?.role})
-                        </p>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase border self-start md:self-auto ${
-                        req.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                        req.status === 'REJECTED' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                        req.status === 'CHECKED_OUT' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
-                        'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                      }`}>
-                        {req.status}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-gray-300 pt-1">
-                      <div><strong className="text-gray-500">Purpose:</strong> {req.purpose}</div>
-                      <div><strong className="text-gray-500">Required Date:</strong> {new Date(req.requiredDate).toLocaleDateString()}</div>
-                      <div><strong className="text-gray-500">Expected Return:</strong> {new Date(req.expectedReturnDate).toLocaleDateString()}</div>
-                    </div>
-
-                    {req.remarks && (
-                      <p className="text-xs text-gray-400 bg-gray-950 p-2 rounded border border-gray-800">
-                        <strong>Remarks:</strong> {req.remarks}
-                      </p>
-                    )}
-
-                    {user?.role === 'MEDIA_MANAGER' && req.status === 'PENDING' && (
-                      <div className="pt-2 border-t border-gray-800 space-y-2">
-                        {reviewingId === req.id ? (
-                          <div className="space-y-2">
-                            <input
-                              type="text"
-                              placeholder="Review notes / approval remarks..."
-                              value={reviewNotes}
-                              onChange={(e) => setReviewNotes(e.target.value)}
-                              className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white"
-                            />
-                            <div className="flex items-center gap-2 justify-end">
-                              <button onClick={() => setReviewingId(null)} className="px-3 py-1 bg-gray-800 text-gray-300 text-xs rounded font-semibold">Cancel</button>
-                              <button onClick={() => handleReviewRequest(req.id, 'REJECTED')} className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded font-bold">Reject</button>
-                              <button onClick={() => handleReviewRequest(req.id, 'APPROVED')} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded font-bold">Approve Request</button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex justify-end">
-                            <button onClick={() => setReviewingId(req.id)} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs transition-colors">
-                              Review &amp; Approve Request
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {/* Media Manager Issue Action after Approval */}
-                    {user?.role === 'MEDIA_MANAGER' && req.status === 'APPROVED' && (
-                      <div className="pt-2 border-t border-gray-800 flex items-center justify-between">
-                        <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
-                          <BadgeCheck className="w-3.5 h-3.5" /> Approved by {req.reviewedBy?.name || 'Media Manager'}
+                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase border self-start md:self-auto ${
+                          req.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                          req.status === 'REJECTED' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                          req.status === 'CHECKED_OUT' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                          'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                        }`}>
+                          {req.status === 'PENDING' ? 'Pending Approval' : req.status}
                         </span>
-                        <button
-                          onClick={() => handleIssueEquipment(req.id)}
-                          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow-md shadow-emerald-600/30"
-                        >
-                          <ArrowRightLeft className="w-3.5 h-3.5" /> Issue Equipment to Employee
-                        </button>
                       </div>
-                    )}
 
-                    {/* Official Issue Record details when CHECKED_OUT */}
-                    {req.status === 'CHECKED_OUT' && (
-                      <div className="space-y-2 pt-2 border-t border-gray-800">
-                        <div className="text-[11px] bg-blue-950/30 p-2.5 rounded-lg border border-blue-800/40 space-y-1">
-                          <div className="flex items-center justify-between text-blue-300 font-bold">
-                            <span className="flex items-center gap-1"><BadgeCheck className="w-3.5 h-3.5 text-blue-400" /> Equipment Issue Record</span>
-                            <span className="text-gray-400 font-mono text-[10px]">{new Date(req.updatedAt).toLocaleDateString()} {new Date(req.updatedAt).toLocaleTimeString()}</span>
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-gray-300">
-                            <div><strong className="text-gray-400">Issued To:</strong> {req.requestedBy?.name}</div>
-                            <div><strong className="text-gray-400">Project:</strong> {req.project?.name}</div>
-                            <div><strong className="text-gray-400">Approved By:</strong> {req.reviewedBy?.name || 'Media Manager'}</div>
-                            <div><strong className="text-gray-400">Expected Return:</strong> {new Date(req.expectedReturnDate).toLocaleDateString()}</div>
-                          </div>
-                        </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-gray-300 pt-1">
+                        <div><strong className="text-gray-500">Purpose:</strong> {req.purpose}</div>
+                        <div><strong className="text-gray-500">Required Date:</strong> {new Date(req.requiredDate).toLocaleDateString()}</div>
+                        <div><strong className="text-gray-500">Expected Return:</strong> {new Date(req.expectedReturnDate).toLocaleDateString()}</div>
+                      </div>
 
-                        {/* Digital Receipt Acknowledgement Section */}
-                        {req.isAcknowledged ? (
-                          <div className="text-[11px] bg-emerald-950/20 p-2.5 rounded-lg border border-emerald-800/40 space-y-1">
-                            <div className="flex items-center justify-between text-emerald-300 font-bold">
-                              <span className="flex items-center gap-1"><BadgeCheck className="w-3.5 h-3.5 text-emerald-400" /> Digital Receipt Acknowledged (Replaces Physical Signature)</span>
-                              <span className="text-emerald-400 font-mono text-[10px]">{req.acknowledgedAt ? `${new Date(req.acknowledgedAt).toLocaleDateString()} ${new Date(req.acknowledgedAt).toLocaleTimeString()}` : ''}</span>
+                      {req.remarks && (
+                        <p className="text-xs text-gray-400 bg-gray-950 p-2 rounded border border-gray-800">
+                          <strong>Remarks:</strong> {req.remarks}
+                        </p>
+                      )}
+
+                      {/* Approval controls for Pending Requests */}
+                      {req.status === 'PENDING' && (
+                        <div className="pt-2 border-t border-gray-800 space-y-2">
+                          {reviewingId === req.id ? (
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                placeholder="Approval / Rejection notes..."
+                                value={reviewNotes}
+                                onChange={(e) => setReviewNotes(e.target.value)}
+                                className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white"
+                              />
+                              <div className="flex items-center gap-2 justify-end">
+                                <button onClick={() => setReviewingId(null)} className="px-3 py-1 bg-gray-800 text-gray-300 text-xs rounded font-semibold">Cancel</button>
+                                <button onClick={() => handleReviewRequest(req.id, 'REJECTED')} className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded font-bold">Reject</button>
+                                <button onClick={() => handleReviewRequest(req.id, 'APPROVED')} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded font-bold">Approve Request</button>
+                              </div>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-gray-300 pt-0.5">
-                              <div><strong className="text-gray-400">Employee Name:</strong> {req.acknowledgedByName}</div>
-                              <div><strong className="text-gray-400">Date:</strong> {req.acknowledgedAt ? new Date(req.acknowledgedAt).toLocaleDateString() : ''}</div>
-                              <div><strong className="text-gray-400">Time:</strong> {req.acknowledgedAt ? new Date(req.acknowledgedAt).toLocaleTimeString() : ''}</div>
-                            </div>
-                            <p className="text-[10px] text-emerald-400/80 italic pt-1 border-t border-emerald-900/40">
-                              "{req.acknowledgementStatement}"
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="bg-amber-950/20 border border-amber-800/40 p-2.5 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div>
-                              <p className="text-xs font-bold text-amber-300 flex items-center gap-1">
-                                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> Pending Receipt Acknowledgement
-                              </p>
-                              <p className="text-[10px] text-gray-400">Employee must acknowledge receipt before leaving the office (replaces physical signature).</p>
-                            </div>
-                            {(user?.id === req.requestedById || user?.role === 'STAFF') && (
-                              <button
-                                onClick={() => setAcknowledgeTargetReq(req)}
-                                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs transition-colors shrink-0 shadow-md shadow-amber-600/30"
-                              >
-                                Acknowledge Receipt
+                          ) : (
+                            <div className="flex justify-end">
+                              <button onClick={() => setReviewingId(req.id)} className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors shadow">
+                                Review &amp; Approve / Reject Request
                               </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Issue Action after Approval */}
+                      {req.status === 'APPROVED' && (
+                        <div className="pt-2 border-t border-gray-800 flex items-center justify-between">
+                          <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                            <BadgeCheck className="w-3.5 h-3.5" /> Approved by {req.reviewedBy?.name || 'Media Manager'}
+                          </span>
+                          <button
+                            onClick={() => handleIssueEquipment(req.id)}
+                            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow"
+                          >
+                            <ArrowRightLeft className="w-3.5 h-3.5" /> Issue Equipment to Employee
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Damage Reports & Repair Tracking Section */}
       <div className="bg-card border border-border rounded-xl overflow-hidden shadow-md">
@@ -1401,92 +1351,89 @@ export default function EquipmentPage() {
         </div>
       )}
 
-      {/* Submit Equipment Request Modal (For Employees / Staff) */}
-      {requestTargetEqp && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-blue-500/40 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+      {/* Direct Equipment Allocation Modal */}
+      {allocateTargetEqp && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-border bg-gray-900/50">
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <ArrowRightLeft className="w-4 h-4 text-blue-400" /> Submit Equipment Request
+                <ArrowRightLeft className="w-5 h-5 text-emerald-400" /> Direct Equipment Allocation & Handover
               </h2>
-              <button onClick={() => setRequestTargetEqp(null)} className="text-zinc-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <button onClick={() => setAllocateTargetEqp(null)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={handleSubmitEquipmentRequest} className="p-5 space-y-4">
-              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg space-y-1">
-                <p className="text-xs font-bold text-blue-300">{requestTargetEqp.name}</p>
-                <p className="text-[10px] text-zinc-400">{requestTargetEqp.brand} {requestTargetEqp.model} • SN: {requestTargetEqp.serialNumber}</p>
+            <form onSubmit={handleAllocateDirectly} className="p-5 space-y-4 text-xs">
+              <div className="p-3 bg-emerald-950/40 border border-emerald-800/60 rounded-xl space-y-1">
+                <p className="font-bold text-emerald-300 text-sm">{allocateTargetEqp.name}</p>
+                <p className="font-mono text-[11px] text-cyan-400">{allocateTargetEqp.equipmentId} • {allocateTargetEqp.brand} {allocateTargetEqp.model}</p>
               </div>
 
               <div>
-                <label className="text-[11px] text-gray-400 font-bold uppercase mb-1 block">Project *</label>
+                <label className="text-[11px] text-gray-300 font-bold uppercase mb-1 block">Employee Recipient *</label>
                 <select
                   required
-                  value={requestForm.projectId}
-                  onChange={(e) => setRequestForm({ ...requestForm, projectId: e.target.value })}
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500"
+                  value={allocateForm.employeeId}
+                  onChange={(e) => setAllocateForm({ ...allocateForm, employeeId: e.target.value })}
+                  className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500 font-medium"
                 >
-                  <option value="">Select Shoot Project...</option>
+                  <option value="">Select Employee Recipient...</option>
+                  {usersList.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-gray-300 font-bold uppercase mb-1 block">Shoot Project (Optional)</label>
+                <select
+                  value={allocateForm.projectId}
+                  onChange={(e) => setAllocateForm({ ...allocateForm, projectId: e.target.value })}
+                  className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500 font-medium"
+                >
+                  <option value="">Select Shoot Project (Optional)...</option>
                   {projects.map((p) => (
                     <option key={p.id} value={p.id}>{p.name} ({p.projectId})</option>
                   ))}
                 </select>
               </div>
 
-              <div>
-                <label className="text-[11px] text-gray-400 font-bold uppercase mb-1 block">Purpose *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Outdoor Shoot B-Roll Recording, Product Photography..."
-                  value={requestForm.purpose}
-                  onChange={(e) => setRequestForm({ ...requestForm, purpose: e.target.value })}
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] text-gray-400 font-bold uppercase mb-1 block">Required Date *</label>
+                  <label className="text-[11px] text-gray-300 font-bold uppercase mb-1 block">Allocation Date *</label>
                   <input
                     type="date"
                     required
-                    value={requestForm.requiredDate}
-                    onChange={(e) => setRequestForm({ ...requestForm, requiredDate: e.target.value })}
-                    className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500"
+                    value={allocateForm.startDate}
+                    onChange={(e) => setAllocateForm({ ...allocateForm, startDate: e.target.value })}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500 font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] text-gray-400 font-bold uppercase mb-1 block">Expected Return Date *</label>
+                  <label className="text-[11px] text-gray-300 font-bold uppercase mb-1 block">Expected Return Date *</label>
                   <input
                     type="date"
                     required
-                    value={requestForm.expectedReturnDate}
-                    onChange={(e) => setRequestForm({ ...requestForm, expectedReturnDate: e.target.value })}
-                    className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500"
+                    value={allocateForm.expectedReturnDate}
+                    onChange={(e) => setAllocateForm({ ...allocateForm, expectedReturnDate: e.target.value })}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500 font-mono"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[11px] text-gray-400 font-bold uppercase mb-1 block">Remarks</label>
-                <textarea
-                  rows={2}
-                  placeholder="Optional additional details or notes..."
-                  value={requestForm.remarks}
-                  onChange={(e) => setRequestForm({ ...requestForm, remarks: e.target.value })}
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500 resize-none"
+                <label className="text-[11px] text-gray-300 font-bold uppercase mb-1 block">Purpose & Remarks</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Primary camera body for studio shoot"
+                  value={allocateForm.purpose}
+                  onChange={(e) => setAllocateForm({ ...allocateForm, purpose: e.target.value })}
+                  className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500 font-medium"
                 />
-              </div>
-
-              <div className="text-[11px] text-zinc-400 bg-zinc-950 p-2.5 rounded border border-zinc-800 flex items-center justify-between">
-                <span>Requested By:</span>
-                <strong className="text-white font-semibold">{user?.name || 'Employee'}</strong>
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setRequestTargetEqp(null)} className="px-4 py-2 bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-lg text-xs font-semibold hover:bg-zinc-700">Cancel</button>
-                <button type="submit" disabled={submittingRequest} className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
-                  {submittingRequest ? 'Submitting...' : 'Submit Request'}
+                <button type="button" onClick={() => setAllocateTargetEqp(null)} className="px-4 py-2 bg-gray-800 border border-gray-700 text-gray-300 rounded-xl text-xs font-semibold hover:bg-gray-700">Cancel</button>
+                <button type="submit" disabled={submittingAllocate} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50 shadow-lg shadow-emerald-600/30">
+                  {submittingAllocate ? 'Allocating...' : 'Confirm Allocation & Handover'}
                 </button>
               </div>
             </form>
@@ -1494,51 +1441,7 @@ export default function EquipmentPage() {
         </div>
       )}
 
-      {/* Digital Receipt Acknowledgement Modal */}
-      {acknowledgeTargetReq && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-900 border border-amber-500/40 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <BadgeCheck className="w-4 h-4 text-amber-400" /> Acknowledge Equipment Receipt
-              </h2>
-              <button onClick={() => setAcknowledgeTargetReq(null)} className="text-zinc-400 hover:text-white"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-1">
-                <p className="text-xs font-bold text-amber-300">{acknowledgeTargetReq.equipment?.name}</p>
-                <p className="text-[10px] text-zinc-400">
-                  Project: <strong className="text-zinc-200">{acknowledgeTargetReq.project?.name}</strong> • Expected Return: {new Date(acknowledgeTargetReq.expectedReturnDate).toLocaleDateString()}
-                </p>
-              </div>
 
-              <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-3">
-                <p className="text-xs text-zinc-300 font-medium leading-relaxed">
-                  I, <strong className="text-white">{user?.name || acknowledgeTargetReq.requestedBy?.name}</strong>, hereby acknowledge that I have received the specified equipment in good working order before leaving the office.
-                </p>
-                <div className="pt-2 border-t border-zinc-800 grid grid-cols-2 gap-2 text-[11px] text-zinc-400 font-mono">
-                  <div>Date: <strong className="text-white">{new Date().toLocaleDateString()}</strong></div>
-                  <div>Time: <strong className="text-white">{new Date().toLocaleTimeString()}</strong></div>
-                </div>
-                <p className="text-[10px] text-amber-400/90 italic pt-1">
-                  * Note: Submitting this digital acknowledgement legally replaces a physical signature for equipment handover.
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setAcknowledgeTargetReq(null)} className="px-4 py-2 bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-lg text-xs font-semibold hover:bg-zinc-700">Cancel</button>
-                <button
-                  type="button"
-                  onClick={() => handleAcknowledgeReceipt(acknowledgeTargetReq.id)}
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-colors shadow-lg shadow-amber-600/30"
-                >
-                  Confirm Digital Acknowledgement
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Inspect & Return Equipment Modal */}
       {inspectionTargetEqp && (
@@ -1786,8 +1689,7 @@ export default function EquipmentPage() {
           </div>
         </div>
       )}
-
-    </div>
+      </div>
     </RoleGuard>
   );
 }

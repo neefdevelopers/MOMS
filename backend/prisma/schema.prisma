@@ -64,10 +64,13 @@ model User {
   clientAssignments         ClientAssignment[]
   createdCalendarEvents     MediaCalendarEvent[]      @relation("CalendarEventCreator")
   assignedCalendarEvents    MediaCalendarEvent[]      @relation("CalendarEventAssignedStaff")
+  approvedCalendarEvents    MediaCalendarEvent[]      @relation("CalendarEventApprover")
   calendarRevisions         CalendarEventRevision[]
   calendarApprovalHistories CalendarApprovalHistory[]
   createdScripts            Script[]                  @relation("ScriptCreator")
   approvedScripts           Script[]                  @relation("ScriptApprover")
+  createdGraphicDeliverables  GraphicRequirementDeliverable[] @relation("GraphicDeliverableCreatedBy")
+  assignedGraphicDeliverables GraphicRequirementDeliverable[] @relation("GraphicDeliverableAssignedStaff")
 }
 
 model Department {
@@ -222,8 +225,13 @@ model MediaCalendarEvent {
   version                Int                       @default(1)
   createdById            String?
   createdBy              User?                     @relation("CalendarEventCreator", fields: [createdById], references: [id])
+  createdByRole          String?
   assignedStaffId        String?
   assignedStaff          User?                     @relation("CalendarEventAssignedStaff", fields: [assignedStaffId], references: [id])
+  approvalRequired       Boolean                   @default(true)
+  approvalStatus         String?                   @default("PENDING_MARKETING_APPROVAL")
+  approvalAssignedToId   String?
+  approvalAssignedTo     User?                     @relation("CalendarEventApprover", fields: [approvalAssignedToId], references: [id])
   status                 String                    @default("DRAFT") // DRAFT, PENDING_CLIENT_REVIEW, CHANGES_REQUESTED, CLIENT_APPROVED, SCHEDULED, PUBLISHED, CANCELLED, REJECTED
   submittedAt            DateTime?
   reviewedAt             DateTime?
@@ -479,7 +487,29 @@ model GraphicRequirement {
   files              FileMetadata[]
   timeline           GraphicRequirementTimeline[]
   remarksHistory     GraphicRequirementRemark[]
+  deliverables       GraphicRequirementDeliverable[]
   sourceForCalendarEvents MediaCalendarEvent[]     @relation("CalendarEventSourceGraphicReq")
+}
+
+model GraphicRequirementDeliverable {
+  id                   String             @id @default(uuid())
+  graphicRequirementId String
+  graphicRequirement   GraphicRequirement @relation(fields: [graphicRequirementId], references: [id], onDelete: Cascade)
+  name                 String
+  type                 String?
+  description          String?
+  fileUrl              String?
+  fileName             String?
+  fileSize             Int?
+  status               String             @default("DRAFT")
+  remarks              String?
+  submissionDate       DateTime?
+  createdById          String?
+  createdBy            User?              @relation("GraphicDeliverableCreatedBy", fields: [createdById], references: [id])
+  assignedStaffId      String?
+  assignedStaff        User?              @relation("GraphicDeliverableAssignedStaff", fields: [assignedStaffId], references: [id])
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 }
 
 model GraphicRequirementTimeline {
@@ -529,7 +559,9 @@ model Task {
   activeDeliverableUrl String?
   activeDeliverableFileName String?
   activeDeliverableVersion Int           @default(0)
-  sourceType          String             @default("DIRECT_TASK") // DIRECT_TASK, CALENDAR_EVENT, GRAPHIC_REQUIREMENT
+  sourceType          String             @default("DIRECT_TASK") // DIRECT_TASK, CALENDAR_EVENT, GRAPHIC_REQUIREMENT, REVISION
+  taskType            String             @default("PRODUCTION_TASK") // PRODUCTION_TASK, REVISION
+  revisionId          String?
   technicalReviewApproved Boolean        @default(false)
   mediaManagerApproved    Boolean        @default(false)
   createdAt           DateTime           @default(now())
@@ -539,6 +571,7 @@ model Task {
   remarksHistory      TaskRemark[]
   deliverableHistory  TaskDeliverableHistory[]
   timeline            TaskTimeline[]
+  revisions           Revision[]
 }
 
 model TaskTimeline {
@@ -850,7 +883,9 @@ model Revision {
   originalAssignee       User          @relation("RevisionOriginalAssignee", fields: [originalAssigneeId], references: [id])
   assignedToId           String
   assignedTo             User          @relation("RevisionAssignedTo", fields: [assignedToId], references: [id])
-  status                 String        @default("REVISION_REQUESTED") // REVISION_REQUESTED, IN_PROGRESS, SUBMITTED, APPROVED
+  taskId                 String?
+  task                   Task?         @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  status                 String        @default("REVISION_REQUESTED") // REVISION_REQUESTED, IN_PROGRESS, SUBMITTED, APPROVED, COMPLETED
   previousVersionUrl     String?
   revisedVersionUrl      String?
   referenceAttachmentUrl String?

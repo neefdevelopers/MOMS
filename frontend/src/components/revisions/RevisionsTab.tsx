@@ -28,6 +28,7 @@ interface RevisionsTabProps {
   currentStatus?: string;
   previousVersionUrl?: string;
   onRefresh?: () => void;
+  isRevision?: boolean;
 }
 
 export default function RevisionsTab({
@@ -41,6 +42,7 @@ export default function RevisionsTab({
   currentStatus,
   previousVersionUrl,
   onRefresh,
+  isRevision = false,
 }: RevisionsTabProps) {
   const [revisions, setRevisions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,12 +50,15 @@ export default function RevisionsTab({
 
   // Submit Deliverable State
   const [activeSubmittingRevisionId, setActiveSubmittingRevisionId] = useState<string | null>(null);
-  const [revisedUrlInput, setRevisedUrlInput] = useState('');
+  const [revisedFileUrl, setRevisedFileUrl] = useState('');
+  const [revisedFileName, setRevisedFileName] = useState('');
   const [submittingDeliverable, setSubmittingDeliverable] = useState(false);
 
   useEffect(() => {
-    loadRevisions();
-  }, [entityType, entityId]);
+    if (entityId && entityType) {
+      loadRevisions();
+    }
+  }, [entityId, entityType]);
 
   const loadRevisions = async () => {
     try {
@@ -72,7 +77,6 @@ export default function RevisionsTab({
       await fetchApi(`/revisions/${revisionId}/accept`, { method: 'PATCH' });
       alert('Revision task accepted!');
       loadRevisions();
-      if (onRefresh) onRefresh();
     } catch (e: any) {
       alert(e.message || 'Failed to accept revision.');
     }
@@ -83,7 +87,6 @@ export default function RevisionsTab({
       await fetchApi(`/revisions/${revisionId}/start`, { method: 'PATCH' });
       alert('Revision status updated to IN PROGRESS.');
       loadRevisions();
-      if (onRefresh) onRefresh();
     } catch (e: any) {
       alert(e.message || 'Failed to start revision.');
     }
@@ -91,19 +94,21 @@ export default function RevisionsTab({
 
   const handleSubmitRevisedDeliverable = async (e: React.FormEvent, revisionId: string) => {
     e.preventDefault();
-    if (!revisedUrlInput.trim()) {
-      alert('Please provide the revised deliverable URL or file path.');
-      return;
-    }
+    if (!revisedFileUrl.trim() || !revisedFileName.trim()) return;
+
     try {
       setSubmittingDeliverable(true);
       await fetchApi(`/revisions/${revisionId}/submit`, {
         method: 'PATCH',
-        body: JSON.stringify({ revisedVersionUrl: revisedUrlInput.trim() }),
+        body: JSON.stringify({
+          revisedDeliverableUrl: revisedFileUrl.trim(),
+          revisedFileName: revisedFileName.trim(),
+        }),
       });
-      alert('Revised deliverable submitted successfully! Sent to Technical Review.');
+      alert('Revised deliverable submitted successfully for review!');
+      setRevisedFileUrl('');
+      setRevisedFileName('');
       setActiveSubmittingRevisionId(null);
-      setRevisedUrlInput('');
       loadRevisions();
       if (onRefresh) onRefresh();
     } catch (e: any) {
@@ -134,7 +139,12 @@ export default function RevisionsTab({
     }
   };
 
-  const canRequestRevision = userRole === 'MEDIA_MANAGER' || userRole === 'TECHNICAL_MANAGER' || userRole === 'ADMIN' || userRole === 'ADMINISTRATOR';
+  const isRevisionItem = isRevision || (entityType === 'TASK' && (currentStatus === 'REVISION_REQUESTED' || currentStatus === 'CLIENT_REVISION_REQUESTED'));
+  const canRequestRevision = !isRevisionItem && (userRole === 'MEDIA_MANAGER' || userRole === 'TECHNICAL_MANAGER' || userRole === 'ADMIN' || userRole === 'ADMINISTRATOR');
+
+  if (isRevisionItem && revisions.length === 0 && !loading) {
+    return null;
+  }
 
   return (
     <div className="space-y-4 text-xs">
@@ -376,8 +386,8 @@ export default function RevisionsTab({
                             type="text"
                             required
                             placeholder="e.g. https://storage.../design-v2.png or video link"
-                            value={revisedUrlInput}
-                            onChange={(e) => setRevisedUrlInput(e.target.value)}
+                            value={revisedFileUrl}
+                            onChange={(e) => setRevisedFileUrl(e.target.value)}
                             className="flex-1 bg-zinc-950 border border-zinc-700 text-zinc-200 px-3 py-2 rounded-lg text-xs focus:outline-none focus:border-emerald-500 font-mono"
                           />
                           <button

@@ -667,16 +667,34 @@ export default function ProjectsPage() {
       </div>
 
       {/* Projects Grid */}
-      {loading ? (
-        <div className="p-8 text-center text-gray-400">Loading Projects...</div>
-      ) : projects.length === 0 ? (
-        <div className="p-8 text-center bg-card border border-border rounded-xl text-gray-400">
-          No shoot projects found matching criteria.
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {paginate(sortData(projects, sortBy, sortOrder)).map((proj) => (
+      {(() => {
+        const filteredProjects = projects.filter((proj) => {
+          const UNAPPROVED_STATUSES = ['PENDING_MARKETING_APPROVAL', 'PENDING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'DRAFT', 'CHANGES_REQUESTED', 'REVISION_REQUESTED', 'PLANNED'];
+          const isUnapproved = UNAPPROVED_STATUSES.includes(proj.status) || Boolean(proj.calendarEvent && UNAPPROVED_STATUSES.includes(proj.calendarEvent.status));
+          const isCreator = Boolean(user?.id && (proj.createdById === user.id || proj.calendarEvent?.createdById === user.id));
+
+          if (isUnapproved && !isCreator && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'ADMINISTRATOR') {
+            return false;
+          }
+          return true;
+        });
+
+        if (loading) {
+          return <div className="p-8 text-center text-gray-400">Loading Projects...</div>;
+        }
+
+        if (filteredProjects.length === 0) {
+          return (
+            <div className="p-8 text-center bg-card border border-border rounded-xl text-gray-400">
+              No shoot projects found matching criteria.
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {paginate(sortData(filteredProjects, sortBy, sortOrder)).map((proj) => (
             <div
               key={proj.id}
               className={`bg-card border p-5 rounded-xl space-y-4 relative flex flex-col justify-between transition-all hover:border-gray-700 ${
@@ -824,12 +842,13 @@ export default function ProjectsPage() {
           <PaginationControls
             currentPage={currentPage}
             pageSize={pageSize}
-            totalItems={projects.length}
+            totalItems={filteredProjects.length}
             onPageChange={setCurrentPage}
             onPageSizeChange={setPageSize}
           />
         </div>
-      )}
+      );
+    })()}
 
       {/* Creation Modal */}
       {showModal && (

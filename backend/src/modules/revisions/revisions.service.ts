@@ -92,12 +92,26 @@ export class RevisionsService {
           resolvedProjectId = graphic.projectId;
           entityTitle = `${graphic.requirementId}: ${graphic.name}`;
         }
+      } else if (dto.entityType === 'CALENDAR' || dto.entityType === 'CALENDAR_EVENT') {
+        const calEv = await this.prisma.mediaCalendarEvent.findUnique({
+          where: { id: dto.entityId },
+        });
+        if (calEv) {
+          resolvedProjectId = calEv.shootId || null;
+          entityTitle = `${calEv.eventId || calEv.id}: ${calEv.title}`;
+          if (!originalAssigneeId && calEv.assignedStaffId) {
+            originalAssigneeId = calEv.assignedStaffId;
+          }
+        }
       } else if (dto.entityType === 'TASK') {
         const task = await this.prisma.task.findUnique({
           where: { id: dto.entityId },
           include: { assignedEmployees: true },
         });
         if (task) {
+          if (task.taskType === 'REVISION' || task.sourceType === 'REVISION' || task.revisionId) {
+            throw new BadRequestException('Cannot request a revision for a task that is already a revision task.');
+          }
           resolvedProjectId = task.projectId || null;
           entityTitle = `${task.taskId}: ${task.title}`;
           if (!originalAssigneeId && task.assignedEmployees.length > 0) {
@@ -156,7 +170,84 @@ export class RevisionsService {
       },
     });
 
-    // 2. Update Production Item Status to 'REVISION_REQUESTED'
+    // 2. AUTOMATIC TASK CREATION for Assigned Person
+    try {
+      let clientId = null;
+      let brandId = null;
+      let productId = null;
+
+      if (resolvedProjectId) {
+        const proj = await this.prisma.shootProject.findUnique({
+          where: { id: resolvedProjectId },
+          select: { clientId: true, brandId: true, productId: true },
+        });
+        if (proj) {
+          clientId = proj.clientId;
+          brandId = proj.brandId;
+          productId = proj.productId;
+        }
+      }
+
+      if (!clientId) {
+        const firstClient = await this.prisma.client.findFirst();
+        if (firstClient) clientId = firstClient.id;
+      }
+      if (!brandId) {
+        const firstBrand = await this.prisma.brand.findFirst();
+        if (firstBrand) brandId = firstBrand.id;
+      }
+
+      let taskCount = await this.prisma.task.count();
+      let autoTaskId = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
+      let existingTask = await this.prisma.task.findUnique({ where: { taskId: autoTaskId } });
+      while (existingTask) {
+        taskCount++;
+        autoTaskId = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
+        existingTask = await this.prisma.task.findUnique({ where: { taskId: autoTaskId } });
+      }
+
+      const taskTitle = `Revision Required – ${entityTitle}`;
+      const taskDesc = `Revision Description:\n${dto.detailedRequest.trim()}\n\nReason:\n${dto.reason.trim()}\n\nRelated Item: ${entityTitle}\nRemarks: ${dto.reviewerComments || 'None'}\nSpecific Area: ${dto.specificArea || 'N/A'}`;
+
+      const createdTask = await this.prisma.task.create({
+        data: {
+          taskId: autoTaskId,
+          title: taskTitle,
+          description: taskDesc,
+          projectId: resolvedProjectId || null,
+          scriptId: dto.entityType === 'SCRIPT' ? dto.entityId : null,
+          graphicRequirementId: dto.entityType === 'GRAPHIC_REQ' ? dto.entityId : null,
+          clientId: clientId || '',
+          brandId: brandId || '',
+          productId: productId || null,
+          priority,
+          dueDate: dueDate || new Date(Date.now() + 86400000 * 3),
+          estimatedHours: 2.0,
+          status: 'ASSIGNED',
+          sourceType: 'REVISION',
+          taskType: 'REVISION',
+          revisionId: revision.id,
+          assignedEmployees: {
+            create: [
+              {
+                userId: assignedToId,
+                acceptanceStatus: 'PENDING',
+              },
+            ],
+          },
+        },
+      });
+
+      // Link Task ID back to Revision record
+      await this.prisma.revision.update({
+        where: { id: revision.id },
+        data: { taskId: createdTask.id },
+      });
+    } catch (e) {
+      console.error('Error creating task for revision:', e);
+    }
+
+    // 3. Update Production Item Status to 'REVISION_REQUESTED'
     try {
       if (dto.entityType === 'PROJECT' && resolvedProjectId) {
         await this.prisma.shootProject.update({
@@ -187,6 +278,14 @@ export class RevisionsService {
           where: { id: dto.entityId },
           data: {
             status: 'REVISION_REQUESTED',
+          },
+        });
+      } else if (dto.entityType === 'CALENDAR' || dto.entityType === 'CALENDAR_EVENT') {
+        await this.prisma.mediaCalendarEvent.update({
+          where: { id: dto.entityId },
+          data: {
+            status: 'CHANGES_REQUESTED',
+            version: { increment: 1 },
           },
         });
       }
@@ -429,6 +528,28 @@ export class RevisionsService {
         assignedTo: { select: { id: true, name: true, role: true, avatarUrl: true } },
       },
     });
+
+    // Reassign corresponding Task assignment if linked task exists
+    if (revision.taskId) {
+      try {
+        await this.prisma.taskAssignment.deleteMany({
+          where: { taskId: revision.taskId },
+        });
+        await this.prisma.taskAssignment.create({
+          data: {
+            taskId: revision.taskId,
+            userId: dto.newAssigneeId,
+            acceptanceStatus: 'PENDING',
+          },
+        });
+        await this.prisma.task.update({
+          where: { id: revision.taskId },
+          data: { status: 'ASSIGNED' },
+        });
+      } catch (e) {
+        console.error('Error reassigning revision task:', e);
+      }
+    }
 
     // Notify new assignee
     try {

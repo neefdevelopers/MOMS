@@ -207,11 +207,11 @@ export default function StaffPersonalizedDashboard({ user }: StaffPersonalizedDa
 
         <div className="p-3.5 bg-zinc-950/80 border border-zinc-800/80 rounded-2xl space-y-1 shadow-lg">
           <div className="flex items-center justify-between text-zinc-400">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Assigned Scripts/Reqs</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">Assigned Graphic Reqs</span>
             <FileText className="w-4 h-4 text-purple-400" />
           </div>
-          <div className="text-xl font-black text-purple-300 font-mono">{assignedScripts.length + assignedGraphicReqs.length}</div>
-          <span className="text-[10px] text-purple-400 font-semibold block">Content Items</span>
+          <div className="text-xl font-black text-purple-300 font-mono">{assignedGraphicReqs.length}</div>
+          <span className="text-[10px] text-purple-400 font-semibold block">Content Requirements</span>
         </div>
 
         <Link href="/equipment" className="p-3.5 bg-zinc-950/80 border border-zinc-800/80 hover:border-cyan-500/50 rounded-2xl space-y-1 shadow-lg transition-all group">

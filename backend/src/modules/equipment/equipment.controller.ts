@@ -83,8 +83,8 @@ export class EquipmentController {
     return this.equipmentService.getMyEquipment(userId);
   }
 
-  // ─── Equipment Reservation — Media Manager & Administrator Only ───────────
-  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  // ─── Equipment Reservation — Media Manager, Technical Manager & Administrator ───────
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Post(':id/reserve')
   reserve(
     @Param('id') id: string,
@@ -99,6 +99,45 @@ export class EquipmentController {
       reservedById: userId,
       expectedCheckoutDate: dto.expectedCheckoutDate,
     });
+  }
+
+  // ─── Direct Equipment Allocation — Media Manager, Technical Manager & Administrator ───
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Post('allocate')
+  directAllocate(
+    @Body() dto: {
+      equipmentId: string;
+      employeeId: string;
+      projectId?: string;
+      startDate?: string;
+      expectedReturnDate: string;
+      purpose?: string;
+      remarks?: string;
+      accessoriesIncluded?: string;
+      condition?: string;
+    },
+    @CurrentUser('id') allocatorId: string,
+  ) {
+    return this.equipmentService.allocateDirectly(dto, allocatorId);
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/allocate')
+  allocateItem(
+    @Param('id') id: string,
+    @Body() dto: {
+      employeeId: string;
+      projectId?: string;
+      startDate?: string;
+      expectedReturnDate: string;
+      purpose?: string;
+      remarks?: string;
+      accessoriesIncluded?: string;
+      condition?: string;
+    },
+    @CurrentUser('id') allocatorId: string,
+  ) {
+    return this.equipmentService.allocateDirectly({ ...dto, equipmentId: id }, allocatorId);
   }
 
   @Post(':id/movement')

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { fetchApi } from '@/lib/api';
-import { X, CheckSquare, Clock, AlertCircle, Plus, Users, Calendar as CalendarIcon, Camera } from 'lucide-react';
+import { X, CheckSquare, Clock, AlertCircle, Plus, Users, Calendar as CalendarIcon, Camera, User } from 'lucide-react';
 
 interface ConvertEventToTaskModalProps {
   isOpen: boolean;
@@ -19,6 +19,11 @@ interface ConvertEventToTaskModalProps {
     priority?: string;
     dueDate?: string;
     notes?: string;
+    createdBy?: {
+      id?: string;
+      name?: string;
+      role?: string;
+    };
   } | null;
 }
 
@@ -122,33 +127,20 @@ export default function ConvertEventToTaskModal({
         body: JSON.stringify(payload),
       });
 
-      // Submit equipment requests if equipment selected during event conversion
-      if (selectedEquipmentIds.length > 0) {
+      // Reserve equipment if equipment selected during event conversion
+      if (selectedEquipmentIds.length > 0 && eventData.parentType === 'PROJECT' && validParentId) {
         for (const eqId of selectedEquipmentIds) {
           try {
-            if (eventData.parentType === 'PROJECT' && validParentId) {
-              await fetchApi('/equipment/requests', {
-                method: 'POST',
-                body: JSON.stringify({
-                  equipmentId: eqId,
-                  projectId: validParentId,
-                  purpose: `Task Conversion: ${taskTitle.trim()}`,
-                  requiredDate: new Date().toISOString().split('T')[0],
-                  expectedReturnDate: taskDueDate || new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
-                }),
-              });
-            } else {
-              // Reserve/allocate equipment directly for Graphic Requirement or general task conversion
-              await fetchApi(`/equipment/${eqId}/status`, {
-                method: 'PATCH',
-                body: JSON.stringify({
-                  availability: 'RESERVED',
-                  notes: `Allocated for Task Conversion: ${taskTitle.trim()}`,
-                }),
-              }).catch(() => null);
-            }
-          } catch (err) {
-            console.error('Failed to submit equipment request for converting event:', err);
+            await fetchApi(`/equipment/${eqId}/reserve`, {
+              method: 'POST',
+              body: JSON.stringify({
+                projectId: validParentId,
+                startDate: new Date().toISOString().split('T')[0],
+                endDate: taskDueDate || new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
+              }),
+            });
+          } catch (e) {
+            console.error('Failed to reserve equipment on task conversion:', e);
           }
         }
       }
@@ -210,6 +202,17 @@ export default function ConvertEventToTaskModal({
             <div className="text-white font-bold text-xs">
               {eventData.parentCode ? `[${eventData.parentCode}] ` : ''}{eventData.title}
             </div>
+            {eventData.createdBy && (
+              <div className="text-[11px] text-gray-400 flex items-center gap-1.5 pt-1.5 border-t border-gray-900">
+                <User className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                <span>Created by: <strong className="text-gray-200">{eventData.createdBy.name || 'Social Media Manager'}</strong></span>
+                {eventData.createdBy.role && (
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-950 text-purple-300 border border-purple-800 uppercase">
+                    {eventData.createdBy.role.replace(/_/g, ' ')}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Task Title */}

@@ -29,6 +29,9 @@ const DEFAULT_REQUIREMENT_TYPES = [
 ];
 
 const GRAPHIC_REQUIREMENT_STATUSES = [
+  { value: 'PENDING_APPROVAL', label: 'Pending Approval (All)' },
+  { value: 'PENDING_MARKETING_APPROVAL', label: 'Pending Marketing Approval' },
+  { value: 'PENDING_CLIENT_APPROVAL', label: 'Pending Client Approval' },
   { value: 'DRAFT', label: 'Draft' },
   { value: 'READY', label: 'Ready' },
   { value: 'ASSIGNED', label: 'Assigned' },
@@ -186,6 +189,132 @@ export default function GraphicReqsPage() {
       alert(err.message || 'Failed to assign staff member');
     } finally {
       setAssigningStaff(false);
+    }
+  };
+
+  // Produced Deliverables State
+  const [showAddDeliverableModal, setShowAddDeliverableModal] = useState(false);
+  const [editingDeliverable, setEditingDeliverable] = useState<any>(null);
+  const [delName, setDelName] = useState('');
+  const [delType, setDelType] = useState('Instagram Post');
+  const [delDesc, setDelDesc] = useState('');
+  const [delStatus, setDelStatus] = useState('DRAFT');
+  const [delRemarks, setDelRemarks] = useState('');
+  const [delFile, setDelFile] = useState<File | null>(null);
+  const [savingDeliverable, setSavingDeliverable] = useState(false);
+
+  const handleSaveDeliverable = async (reqId: string) => {
+    if (!delName.trim()) {
+      alert('Deliverable name is required');
+      return;
+    }
+    setSavingDeliverable(true);
+    try {
+      let fileUrl = editingDeliverable?.fileUrl || null;
+      let fileName = editingDeliverable?.fileName || null;
+      let fileSize = editingDeliverable?.fileSize || null;
+
+      if (delFile) {
+        const formData = new FormData();
+        formData.append('file', delFile);
+        formData.append('projectId', inspectedReq?.projectId || '');
+        formData.append('graphicRequirementId', reqId);
+        formData.append('folderCategory', 'Graphic Requirements');
+        formData.append('attachmentCategory', 'PRODUCED_DELIVERABLE');
+
+        const uploadRes = await fetch('http://localhost:4000/api/v1/files/upload', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: formData,
+        });
+
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json().catch(() => ({}));
+          throw new Error(errData.message || 'File upload failed');
+        }
+
+        const uploadedFile = await uploadRes.json();
+        fileUrl = uploadedFile.storagePath ? `http://localhost:4000${uploadedFile.storagePath}` : uploadedFile.fileUrl;
+        fileName = uploadedFile.fileName || delFile.name;
+        fileSize = uploadedFile.fileSize || delFile.size;
+      }
+
+      if (editingDeliverable) {
+        await fetchApi(`/graphic-reqs/deliverables/${editingDeliverable.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            name: delName.trim(),
+            type: delType,
+            description: delDesc.trim(),
+            status: delStatus,
+            remarks: delRemarks.trim(),
+            fileUrl,
+            fileName,
+            fileSize,
+          }),
+        });
+      } else {
+        await fetchApi(`/graphic-reqs/${reqId}/deliverables`, {
+          method: 'POST',
+          body: JSON.stringify({
+            name: delName.trim(),
+            type: delType,
+            description: delDesc.trim(),
+            status: delStatus,
+            remarks: delRemarks.trim(),
+            fileUrl,
+            fileName,
+            fileSize,
+          }),
+        });
+      }
+
+      const updatedReq = await fetchApi(`/graphic-reqs/${reqId}`);
+      setInspectedReq(updatedReq);
+      setReqs((prev) => prev.map((r) => (r.id === reqId ? updatedReq : r)));
+
+      setShowAddDeliverableModal(false);
+      setEditingDeliverable(null);
+      setDelName('');
+      setDelType('Instagram Post');
+      setDelDesc('');
+      setDelStatus('DRAFT');
+      setDelRemarks('');
+      setDelFile(null);
+    } catch (err: any) {
+      alert(err.message || 'Failed to save deliverable output');
+    } finally {
+      setSavingDeliverable(false);
+    }
+  };
+
+  const handleUpdateDeliverableStatus = async (reqId: string, deliverableId: string, status: string) => {
+    try {
+      await fetchApi(`/graphic-reqs/deliverables/${deliverableId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+      const updatedReq = await fetchApi(`/graphic-reqs/${reqId}`);
+      setInspectedReq(updatedReq);
+      setReqs((prev) => prev.map((r) => (r.id === reqId ? updatedReq : r)));
+    } catch (err: any) {
+      alert(err.message || 'Failed to update deliverable status');
+    }
+  };
+
+  const handleDeleteDeliverable = async (reqId: string, deliverableId: string) => {
+    if (!confirm('Are you sure you want to delete this produced deliverable output?')) return;
+    try {
+      await fetchApi(`/graphic-reqs/deliverables/${deliverableId}`, {
+        method: 'DELETE',
+      });
+      const updatedReq = await fetchApi(`/graphic-reqs/${reqId}`);
+      setInspectedReq(updatedReq);
+      setReqs((prev) => prev.map((r) => (r.id === reqId ? updatedReq : r)));
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete deliverable output');
     }
   };
 
@@ -436,12 +565,28 @@ export default function GraphicReqsPage() {
   };
 
   const filteredReqs = reqs.filter((g) => {
-    const assignedUserNames = (g.tasks || []).flatMap((t: any) =>
-      (t.assignedEmployees || []).map((e: any) => e.user?.name || '')
+    const assignedUserNames = (g.tasks || []).flatMap((t: any) => [
+      ...(t.assignedEmployees || []).map((e: any) => e.user?.name || ''),
+    ]);
+    const assignedUserIds = (g.tasks || []).flatMap((t: any) => [
+      ...(t.assignedEmployees || []).map((e: any) => e.userId || e.user?.id || ''),
+      t.assignedToId || '',
+    ]);
+    const isAssignedToUser = Boolean(
+      user?.id && (
+        assignedUserIds.includes(user.id) ||
+        g.project?.assignedTeam?.some((t: any) => t.userId === user.id)
+      )
     );
-    const assignedUserIds = (g.tasks || []).flatMap((t: any) =>
-      (t.assignedEmployees || []).map((e: any) => e.userId || e.user?.id || '')
-    );
+
+    const linkedEvent = g.calendarEvent || g.project?.calendarEvent || (g.sourceForCalendarEvents && g.sourceForCalendarEvents[0]);
+    const UNAPPROVED_STATUSES = ['PENDING_MARKETING_APPROVAL', 'PENDING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'DRAFT', 'CHANGES_REQUESTED', 'REVISION_REQUESTED', 'WAITING_FOR_MEDIA_REVIEW'];
+    const isReqUnapproved = UNAPPROVED_STATUSES.includes(g.status) || Boolean(linkedEvent && UNAPPROVED_STATUSES.includes(linkedEvent.status));
+    const isCreator = Boolean(user?.id && (linkedEvent?.createdById === user.id || g.createdById === user.id));
+
+    if (isReqUnapproved && !isCreator && !isAssignedToUser && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'ADMINISTRATOR') {
+      return false;
+    }
 
     const matchesSearch =
       !searchQuery.trim() ||
@@ -454,7 +599,18 @@ export default function GraphicReqsPage() {
       g.status?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       assignedUserNames.some((name: string) => name.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    const matchesStatus = statusFilter === 'ALL' || g.status === statusFilter;
+    const isApprovedOrAssigned = ['APPROVED', 'CLIENT_APPROVED', 'TASK_ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_TECHNICAL_REVIEW', 'COMPLETED', 'CANCELLED'].includes(g.status);
+    const isPendingApproval =
+      !isApprovedOrAssigned &&
+      (['PENDING_APPROVAL', 'PENDING_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'WAITING_FOR_MEDIA_REVIEW', 'DRAFT', 'WAITING_FOR_CLIENT_CONFIRMATION', 'CHANGES_REQUESTED', 'REVISION_REQUESTED'].includes(g.status) ||
+       Boolean(linkedEvent && ['PENDING_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'DRAFT', 'CHANGES_REQUESTED', 'REVISION_REQUESTED'].includes(linkedEvent.status)));
+
+    const matchesStatus =
+      statusFilter === 'ALL'
+        ? true
+        : statusFilter === 'PENDING_APPROVAL'
+        ? isPendingApproval
+        : g.status === statusFilter;
     const matchesClient = !selectedClient || g.clientId === selectedClient || g.client?.id === selectedClient;
     const matchesBrand = !selectedBrand || g.brandId === selectedBrand || g.brand?.id === selectedBrand;
     const matchesProduct = !selectedProduct || g.productId === selectedProduct || g.product?.id === selectedProduct;
@@ -537,51 +693,79 @@ export default function GraphicReqsPage() {
       {/* User-Friendly Project-Style Filter Panel */}
       <div className="bg-card border border-border p-5 rounded-xl space-y-4 text-xs shadow-md">
         {/* Quick View Tab Pills */}
-        <div className="flex items-center gap-2 pb-1 border-b border-gray-800 flex-wrap">
-          <button
-            onClick={() => {
-              setStatusFilter('ALL');
-              setSelectedEmployee('');
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              statusFilter === 'ALL' && !selectedEmployee
-                ? 'bg-amber-600 text-white shadow'
-                : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
-            }`}
-          >
-            All Requirements
-          </button>
+        {(() => {
+          const pendingReqsCount = reqs.filter((g) => {
+            const linkedEvent = g.calendarEvent || g.project?.calendarEvent || (g.sourceForCalendarEvents && g.sourceForCalendarEvents[0]);
+            const UNAPPROVED_STATUSES = ['PENDING_MARKETING_APPROVAL', 'PENDING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'DRAFT', 'CHANGES_REQUESTED', 'REVISION_REQUESTED', 'WAITING_FOR_MEDIA_REVIEW'];
+            const isReqUnapproved = UNAPPROVED_STATUSES.includes(g.status) || Boolean(linkedEvent && UNAPPROVED_STATUSES.includes(linkedEvent.status));
+            const isCreator = Boolean(user?.id && (linkedEvent?.createdById === user.id || g.createdById === user.id));
 
-          <button
-            onClick={() => {
-              setStatusFilter('PENDING_APPROVAL');
-              setSelectedEmployee('');
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              statusFilter === 'PENDING_APPROVAL'
-                ? 'bg-amber-500 text-slate-950 shadow'
-                : 'bg-gray-900 text-amber-400 hover:text-white border border-gray-800'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" /> Pending Approval
-          </button>
+            if (isReqUnapproved && !isCreator && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'ADMINISTRATOR') {
+              return false;
+            }
+            const isApprovedOrAssigned = ['APPROVED', 'CLIENT_APPROVED', 'TASK_ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_TECHNICAL_REVIEW', 'COMPLETED', 'CANCELLED'].includes(g.status);
+            return (
+              !isApprovedOrAssigned &&
+              (['PENDING_APPROVAL', 'PENDING_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'WAITING_FOR_MEDIA_REVIEW', 'DRAFT', 'WAITING_FOR_CLIENT_CONFIRMATION', 'CHANGES_REQUESTED', 'REVISION_REQUESTED'].includes(g.status) ||
+               Boolean(linkedEvent && ['PENDING_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'DRAFT', 'CHANGES_REQUESTED', 'REVISION_REQUESTED'].includes(linkedEvent.status)))
+            );
+          }).length;
 
-          {user?.id && (
-            <button
-              onClick={() => {
-                setStatusFilter('ALL');
-                setSelectedEmployee(user.id);
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                selectedEmployee === user.id
-                  ? 'bg-purple-600 text-white shadow'
-                  : 'bg-gray-900 text-purple-400 hover:text-white border border-gray-800'
-              }`}
-            >
-              <User className="w-3.5 h-3.5" /> My Requirements
-            </button>
-          )}
-        </div>
+          return (
+            <div className="flex items-center gap-2 pb-1 border-b border-gray-800 flex-wrap">
+              <button
+                onClick={() => {
+                  setStatusFilter('ALL');
+                  setSelectedEmployee('');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  statusFilter === 'ALL' && !selectedEmployee
+                    ? 'bg-amber-600 text-white shadow'
+                    : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+                }`}
+              >
+                All Requirements
+              </button>
+
+              <button
+                onClick={() => {
+                  setStatusFilter('PENDING_APPROVAL');
+                  setSelectedEmployee('');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  statusFilter === 'PENDING_APPROVAL'
+                    ? 'bg-amber-500 text-slate-950 shadow'
+                    : 'bg-gray-900 text-amber-400 hover:text-white border border-gray-800'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" /> Pending Approval
+                {pendingReqsCount > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                    statusFilter === 'PENDING_APPROVAL' ? 'bg-slate-950 text-amber-300' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  }`}>
+                    {pendingReqsCount}
+                  </span>
+                )}
+              </button>
+
+              {user?.id && (
+                <button
+                  onClick={() => {
+                    setStatusFilter('ALL');
+                    setSelectedEmployee(user.id);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    selectedEmployee === user.id
+                      ? 'bg-purple-600 text-white shadow'
+                      : 'bg-gray-900 text-purple-400 hover:text-white border border-gray-800'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" /> My Requirements
+                </button>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Top Search & Controls Row */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -948,12 +1132,12 @@ export default function GraphicReqsPage() {
                     </span>
                   </div>
 
-                  <div>
-                    <span className="text-gray-500 font-bold block uppercase text-[9px]">Calendar Event</span>
-                    <span className="text-purple-300 font-bold flex items-center gap-1 truncate">
-                      📅 {g.calendarEvent?.title || g.project?.calendarEvent?.title || 'Main Shoot Event'}
-                    </span>
-                  </div>
+                    <div>
+                      <span className="text-gray-500 font-bold block uppercase text-[9px]">Calendar Event</span>
+                      <span className="text-purple-300 font-bold flex items-center gap-1 truncate">
+                        📅 {g.calendarEvent?.title || g.project?.calendarEvent?.title || (g.sourceForCalendarEvents && g.sourceForCalendarEvents[0]?.title) || 'Main Shoot Event'}
+                      </span>
+                    </div>
 
                   <div>
                     <span className="text-gray-500 font-bold block uppercase text-[9px]">Client</span>
@@ -1648,63 +1832,164 @@ export default function GraphicReqsPage() {
             </div>
 
             {/* Produced Deliverables Vault (Outputs Manifest) */}
-            <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
-              <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-                <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                  📦 Produced Deliverable Outputs (One Requirement ➔ Multiple Deliverables)
-                </span>
-                <span className="text-[10px] text-gray-400 font-mono">
-                  Multi-Format Output Stream
-                </span>
-              </div>
+            {(() => {
+              const isAssigned = Boolean(
+                user?.id && (
+                  (inspectedReq.tasks || []).some((t: any) =>
+                    t.assignedToId === user.id ||
+                    (t.assignedEmployees || []).some((e: any) => e.userId === user.id || e.user?.id === user.id)
+                  ) ||
+                  inspectedReq.createdById === user.id
+                )
+              );
+              const canManage = isAssigned || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN';
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                {AVAILABLE_DELIVERABLE_FORMATS.map((del) => {
-                  const matchingFile = (inspectedReq.files || []).find(
-                    (f: any) => f.fileName?.toLowerCase().includes(del.name.toLowerCase()) || f.attachmentCategory === del.name
-                  );
+              return (
+                <div className="bg-gray-950 border border-gray-800 p-4 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                    <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      📦 Produced Deliverable Outputs ({inspectedReq.deliverables?.length || 0})
+                    </span>
+                    {canManage && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingDeliverable(null);
+                          setDelName('');
+                          setDelType('Instagram Post');
+                          setDelDesc('');
+                          setDelStatus('DRAFT');
+                          setDelRemarks('');
+                          setDelFile(null);
+                          setShowAddDeliverableModal(true);
+                        }}
+                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all"
+                      >
+                        + Add Deliverable
+                      </button>
+                    )}
+                  </div>
 
-                  return (
-                    <div
-                      key={del.name}
-                      className="p-3 bg-gray-900/90 border border-gray-800 rounded-xl space-y-2 text-xs flex flex-col justify-between"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-white flex items-center gap-1.5 text-xs">
-                            {del.icon} {del.name}
-                          </span>
-                          <span className="text-[9px] text-gray-500 font-mono">({del.ext})</span>
+                  {(!inspectedReq.deliverables || inspectedReq.deliverables.length === 0) ? (
+                    <div className="p-4 bg-gray-900/60 border border-gray-800 rounded-xl text-center text-gray-400 text-xs">
+                      No produced deliverable outputs added yet.
+                      {canManage && (
+                        <div className="mt-1 text-amber-400 font-semibold">
+                          Click "+ Add Deliverable" above to upload or manage outputs.
                         </div>
-                        <span className="text-[10px] text-gray-400 block mt-1">
-                          {matchingFile ? '✅ Export Ready' : '⏳ Pending Export'}
-                        </span>
-                      </div>
-
-                      {matchingFile ? (
-                        <a
-                          href={matchingFile.fileUrl || `http://localhost:4000${matchingFile.storagePath}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 rounded font-bold text-[10px] text-center transition-colors block"
-                        >
-                          View Deliverable ↗
-                        </a>
-                      ) : (
-                        <label className="cursor-pointer px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-amber-300 border border-amber-800/50 rounded font-semibold text-[10px] text-center block transition-colors">
-                          + Upload Export
-                          <input
-                            type="file"
-                            className="hidden"
-                            onChange={(e) => handleFileUpload(e, del.name)}
-                          />
-                        </label>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {inspectedReq.deliverables.map((del: any) => (
+                        <div
+                          key={del.id}
+                          className="p-3.5 bg-gray-900/90 border border-gray-800 rounded-xl space-y-2.5 text-xs flex flex-col justify-between"
+                        >
+                          <div className="space-y-1.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="font-bold text-white text-xs block leading-tight">
+                                🎨 {del.name}
+                              </span>
+                              <span className="px-2 py-0.5 bg-amber-950 text-amber-300 border border-amber-800 rounded font-bold text-[9px] whitespace-nowrap">
+                                {del.type || 'Deliverable'}
+                              </span>
+                            </div>
+
+                            {del.description && (
+                              <p className="text-[11px] text-gray-400 leading-normal">
+                                {del.description}
+                              </p>
+                            )}
+
+                            <div className="flex items-center justify-between pt-1 border-t border-gray-800/80 text-[10px]">
+                              <span className="text-gray-500 font-medium">Status:</span>
+                              {canManage ? (
+                                <select
+                                  value={del.status}
+                                  onChange={(e) => handleUpdateDeliverableStatus(inspectedReq.id, del.id, e.target.value)}
+                                  className="bg-gray-950 border border-gray-700 text-amber-300 font-bold px-2 py-0.5 rounded text-[10px] focus:outline-none"
+                                >
+                                  <option value="DRAFT">Draft</option>
+                                  <option value="IN_PROGRESS">In Progress</option>
+                                  <option value="COMPLETED">Completed</option>
+                                  <option value="SUBMITTED">Submitted</option>
+                                </select>
+                              ) : (
+                                <span className="font-bold text-amber-400">{del.status}</span>
+                              )}
+                            </div>
+
+                            {del.createdBy && (
+                              <div className="text-[10px] text-gray-500 flex items-center justify-between">
+                                <span>Creator:</span>
+                                <span className="text-gray-300 font-medium">👤 {del.createdBy.name}</span>
+                              </div>
+                            )}
+
+                            {del.submissionDate && (
+                              <div className="text-[10px] text-gray-500 flex items-center justify-between">
+                                <span>Submitted:</span>
+                                <span className="text-emerald-400 font-mono">📅 {new Date(del.submissionDate).toLocaleDateString()}</span>
+                              </div>
+                            )}
+
+                            {del.remarks && (
+                              <div className="text-[10px] text-amber-200/80 bg-gray-950 p-1.5 rounded border border-gray-800">
+                                💬 {del.remarks}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-800">
+                            {del.fileUrl ? (
+                              <a
+                                href={del.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 rounded font-bold text-[10px] flex items-center gap-1 transition-colors"
+                              >
+                                📥 {del.fileName || 'Download Output'}
+                              </a>
+                            ) : (
+                              <span className="text-[10px] text-gray-500 italic">No File Attached</span>
+                            )}
+
+                            {canManage && (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingDeliverable(del);
+                                    setDelName(del.name);
+                                    setDelType(del.type || 'Instagram Post');
+                                    setDelDesc(del.description || '');
+                                    setDelStatus(del.status || 'DRAFT');
+                                    setDelRemarks(del.remarks || '');
+                                    setDelFile(null);
+                                    setShowAddDeliverableModal(true);
+                                  }}
+                                  className="px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded font-semibold text-[10px] transition-colors"
+                                >
+                                  ✏️ Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteDeliverable(inspectedReq.id, del.id)}
+                                  className="px-2 py-1 bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 rounded font-semibold text-[10px] transition-colors"
+                                >
+                                  🗑️ Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Design Assets & File Attachment Vault (Minimal Collapsible Grid) */}
             <div className="bg-gray-950 border border-gray-800 p-3 rounded-xl space-y-2">
@@ -1955,6 +2240,130 @@ export default function GraphicReqsPage() {
                 className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-lg text-xs"
               >
                 Close Inspector
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Deliverable Output Modal */}
+      {showAddDeliverableModal && (
+        <div
+          onClick={() => setShowAddDeliverableModal(false)}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[60] animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-card border border-border rounded-2xl w-full max-w-lg p-6 space-y-4 text-xs shadow-2xl relative"
+          >
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                📦 {editingDeliverable ? 'Edit Produced Deliverable Output' : 'Add Produced Deliverable Output'}
+              </h3>
+              <button
+                onClick={() => setShowAddDeliverableModal(false)}
+                className="text-gray-400 hover:text-white font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-gray-300 font-semibold mb-1 text-xs">Deliverable Output Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Instagram Post 1080x1080, Facebook Banner..."
+                  value={delName}
+                  onChange={(e) => setDelName(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500 font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-300 font-semibold mb-1 text-xs">Deliverable Type</label>
+                  <select
+                    value={delType}
+                    onChange={(e) => setDelType(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500 font-medium"
+                  >
+                    {AVAILABLE_DELIVERABLE_FORMATS.map((f) => (
+                      <option key={f.name} value={f.name}>{f.icon} {f.name}</option>
+                    ))}
+                    <option value="Vector Asset">🎨 Vector Asset</option>
+                    <option value="PSD Master">🖼️ PSD Master File</option>
+                    <option value="Other Output">📄 Other Output</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 font-semibold mb-1 text-xs">Status</label>
+                  <select
+                    value={delStatus}
+                    onChange={(e) => setDelStatus(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-amber-300 font-bold text-xs focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="DRAFT">Draft</option>
+                    <option value="IN_PROGRESS">In Progress</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="SUBMITTED">Submitted</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 font-semibold mb-1 text-xs">Description</label>
+                <textarea
+                  rows={2}
+                  placeholder="Brief description of this produced deliverable output..."
+                  value={delDesc}
+                  onChange={(e) => setDelDesc(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-300 font-semibold mb-1 text-xs">Upload Deliverable Output File</label>
+                <input
+                  type="file"
+                  onChange={(e) => setDelFile(e.target.files?.[0] || null)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl p-2 text-white text-xs file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-gray-950 hover:file:bg-amber-400"
+                />
+                {editingDeliverable?.fileUrl && !delFile && (
+                  <div className="mt-1 text-[10px] text-emerald-400 truncate">
+                    Current file: {editingDeliverable.fileName || 'Attached File'}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-gray-300 font-semibold mb-1 text-xs">Remarks / Feedback</label>
+                <input
+                  type="text"
+                  placeholder="Feedback or production notes..."
+                  value={delRemarks}
+                  onChange={(e) => setDelRemarks(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setShowAddDeliverableModal(false)}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl font-semibold text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={savingDeliverable}
+                onClick={() => inspectedReq && handleSaveDeliverable(inspectedReq.id)}
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-colors disabled:opacity-50"
+              >
+                {savingDeliverable ? 'Saving Output...' : editingDeliverable ? 'Update Output' : 'Add Deliverable Output'}
               </button>
             </div>
           </div>

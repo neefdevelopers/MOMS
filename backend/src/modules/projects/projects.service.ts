@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ShootType, ProjectStatus, Priority, PermissionStatus, WeatherStatus, StudioBookingStatus, EquipmentAvailability, TaskStatus, Role } from '../../common/enums';
+import { canUserViewEvent, canUserViewProject } from '../../common/utils/event-auth';
 
 @Injectable()
 export class ProjectsService {
@@ -102,13 +103,39 @@ export class ProjectsService {
     // Role filtering for STAFF: only projects they are assigned to
     if (params.role === 'STAFF' && params.userId) {
       where.OR = [
+        { createdById: params.userId },
         { assignedTeam: { some: { userId: params.userId } } },
         { tasks: { some: { assignedEmployees: { some: { userId: params.userId } } } } },
-        { scripts: { some: { assignedEmployeeId: params.userId } } },
+        { scripts: { some: { scriptAssignments: { some: { userId: params.userId } } } } },
       ];
     }
 
-    return this.prisma.shootProject.findMany({
+    // CRITICAL BUSINESS RULE:
+    // Content creation and approval roles (SOCIAL_MEDIA_MANAGER, MEDIA_MANAGER, MARKETING_MANAGER, ADMIN) can view pending projects in their sessions.
+    // Execution roles (TECHNICAL_MANAGER, STAFF, etc.) can ONLY view projects once approved by Marketing Manager (or if created by themselves).
+    const APPROVED_CALENDAR_STATUSES = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'];
+    const CREATOR_AND_APPROVER_ROLES = ['SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMIN', 'ADMINISTRATOR'];
+
+    if (params.role && !CREATOR_AND_APPROVER_ROLES.includes(params.role) && params.userId) {
+      const eventVisibilityFilter = {
+        OR: [
+          { calendarEventId: null },
+          { calendarEvent: { status: { in: APPROVED_CALENDAR_STATUSES } } },
+          { calendarEvent: { createdById: params.userId } },
+          { createdById: params.userId },
+          { assignedTeam: { some: { userId: params.userId } } },
+          { tasks: { some: { assignedEmployees: { some: { userId: params.userId } } } } },
+        ],
+      };
+
+      if (where.AND) {
+        where.AND = Array.isArray(where.AND) ? [...where.AND, eventVisibilityFilter] : [where.AND, eventVisibilityFilter];
+      } else {
+        where.AND = [eventVisibilityFilter];
+      }
+    }
+
+    const rawProjects = await this.prisma.shootProject.findMany({
       where,
       include: {
         client: true,
@@ -130,6 +157,13 @@ export class ProjectsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    if (params.userId && params.role) {
+      return rawProjects.filter((p) =>
+        canUserViewProject({ id: params.userId!, role: params.role! }, p),
+      );
+    }
+    return rawProjects;
   }
 
   async findOne(id: string, currentUser?: any) {
@@ -159,19 +193,60 @@ export class ProjectsService {
     });
     if (!project) throw new NotFoundException('Project not found');
 
-    // Rule: Staff members shall not view projects unrelated to their assignments
+    if (currentUser && currentUser.id && currentUser.role) {
+      if (!canUserViewProject(currentUser, project)) {
+        throw new ForbiddenException(
+          'Access Denied: Project shoot waiting for Marketing Approval is hidden from Technical Manager.',
+        );
+      }
+    }
+
+    // Rule: Staff members shall not view projects unrelated to their assignments, and sibling items are filtered
     if (currentUser?.role === 'STAFF') {
+      const isCreator = project.createdById === currentUser.id;
       const isTeamMember = project.assignedTeam?.some((t) => t.userId === currentUser.id);
       const isTaskAssignee = project.tasks?.some((task) =>
         task.assignedEmployees?.some((e) => e.userId === currentUser.id),
       );
       const isScriptAssignee = project.scripts?.some(
-        (script) => (script as any).assignedEmployeeId === currentUser.id,
+        (script) => (script as any).assignedEmployeeId === currentUser.id || (script as any).writerId === currentUser.id,
+      );
+      const isReqAssignee = project.graphicRequirements?.some(
+        (req: any) =>
+          req.tasks?.some((t: any) => t.assignedEmployees?.some((e: any) => e.userId === currentUser.id)),
       );
 
-      if (!isTeamMember && !isTaskAssignee && !isScriptAssignee) {
+      if (!isCreator && !isTeamMember && !isTaskAssignee && !isScriptAssignee && !isReqAssignee) {
         throw new ForbiddenException(
           'Staff members shall not view projects unrelated to their assignments.',
+        );
+      }
+
+      // Filter child tasks: only show tasks assigned to this Staff member
+      if (Array.isArray(project.tasks)) {
+        project.tasks = project.tasks.filter(
+          (t: any) =>
+            t.assignedEmployees?.some((e: any) => e.userId === currentUser.id),
+        );
+      }
+
+      // Filter child graphic requirements: only show requirements assigned to this Staff member
+      if (Array.isArray(project.graphicRequirements)) {
+        project.graphicRequirements = project.graphicRequirements.filter(
+          (gr: any) =>
+            gr.tasks?.some((t: any) => t.assignedEmployees?.some((e: any) => e.userId === currentUser.id)),
+        );
+      }
+
+      // Filter child scripts: only show scripts assigned to this Staff member
+      if (Array.isArray(project.scripts)) {
+        project.scripts = project.scripts.filter(
+          (sc: any) =>
+            sc.authorId === currentUser.id ||
+            sc.createdById === currentUser.id ||
+            sc.writerId === currentUser.id ||
+            sc.assignedToId === currentUser.id ||
+            sc.scriptAssignments?.some((sa: any) => sa.userId === currentUser.id),
         );
       }
     }
@@ -384,12 +459,8 @@ export class ProjectsService {
       }
     }
 
-    // 6. Reserve / Assign Equipment if provided (Requires Approved Project)
+    // 6. Reserve / Assign Equipment if provided
     if (data.equipmentIds && Array.isArray(data.equipmentIds) && data.equipmentIds.length > 0) {
-      const approvedStatuses = ['APPROVED', 'CLIENT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PROGRESS'];
-      if (!approvedStatuses.includes(project.status)) {
-        throw new BadRequestException('Equipment allocation is locked until Media Manager approves the project.');
-      }
 
       for (const eqId of data.equipmentIds) {
         const res = await this.prisma.equipmentReservation.create({
@@ -550,11 +621,6 @@ export class ProjectsService {
     }
 
     if (data.equipmentIds && Array.isArray(data.equipmentIds)) {
-      const approvedStatuses = ['APPROVED', 'CLIENT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PROGRESS'];
-      const targetStatus = data.status || existing.status;
-      if (!approvedStatuses.includes(targetStatus)) {
-        throw new BadRequestException('Equipment allocation is locked until Media Manager approves the project.');
-      }
 
       const existingReservations = await this.prisma.equipmentReservation.findMany({
         where: { projectId: id },

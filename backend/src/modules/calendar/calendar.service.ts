@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ShootType, Priority } from '../../common/enums';
+import { canUserViewEvent } from '../../common/utils/event-auth';
 
 @Injectable()
 export class CalendarService {
@@ -20,18 +21,15 @@ export class CalendarService {
     if (brandId) where.brandId = brandId;
     if (shootType) where.shootType = shootType;
 
-    // Status filtering logic & Main Calendar Visibility Rule
+    // Status filtering logic
     if (status) {
-      if (status === 'PENDING_CLIENT_APPROVAL' || status === 'PENDING_CLIENT_REVIEW') {
-        where.status = { in: ['PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW'] };
+      if (status === 'PENDING_CLIENT_APPROVAL' || status === 'PENDING_CLIENT_REVIEW' || status === 'PENDING') {
+        where.status = { in: ['PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'PENDING_MARKETING_APPROVAL', 'DRAFT', 'CHANGES_REQUESTED', 'REVISION_REQUESTED'] };
       } else if (status === 'APPROVED' || status === 'CLIENT_APPROVED' || status === 'OPERATIONAL') {
-        where.status = { in: ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED'] };
+        where.status = { in: ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'] };
       } else if (status !== 'ALL') {
         where.status = status;
       }
-    } else if (forMainCalendar) {
-      // CRITICAL BUSINESS RULE: Main Media Calendar MUST ONLY return approved/operational events
-      where.status = { in: ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED'] };
     }
 
     // Client data isolation for MARKETING_MANAGER (Ensure full access to client approval events)
@@ -59,33 +57,7 @@ export class CalendarService {
       }
     }
 
-    // Assignment scope for SOCIAL_MEDIA_MANAGER: Always include events created by user OR assigned clients
-    if (role === 'SOCIAL_MEDIA_MANAGER' && userId) {
-      const assignments = await this.prisma.clientAssignment.findMany({
-        where: { userId },
-        select: { clientId: true },
-      });
-      const assignedIds = assignments.map((a) => a.clientId);
-      if (assignedIds.length > 0) {
-        where.OR = [
-          { createdById: userId },
-          { clientId: { in: assignedIds } },
-        ];
-      } else {
-        where.createdById = userId;
-      }
-    }
-
-    // STAFF role filtering: only assigned shoot events or project events
-    if (role === 'STAFF' && userId) {
-      where.OR = [
-        { shootProjects: { some: { assignedTeam: { some: { userId } } } } },
-        { shootProjects: { some: { tasks: { some: { assignedEmployees: { some: { userId } } } } } } },
-        { graphicReqs: { some: { tasks: { some: { assignedEmployees: { some: { userId } } } } } } },
-      ];
-    }
-
-    return this.prisma.mediaCalendarEvent.findMany({
+    const rawEvents = await this.prisma.mediaCalendarEvent.findMany({
       where,
       include: {
         client: true,
@@ -95,6 +67,7 @@ export class CalendarService {
         shoot: { select: { id: true, projectId: true, name: true, status: true, shootType: true, shootDate: true, priority: true } },
         createdBy: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         assignedStaff: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
+        approvalAssignedTo: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         revisions: {
           orderBy: { version: 'desc' },
           include: { createdBy: { select: { id: true, name: true, role: true } } },
@@ -107,23 +80,16 @@ export class CalendarService {
           include: {
             indoorDetails: true,
             outdoorDetails: true,
-            equipmentReservations: {
-              include: {
-                equipment: true,
-                reservedBy: { select: { id: true, name: true, role: true } },
-              },
-            },
-            equipmentRequests: {
-              include: {
-                equipment: true,
-                requestedBy: { select: { id: true, name: true, role: true } },
-              },
-            },
           },
         },
       },
       orderBy: { shootDate: 'asc' },
     });
+
+    if (userId && role) {
+      return rawEvents.filter((evt) => canUserViewEvent({ id: userId, role }, evt));
+    }
+    return rawEvents;
   }
 
   async findOne(id: string, user?: any) {
@@ -137,6 +103,7 @@ export class CalendarService {
         shoot: { select: { id: true, projectId: true, name: true, status: true, shootType: true, shootDate: true, priority: true } },
         createdBy: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         assignedStaff: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
+        approvalAssignedTo: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         revisions: {
           orderBy: { version: 'desc' },
           include: { createdBy: { select: { id: true, name: true, role: true } } },
@@ -149,18 +116,6 @@ export class CalendarService {
           include: {
             indoorDetails: true,
             outdoorDetails: true,
-            equipmentReservations: {
-              include: {
-                equipment: true,
-                reservedBy: { select: { id: true, name: true, role: true } },
-              },
-            },
-            equipmentRequests: {
-              include: {
-                equipment: true,
-                requestedBy: { select: { id: true, name: true, role: true } },
-              },
-            },
           },
         },
       },
@@ -168,16 +123,8 @@ export class CalendarService {
 
     if (!event) throw new NotFoundException('Calendar event not found');
 
-    // Security check for Marketing Manager (Client Representative)
-    if (user && user.role === 'MARKETING_MANAGER') {
-      const assignments = await this.prisma.clientAssignment.findMany({
-        where: { userId: user.id },
-        select: { clientId: true },
-      });
-      const assignedIds = assignments.map((a) => a.clientId);
-      if (!assignedIds.includes(event.clientId)) {
-        throw new ForbiddenException('Access Denied: You are not authorized to access calendar events for this client.');
-      }
+    if (user && !canUserViewEvent(user, event)) {
+      throw new ForbiddenException('403 Forbidden: You do not have permission to view this event.');
     }
 
     return event;
@@ -362,6 +309,9 @@ export class CalendarService {
           version: 1,
           status: initialStatus,
           createdById: activeUserId,
+          createdByRole: user?.role || 'MEDIA_MANAGER',
+          approvalRequired: true,
+          approvalStatus: initialStatus === 'APPROVED' ? 'APPROVED' : 'PENDING_MARKETING_APPROVAL',
           assignedStaffId: assignedStaffId,
         },
       });
@@ -981,61 +931,6 @@ export class CalendarService {
     });
   }
 
-  async generateGraphicReq(eventId: string) {
-    const event = await this.findOne(eventId);
-
-    let project: any = event.shootProjects[0];
-    if (!project) {
-      const projectCount = await this.prisma.shootProject.count();
-      const autoProjectId = `SP-${(projectCount + 1).toString().padStart(6, '0')}`;
-      const dateFormatted = new Date(event.shootDate).toISOString().slice(2, 10).replace(/-/g, '');
-      const defaultProjName = `${event.brand.shortCode}-${dateFormatted}-CALENDAR`;
-
-      project = await this.prisma.shootProject.create({
-        data: {
-          projectId: autoProjectId,
-          name: defaultProjName,
-          clientId: event.clientId,
-          brandId: event.brandId,
-          productId: event.productId || null,
-          calendarEventId: event.id,
-          shootType: event.shootType,
-          shootDate: event.shootDate,
-          shootLocation: 'Studio / Designated Site',
-          reportingTime: '09:00 AM',
-          expectedWrapUpTime: '05:00 PM',
-          influencerTalent: event.influencerTalent,
-          priority: event.priority,
-          status: 'PLANNED',
-          notes: `Project generated for Media Calendar Event: ${event.title}`,
-          createdById: (await this.prisma.user.findFirst({ where: { role: 'MEDIA_MANAGER' } }))?.id || '',
-        },
-      });
-    }
-
-    const reqCount = await this.prisma.graphicRequirement.count();
-    const autoReqId = `GR-${(reqCount + 1).toString().padStart(6, '0')}`;
-
-    const graphicReq = await this.prisma.graphicRequirement.create({
-      data: {
-        requirementId: autoReqId,
-        name: `Key Visual & Social Media Banner - ${event.title}`,
-        projectId: project.id,
-        clientId: event.clientId,
-        brandId: event.brandId,
-        calendarEventId: event.id,
-        productId: event.productId || null,
-        requirementType: 'Social Feed Banner',
-        objective: `Generated from Media Calendar Event: ${event.title}`,
-        description: `Automated key visual graphic requirement generated from Media Calendar.`,
-        priority: event.priority || 'MEDIUM',
-        status: 'DRAFT',
-      },
-      include: { project: true, client: true, brand: true, calendarEvent: true },
-    });
-
-    return graphicReq;
-  }
 
   private async notifyClientReviewers(eventId: string, eventTitle: string, clientId: string, eventSource: string = 'SHOOT') {
     const assignments = await this.prisma.clientAssignment.findMany({

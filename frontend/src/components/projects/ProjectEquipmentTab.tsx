@@ -17,7 +17,7 @@ import {
   BadgeCheck,
   PackageX,
   Wrench,
-  Lock,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 interface ProjectEquipmentTabProps {
@@ -31,6 +31,7 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
     project.requiresEquipment !== undefined ? Boolean(project.requiresEquipment) : true
   );
   const [allEquipment, setAllEquipment] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
   const [availabilityResult, setAvailabilityResult] = useState<any | null>(null);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
 
@@ -43,25 +44,35 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
   });
   const [submittingReserve, setSubmittingReserve] = useState(false);
 
-  // Request Form Modal
-  const [showRequestModal, setShowRequestModal] = useState(false);
-  const [requestEqId, setRequestEqId] = useState('');
-  const [requestForm, setRequestForm] = useState({
-    purpose: `Physical shoot for ${project.title || project.name || 'Shoot Project'}`,
-    requiredDate: project.shootDate ? new Date(project.shootDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+  // Direct Allocation Form Modal
+  const [showAllocateModal, setShowAllocateModal] = useState(false);
+  const [allocateEqId, setAllocateEqId] = useState('');
+  const [allocateForm, setAllocateForm] = useState({
+    employeeId: '',
+    purpose: `Shoot execution for ${project.title || project.name || 'Shoot Project'}`,
+    startDate: project.shootDate ? new Date(project.shootDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     expectedReturnDate: project.shootDate ? new Date(new Date(project.shootDate).getTime() + 86400000 * 2).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     remarks: '',
+    accessoriesIncluded: 'Standard accessories verified',
+    condition: 'Good - Operational',
   });
-  const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [submittingAllocate, setSubmittingAllocate] = useState(false);
 
-  const canManage = user?.role === 'MEDIA_MANAGER';
+  const canManage = user?.role === 'MEDIA_MANAGER' || user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR';
 
   useEffect(() => {
-    fetchApi('/equipment')
-      .then((res) => {
-        if (Array.isArray(res)) setAllEquipment(res);
-      })
-      .catch((err) => console.error(err));
+    Promise.all([
+      fetchApi('/equipment').catch(() => []),
+      fetchApi('/users').catch(() => []),
+    ]).then(([eqRes, userRes]) => {
+      if (Array.isArray(eqRes)) setAllEquipment(eqRes);
+      if (Array.isArray(userRes)) {
+        setAllUsers(userRes);
+        if (userRes.length > 0) {
+          setAllocateForm((prev) => ({ ...prev, employeeId: userRes[0].id }));
+        }
+      }
+    });
   }, []);
 
   const handleCheckProjectAvailability = async () => {
@@ -115,33 +126,30 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
     }
   };
 
-  const handleCreateRequest = async (e: React.FormEvent) => {
+  const handleDirectAllocation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requestEqId) {
-      alert('Please select an equipment item.');
+    if (!allocateEqId || !allocateForm.employeeId || !allocateForm.expectedReturnDate) {
+      alert('Please select an equipment item, employee recipient, and expected return date.');
       return;
     }
-    setSubmittingRequest(true);
+    setSubmittingAllocate(true);
     try {
-      await fetchApi('/equipment/requests', {
+      await fetchApi(`/equipment/${allocateEqId}/allocate`, {
         method: 'POST',
         body: JSON.stringify({
-          equipmentId: requestEqId,
           projectId: project.id,
-          ...requestForm,
+          ...allocateForm,
         }),
       });
-      alert('Equipment request submitted successfully!');
-      setShowRequestModal(false);
+      alert('Equipment directly allocated & issued successfully! Handover record generated.');
+      setShowAllocateModal(false);
       if (onRefresh) onRefresh();
     } catch (err: any) {
-      alert(err.message || 'Failed to submit request.');
+      alert(err.message || 'Failed to allocate equipment.');
     } finally {
-      setSubmittingRequest(false);
+      setSubmittingAllocate(false);
     }
   };
-
-  const isApproved = project?.status === 'APPROVED' || project?.status === 'IN_PROGRESS' || project?.status === 'COMPLETED';
 
   return (
     <div className="space-y-6 text-xs">
@@ -181,22 +189,6 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
         </div>
       </div>
 
-      {/* Approval Gate Lock Banner */}
-      {!isApproved && (
-        <div className="bg-amber-950/40 border border-amber-800/60 p-5 rounded-xl flex items-start gap-3 text-amber-200 shadow-lg">
-          <Lock className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <h4 className="font-bold text-amber-300 text-sm">Equipment Allocation Locked</h4>
-            <p className="text-xs text-amber-200/80">
-              Equipment allocation will be available after project approval by the Media Manager.
-            </p>
-            <div className="pt-1 text-[11px] text-amber-400 font-mono">
-              Current Project Status: <strong className="uppercase bg-amber-900/60 px-2 py-0.5 rounded border border-amber-700/50 text-amber-100">{project?.status || 'PLANNED'}</strong>
-            </div>
-          </div>
-        </div>
-      )}
-
       {!requiresEquipment ? (
         <div className="p-8 text-center bg-card border border-border rounded-xl text-gray-400 space-y-2">
           <BadgeCheck className="w-8 h-8 text-emerald-400 mx-auto" />
@@ -213,7 +205,7 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
             <div className="flex items-center gap-2">
               <button
                 onClick={handleCheckProjectAvailability}
-                disabled={checkingAvailability || !isApproved}
+                disabled={checkingAvailability}
                 className="px-3.5 py-2 bg-purple-600/20 border border-purple-500/40 text-purple-300 hover:bg-purple-600/30 font-bold rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
               >
                 <ShieldCheck className="w-4 h-4 text-purple-400" />
@@ -221,25 +213,23 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowRequestModal(true)}
-                disabled={!isApproved}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Plus className="w-4 h-4" /> Submit Equipment Request
-              </button>
+            {canManage && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowAllocateModal(true)}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow"
+                >
+                  <ArrowRightLeft className="w-4 h-4" /> Allocate / Issue Equipment
+                </button>
 
-              {canManage && (
                 <button
                   onClick={() => setShowReserveModal(true)}
-                  disabled={!isApproved}
-                  className="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow"
                 >
                   <Calendar className="w-4 h-4" /> Create Reservation
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Availability Check Result Banner */}
@@ -271,12 +261,23 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
           {/* Current Reservations Section */}
           <div className="bg-card border border-border p-5 rounded-xl space-y-4">
             <h4 className="font-bold text-white text-sm flex items-center justify-between">
-              <span>Project Equipment Reservations ({(project.equipmentReservations || []).length})</span>
-              <span className="text-xs text-gray-400 font-normal">Planned for Shoot</span>
+              <span>Project Equipment Allocations & Reservations ({(project.equipmentReservations || []).length})</span>
+              <span className="text-xs text-gray-400 font-normal">Planned & Allocated for Shoot</span>
             </h4>
 
             {(!project.equipmentReservations || project.equipmentReservations.length === 0) ? (
-              <p className="text-gray-400 italic text-center py-4">No equipment reserved for this project yet.</p>
+              <div className="p-6 text-center bg-gray-900/50 border border-gray-800 rounded-xl space-y-3">
+                <FileText className="w-8 h-8 text-gray-500 mx-auto" />
+                <p className="text-gray-300 font-medium text-xs">No equipment assigned or allocated to this project yet.</p>
+                {canManage && (
+                  <button
+                    onClick={() => setShowAllocateModal(true)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg inline-flex items-center gap-1.5 transition-colors shadow text-xs"
+                  >
+                    <ArrowRightLeft className="w-4 h-4" /> Allocate Equipment
+                  </button>
+                )}
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {project.equipmentReservations.map((res: any) => {
@@ -291,9 +292,11 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
                           </span>
                         </div>
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase border ${
-                          eq?.availability === 'AVAILABLE' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                          eq?.availability === 'AVAILABLE' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                          eq?.availability === 'CHECKED_OUT' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                          'bg-purple-500/20 text-purple-300 border-purple-500/30'
                         }`}>
-                          {eq?.availability || 'RESERVED'}
+                          {eq?.availability || 'ALLOCATED'}
                         </span>
                       </div>
 
@@ -301,8 +304,13 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
                         <div className="flex items-center justify-between">
                           <span>Category:</span> <strong className="text-gray-200">{eq?.category}</strong>
                         </div>
+                        {eq?.currentHolder && (
+                          <div className="flex items-center justify-between">
+                            <span>Holder:</span> <strong className="text-cyan-300">{eq.currentHolder}</strong>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between">
-                          <span>Reserved Dates:</span> <span className="font-mono text-gray-300">{new Date(res.startDate).toLocaleDateString()} – {new Date(res.endDate).toLocaleDateString()}</span>
+                          <span>Schedule:</span> <span className="font-mono text-gray-300">{new Date(res.startDate).toLocaleDateString()} – {new Date(res.endDate).toLocaleDateString()}</span>
                         </div>
                       </div>
                     </div>
@@ -311,42 +319,103 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
               </div>
             )}
           </div>
+        </div>
+      )}
 
-          {/* Active Equipment Requests & Handover History */}
-          <div className="bg-card border border-border p-5 rounded-xl space-y-4">
-            <h4 className="font-bold text-white text-sm">Equipment Requests & Checkout Status</h4>
-            {(!project.equipmentRequests || project.equipmentRequests.length === 0) ? (
-              <p className="text-gray-400 italic text-center py-4">No equipment requests submitted for this project.</p>
-            ) : (
-              <div className="space-y-2">
-                {project.equipmentRequests.map((req: any) => (
-                  <div key={req.id} className="bg-gray-900 border border-gray-800 p-3.5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <strong className="text-white font-bold">{req.equipment?.name || 'Equipment'}</strong>
-                        <span className="font-mono text-[10px] text-cyan-400 font-bold px-1.5 py-0.5 bg-cyan-500/10 border border-cyan-500/30 rounded">
-                          {req.equipment?.equipmentId}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        Purpose: <span className="text-gray-200">{req.purpose}</span> | Return Due: <span className="font-mono text-amber-300">{new Date(req.expectedReturnDate).toLocaleDateString()}</span>
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded border font-mono uppercase ${
-                        req.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' :
-                        req.status === 'CHECKED_OUT' ? 'bg-blue-500/20 text-blue-300 border-blue-500/40' :
-                        req.status === 'REJECTED' ? 'bg-red-500/20 text-red-400 border-red-500/40' :
-                        'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                      }`}>
-                        {req.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+      {/* Direct Allocation Modal */}
+      {showAllocateModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full space-y-4">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <ArrowRightLeft className="w-5 h-5 text-emerald-400" />
+              Direct Equipment Allocation
+            </h3>
+            <form onSubmit={handleDirectAllocation} className="space-y-3">
+              <div>
+                <label className="text-gray-400 block mb-1 font-semibold">Select Equipment Item *</label>
+                <select
+                  required
+                  value={allocateEqId}
+                  onChange={(e) => setAllocateEqId(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs"
+                >
+                  <option value="">Select Equipment...</option>
+                  {allEquipment.map((eq) => (
+                    <option key={eq.id} value={eq.id} disabled={eq.availability !== 'AVAILABLE' && eq.availability !== 'RESERVED'}>
+                      {eq.name} ({eq.equipmentId}) — {eq.category} [{eq.availability}]
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
+
+              <div>
+                <label className="text-gray-400 block mb-1 font-semibold">Employee Recipient *</label>
+                <select
+                  required
+                  value={allocateForm.employeeId}
+                  onChange={(e) => setAllocateForm({ ...allocateForm, employeeId: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs"
+                >
+                  <option value="">Select Employee...</option>
+                  {allUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-gray-400 block mb-1 font-semibold">Allocation Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={allocateForm.startDate}
+                    onChange={(e) => setAllocateForm({ ...allocateForm, startDate: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-gray-400 block mb-1 font-semibold">Expected Return *</label>
+                  <input
+                    type="date"
+                    required
+                    value={allocateForm.expectedReturnDate}
+                    onChange={(e) => setAllocateForm({ ...allocateForm, expectedReturnDate: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-gray-400 block mb-1 font-semibold">Purpose & Remarks</label>
+                <input
+                  type="text"
+                  value={allocateForm.purpose}
+                  onChange={(e) => setAllocateForm({ ...allocateForm, purpose: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs"
+                  placeholder="e.g. Primary camera body for studio shoot"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAllocateModal(false)}
+                  className="px-3 py-1.5 bg-gray-800 text-gray-300 rounded font-semibold hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingAllocate}
+                  className="px-4 py-1.5 bg-emerald-600 text-white rounded font-bold hover:bg-emerald-500 disabled:opacity-50 shadow"
+                >
+                  {submittingAllocate ? 'Allocating...' : 'Confirm Allocation & Handover'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -411,84 +480,6 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
                   className="px-4 py-1.5 bg-cyan-600 text-white rounded font-bold hover:bg-cyan-500 disabled:opacity-50"
                 >
                   {submittingReserve ? 'Reserving...' : 'Confirm Reservation'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Submit Equipment Request Modal */}
-      {showRequestModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full space-y-4">
-            <h3 className="text-base font-bold text-white">Submit Equipment Request</h3>
-            <form onSubmit={handleCreateRequest} className="space-y-3">
-              <div>
-                <label className="text-gray-400 block mb-1 font-semibold">Select Equipment *</label>
-                <select
-                  required
-                  value={requestEqId}
-                  onChange={(e) => setRequestEqId(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs"
-                >
-                  <option value="">Select Equipment Item...</option>
-                  {allEquipment.map((eq) => (
-                    <option key={eq.id} value={eq.id} disabled={eq.availability !== 'AVAILABLE'}>
-                      {eq.name} ({eq.equipmentId}) — {eq.category} [{eq.availability === 'AVAILABLE' ? 'AVAILABLE' : `${eq.availability} - UNAVAILABLE`}]
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-gray-400 block mb-1 font-semibold">Purpose *</label>
-                <input
-                  type="text"
-                  required
-                  value={requestForm.purpose}
-                  onChange={(e) => setRequestForm({ ...requestForm, purpose: e.target.value })}
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-gray-400 block mb-1 font-semibold">Required Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={requestForm.requiredDate}
-                    onChange={(e) => setRequestForm({ ...requestForm, requiredDate: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-gray-400 block mb-1 font-semibold">Expected Return *</label>
-                  <input
-                    type="date"
-                    required
-                    value={requestForm.expectedReturnDate}
-                    onChange={(e) => setRequestForm({ ...requestForm, expectedReturnDate: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowRequestModal(false)}
-                  className="px-3 py-1.5 bg-gray-800 text-gray-300 rounded font-semibold hover:bg-gray-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingRequest}
-                  className="px-4 py-1.5 bg-blue-600 text-white rounded font-bold hover:bg-blue-500 disabled:opacity-50"
-                >
-                  {submittingRequest ? 'Submitting...' : 'Submit Request'}
                 </button>
               </div>
             </form>

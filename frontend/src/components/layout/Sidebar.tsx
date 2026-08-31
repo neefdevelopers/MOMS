@@ -110,12 +110,11 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       },
       {
         name: 'Scripts',
-        staffName: 'Assigned Scripts',
         smmName: 'Content Scripts',
         clientName: 'Production Scripts',
         href: '/scripts',
         icon: FileText,
-        roles: ['MEDIA_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
+        roles: ['MEDIA_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
       {
         name: 'Graphic Requirements',
@@ -145,15 +144,6 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         clientName: 'Client Communication',
         href: '/communication',
         icon: MessageSquare,
-        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
-      },
-      {
-        name: 'Revision Management',
-        techName: 'Technical Revisions',
-        staffName: 'My Revisions',
-        smmName: 'My Revisions',
-        href: '/revisions',
-        icon: RotateCcw,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
       {

@@ -46,6 +46,7 @@ export default function ProjectDetailPage() {
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [allEquipment, setAllEquipment] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [accessDeniedError, setAccessDeniedError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('Overview');
   const [selectedScriptRecord, setSelectedScriptRecord] = useState<any>(null);
 
@@ -80,17 +81,11 @@ export default function ProjectDetailPage() {
   const [customClosureReason, setCustomClosureReason] = useState('');
 
   const loadProject = async () => {
+    setLoading(true);
+    setAccessDeniedError(null);
     try {
-      const [projRes, treeRes, usersRes, eqpRes] = await Promise.all([
-        fetchApi(`/projects/${id}`),
-        fetchApi(`/files/project/${id}`),
-        fetchApi('/users'),
-        fetchApi('/equipment'),
-      ]);
+      const projRes = await fetchApi(`/projects/${id}`);
       setProject(projRes);
-      setFilesTree(treeRes);
-      setAllUsers(Array.isArray(usersRes) ? usersRes : []);
-      setAllEquipment(Array.isArray(eqpRes) ? eqpRes : []);
 
       if (projRes) {
         recordRecentAccess({
@@ -102,8 +97,18 @@ export default function ProjectDetailPage() {
           metadata: { client: projRes.client?.name, brand: projRes.brand?.name, status: projRes.status },
         });
       }
-    } catch (err) {
+
+      const [treeRes, usersRes, eqpRes] = await Promise.all([
+        fetchApi(`/files/project/${id}`).catch(() => null),
+        fetchApi('/users').catch(() => []),
+        fetchApi('/equipment').catch(() => []),
+      ]);
+      setFilesTree(treeRes);
+      setAllUsers(Array.isArray(usersRes) ? usersRes : []);
+      setAllEquipment(Array.isArray(eqpRes) ? eqpRes : []);
+    } catch (err: any) {
       console.error('Failed to load project details:', err);
+      setAccessDeniedError(err.message || 'Access Denied: Project shoot waiting for Marketing Approval is hidden from Technical Manager.');
     } finally {
       setLoading(false);
     }
@@ -319,8 +324,29 @@ export default function ProjectDetailPage() {
     'Files',
     'Communication',
     'Timeline',
-    'Shoot Checklist',
   ];
+
+  if (accessDeniedError || !project) {
+    return (
+      <div className="p-8 max-w-2xl mx-auto my-12 text-center bg-card border border-red-800/40 rounded-2xl space-y-4 shadow-2xl">
+        <div className="w-12 h-12 rounded-full bg-red-950/60 border border-red-800/60 flex items-center justify-center text-red-400 mx-auto">
+          <ShieldAlert className="w-6 h-6" />
+        </div>
+        <h2 className="text-xl font-bold text-white">Access Restricted — Marketing Approval Gate</h2>
+        <p className="text-xs text-gray-300 leading-relaxed">
+          {accessDeniedError || 'This project shoot is waiting for Marketing Approval and is not accessible.'}
+        </p>
+        <div className="pt-2">
+          <Link
+            href="/projects"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl inline-block shadow-lg shadow-blue-600/30"
+          >
+            Return to Projects Directory
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

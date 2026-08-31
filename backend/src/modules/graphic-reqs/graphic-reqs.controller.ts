@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, ForbiddenException } from '@nestjs/common';
 import { GraphicReqsService } from './graphic-reqs.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -46,8 +46,8 @@ export class GraphicReqsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.graphicReqsService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.graphicReqsService.findOne(id, user);
   }
 
   @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
@@ -75,5 +75,30 @@ export class GraphicReqsController {
     @CurrentUser('id') userId: string,
   ) {
     return this.graphicReqsService.addRemark(id, message, userId);
+  }
+
+  @Get(':id/deliverables')
+  getDeliverables(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.graphicReqsService.getDeliverables(id, user);
+  }
+
+  @Post(':id/deliverables')
+  addDeliverable(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) {
+    return this.graphicReqsService.addDeliverable(id, data, user);
+  }
+
+  @Put('deliverables/:deliverableId')
+  updateDeliverable(@Param('deliverableId') deliverableId: string, @Body() data: any, @CurrentUser() user: any) {
+    return this.graphicReqsService.updateDeliverable(deliverableId, data, user);
+  }
+
+  @Patch('deliverables/:deliverableId/status')
+  updateDeliverableStatus(@Param('deliverableId') deliverableId: string, @Body('status') status: string, @CurrentUser() user: any) {
+    return this.graphicReqsService.updateDeliverableStatus(deliverableId, status, user);
+  }
+
+  @Delete('deliverables/:deliverableId')
+  deleteDeliverable(@Param('deliverableId') deliverableId: string, @CurrentUser() user: any) {
+    return this.graphicReqsService.deleteDeliverable(deliverableId, user);
   }
 }

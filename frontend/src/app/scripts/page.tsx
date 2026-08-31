@@ -15,6 +15,21 @@ import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
 
 export default function ScriptsPage() {
   const { user } = useAuth();
+
+  if (user && (user.role === 'STAFF' || user.role === 'TECHNICAL_MANAGER')) {
+    return (
+      <div className="p-8 max-w-2xl mx-auto my-12 text-center bg-card border border-red-800/40 rounded-2xl space-y-4 shadow-2xl">
+        <div className="w-16 h-16 bg-red-950/60 border border-red-800 text-red-400 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
+          !
+        </div>
+        <h2 className="text-xl font-bold text-white">Access Restricted</h2>
+        <p className="text-sm text-gray-300">
+          The Scripts session is reserved exclusively for Marketing Manager, Media Manager, and Social Media Manager. Staff and Technical Manager members do not have access to this module.
+        </p>
+      </div>
+    );
+  }
+
   const [scripts, setScripts] = useState<any[]>([]);
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);

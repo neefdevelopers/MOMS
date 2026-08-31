@@ -97,10 +97,4 @@ export class CalendarController {
   cancel(@Param('id') id: string) {
     return this.calendarService.cancel(id);
   }
-
-  @Roles(Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER)
-  @Post(':id/generate-graphic-req')
-  generateGraphicReq(@Param('id') id: string) {
-    return this.calendarService.generateGraphicReq(id);
-  }
 }

@@ -32,6 +32,7 @@ import {
   SlidersHorizontal,
   ArrowRight,
   Eye,
+  User,
 } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
@@ -289,6 +290,11 @@ export default function ClientReviewPage() {
                       <span>{item.brand?.name || 'Brand'}</span>
                       <span>•</span>
                       <span className="font-mono text-gray-300">v{item.version}</span>
+                      <span>•</span>
+                      <span className="text-gray-300 font-medium truncate flex items-center gap-1">
+                        <User className="w-3 h-3 text-amber-400 shrink-0" />
+                        {item.createdBy?.name || 'Social Media Manager'}
+                      </span>
                     </p>
                   </div>
 

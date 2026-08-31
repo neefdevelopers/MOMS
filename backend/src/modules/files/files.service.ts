@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -74,8 +74,38 @@ export class FilesService {
       folderCategory?: string;
       attachmentCategory?: string;
     },
-    uploadedById: string,
+    userParam: any,
   ) {
+    const uploadedById = typeof userParam === 'string' ? userParam : userParam?.id;
+    const userRole = typeof userParam === 'object' ? userParam?.role : null;
+
+    if (data.graphicRequirementId && userRole !== 'ADMIN' && userRole !== 'ADMINISTRATOR' && uploadedById) {
+      const gReq = await this.prisma.graphicRequirement.findUnique({
+        where: { id: data.graphicRequirementId },
+        include: {
+          project: { include: { assignedTeam: true } },
+          tasks: { include: { assignedEmployees: true } },
+        },
+      });
+      if (gReq) {
+        const isTaskAssigned =
+          Array.isArray(gReq.tasks) &&
+          gReq.tasks.some(
+            (t: any) =>
+              t.assignedToId === uploadedById ||
+              (Array.isArray(t.assignedEmployees) &&
+                t.assignedEmployees.some((e: any) => e.userId === uploadedById || e.employeeId === uploadedById || e.user?.id === uploadedById)),
+          );
+        const isCreator = (gReq as any).createdById === uploadedById;
+
+        if (!isTaskAssigned && !isCreator) {
+          throw new ForbiddenException(
+            'Only the assigned team/staff member to whom this Graphic Requirement is assigned can upload deliverable files.',
+          );
+        }
+      }
+    }
+
     const project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
     if (!project) throw new NotFoundException('Parent project not found');
 

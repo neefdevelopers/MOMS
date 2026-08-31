@@ -217,12 +217,24 @@ export function Header() {
     ? 'Media Manager'
     : user?.role === 'TECHNICAL_MANAGER'
     ? 'Tech Manager'
-    : 'Staff Member';
+    : user?.role === 'SOCIAL_MEDIA_MANAGER'
+    ? 'Social Media Manager'
+    : user?.role === 'MARKETING_MANAGER'
+    ? 'Marketing Manager'
+    : user?.role === 'ADMINISTRATOR'
+    ? 'Administrator'
+    : user?.role ? user.role.replace(/_/g, ' ') : 'Staff Member';
 
   const roleBadgeColor = user?.role === 'MEDIA_MANAGER'
     ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
     : user?.role === 'TECHNICAL_MANAGER'
     ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+    : user?.role === 'SOCIAL_MEDIA_MANAGER'
+    ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+    : user?.role === 'MARKETING_MANAGER'
+    ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+    : user?.role === 'ADMINISTRATOR'
+    ? 'bg-red-500/20 text-red-400 border-red-500/30'
     : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
 
   return (
@@ -370,14 +382,13 @@ export function Header() {
         )}
         </div>
 
-        {/* Advanced Multi-Condition Search Button */}
+        {/* Advanced Multi-Condition Search Button (Icon Only) */}
         <button
           onClick={() => setShowAdvancedSearch(true)}
-          className="p-2 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-500/40 rounded-lg text-gray-400 hover:text-blue-400 transition-colors flex items-center gap-1.5 text-xs shadow-sm"
-          title="Open Advanced Multi-Condition Search"
+          className="p-2.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-500/40 rounded-lg text-gray-400 hover:text-blue-400 transition-colors flex items-center justify-center shadow-sm"
+          title="Advanced Search"
         >
-          <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" />
-          <span className="hidden lg:inline text-[11px] font-medium text-gray-300">Advanced Search</span>
+          <SlidersHorizontal className="w-4 h-4 text-blue-400" />
         </button>
       </div>
 
@@ -387,67 +398,8 @@ export function Header() {
         onClose={() => setShowAdvancedSearch(false)}
       />
 
-      {/* Right: Quick Demo Role Switcher, Notifications & Profile */}
-      <div className="flex items-center gap-4">
-        {/* Quick Role Switcher Pill */}
-        <div className="relative">
-          <button
-            onClick={() => setShowRoleMenu(!showRoleMenu)}
-            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors ${roleBadgeColor}`}
-            title="Click to Switch Demo Role"
-          >
-            <Shield className="w-3.5 h-3.5" />
-            <span>Role: {roleLabel}</span>
-          </button>
-
-          {showRoleMenu && (
-            <div className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-xl shadow-xl p-2 z-50 text-xs space-y-1">
-              <div className="text-[10px] text-gray-400 font-semibold px-2 py-1 uppercase border-b border-border">
-                Quick Switch Demo Role
-              </div>
-              <button
-                onClick={() => {
-                  quickSwitchUser('media.manager@example.com');
-                  setShowRoleMenu(false);
-                }}
-                className="w-full text-left p-2 hover:bg-gray-800 rounded font-medium text-blue-400"
-              >
-                Media Manager (Full Admin)
-              </button>
-              <button
-                onClick={() => {
-                  quickSwitchUser('technical.manager@example.com');
-                  setShowRoleMenu(false);
-                }}
-                className="w-full text-left p-2 hover:bg-gray-800 rounded font-medium text-purple-400"
-              >
-                Tech Manager (Review & Equipment)
-              </button>
-              <button
-                onClick={() => {
-                  quickSwitchUser('staff1@example.com');
-                  setShowRoleMenu(false);
-                }}
-                className="w-full text-left p-2 hover:bg-gray-800 rounded font-medium text-emerald-400"
-              >
-                Staff (Video Editor / Designer)
-              </button>
-
-              <div className="pt-1.5 border-t border-border mt-1">
-                <button
-                  onClick={() => {
-                    setShowPermissionsMatrix(true);
-                    setShowRoleMenu(false);
-                  }}
-                  className="w-full text-left p-2 hover:bg-purple-950/60 rounded font-semibold text-purple-300 flex items-center gap-1.5"
-                >
-                  <Shield className="w-3.5 h-3.5" />
-                  <span>View Permissions Matrix (9 Types)</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+      {/* Right: Notifications & Profile */}
+      <div className="flex items-center gap-3">
 
         {/* Permissions Matrix Modal */}
         <PermissionsMatrixModal

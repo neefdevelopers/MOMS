@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Camera,
   UserCheck,
+  User,
 } from 'lucide-react';
 
 export default function SocialMediaManagerDashboard() {
@@ -223,6 +224,10 @@ export default function SocialMediaManagerDashboard() {
                           <span className="text-[10px] px-1.5 py-0.2 rounded bg-gray-800 text-gray-300 font-mono">v{event.version}</span>
                         </div>
                         <h4 className="text-sm font-bold text-white mt-1">{event.title}</h4>
+                        <div className="flex items-center gap-1.5 text-[11px] text-gray-400 mt-1">
+                          <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>Created by: <strong className="text-gray-200">{event.createdBy?.name || 'Social Media Manager'}</strong></span>
+                        </div>
                       </div>
                     </div>
 
@@ -283,6 +288,10 @@ export default function SocialMediaManagerDashboard() {
                         <span className="text-xs text-gray-400">{event.client?.name}</span>
                       </div>
                       <h4 className="text-sm font-bold text-white mt-1">{event.title}</h4>
+                      <div className="flex items-center gap-1.5 text-[11px] text-gray-400 mt-1">
+                        <User className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        <span>Created by: <strong className="text-gray-200">{event.createdBy?.name || 'Social Media Manager'}</strong></span>
+                      </div>
                     </div>
 
                     <span className="text-[11px] text-gray-400">

@@ -154,14 +154,9 @@ export class EquipmentService {
       throw new BadRequestException('Cannot reserve retired/archived equipment.');
     }
 
-    // Business Rule 11: Equipment allocation is locked until Media Manager approves project
     const project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
     if (!project) {
       throw new NotFoundException('Project not found');
-    }
-    const approvedStatuses = ['APPROVED', 'CLIENT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PROGRESS'];
-    if (!approvedStatuses.includes(project.status)) {
-      throw new BadRequestException('Equipment allocation is locked until Media Manager approves the project.');
     }
 
     // Ensure equipment is free (available) before reserving
@@ -287,18 +282,58 @@ export class EquipmentService {
     expectedReturnDate: Date | string;
     remarks?: string;
   }, userId: string) {
+    if (!data.equipmentId || !data.projectId || !data.purpose) {
+      throw new BadRequestException('Equipment, project, and purpose are required.');
+    }
+
+    const reqDate = new Date(data.requiredDate);
+    const retDate = new Date(data.expectedReturnDate);
+    if (isNaN(reqDate.getTime()) || isNaN(retDate.getTime())) {
+      throw new BadRequestException('Invalid required or expected return dates.');
+    }
+
+    if (retDate < reqDate) {
+      throw new BadRequestException('Expected return date cannot be earlier than required date.');
+    }
+
     const eqp = await this.findOne(data.equipmentId);
+    if (!eqp) throw new NotFoundException('Equipment not found');
+
     if (eqp.isArchived) {
       throw new BadRequestException('Cannot request retired/archived equipment.');
     }
 
     if (eqp.availability !== EquipmentAvailability.AVAILABLE) {
-      throw new BadRequestException(`Equipment is currently ${eqp.availability} and cannot be assigned to another task.`);
+      throw new BadRequestException(`Equipment "${eqp.name}" is currently ${eqp.availability} and cannot be requested.`);
     }
 
-    const project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found.');
+
+    const project = await this.prisma.shootProject.findUnique({
+      where: { id: data.projectId },
+      include: {
+        assignedTeam: true,
+        tasks: { include: { assignedEmployees: true } },
+      },
+    });
+
     if (!project) {
       throw new NotFoundException('Project not found');
+    }
+
+    // Project Relationship Validation: Staff can only request equipment for projects they are assigned to
+    if (user.role === 'STAFF') {
+      const proj = project as any;
+      const isCreator = proj.createdById === userId;
+      const isTeamMember = Array.isArray(proj.assignedTeam) && proj.assignedTeam.some((t: any) => t.userId === userId);
+      const isTaskAssigned = Array.isArray(proj.tasks) && proj.tasks.some((t: any) =>
+        Array.isArray(t.assignedEmployees) && t.assignedEmployees.some((e: any) => e.employeeId === userId)
+      );
+
+      if (!isCreator && !isTeamMember && !isTaskAssigned && (proj.assignedTeam?.length > 0 || proj.tasks?.length > 0)) {
+        throw new ForbiddenException('You can only request equipment for projects you are assigned to.');
+      }
     }
 
     const request = await this.prisma.equipmentRequest.create({
@@ -307,8 +342,8 @@ export class EquipmentService {
         projectId: data.projectId,
         requestedById: userId,
         purpose: data.purpose,
-        requiredDate: new Date(data.requiredDate),
-        expectedReturnDate: new Date(data.expectedReturnDate),
+        requiredDate: reqDate,
+        expectedReturnDate: retDate,
         remarks: data.remarks,
         status: 'PENDING',
       },
@@ -319,7 +354,7 @@ export class EquipmentService {
       },
     });
 
-    // Immediately update equipment availability to RESERVED so it cannot be assigned to another task simultaneously
+    // Immediately update equipment availability to RESERVED so it is held during approval
     await this.prisma.equipment.update({
       where: { id: data.equipmentId },
       data: {
@@ -328,6 +363,28 @@ export class EquipmentService {
         currentHolder: project.name,
       },
     });
+
+    // Send notification to Media Managers about new Equipment Request
+    try {
+      const mediaManagers = await this.prisma.user.findMany({
+        where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+      });
+      for (const mm of mediaManagers) {
+        await this.prisma.notification.create({
+          data: {
+            userId: mm.id,
+            title: 'Equipment Request Submitted',
+            message: `${user.name} requested "${eqp.name}" for project "${project.name}".`,
+            type: 'SYSTEM',
+            linkUrl: `/equipment?requestId=${request.id}`,
+            entityId: request.id,
+            equipmentId: eqp.id,
+          },
+        }).catch(() => null);
+      }
+    } catch (e) {
+      console.error('Failed to notify Media Manager of equipment request:', e);
+    }
 
     return request;
   }
@@ -355,7 +412,10 @@ export class EquipmentService {
       throw new BadRequestException('Approval options are strictly APPROVED or REJECTED.');
     }
 
-    const req = await this.prisma.equipmentRequest.findUnique({ where: { id } });
+    const req = await this.prisma.equipmentRequest.findUnique({
+      where: { id },
+      include: { equipment: true, project: true },
+    });
     if (!req) {
       throw new NotFoundException('Equipment request not found');
     }
@@ -386,6 +446,19 @@ export class EquipmentService {
           status: 'RESERVED',
         },
       });
+
+      // Send notification to Staff user: Request Approved
+      await this.prisma.notification.create({
+        data: {
+          userId: req.requestedById,
+          title: 'Equipment Request Approved',
+          message: `Your equipment request for "${req.equipment?.name}" was approved by Media Manager.`,
+          type: 'SYSTEM',
+          linkUrl: '/equipment/my',
+          entityId: req.id,
+          equipmentId: req.equipmentId,
+        },
+      }).catch(() => null);
     } else if (status === 'REJECTED') {
       await this.prisma.equipment.update({
         where: { id: req.equipmentId },
@@ -395,6 +468,19 @@ export class EquipmentService {
           currentHolder: null,
         },
       });
+
+      // Send notification to Staff user: Request Rejected
+      await this.prisma.notification.create({
+        data: {
+          userId: req.requestedById,
+          title: 'Equipment Request Rejected',
+          message: `Your equipment request for "${req.equipment?.name}" was rejected.${reviewNotes ? ` Reason: ${reviewNotes}` : ''}`,
+          type: 'SYSTEM',
+          linkUrl: '/equipment/my',
+          entityId: req.id,
+          equipmentId: req.equipmentId,
+        },
+      }).catch(() => null);
     }
 
     return updated;
@@ -481,7 +567,103 @@ export class EquipmentService {
     };
   }
 
-  // Employee Receipt Acknowledgement (Replaces Physical Signature)
+  // ─── Direct Equipment Allocation / Issue (No Request Approval Required) ───
+  async allocateDirectly(
+    data: {
+      equipmentId: string;
+      employeeId: string;
+      projectId?: string;
+      startDate?: Date | string;
+      expectedReturnDate: Date | string;
+      purpose?: string;
+      remarks?: string;
+      accessoriesIncluded?: string;
+      condition?: string;
+    },
+    allocatorId: string,
+  ) {
+    const eqp = await this.findOne(data.equipmentId);
+    if (!eqp) throw new NotFoundException('Equipment not found');
+
+    if (eqp.isArchived) {
+      throw new BadRequestException('Cannot allocate retired/archived equipment.');
+    }
+
+    if (eqp.availability !== EquipmentAvailability.AVAILABLE && eqp.availability !== EquipmentAvailability.RESERVED) {
+      if (eqp.availability === EquipmentAvailability.CHECKED_OUT || eqp.availability === EquipmentAvailability.IN_USE) {
+        throw new BadRequestException('Equipment is currently checked out.');
+      }
+      if (eqp.availability === EquipmentAvailability.UNDER_MAINTENANCE) {
+        throw new BadRequestException('Equipment is under maintenance.');
+      }
+      if (eqp.availability === EquipmentAvailability.DAMAGED) {
+        throw new BadRequestException('Equipment is damaged and cannot be allocated.');
+      }
+      throw new BadRequestException(`Equipment is currently ${eqp.availability} and cannot be allocated.`);
+    }
+
+    const employee = await this.prisma.user.findUnique({ where: { id: data.employeeId } });
+    if (!employee) {
+      throw new NotFoundException('Employee recipient not found.');
+    }
+
+    let project: any = null;
+    if (data.projectId) {
+      project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
+    }
+
+    const returnDate = new Date(data.expectedReturnDate);
+    const startDate = data.startDate ? new Date(data.startDate) : new Date();
+
+    // 1. Immediately update equipment status to CHECKED_OUT
+    await this.prisma.equipment.update({
+      where: { id: data.equipmentId },
+      data: {
+        availability: EquipmentAvailability.CHECKED_OUT,
+        status: 'CHECKED_OUT',
+        currentHolder: employee.name,
+      },
+    });
+
+    // 2. Create Handover Movement record
+    const movement = await this.prisma.equipmentMovement.create({
+      data: {
+        equipmentId: data.equipmentId,
+        projectId: data.projectId || null,
+        userId: allocatorId,
+        employeeId: data.employeeId,
+        approvedById: allocatorId,
+        expectedReturnDate: returnDate,
+        action: EquipmentMovementAction.ISSUED,
+        notes: `Direct Allocation: Issued by allocator ${allocatorId} to ${employee.name}${project ? ` for project "${project.name}"` : ''}. Purpose: ${data.purpose || 'Production allocation'}. Remarks: ${data.remarks || 'None'}. Condition: ${data.condition || 'Good'}. Accessories: ${data.accessoriesIncluded || 'Standard'}.`,
+      },
+      include: {
+        equipment: true,
+        project: true,
+        user: { select: { id: true, name: true, email: true } },
+        employee: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    // 3. Create active EquipmentReservation record so it is tracked on project
+    if (data.projectId) {
+      await this.prisma.equipmentReservation.create({
+        data: {
+          projectId: data.projectId,
+          equipmentId: data.equipmentId,
+          startDate: startDate,
+          endDate: returnDate,
+          status: 'CHECKED_OUT',
+        },
+      }).catch(() => null);
+    }
+
+    return {
+      message: 'Equipment allocated and handover generated successfully.',
+      movement,
+      equipment: await this.findOne(data.equipmentId),
+    };
+  }
   async acknowledgeReceipt(requestId: string, userId: string) {
     const req = await this.prisma.equipmentRequest.findUnique({
       where: { id: requestId },

@@ -174,7 +174,9 @@ export class ReportsService {
       where: {
         OR: [
           { id: { in: graphicReqIds } },
+          { tasks: { some: { assignedEmployees: { some: { userId } } } } },
           { project: { assignedTeam: { some: { userId } } } },
+          { project: { createdById: userId } },
         ],
       },
       include: {
@@ -184,18 +186,31 @@ export class ReportsService {
     });
 
     // 4. Current Projects
-    const projectAssignments = await this.prisma.projectAssignment.findMany({
-      where: { userId },
+    const myProjects = await this.prisma.shootProject.findMany({
+      where: {
+        status: { not: 'ARCHIVED' },
+        OR: [
+          { createdById: userId },
+          { assignedTeam: { some: { userId } } },
+          { tasks: { some: { assignedEmployees: { some: { userId } } } } },
+          { scripts: { some: { scriptAssignments: { some: { userId } } } } },
+        ],
+      },
       include: {
-        project: {
-          include: {
-            client: { select: { name: true } },
-            brand: { select: { name: true } },
-          },
-        },
+        client: { select: { name: true } },
+        brand: { select: { name: true } },
       },
     });
-    const myProjects = projectAssignments.map((pa) => pa.project).filter((p) => p && p.status !== 'ARCHIVED');
+
+    // 4b. Assigned Equipment (Active & Requested)
+    const myEquipmentRequests = await this.prisma.equipmentRequest.findMany({
+      where: { requestedById: userId },
+      include: { equipment: true, project: { select: { name: true } } },
+    });
+    const myEquipmentMovements = await this.prisma.equipmentMovement.findMany({
+      where: { employeeId: userId },
+      include: { equipment: true, project: { select: { name: true } } },
+    });
 
     // 5. Upcoming Deadlines (within 7 days)
     const upcomingTaskDeadlines = pendingTasks
@@ -280,6 +295,14 @@ export class ReportsService {
       currentProjects: myProjects,
       assignedScripts: myScripts,
       assignedGraphicRequirements: myGraphicRequirements,
+      myEquipment: [...myEquipmentRequests, ...myEquipmentMovements],
+      summaryCounts: {
+        assignedTasksCount: myTasks.length,
+        assignedGraphicRequirementsCount: myGraphicRequirements.length,
+        assignedProjectsCount: myProjects.length,
+        assignedScriptsCount: myScripts.length,
+        activeEquipmentCount: myEquipmentRequests.length + myEquipmentMovements.length,
+      },
       recentCommunications,
       notifications,
       personalCalendar: personalCalendar.map((ev) => ({
