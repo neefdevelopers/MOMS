@@ -33,6 +33,7 @@ import {
   ArrowRight,
   Eye,
   User,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
@@ -41,7 +42,9 @@ export default function ClientReviewPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [events, setEvents] = useState<any[]>([]);
+  const [editRequests, setEditRequests] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedEditRequest, setSelectedEditRequest] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -61,14 +64,22 @@ export default function ClientReviewPage() {
 
   // Decision Modal State
   const [reviewModalAction, setReviewModalAction] = useState<'APPROVE' | 'REQUEST_CHANGES' | 'REJECT' | null>(null);
+  const [editRequestModalAction, setEditRequestModalAction] = useState<'APPROVE' | 'REQUEST_CHANGES' | 'REJECT' | null>(null);
   const [commentText, setCommentText] = useState<string>('');
+  const [editRequestComment, setEditRequestComment] = useState<string>('');
   const [submittingReview, setSubmittingReview] = useState(false);
   const [copiedCaption, setCopiedCaption] = useState(false);
 
   const loadClientData = async () => {
     try {
-      const resEvents = await fetchApi('/calendar');
-      setEvents(Array.isArray(resEvents) ? resEvents : []);
+      const [resEvents, resReqs] = await Promise.all([
+        fetchApi('/calendar').catch(() => []),
+        fetchApi('/calendar/edit-requests/all?status=PENDING_MARKETING_APPROVAL').catch(() => []),
+      ]);
+      const rawEvents = Array.isArray(resEvents) ? resEvents : (resEvents?.data || resEvents?.events || resEvents?.items || []);
+      const rawReqs = Array.isArray(resReqs) ? resReqs : (resReqs?.data || resReqs?.items || []);
+      setEvents(rawEvents);
+      setEditRequests(rawReqs);
     } catch (err) {
       console.error('Failed to load client review data:', err);
     } finally {
@@ -222,6 +233,7 @@ export default function ClientReviewPage() {
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto scrollbar-none">
           {[
             { label: 'Pending Review', value: 'PENDING_CLIENT_APPROVAL' },
+            { label: `Pending Edit Requests (${editRequests.length})`, value: 'EDIT_REQUESTS' },
             { label: 'Approved', value: 'APPROVED' },
             { label: 'Changes Req.', value: 'CHANGES_REQUESTED' },
             { label: 'Rejected', value: 'REJECTED' },
@@ -245,7 +257,60 @@ export default function ClientReviewPage() {
 
 
       {/* Full Width Grid View of Event Request Cards */}
-      {filteredEvents.length === 0 ? (
+      {statusFilter === 'EDIT_REQUESTS' ? (
+        editRequests.length === 0 ? (
+          <div className="p-12 text-center text-gray-500 bg-card border border-border rounded-2xl">
+            No pending edit requests awaiting Marketing Manager review.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {editRequests.map((req) => (
+              <div
+                key={req.id}
+                onClick={() => setSelectedEditRequest(req)}
+                className="group p-5 rounded-2xl bg-card border border-amber-500/40 hover:border-amber-400 hover:shadow-xl transition-all cursor-pointer space-y-3 flex flex-col justify-between"
+              >
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 uppercase font-bold">
+                      {req.calendarEvent?.eventId || `EVT-${req.calendarEventId.substring(0, 6).toUpperCase()}`}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 uppercase font-mono">
+                      EDIT REQUEST
+                    </span>
+                  </div>
+
+                  <h3 className="font-extrabold text-white text-base group-hover:text-amber-400 transition-colors">
+                    {req.calendarEvent?.title}
+                  </h3>
+
+                  <div className="text-xs text-gray-400 space-y-1">
+                    <div>Client: <strong className="text-gray-200">{req.calendarEvent?.client?.name}</strong> • Brand: <strong className="text-blue-400">[{req.calendarEvent?.brand?.shortCode}] {req.calendarEvent?.brand?.name}</strong></div>
+                    <div>Requested By: <strong className="text-white">{req.requestedBy?.name || 'Media Manager'}</strong> ({req.requestedBy?.role})</div>
+                    <div>Requested Date: <span className="text-amber-300 font-mono">{new Date(req.createdAt).toLocaleString()}</span></div>
+                  </div>
+
+                  {req.reason && (
+                    <div className="p-2.5 bg-amber-950/30 border border-amber-800/40 rounded-xl text-xs text-amber-200 italic">
+                      "{req.reason}"
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedEditRequest(req);
+                  }}
+                  className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20"
+                >
+                  <Eye className="w-4 h-4" /> Review Edit Request &amp; Compare Diff ↗
+                </button>
+              </div>
+            ))}
+          </div>
+        )
+      ) : filteredEvents.length === 0 ? (
         <div className="p-12 text-center text-gray-500 bg-card border border-border rounded-2xl">
           No calendar items match the selected filter.
         </div>
@@ -267,19 +332,25 @@ export default function ClientReviewPage() {
                       {item.eventId || 'CAL-EVENT'}
                     </span>
 
-                    <span
-                      className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded uppercase tracking-wider ${
-                        isPending
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                          : item.status === 'APPROVED' || item.status === 'CLIENT_APPROVED'
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : item.status === 'CHANGES_REQUESTED'
-                          ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
-                          : 'bg-red-500/20 text-red-300 border border-red-500/30'
-                      }`}
-                    >
-                      {isPending ? 'Pending Review' : item.status.replace(/_/g, ' ')}
-                    </span>
+                    {item.editRequests && item.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL') ? (
+                      <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 animate-pulse">
+                        <AlertTriangle className="w-3 h-3 text-amber-400" /> WAITING FOR EDITING APPROVAL
+                      </span>
+                    ) : (
+                      <span
+                        className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded uppercase tracking-wider ${
+                          isPending
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            : item.status === 'APPROVED' || item.status === 'CLIENT_APPROVED'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : item.status === 'CHANGES_REQUESTED'
+                            ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                            : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                        }`}
+                      >
+                        {isPending ? 'Pending Review' : item.status.replace(/_/g, ' ')}
+                      </span>
+                    )}
                   </div>
 
                   <div>
@@ -297,6 +368,19 @@ export default function ClientReviewPage() {
                       </span>
                     </p>
                   </div>
+
+                  {/* Waiting for Edit Approval Alert Banner Strip */}
+                  {item.editRequests && item.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL') && (
+                    <div className="p-2.5 bg-gradient-to-r from-amber-950/90 via-amber-900/60 to-gray-950 border border-amber-500/60 rounded-xl flex items-center justify-between text-amber-200 text-xs font-bold shadow-md animate-pulse">
+                      <span className="flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>⏳ Waiting for Edit Approval</span>
+                      </span>
+                      <span className="text-[9px] font-mono bg-amber-500/20 px-1.5 py-0.5 rounded text-amber-300 border border-amber-500/40">
+                        Pending MM Review
+                      </span>
+                    </div>
+                  )}
 
                   {item.caption && (
                     <p className="text-xs text-gray-400 line-clamp-2 italic bg-gray-900/60 p-2.5 rounded-xl border border-gray-800/80">
@@ -779,6 +863,165 @@ export default function ClientReviewPage() {
               >
                 {submittingReview ? 'Submitting...' : `Confirm ${reviewModalAction.replace('_', ' ')}`}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Side-by-Side Field Comparison Modal for Edit Requests */}
+      {selectedEditRequest && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-2xl animate-in fade-in zoom-in-95">
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-gray-800 pb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 uppercase font-bold">
+                    EDIT REQUEST • {selectedEditRequest.calendarEvent?.eventId || `EVT-${selectedEditRequest.calendarEventId.substring(0, 6).toUpperCase()}`}
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 uppercase">
+                    {selectedEditRequest.status}
+                  </span>
+                </div>
+                <h2 className="text-xl font-bold text-white">{selectedEditRequest.calendarEvent?.title}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Requested By: <strong className="text-white">{selectedEditRequest.requestedBy?.name || 'Media Manager'}</strong> ({selectedEditRequest.requestedBy?.role}) • Date: <span className="text-amber-300">{new Date(selectedEditRequest.createdAt).toLocaleString()}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedEditRequest(null)}
+                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {selectedEditRequest.reason && (
+              <div className="p-3.5 bg-amber-950/40 border border-amber-500/40 rounded-xl text-xs space-y-1">
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">Request Reason / Justification:</span>
+                <p className="text-amber-100 font-medium italic">"{selectedEditRequest.reason}"</p>
+              </div>
+            )}
+
+            {/* Side-by-Side Field Comparison Table */}
+            {(() => {
+              const originalObj = typeof selectedEditRequest.originalValues === 'string' ? JSON.parse(selectedEditRequest.originalValues || '{}') : (selectedEditRequest.originalValues || {});
+              const requestedObj = typeof selectedEditRequest.requestedValues === 'string' ? JSON.parse(selectedEditRequest.requestedValues || '{}') : (selectedEditRequest.requestedValues || {});
+              const allKeys = Array.from(new Set([...Object.keys(originalObj), ...Object.keys(requestedObj)]));
+
+              return (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Side-by-Side Field Diff Comparison</span>
+                    <span className="text-[10px] text-amber-400 font-mono">* Highlighted rows indicate requested modifications</span>
+                  </div>
+
+                  <div className="border border-gray-800 rounded-xl overflow-hidden text-xs">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-gray-950 border-b border-gray-800 text-[10px] uppercase font-bold text-gray-400">
+                          <th className="p-3 w-1/4">FIELD</th>
+                          <th className="p-3 w-3/8 text-gray-300">ORIGINAL VALUE (LIVE)</th>
+                          <th className="p-3 w-3/8 text-emerald-400">REQUESTED VALUE</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800/60 font-mono">
+                        {allKeys.map((key) => {
+                          const origVal = originalObj[key];
+                          const reqVal = requestedObj[key];
+                          const isDifferent = JSON.stringify(origVal) !== JSON.stringify(reqVal);
+
+                          return (
+                            <tr key={key} className={isDifferent ? 'bg-amber-950/20' : 'bg-gray-900/40 opacity-70'}>
+                              <td className="p-3 font-bold text-gray-300 capitalize font-sans">{key.replace(/([A-Z])/g, ' $1')}</td>
+                              <td className="p-3 text-gray-400 truncate max-w-xs">{origVal !== undefined && origVal !== null ? String(origVal) : <span className="text-gray-600 italic">None</span>}</td>
+                              <td className="p-3">
+                                {isDifferent ? (
+                                  <span className="text-emerald-300 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-700/60 block truncate max-w-xs">
+                                    {reqVal !== undefined && reqVal !== null ? String(reqVal) : <span className="text-gray-600 italic">None</span>}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-500">{reqVal !== undefined && reqVal !== null ? String(reqVal) : <span className="text-gray-600 italic">Unchanged</span>}</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Decision Note / Comment Input */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-300">
+                Marketing Manager Decision Note / Rejection Reason / Change Instructions:
+              </label>
+              <textarea
+                rows={2}
+                value={editRequestComment}
+                onChange={(e) => setEditRequestComment(e.target.value)}
+                placeholder="Enter review notes, feedback instructions, or approval comments..."
+                className="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-between border-t border-gray-800 pt-4">
+              <button
+                onClick={() => setSelectedEditRequest(null)}
+                className="px-4 py-2 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 text-xs font-bold"
+              >
+                Close
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    if (!editRequestComment.trim()) {
+                      alert('Rejection reason is required.');
+                      return;
+                    }
+                    try {
+                      await fetchApi(`/calendar/edit-requests/${selectedEditRequest.id}/reject`, {
+                        method: 'POST',
+                        body: JSON.stringify({ reason: editRequestComment }),
+                      });
+                      alert('✓ Edit Request Rejected. Original event remains unchanged.');
+                      setSelectedEditRequest(null);
+                      setEditRequestComment('');
+                      loadClientData();
+                    } catch (err: any) {
+                      alert(err.message || 'Failed to reject edit request');
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-md shadow-red-600/20"
+                >
+                  Reject Changes
+                </button>
+
+                <button
+                  onClick={async () => {
+                    try {
+                      await fetchApi(`/calendar/edit-requests/${selectedEditRequest.id}/approve`, {
+                        method: 'POST',
+                        body: JSON.stringify({ reviewComment: editRequestComment }),
+                      });
+                      alert('✓ Edit Request Approved!\n\nOriginal Media Calendar Event has been updated in-place (same ID preserved), audit log & timeline recorded.');
+                      setSelectedEditRequest(null);
+                      setEditRequestComment('');
+                      loadClientData();
+                    } catch (err: any) {
+                      alert(err.message || 'Failed to approve edit request');
+                    }
+                  }}
+                  className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20"
+                >
+                  Approve Changes
+                </button>
+              </div>
             </div>
           </div>
         </div>

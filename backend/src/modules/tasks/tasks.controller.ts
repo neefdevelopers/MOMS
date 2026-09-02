@@ -120,6 +120,11 @@ export class TasksController {
     return this.tasksService.uploadDeliverable(id, data, user);
   }
 
+  @Post(':id/request-technical-review')
+  requestTechnicalReview(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.tasksService.requestTechnicalReview(id, user);
+  }
+
   @Put('capacity/:userId')
   @Roles(Role.MEDIA_MANAGER)
   updateEmployeeCapacity(

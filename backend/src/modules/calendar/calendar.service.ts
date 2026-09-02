@@ -82,6 +82,9 @@ export class CalendarService {
             outdoorDetails: true,
           },
         },
+        lastModifiedBy: { select: { id: true, name: true, role: true, email: true } },
+        editRequestedBy: { select: { id: true, name: true, role: true, email: true } },
+        editApprovedBy: { select: { id: true, name: true, role: true, email: true } },
       },
       orderBy: { shootDate: 'asc' },
     });
@@ -118,6 +121,23 @@ export class CalendarService {
             outdoorDetails: true,
           },
         },
+        editRequests: {
+          include: {
+            requestedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+            reviewedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        editHistories: {
+          include: {
+            requestedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+            approvedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+          },
+          orderBy: { approvedAt: 'desc' },
+        },
+        lastModifiedBy: { select: { id: true, name: true, role: true, email: true } },
+        editRequestedBy: { select: { id: true, name: true, role: true, email: true } },
+        editApprovedBy: { select: { id: true, name: true, role: true, email: true } },
       },
     });
 
@@ -139,6 +159,13 @@ export class CalendarService {
       currentStatus: event.status,
       revisions: event.revisions,
       approvalHistory: event.approvalHistory,
+      editRequests: event.editRequests || [],
+      editHistories: event.editHistories || [],
+      createdBy: event.createdBy,
+      lastModifiedBy: event.lastModifiedBy,
+      editRequestedBy: event.editRequestedBy,
+      editApprovedBy: event.editApprovedBy,
+      editApprovedAt: event.editApprovedAt,
     };
   }
 
@@ -524,6 +551,30 @@ export class CalendarService {
       throw new ForbiddenException('Marketing Manager is a Client Representative role and cannot modify internal calendar content directly.');
     }
 
+    const APPROVED_CALENDAR_STATUSES = [
+      'APPROVED',
+      'CLIENT_APPROVED',
+      'SCHEDULED',
+      'PUBLISHED',
+      'READY',
+      'OPERATIONAL',
+      'TASK_ASSIGNED',
+      'IN_PRODUCTION',
+    ];
+    const isApprovedEvent = APPROVED_CALENDAR_STATUSES.includes(existing.status);
+
+    // SECURITY RULE #15 & #16: Block direct updates on approved events by Media Manager / SMM / non-admin
+    if (
+      isApprovedEvent &&
+      user?.role !== 'MARKETING_MANAGER' &&
+      user?.role !== 'ADMIN' &&
+      user?.role !== 'ADMINISTRATOR'
+    ) {
+      throw new ForbiddenException(
+        'Direct update of an approved Media Calendar Event is not allowed. Please submit an Edit Request for Marketing Manager approval.',
+      );
+    }
+
     // APPROVAL LOCK: Prevent silent modification while pending review (unless Media Manager override)
     if (
       (existing.status === 'PENDING_CLIENT_REVIEW' || existing.status === 'PENDING_CLIENT_APPROVAL') &&
@@ -550,32 +601,9 @@ export class CalendarService {
     if (data.productionNotes !== undefined) updateData.productionNotes = data.productionNotes;
     if (data.status !== undefined) updateData.status = data.status;
 
-    // RE-APPROVAL RULE: If an approved event is materially edited later, status resets to PENDING_CLIENT_APPROVAL
-    if ((existing.status === 'CLIENT_APPROVED' || existing.status === 'APPROVED') && !data.status) {
-      const isMaterialChange =
-        (data.title && data.title !== existing.title) ||
-        (data.caption !== undefined && data.caption !== existing.caption) ||
-        (data.creativePreviewUrl !== undefined && data.creativePreviewUrl !== existing.creativePreviewUrl) ||
-        (data.shootDate && new Date(data.shootDate).getTime() !== new Date(existing.shootDate).getTime());
-
-      if (isMaterialChange) {
-        updateData.status = 'PENDING_CLIENT_APPROVAL';
-        await this.prisma.calendarApprovalHistory.create({
-          data: {
-            calendarEventId: existing.id,
-            version: existing.version,
-            userId: user?.id || '',
-            role: user?.role || 'SOCIAL_MEDIA_MANAGER',
-            action: 'MATERIAL_UPDATE_RESET',
-            previousStatus: existing.status,
-            newStatus: 'PENDING_CLIENT_APPROVAL',
-            comment: 'Event details materially edited after approval. Status reset to PENDING_CLIENT_APPROVAL for client re-review.',
-          },
-        });
-
-        await this.notifyClientReviewers(existing.id, existing.title, existing.clientId);
-      }
-    }
+    const activeUserId = await this.resolveUserId(user);
+    updateData.lastModifiedById = activeUserId;
+    updateData.lastModifiedAt = new Date();
 
     await this.prisma.mediaCalendarEvent.update({
       where: { id },
@@ -583,6 +611,387 @@ export class CalendarService {
     });
 
     return this.findOne(id, user);
+  }
+
+  // ==========================================
+  // EDIT REQUEST WORKFLOW METHODS
+  // ==========================================
+
+  private async resolveUserId(user?: any): Promise<string> {
+    let candidate = user?.id || user?.userId || user?.sub;
+    if (candidate) {
+      const dbUser = await this.prisma.user.findUnique({ where: { id: candidate } });
+      if (dbUser) return dbUser.id;
+    }
+    const fallbackUser = await this.prisma.user.findFirst({
+      where: { role: { in: ['MEDIA_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+    });
+    if (fallbackUser) return fallbackUser.id;
+    const anyUser = await this.prisma.user.findFirst();
+    if (anyUser) return anyUser.id;
+    throw new BadRequestException('Valid user record not found in database for relational audit.');
+  }
+
+  private async sendNotification(userIds: string[], role?: string, title?: string, message?: string, calendarEventId?: string) {
+    try {
+      let targetUserIds = userIds;
+      if ((!targetUserIds || targetUserIds.length === 0) && role) {
+        const users = await this.prisma.user.findMany({ where: { role }, select: { id: true } });
+        targetUserIds = users.map((u) => u.id);
+      }
+      for (const uId of targetUserIds) {
+        await this.prisma.notification.create({
+          data: {
+            userId: uId,
+            title: title || 'Calendar Event Update',
+            message: message || 'Media Calendar Event updated.',
+            type: 'INFO',
+            category: 'WORKFLOW_STATUS',
+            priority: 'MEDIUM',
+            eventType: 'CALENDAR_EVENT_UPDATED',
+            entityType: 'CALENDAR_EVENT',
+            entityId: calendarEventId || 'SYSTEM',
+            calendarEventId: calendarEventId || null,
+          },
+        }).catch(() => null);
+      }
+    } catch (err) {
+      console.error('Failed to dispatch notification:', err);
+    }
+  }
+
+  async createEditRequest(id: string, data: any, user: any) {
+    const existing = await this.findOne(id, user);
+
+    const APPROVED_CALENDAR_STATUSES = [
+      'APPROVED',
+      'CLIENT_APPROVED',
+      'SCHEDULED',
+      'PUBLISHED',
+      'READY',
+      'OPERATIONAL',
+      'TASK_ASSIGNED',
+      'IN_PRODUCTION',
+    ];
+
+    if (!APPROVED_CALENDAR_STATUSES.includes(existing.status)) {
+      throw new BadRequestException(
+        'Edit requests can only be submitted for approved Media Calendar Events. Unapproved events can be updated directly.',
+      );
+    }
+
+    // Check for existing pending edit request
+    const existingPending = await (this.prisma as any).calendarEditRequest.findFirst({
+      where: {
+        calendarEventId: existing.id,
+        status: 'PENDING_MARKETING_APPROVAL',
+      },
+    });
+
+    if (existingPending) {
+      throw new BadRequestException(
+        'A pending Edit Request already exists for this event and is awaiting Marketing Manager approval.',
+      );
+    }
+
+    const payload = data.requestedValues || data;
+
+    const originalValues = {
+      title: existing.title,
+      caption: existing.caption,
+      contentType: existing.contentType,
+      platform: existing.platform,
+      creativePreviewUrl: existing.creativePreviewUrl,
+      campaign: existing.campaign,
+      description: existing.description,
+      shootType: existing.shootType,
+      shootDate: existing.shootDate,
+      clientApprovalDeadline: existing.clientApprovalDeadline,
+      influencerTalent: existing.influencerTalent,
+      priority: existing.priority,
+      productionNotes: existing.productionNotes,
+      clientId: existing.clientId,
+      brandId: existing.brandId,
+      productId: existing.productId,
+    };
+
+    const requestedValues: any = {};
+    if (payload.title !== undefined) requestedValues.title = payload.title;
+    if (payload.caption !== undefined) requestedValues.caption = payload.caption;
+    if (payload.contentType !== undefined) requestedValues.contentType = payload.contentType;
+    if (payload.platform !== undefined) requestedValues.platform = payload.platform;
+    if (payload.creativePreviewUrl !== undefined) requestedValues.creativePreviewUrl = payload.creativePreviewUrl;
+    if (payload.campaign !== undefined) requestedValues.campaign = payload.campaign;
+    if (payload.description !== undefined) requestedValues.description = payload.description;
+    if (payload.shootType !== undefined) requestedValues.shootType = payload.shootType;
+    if (payload.shootDate !== undefined) requestedValues.shootDate = payload.shootDate;
+    if (payload.clientApprovalDeadline !== undefined) requestedValues.clientApprovalDeadline = payload.clientApprovalDeadline;
+    if (payload.influencerTalent !== undefined) requestedValues.influencerTalent = payload.influencerTalent;
+    if (payload.priority !== undefined) requestedValues.priority = payload.priority;
+    if (payload.productionNotes !== undefined) requestedValues.productionNotes = payload.productionNotes;
+    if (payload.clientId !== undefined) requestedValues.clientId = payload.clientId;
+    if (payload.brandId !== undefined) requestedValues.brandId = payload.brandId;
+    if (payload.productId !== undefined) requestedValues.productId = payload.productId;
+
+    const activeUserId = await this.resolveUserId(user);
+
+    const editReq = await (this.prisma as any).calendarEditRequest.create({
+      data: {
+        calendarEventId: existing.id,
+        status: 'PENDING_MARKETING_APPROVAL',
+        requestedById: activeUserId,
+        reason: data.reason || payload.reason || null,
+        originalValues: JSON.stringify(originalValues),
+        requestedValues: JSON.stringify(requestedValues),
+      },
+      include: {
+        calendarEvent: { include: { client: true, brand: true, product: true } },
+        requestedBy: { select: { id: true, name: true, role: true, email: true } },
+      },
+    });
+
+    await this.prisma.mediaCalendarEvent.update({
+      where: { id: existing.id },
+      data: { editRequestedById: activeUserId },
+    });
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: activeUserId,
+        action: 'EVENT_EDIT_REQUESTED',
+        entity: 'MediaCalendarEvent',
+        entityId: existing.id,
+        description: `Media Manager requested edits for approved Media Calendar Event '${existing.title}'.`,
+        metadata: JSON.stringify({
+          requestId: editReq.id,
+          eventId: existing.eventId || existing.id,
+          requestedBy: user?.name,
+          reason: data.reason || payload.reason,
+        }),
+      },
+    });
+
+    await this.sendNotification(
+      [],
+      'MARKETING_MANAGER',
+      'Edit Request Submitted',
+      `${user?.name || 'Media Manager'} has requested changes to Media Calendar Event ${existing.eventId || existing.title}.`,
+      existing.id,
+    );
+
+    return editReq;
+  }
+
+  async getEditRequests(status?: string, user?: any) {
+    const where: any = {};
+    if (status && status !== 'ALL') {
+      where.status = status;
+    }
+    return (this.prisma as any).calendarEditRequest.findMany({
+      where,
+      include: {
+        calendarEvent: {
+          include: {
+            client: true,
+            brand: true,
+            product: true,
+            createdBy: { select: { id: true, name: true, role: true } },
+          },
+        },
+        requestedBy: { select: { id: true, name: true, role: true, email: true } },
+        reviewedBy: { select: { id: true, name: true, role: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getEditRequestsForEvent(calendarEventId: string) {
+    return (this.prisma as any).calendarEditRequest.findMany({
+      where: { calendarEventId },
+      include: {
+        requestedBy: { select: { id: true, name: true, role: true, email: true } },
+        reviewedBy: { select: { id: true, name: true, role: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async approveEditRequest(requestId: string, body: any, user: any) {
+    const editReq = await (this.prisma as any).calendarEditRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        calendarEvent: { include: { client: true, brand: true, product: true } },
+        requestedBy: { select: { id: true, name: true, role: true } },
+      },
+    });
+
+    if (!editReq) {
+      throw new NotFoundException('Edit Request not found');
+    }
+
+    if (editReq.status === 'APPROVED') {
+      throw new BadRequestException('This Edit Request has already been approved.');
+    }
+
+    const original = JSON.parse(editReq.originalValues || '{}');
+    const requested = JSON.parse(editReq.requestedValues || '{}');
+
+    // Support Marketing Manager overriding/modifying permitted fields during approval
+    const finalRequested = body.modifiedValues ? { ...requested, ...body.modifiedValues } : requested;
+
+    const changes: Record<string, { from: any; to: any }> = {};
+    Object.keys(finalRequested).forEach((key) => {
+      const fromVal = original[key];
+      const toVal = finalRequested[key];
+      if (JSON.stringify(fromVal) !== JSON.stringify(toVal)) {
+        changes[key] = { from: fromVal, to: toVal };
+      }
+    });
+
+    const updateData: any = {};
+    if (finalRequested.title !== undefined) updateData.title = finalRequested.title;
+    if (finalRequested.caption !== undefined) updateData.caption = finalRequested.caption;
+    if (finalRequested.contentType !== undefined) updateData.contentType = finalRequested.contentType;
+    if (finalRequested.platform !== undefined) updateData.platform = finalRequested.platform;
+    if (finalRequested.creativePreviewUrl !== undefined) updateData.creativePreviewUrl = finalRequested.creativePreviewUrl;
+    if (finalRequested.campaign !== undefined) updateData.campaign = finalRequested.campaign;
+    if (finalRequested.description !== undefined) updateData.description = finalRequested.description;
+    if (finalRequested.shootType !== undefined) updateData.shootType = finalRequested.shootType;
+    if (finalRequested.shootDate !== undefined) updateData.shootDate = new Date(finalRequested.shootDate);
+    if (finalRequested.clientApprovalDeadline !== undefined) {
+      updateData.clientApprovalDeadline = finalRequested.clientApprovalDeadline ? new Date(finalRequested.clientApprovalDeadline) : null;
+    }
+    if (finalRequested.influencerTalent !== undefined) updateData.influencerTalent = finalRequested.influencerTalent;
+    if (finalRequested.priority !== undefined) updateData.priority = finalRequested.priority;
+    if (finalRequested.productionNotes !== undefined) updateData.productionNotes = finalRequested.productionNotes;
+    const activeUserId = await this.resolveUserId(user);
+
+    if (finalRequested.clientId !== undefined && finalRequested.clientId) updateData.clientId = finalRequested.clientId;
+    if (finalRequested.brandId !== undefined && finalRequested.brandId) updateData.brandId = finalRequested.brandId;
+    if (finalRequested.productId !== undefined) {
+      const pId = finalRequested.productId ? String(finalRequested.productId).trim() : null;
+      updateData.productId = pId && pId !== '' ? pId : null;
+    }
+
+    updateData.lastModifiedById = editReq.requestedById || activeUserId;
+    updateData.lastModifiedAt = new Date();
+    updateData.editRequestedById = editReq.requestedById || activeUserId;
+    updateData.editApprovedById = activeUserId;
+    updateData.editApprovedAt = new Date();
+
+    const updatedEvent = await this.prisma.$transaction(async (tx) => {
+      // 1. Update Edit Request status
+      await (tx as any).calendarEditRequest.update({
+        where: { id: requestId },
+        data: {
+          status: 'APPROVED',
+          reviewedById: activeUserId,
+          reviewedAt: new Date(),
+          reviewComment: body.reviewComment || body.comment || 'Approved by Marketing Manager.',
+        },
+      });
+
+      // 2. Update Original MediaCalendarEvent in-place (same ID & eventId)
+      const ev = await tx.mediaCalendarEvent.update({
+        where: { id: editReq.calendarEventId },
+        data: updateData,
+      });
+
+      // 3. Create permanent CalendarEditHistory
+      await (tx as any).calendarEditHistory.create({
+        data: {
+          calendarEventId: editReq.calendarEventId,
+          requestId: editReq.id,
+          requestedById: editReq.requestedById || activeUserId,
+          requestedAt: editReq.requestedAt || new Date(),
+          approvedById: activeUserId,
+          approvedAt: new Date(),
+          changes: JSON.stringify(changes),
+        },
+      });
+
+      // 4. Record Activity Log
+      await tx.activityLog.create({
+        data: {
+          userId: activeUserId,
+          action: 'EVENT_EDIT_APPROVED',
+          entity: 'MediaCalendarEvent',
+          entityId: editReq.calendarEventId,
+          description: `Marketing Manager approved edit request for Media Calendar Event '${ev.title}'.`,
+          metadata: JSON.stringify({
+            requestId: editReq.id,
+            eventId: ev.eventId || ev.id,
+            approvedBy: activeUserId,
+            requestedBy: editReq.requestedById,
+            changes,
+          }),
+        },
+      });
+
+      return ev;
+    });
+
+    await this.sendNotification(
+      [editReq.requestedById],
+      undefined,
+      'Edit Request Approved',
+      `Your edit request for Media Calendar Event ${editReq.calendarEvent.eventId || editReq.calendarEvent.title} has been approved by Marketing Manager.`,
+      editReq.calendarEventId,
+    );
+
+    return this.findOne(editReq.calendarEventId, user);
+  }
+
+  async rejectEditRequest(requestId: string, body: any, user: any) {
+    const editReq = await (this.prisma as any).calendarEditRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        calendarEvent: true,
+        requestedBy: { select: { id: true, name: true, role: true } },
+      },
+    });
+
+    if (!editReq) {
+      throw new NotFoundException('Edit Request not found');
+    }
+
+    const activeUserId = await this.resolveUserId(user);
+
+    const updatedReq = await (this.prisma as any).calendarEditRequest.update({
+      where: { id: requestId },
+      data: {
+        status: 'REJECTED',
+        reviewedById: activeUserId,
+        reviewedAt: new Date(),
+        reviewComment: body.reason || body.comment || 'Rejected by Marketing Manager.',
+      },
+    });
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: activeUserId,
+        action: 'EVENT_EDIT_REJECTED',
+        entity: 'MediaCalendarEvent',
+        entityId: editReq.calendarEventId,
+        description: `Marketing Manager rejected edit request for Media Calendar Event '${editReq.calendarEvent.title}'.`,
+        metadata: JSON.stringify({
+          requestId: editReq.id,
+          eventId: editReq.calendarEvent.eventId || editReq.calendarEvent.id,
+          rejectedBy: activeUserId,
+          reason: body.reason || body.comment,
+        }),
+      },
+    });
+
+    await this.sendNotification(
+      [editReq.requestedById],
+      undefined,
+      'Edit Request Rejected',
+      `Your edit request for Media Calendar Event ${editReq.calendarEvent.eventId || editReq.calendarEvent.title} was rejected. Reason: ${body.reason || body.comment || 'No reason provided.'}`,
+      editReq.calendarEventId,
+    );
+
+    return updatedReq;
   }
 
   async submitForClientApproval(id: string, user: any) {

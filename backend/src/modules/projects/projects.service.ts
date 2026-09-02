@@ -167,30 +167,45 @@ export class ProjectsService {
   }
 
   async findOne(id: string, currentUser?: any) {
-    const project = await this.prisma.shootProject.findUnique({
+    const includeConfig = {
+      client: true,
+      brand: true,
+      product: true,
+      campaign: true,
+      calendarEvent: true,
+      createdBy: true,
+      indoorDetails: true,
+      outdoorDetails: true,
+      assignedTeam: { include: { user: { include: { employeeProfile: { include: { department: true } } } } } },
+      scripts: { include: { tasks: true, files: true } },
+      graphicRequirements: { include: { tasks: true, files: true } },
+      tasks: { include: { assignedEmployees: { include: { user: true } } } },
+      approvals: { include: { reviewer: true }, orderBy: { reviewedAt: 'desc' as const } },
+      clientConfirmations: { orderBy: { createdAt: 'desc' as const } },
+      revisions: { orderBy: { createdAt: 'desc' as const } },
+      equipmentReservations: { include: { equipment: true } },
+      equipmentMovements: { include: { equipment: true, user: true }, orderBy: { timestamp: 'desc' as const } },
+      files: { include: { uploadedBy: true }, orderBy: { createdAt: 'desc' as const } },
+      communications: { include: { sender: true }, orderBy: { createdAt: 'desc' as const } },
+    };
+
+    let project = await this.prisma.shootProject.findUnique({
       where: { id },
-      include: {
-        client: true,
-        brand: true,
-        product: true,
-        campaign: true,
-        calendarEvent: true,
-        createdBy: true,
-        indoorDetails: true,
-        outdoorDetails: true,
-        assignedTeam: { include: { user: { include: { employeeProfile: { include: { department: true } } } } } },
-        scripts: { include: { tasks: true, files: true } },
-        graphicRequirements: { include: { tasks: true, files: true } },
-        tasks: { include: { assignedEmployees: { include: { user: true } } } },
-        approvals: { include: { reviewer: true }, orderBy: { reviewedAt: 'desc' } },
-        clientConfirmations: { orderBy: { createdAt: 'desc' } },
-        revisions: { orderBy: { createdAt: 'desc' } },
-        equipmentReservations: { include: { equipment: true } },
-        equipmentMovements: { include: { equipment: true, user: true }, orderBy: { timestamp: 'desc' } },
-        files: { include: { uploadedBy: true }, orderBy: { createdAt: 'desc' } },
-        communications: { include: { sender: true }, orderBy: { createdAt: 'desc' } },
-      },
-    });
+      include: includeConfig,
+    }).catch(() => null);
+
+    if (!project) {
+      project = await this.prisma.shootProject.findFirst({
+        where: {
+          OR: [
+            { projectId: id },
+            { id: id },
+          ],
+        },
+        include: includeConfig,
+      });
+    }
+
     if (!project) throw new NotFoundException('Project not found');
 
     if (currentUser && currentUser.id && currentUser.role) {

@@ -87,6 +87,14 @@ export class CommunicationsController {
     return this.communicationsService.updateStatus(id, status);
   }
 
+  @Patch(':id/mark-as-read')
+  markAsRead(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.communicationsService.markAsRead(id, userId);
+  }
+
   @Patch(':id/resolve-blocker')
   resolveBlocker(
     @Param('id') id: string,
@@ -94,6 +102,11 @@ export class CommunicationsController {
     @CurrentUser('id') resolverId: string,
   ) {
     return this.communicationsService.resolveBlocker(id, resolutionNotes, resolverId);
+  }
+
+  @Get(':id/timeline')
+  getTimeline(@Param('id') id: string) {
+    return this.communicationsService.getTimeline(id);
   }
 
   @Post()

@@ -67,6 +67,13 @@ model User {
   approvedCalendarEvents    MediaCalendarEvent[]      @relation("CalendarEventApprover")
   calendarRevisions         CalendarEventRevision[]
   calendarApprovalHistories CalendarApprovalHistory[]
+  lastModifiedCalendarEvents MediaCalendarEvent[]     @relation("CalendarEventLastModifiedBy")
+  editRequestedCalendarEvents MediaCalendarEvent[]    @relation("CalendarEventEditRequestedBy")
+  editApprovedCalendarEvents  MediaCalendarEvent[]    @relation("CalendarEventEditApprovedBy")
+  submittedEditRequests       CalendarEditRequest[]   @relation("CalendarEditRequestedBy")
+  reviewedEditRequests        CalendarEditRequest[]   @relation("CalendarEditReviewedBy")
+  editHistoriesRequested      CalendarEditHistory[]   @relation("CalendarEditHistoryRequestedBy")
+  editHistoriesApproved       CalendarEditHistory[]   @relation("CalendarEditHistoryApprovedBy")
   createdScripts            Script[]                  @relation("ScriptCreator")
   approvedScripts           Script[]                  @relation("ScriptApprover")
   createdGraphicDeliverables  GraphicRequirementDeliverable[] @relation("GraphicDeliverableCreatedBy")
@@ -248,6 +255,17 @@ model MediaCalendarEvent {
   graphicReqs            GraphicRequirement[]
   revisions              CalendarEventRevision[]
   approvalHistory        CalendarApprovalHistory[]
+  lastModifiedById       String?
+  lastModifiedBy         User?                     @relation("CalendarEventLastModifiedBy", fields: [lastModifiedById], references: [id])
+  lastModifiedAt         DateTime?
+  editRequestedById      String?
+  editRequestedBy        User?                     @relation("CalendarEventEditRequestedBy", fields: [editRequestedById], references: [id])
+  editApprovedById       String?
+  editApprovedBy         User?                     @relation("CalendarEventEditApprovedBy", fields: [editApprovedById], references: [id])
+  editApprovedAt         DateTime?
+
+  editRequests           CalendarEditRequest[]
+  editHistories          CalendarEditHistory[]
 }
 
 model ShootProject {
@@ -544,10 +562,10 @@ model Task {
   script              Script?            @relation(fields: [scriptId], references: [id])
   graphicRequirementId String?
   graphicRequirement  GraphicRequirement? @relation(fields: [graphicRequirementId], references: [id])
-  clientId            String
-  client              Client             @relation(fields: [clientId], references: [id])
-  brandId             String
-  brand               Brand              @relation(fields: [brandId], references: [id])
+  clientId            String?
+  client              Client?            @relation(fields: [clientId], references: [id])
+  brandId             String?
+  brand               Brand?             @relation(fields: [brandId], references: [id])
   productId           String?
   product             Product?           @relation(fields: [productId], references: [id])
   priority            String             @default("MEDIUM")
@@ -1132,6 +1150,45 @@ model CalendarApprovalHistory {
   newStatus       String
   comment         String?
   timestamp       DateTime               @default(now())
+}
+
+model CalendarEditRequest {
+  id                 String             @id @default(uuid())
+  calendarEventId    String
+  calendarEvent      MediaCalendarEvent @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
+  status             String             @default("PENDING_MARKETING_APPROVAL") // PENDING_MARKETING_APPROVAL, APPROVED, REJECTED, CHANGES_REQUESTED, CANCELLED
+  requestedById      String
+  requestedBy        User               @relation("CalendarEditRequestedBy", fields: [requestedById], references: [id])
+  requestedAt        DateTime           @default(now())
+  reason             String?
+  originalValues     String             // JSON serialized object of original values before edit request
+  requestedValues    String             // JSON serialized object of requested changes
+  reviewedById       String?
+  reviewedBy         User?              @relation("CalendarEditReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt         DateTime?
+  reviewComment      String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([calendarEventId])
+  @@index([status])
+}
+
+model CalendarEditHistory {
+  id                 String             @id @default(uuid())
+  calendarEventId    String
+  calendarEvent      MediaCalendarEvent @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
+  requestId          String?
+  requestedById      String
+  requestedBy        User               @relation("CalendarEditHistoryRequestedBy", fields: [requestedById], references: [id])
+  requestedAt        DateTime
+  approvedById       String
+  approvedBy         User               @relation("CalendarEditHistoryApprovedBy", fields: [approvedById], references: [id])
+  approvedAt         DateTime           @default(now())
+  changes            String             // JSON string detailing changes: { field: { from, to } }
+  createdAt          DateTime           @default(now())
+
+  @@index([calendarEventId])
 }
 
 

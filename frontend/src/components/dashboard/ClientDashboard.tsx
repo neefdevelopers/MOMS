@@ -33,7 +33,8 @@ export default function ClientDashboard() {
         fetchApi('/calendar').catch(() => []),
         fetchApi('/clients').catch(() => []),
       ]);
-      setEvents(Array.isArray(resEvents) ? resEvents : []);
+      const rawEvents = Array.isArray(resEvents) ? resEvents : (resEvents?.data || resEvents?.events || resEvents?.items || []);
+      setEvents(rawEvents);
       setClients(Array.isArray(resClients) ? resClients : []);
     } catch (err) {
       console.error('Error loading client dashboard data:', err);

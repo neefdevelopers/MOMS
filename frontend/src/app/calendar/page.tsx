@@ -39,7 +39,9 @@ export default function CalendarPage() {
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
+  const [editReason, setEditReason] = useState('');
   const [viewModalEvent, setViewModalEvent] = useState<any>(null);
+  const [pendingEditNoticeEvent, setPendingEditNoticeEvent] = useState<any>(null);
   const [staffModalSearch, setStaffModalSearch] = useState('');
   const [equipmentModalSearch, setEquipmentModalSearch] = useState('');
 
@@ -194,7 +196,8 @@ export default function CalendarPage() {
       const rawGr = Array.isArray(resGr) ? resGr : (resGr?.data || resGr?.requirements || resGr?.items || []);
       const rawProj = Array.isArray(resProj) ? resProj : (resProj?.data || resProj?.projects || resProj?.items || []);
 
-      setEvents(Array.isArray(resEvents) ? resEvents : []);
+      const rawEvents = Array.isArray(resEvents) ? resEvents : (resEvents?.data || resEvents?.events || resEvents?.items || []);
+      setEvents(rawEvents);
       setClients(Array.isArray(resClients) ? resClients : []);
       setBrands(Array.isArray(resBrands) ? resBrands : []);
       setProducts(Array.isArray(resProducts) ? resProducts : []);
@@ -368,10 +371,24 @@ export default function CalendarPage() {
 
     try {
       if (editingEvent) {
-        await fetchApi(`/calendar/${editingEvent.id}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
+        const APPROVED_STATUSES = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'];
+        const isApproved = APPROVED_STATUSES.includes(editingEvent.status);
+
+        if (isApproved && user?.role !== 'MARKETING_MANAGER' && (user?.role as string) !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
+          await fetchApi(`/calendar/${editingEvent.id}/edit-request`, {
+            method: 'POST',
+            body: JSON.stringify({
+              requestedValues: payload,
+              reason: editReason || 'Requested changes to approved calendar event',
+            }),
+          });
+          alert('✓ Edit Request Submitted!\n\nYour requested modifications have been sent to the Marketing Manager for approval. The original live event remains unchanged until approved.');
+        } else {
+          await fetchApi(`/calendar/${editingEvent.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+          });
+        }
       } else {
         await fetchApi('/calendar', {
           method: 'POST',
@@ -380,6 +397,7 @@ export default function CalendarPage() {
       }
       setShowAddModal(false);
       setEditingEvent(null);
+      setEditReason('');
       resetForm();
       setStatusFilter('ALL');
       loadData();
@@ -388,18 +406,19 @@ export default function CalendarPage() {
     }
   };
 
-  const handleCancelEvent = async (eventId: string) => {
-    if (!confirm('Are you sure you want to cancel this scheduled shoot event?')) return;
-    try {
-      await fetchApi(`/calendar/${eventId}/cancel`, { method: 'POST' });
-      loadData();
-    } catch (err: any) {
-      alert(err.message || 'Failed to cancel event');
-    }
-  };
-
 
   const openEdit = (eventItem: any) => {
+    const isApproved = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(eventItem.status);
+    const hasPendingEditRequest = (
+      (eventItem.editRequests && eventItem.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL')) ||
+      Boolean(eventItem.editRequestedById)
+    );
+
+    if (isApproved && hasPendingEditRequest) {
+      setPendingEditNoticeEvent(eventItem);
+      return;
+    }
+
     setEditingEvent(eventItem);
     const existingTeam = eventItem.shootProjects?.[0]?.assignedTeam?.map((tm: any) => tm.userId) || [];
     const existingEq = eventItem.shootProjects?.[0]?.equipmentReservations?.map((res: any) => res.equipmentId) || [];
@@ -602,21 +621,31 @@ export default function CalendarPage() {
         user?.id && (evt.createdById === user.id || evt.createdBy?.id === user.id)
       );
 
-      // Business Rule: Unapproved/pending events are ONLY shown to: 1) Event Creator, 2) Marketing Manager (Approver), 3) Admin
-      if (!isApproved && !isMyCreatedEvent && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'ADMINISTRATOR') {
+      const canViewUnapproved =
+        isMyCreatedEvent ||
+        user?.role === 'MARKETING_MANAGER' ||
+        user?.role === 'MEDIA_MANAGER' ||
+        user?.role === 'SOCIAL_MEDIA_MANAGER' ||
+        user?.role === 'ADMINISTRATOR' ||
+        (user?.role as string) === 'ADMIN';
+
+      // Business Rule: Unapproved/pending events are ONLY shown to authorized roles or the creator
+      if (!isApproved && !canViewUnapproved) {
         return false;
       }
 
-      if (statusFilter === 'OPERATIONAL' || !statusFilter) {
+      if (statusFilter === 'OPERATIONAL') {
         if (!isApproved && !isMyCreatedEvent) {
           return false;
         }
       } else if (statusFilter === 'PENDING_CLIENT_APPROVAL' || statusFilter === 'PENDING_CLIENT_REVIEW') {
-        // "My Pending Creations" tab strictly shows pending events created by THIS logged-in user
-        if ((evt.status !== 'PENDING_CLIENT_APPROVAL' && evt.status !== 'PENDING_CLIENT_REVIEW') || (!isMyCreatedEvent && user?.role !== 'MARKETING_MANAGER')) {
+        if (
+          (evt.status !== 'PENDING_CLIENT_APPROVAL' && evt.status !== 'PENDING_CLIENT_REVIEW') ||
+          !canViewUnapproved
+        ) {
           return false;
         }
-      } else if (statusFilter !== 'ALL' && evt.status !== statusFilter) {
+      } else if (statusFilter !== 'ALL' && statusFilter !== '' && evt.status !== statusFilter) {
         return false;
       }
 
@@ -1052,7 +1081,191 @@ export default function CalendarPage() {
             </button>
           )}
         </div>
+      ) : viewMode === 'month' ? (
+        /* INTERACTIVE MONTH CALENDAR GRID VIEW */
+        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-2xl space-y-0">
+          {/* Month Header Days of Week */}
+          <div className="grid grid-cols-7 bg-gray-950 border-b border-gray-800 text-center text-xs font-bold text-gray-400 py-3 font-mono uppercase tracking-wider">
+            <div>Sun</div>
+            <div>Mon</div>
+            <div>Tue</div>
+            <div>Wed</div>
+            <div>Thu</div>
+            <div>Fri</div>
+            <div>Sat</div>
+          </div>
+
+          {/* Calendar Grid Cells */}
+          {(() => {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Sun
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const totalCells = Math.ceil((firstDayIndex + daysInMonth) / 7) * 7;
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            const cells = [];
+            for (let i = 0; i < totalCells; i++) {
+              const dayNum = i - firstDayIndex + 1;
+              const isCurrentMonth = dayNum >= 1 && dayNum <= daysInMonth;
+
+              let cellDateStr = '';
+              if (isCurrentMonth) {
+                const cellDate = new Date(year, month, dayNum);
+                const yyyy = cellDate.getFullYear();
+                const mm = String(cellDate.getMonth() + 1).padStart(2, '0');
+                const dd = String(cellDate.getDate()).padStart(2, '0');
+                cellDateStr = `${yyyy}-${mm}-${dd}`;
+              }
+
+              const dayEvents = isCurrentMonth
+                ? filteredEvents.filter((evt) => evt.shootDate && evt.shootDate.startsWith(cellDateStr))
+                : [];
+
+              const isToday = isCurrentMonth && cellDateStr === todayStr;
+
+              cells.push(
+                <div
+                  key={i}
+                  className={`min-h-[125px] p-2 border-r border-b border-gray-800/70 transition-colors flex flex-col justify-between ${
+                    !isCurrentMonth
+                      ? 'bg-gray-950/40 text-gray-700 pointer-events-none'
+                      : isToday
+                      ? 'bg-blue-950/30 border-blue-500/50'
+                      : 'bg-card hover:bg-gray-900/60'
+                  }`}
+                >
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span
+                      className={`text-xs font-bold font-mono px-2 py-0.5 rounded-full ${
+                        isToday
+                          ? 'bg-blue-600 text-white font-extrabold shadow-sm'
+                          : isCurrentMonth
+                          ? 'text-gray-300'
+                          : 'text-gray-700'
+                      }`}
+                    >
+                      {isCurrentMonth ? dayNum : ''}
+                    </span>
+                    {isCurrentMonth && dayEvents.length > 0 && (
+                      <span className="text-[10px] font-mono text-gray-400 font-bold">
+                        {dayEvents.length} {dayEvents.length === 1 ? 'event' : 'events'}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Day Events Container */}
+                  <div className="space-y-1 overflow-y-auto max-h-[90px] custom-scrollbar flex-1">
+                    {dayEvents.map((evt) => {
+                      const hasPendingEdit = evt.editRequests && evt.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL');
+                      return (
+                        <div
+                          key={evt.id}
+                          onClick={() => setViewModalEvent(evt)}
+                          className={`p-1.5 rounded text-[10px] font-semibold border cursor-pointer truncate transition-all shadow-sm flex items-center justify-between gap-1 ${
+                            hasPendingEdit
+                              ? 'bg-amber-950/90 text-amber-200 border-amber-500/80 animate-pulse'
+                              : evt.shootType === 'INDOOR'
+                              ? 'bg-emerald-950/80 text-emerald-200 border-emerald-700/60 hover:bg-emerald-900/90'
+                              : 'bg-purple-950/80 text-purple-200 border-purple-700/60 hover:bg-purple-900/90'
+                          }`}
+                          title={`${evt.title} (${evt.client?.name || ''})`}
+                        >
+                          <span className="truncate flex items-center gap-1 font-sans">
+                            {hasPendingEdit && <span title="Waiting for Edit Approval">⏳</span>}
+                            <span className="font-bold font-mono">[{evt.brand?.shortCode || 'EVT'}]</span> {evt.title}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            }
+
+            return <div className="grid grid-cols-7 bg-card border-l border-t border-gray-800">{cells}</div>;
+          })()}
+        </div>
+      ) : viewMode === 'week' ? (
+        /* INTERACTIVE WEEK CALENDAR GRID VIEW */
+        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-2xl space-y-0">
+          <div className="grid grid-cols-7 bg-card border-l border-t border-gray-800">
+            {(() => {
+              const { start } = getPeriodRange('week', currentDate);
+              if (!start) return null;
+
+              const todayStr = new Date().toISOString().split('T')[0];
+              const weekDays = [];
+
+              for (let i = 0; i < 7; i++) {
+                const dayDate = new Date(start);
+                dayDate.setDate(start.getDate() + i);
+
+                const yyyy = dayDate.getFullYear();
+                const mm = String(dayDate.getMonth() + 1).padStart(2, '0');
+                const dd = String(dayDate.getDate()).padStart(2, '0');
+                const dayStr = `${yyyy}-${mm}-${dd}`;
+
+                const dayEvents = filteredEvents.filter(
+                  (evt) => evt.shootDate && evt.shootDate.startsWith(dayStr)
+                );
+                const isToday = dayStr === todayStr;
+
+                weekDays.push(
+                  <div
+                    key={i}
+                    className={`min-h-[320px] p-3 border-r border-b border-gray-800/70 transition-colors flex flex-col justify-between ${
+                      isToday ? 'bg-blue-950/20 border-blue-500/50' : 'bg-card hover:bg-gray-900/40'
+                    }`}
+                  >
+                    <div className="border-b border-gray-800 pb-2 mb-2 flex flex-col items-center">
+                      <span className="text-[11px] font-mono uppercase text-gray-400 font-bold">
+                        {dayDate.toLocaleDateString('en-US', { weekday: 'short' })}
+                      </span>
+                      <span
+                        className={`text-sm font-bold font-mono px-2 py-0.5 rounded-full mt-0.5 ${
+                          isToday ? 'bg-blue-600 text-white font-extrabold' : 'text-gray-200'
+                        }`}
+                      >
+                        {dayDate.getDate()}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 overflow-y-auto max-h-[250px] custom-scrollbar flex-1">
+                      {dayEvents.map((evt) => {
+                        const hasPendingEdit = evt.editRequests && evt.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL');
+                        return (
+                          <div
+                            key={evt.id}
+                            onClick={() => setViewModalEvent(evt)}
+                            className={`p-2 rounded-lg text-xs font-semibold border cursor-pointer space-y-1 transition-all shadow-sm ${
+                              hasPendingEdit
+                                ? 'bg-amber-950/90 text-amber-200 border-amber-500/80 animate-pulse'
+                                : evt.shootType === 'INDOOR'
+                                ? 'bg-emerald-950/80 text-emerald-200 border-emerald-700/60 hover:bg-emerald-900/90'
+                                : 'bg-purple-950/80 text-purple-200 border-purple-700/60 hover:bg-purple-900/90'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between text-[10px] font-mono">
+                              <span className="font-bold">[{evt.brand?.shortCode || 'EVT'}]</span>
+                              {hasPendingEdit && <span title="Waiting for Edit Approval">⏳ PENDING</span>}
+                            </div>
+                            <div className="font-bold text-white line-clamp-1">{evt.title}</div>
+                            <div className="text-[10px] text-gray-300 truncate">{evt.client?.name}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
+              return weekDays;
+            })()}
+          </div>
+        </div>
       ) : (
+        /* LIST / GRID CARDS VIEW (All & Day modes) */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredEvents.map((eventItem) => (
             <div
@@ -1081,13 +1294,21 @@ export default function CalendarPage() {
                   </span>
                 </div>
 
-                <span
-                  className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${
-                    eventItem.status === 'CANCELLED' ? 'bg-red-500/20 text-red-400' : 'bg-gray-800 text-gray-300'
-                  }`}
-                >
-                  {eventItem.status}
-                </span>
+                <div className="flex items-center gap-1">
+                  {eventItem.editRequests && eventItem.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL') ? (
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-500/60 uppercase flex items-center gap-1 animate-pulse">
+                      <AlertTriangle className="w-3 h-3 text-amber-400" /> WAITING FOR EDITING APPROVAL
+                    </span>
+                  ) : (
+                    <span
+                      className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${
+                        eventItem.status === 'CANCELLED' ? 'bg-red-500/20 text-red-400' : 'bg-gray-800 text-gray-300'
+                      }`}
+                    >
+                      {eventItem.status}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -1103,22 +1324,63 @@ export default function CalendarPage() {
                 </p>
               </div>
 
-              {/* Creator Info */}
+              {/* Waiting for Edit Approval Card Alert Banner */}
+              {eventItem.editRequests && eventItem.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL') && (
+                <div 
+                  onClick={() => setViewModalEvent(eventItem)}
+                  className="p-2.5 bg-gradient-to-r from-amber-950/90 via-amber-900/60 to-gray-950 border border-amber-500/60 rounded-xl flex items-center justify-between text-amber-200 text-[11px] font-bold cursor-pointer shadow-md hover:border-amber-400 transition-all animate-pulse"
+                  title="Click to view details of pending edit request"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>⏳ Waiting for Edit Approval</span>
+                  </span>
+                  <span className="text-[9px] font-mono bg-amber-500/20 px-1.5 py-0.5 rounded text-amber-300 border border-amber-500/40">
+                    Pending Review
+                  </span>
+                </div>
+              )}
+
+              {/* Sleek Minimalist Creator & Editor Audit Strip */}
               <div 
                 onClick={() => setViewModalEvent(eventItem)}
-                className="text-[11px] text-gray-300 bg-gray-950/70 p-2 rounded-lg border border-gray-800/80 flex items-center justify-between cursor-pointer hover:border-blue-500/50 transition-colors"
+                className="text-[11px] bg-gray-950/50 p-2.5 rounded-lg border border-gray-800/60 space-y-1 cursor-pointer hover:border-blue-500/40 transition-colors font-sans"
                 title="Click to view full Event Details"
               >
-                <span className="flex items-center gap-1.5 text-gray-400">
-                  <User className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                  <span>Created by:</span>
-                  <strong className="text-gray-200">
-                    {eventItem.createdBy?.name || (eventItem.createdByRole ? eventItem.createdByRole.replace(/_/g, ' ') : 'Media Operations Team')}
-                  </strong>
-                </span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-blue-950/80 text-blue-300 border border-blue-800/60 uppercase">
-                  {eventItem.createdBy?.role ? eventItem.createdBy.role.replace(/_/g, ' ') : eventItem.createdByRole ? eventItem.createdByRole.replace(/_/g, ' ') : 'CREATOR'}
-                </span>
+                <div className="flex items-center justify-between text-gray-400">
+                  <span className="flex items-center gap-1.5 truncate">
+                    <User className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span>Created by:</span>
+                    <strong className="text-gray-200 font-semibold">
+                      {eventItem.createdBy?.name || (eventItem.createdByRole ? eventItem.createdByRole.replace(/_/g, ' ') : 'Media Team')}
+                    </strong>
+                    <span className="text-gray-500 text-[10px]">
+                      ({eventItem.createdBy?.role ? eventItem.createdBy.role.replace(/_/g, ' ') : eventItem.createdByRole ? eventItem.createdByRole.replace(/_/g, ' ') : 'Creator'})
+                    </span>
+                  </span>
+                </div>
+
+                {(eventItem.lastModifiedBy || eventItem.lastModifiedAt) && (
+                  <div className="flex items-center justify-between text-purple-300/90 pt-1 border-t border-gray-800/40">
+                    <span className="flex items-center gap-1.5 truncate">
+                      <Edit className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <span>Edited by:</span>
+                      <strong className="text-purple-200 font-semibold">
+                        {eventItem.lastModifiedBy?.name || 'Authorized Editor'}
+                      </strong>
+                      {eventItem.lastModifiedBy?.role && (
+                        <span className="text-purple-400/70 text-[10px]">
+                          ({eventItem.lastModifiedBy.role.replace(/_/g, ' ')})
+                        </span>
+                      )}
+                    </span>
+                    {eventItem.lastModifiedAt && (
+                      <span className="text-[10px] text-gray-500 font-mono shrink-0 ml-1">
+                        {new Date(eventItem.lastModifiedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Event Source Info */}
@@ -1220,14 +1482,6 @@ export default function CalendarPage() {
                     >
                       <Edit className="w-3 h-3" /> Edit
                     </button>
-                    {user?.role === 'MEDIA_MANAGER' && (
-                      <button
-                        onClick={() => handleCancelEvent(eventItem.id)}
-                        className="px-2 py-0.5 bg-red-950/40 border border-red-800/40 text-red-400 hover:bg-red-900/50 rounded font-semibold text-[10px] flex items-center gap-1"
-                      >
-                        <XCircle className="w-3 h-3" /> Cancel
-                      </button>
-                    )}
                   </div>
                 )}
 
@@ -1297,6 +1551,29 @@ export default function CalendarPage() {
                     {editingEvent.createdBy.role.replace(/_/g, ' ')}
                   </span>
                 )}
+              </div>
+            )}
+
+            {/* Approved Event Edit Request Alert Banner */}
+            {editingEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER') && (
+              <div className="p-3.5 bg-amber-950/60 border border-amber-500/50 rounded-xl space-y-2 text-xs">
+                <div className="flex items-center gap-2 font-bold text-amber-300">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Approved Event — Modification Requires Marketing Approval</span>
+                </div>
+                <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                  This event is approved. Submitting modifications creates an <strong>Edit Request</strong> for Marketing Manager approval. The live event data will remain unchanged until approved.
+                </p>
+                <div className="pt-1">
+                  <label className="text-amber-200 font-bold block mb-1 text-[11px]">Reason for Edit Request (Optional):</label>
+                  <input
+                    type="text"
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    placeholder="e.g. Production deadline change / client priority escalation..."
+                    className="w-full bg-gray-900 border border-amber-700/60 rounded p-2 text-white text-xs placeholder-gray-500"
+                  />
+                </div>
               </div>
             )}
 
@@ -1936,6 +2213,7 @@ export default function CalendarPage() {
                 onClick={() => {
                   setShowAddModal(false);
                   setEditingEvent(null);
+                  setEditReason('');
                 }}
                 className="px-4 py-2 bg-gray-800 text-gray-300 rounded font-semibold"
               >
@@ -1943,9 +2221,17 @@ export default function CalendarPage() {
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-500 shadow-lg shadow-blue-600/30"
+                className={`px-4 py-2 text-white rounded font-semibold transition-all ${
+                  editingEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER')
+                    ? 'bg-amber-600 hover:bg-amber-500 shadow-lg shadow-amber-600/30 font-bold'
+                    : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/30'
+                }`}
               >
-                {editingEvent ? 'Save Event' : 'Schedule Event'}
+                {editingEvent
+                  ? ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER')
+                    ? 'Submit Edit Request'
+                    : 'Save Event'
+                  : 'Schedule Event'}
               </button>
             </div>
           </form>
@@ -2090,9 +2376,15 @@ export default function CalendarPage() {
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800 uppercase font-bold">
                     {viewModalEvent.eventId || `EVT-${viewModalEvent.id.substring(0, 6).toUpperCase()}`}
                   </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 uppercase">
-                    {viewModalEvent.status}
-                  </span>
+                  {viewModalEvent.editRequests && viewModalEvent.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL') ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-500/60 uppercase flex items-center gap-1 animate-pulse">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> ⏳ WAITING FOR EDITING APPROVAL
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 uppercase">
+                      {viewModalEvent.status}
+                    </span>
+                  )}
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 uppercase">
                     {viewModalEvent.priority || 'MEDIUM'} PRIORITY
                   </span>
@@ -2138,6 +2430,39 @@ export default function CalendarPage() {
               </div>
             </div>
 
+            {/* LAST EDITED BY & MODIFIED TIMESTAMP HIGHLIGHT BOX */}
+            {(viewModalEvent.lastModifiedBy || viewModalEvent.lastModifiedAt) && (
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-purple-950/60 via-purple-950/40 to-gray-950 border border-purple-500/40 flex items-center justify-between shadow-md text-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-300 shrink-0">
+                    <Edit className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-purple-300 block">Last Edited By</span>
+                    <span className="text-sm font-bold text-white">
+                      {viewModalEvent.lastModifiedBy?.name || 'Authorized Editor'}
+                    </span>
+                    {viewModalEvent.lastModifiedBy?.role && (
+                      <span className="text-[10px] text-purple-300/80 block font-mono">
+                        Role: {viewModalEvent.lastModifiedBy.role.replace(/_/g, ' ')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {viewModalEvent.lastModifiedAt && (
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400 block mb-0.5">Edited On</span>
+                    <span className="text-xs text-purple-200 font-bold font-mono block">
+                      {new Date(viewModalEvent.lastModifiedAt).toLocaleDateString()}
+                    </span>
+                    <span className="text-[10px] text-gray-400 font-mono">
+                      {new Date(viewModalEvent.lastModifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Details Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div className="p-4 bg-gray-950 rounded-xl border border-gray-800 space-y-2.5">
@@ -2162,21 +2487,87 @@ export default function CalendarPage() {
                   <strong className="text-white ml-1">{viewModalEvent.approvalAssignedTo?.name || 'Marketing Manager'}</strong>
                 </div>
                 <div>
-                  <span className="text-gray-500">Approval Gate:</span>{' '}
-                  <strong className="text-emerald-400 ml-1">{viewModalEvent.approvalRequired !== false ? 'Marketing Approval Required' : 'Auto-Approved'}</strong>
-                </div>
-                <div>
                   <span className="text-gray-500">Assigned Staff:</span>{' '}
                   <strong className="text-white ml-1">{viewModalEvent.assignedStaff?.name || 'Unassigned'}</strong>
                 </div>
               </div>
             </div>
 
+            {/* Pending Edit Request Alert Banner in Details Modal */}
+            {viewModalEvent.editRequests && viewModalEvent.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL') && (
+              <div className="p-4 bg-amber-950/60 border border-amber-500/50 rounded-xl space-y-2 text-amber-200">
+                <div className="flex items-center gap-2 font-bold text-xs">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Pending Edit Request Awaiting Marketing Manager Review</span>
+                </div>
+                {(() => {
+                  const pendingReq = viewModalEvent.editRequests.find((r: any) => r.status === 'PENDING_MARKETING_APPROVAL');
+                  return (
+                    <div className="text-[11px] space-y-1 bg-amber-950/40 p-2.5 rounded-lg border border-amber-800/40 font-mono">
+                      <div>Requested By: <strong className="text-white">{pendingReq.requestedBy?.name || 'Media Manager'}</strong></div>
+                      <div>Submitted On: <span className="text-amber-300">{new Date(pendingReq.createdAt).toLocaleString()}</span></div>
+                      {pendingReq.reason && <div>Reason: <span className="italic text-gray-300">"{pendingReq.reason}"</span></div>}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             {/* Production Notes */}
             {viewModalEvent.productionNotes && (
               <div className="p-4 bg-gray-950 rounded-xl border border-gray-800 space-y-1.5 text-xs">
                 <div className="font-bold text-gray-400 uppercase text-[10px] tracking-wider">Production Notes & Requirements</div>
                 <p className="text-gray-200 leading-relaxed whitespace-pre-wrap">{viewModalEvent.productionNotes}</p>
+              </div>
+            )}
+
+            {/* PERMANENT EDIT HISTORY SECTION */}
+            {viewModalEvent.editHistories && viewModalEvent.editHistories.length > 0 && (
+              <div className="p-4 bg-gray-950 rounded-xl border border-gray-800 space-y-3 text-xs">
+                <div className="font-bold uppercase text-[10px] tracking-wider text-purple-400 border-b border-gray-900 pb-1 flex items-center justify-between">
+                  <span>📜 Approved Edit History ({viewModalEvent.editHistories.length})</span>
+                  {viewModalEvent.lastModifiedBy && (
+                    <span className="text-[9px] text-gray-400 normal-case">
+                      Last Edited By: <strong className="text-gray-200">{viewModalEvent.lastModifiedBy.name}</strong>
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                  {viewModalEvent.editHistories.map((hist: any, index: number) => {
+                    const changesObj = typeof hist.changes === 'string' ? JSON.parse(hist.changes || '{}') : (hist.changes || {});
+                    return (
+                      <div key={hist.id || index} className="p-3 bg-gray-900 border border-gray-800 rounded-lg space-y-2 text-xs">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-cyan-300">Edit #{viewModalEvent.editHistories.length - index}</span>
+                          <span className="text-gray-400 text-[10px]">{new Date(hist.approvedAt).toLocaleString()}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-400 bg-gray-950 p-2 rounded">
+                          <div>Requested By: <strong className="text-white">{hist.requestedBy?.name || 'Media Manager'}</strong></div>
+                          <div>Approved By: <strong className="text-emerald-400">{hist.approvedBy?.name || 'Marketing Manager'}</strong></div>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase">Field Changes:</span>
+                          <div className="space-y-1 text-[11px]">
+                            {Object.keys(changesObj).length === 0 ? (
+                              <span className="text-gray-500 italic">No specific field changes recorded</span>
+                            ) : (
+                              Object.keys(changesObj).map((field) => (
+                                <div key={field} className="flex items-center justify-between bg-gray-950/60 px-2 py-1 rounded border border-gray-800">
+                                  <span className="font-mono text-gray-300 capitalize">{field}:</span>
+                                  <span className="font-mono text-gray-400">
+                                    <span className="line-through text-red-400">{String(changesObj[field]?.from ?? 'None')}</span>
+                                    {' → '}
+                                    <span className="text-emerald-400 font-bold">{String(changesObj[field]?.to ?? 'None')}</span>
+                                  </span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -2202,6 +2593,52 @@ export default function CalendarPage() {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Pending Edit Request Warning Modal Popup */}
+      {pendingEditNoticeEvent && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-amber-500/50 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 relative">
+            <button
+              onClick={() => setPendingEditNoticeEvent(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/10">
+                <AlertTriangle className="w-6 h-6 animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 uppercase tracking-wider">
+                  Edit Request Pending
+                </span>
+                <h3 className="text-lg font-bold text-white leading-snug">
+                  Already Waiting for Approval
+                </h3>
+              </div>
+            </div>
+
+            <div className="p-4 bg-amber-950/40 border border-amber-800/50 rounded-xl space-y-2 text-xs text-amber-200">
+              <p className="leading-relaxed">
+                An edit request for <strong className="text-white">"{pendingEditNoticeEvent.title}"</strong> has already been submitted and is currently pending Marketing Manager review.
+              </p>
+              <p className="text-gray-300">
+                Please wait for the Marketing Manager to review the current request before submitting additional changes.
+              </p>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setPendingEditNoticeEvent(null)}
+                className="w-full sm:w-auto px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs transition-colors shadow-lg shadow-amber-500/20"
+              >
+                Understood, Close
+              </button>
             </div>
           </div>
         </div>

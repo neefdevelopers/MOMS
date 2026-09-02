@@ -673,7 +673,7 @@ export default function ProjectsPage() {
           const isUnapproved = UNAPPROVED_STATUSES.includes(proj.status) || Boolean(proj.calendarEvent && UNAPPROVED_STATUSES.includes(proj.calendarEvent.status));
           const isCreator = Boolean(user?.id && (proj.createdById === user.id || proj.calendarEvent?.createdById === user.id));
 
-          if (isUnapproved && !isCreator && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'ADMINISTRATOR') {
+          if (isUnapproved && !isCreator && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'MEDIA_MANAGER' && user?.role !== 'SOCIAL_MEDIA_MANAGER' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN') {
             return false;
           }
           return true;

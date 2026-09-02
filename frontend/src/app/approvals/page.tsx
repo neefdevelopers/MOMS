@@ -124,6 +124,7 @@ export default function ApprovalsPage() {
   // Form states
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [remarks, setRemarks] = useState('');
+  const [itemRemarksMap, setItemRemarksMap] = useState<Record<string, string>>({});
   const [clientDecision, setClientDecision] = useState('APPROVED');
   const [commMethod, setCommMethod] = useState('WhatsApp');
 
@@ -148,11 +149,17 @@ export default function ApprovalsPage() {
   }, [user]);
 
   const handleTechReview = async (projectId: string, status: 'APPROVED' | 'REJECTED') => {
+    const itemRemarks = itemRemarksMap[projectId] || remarks || '';
+    if (status === 'REJECTED' && !itemRemarks.trim()) {
+      alert('Please enter a rejection reason / revision feedback before rejecting deliverables.');
+      return;
+    }
     try {
       await fetchApi('/approvals/tech-review', {
         method: 'POST',
-        body: JSON.stringify({ projectId, status, remarks: remarks || undefined }),
+        body: JSON.stringify({ projectId, status, remarks: itemRemarks.trim() || undefined }),
       });
+      setItemRemarksMap((prev) => ({ ...prev, [projectId]: '' }));
       setRemarks('');
       loadQueue();
     } catch (err: any) {
@@ -316,9 +323,10 @@ export default function ApprovalsPage() {
                         </div>
                         <input
                           type="text"
-                          placeholder="Technical Remarks (e.g. Resolution 4K OK, Bitrate 50Mbps verified)..."
-                          onChange={(e) => setRemarks(e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-800 text-gray-200 px-3 py-2 rounded text-xs"
+                          value={itemRemarksMap[proj.id] || ''}
+                          placeholder="Technical Validation Remarks / Feedback Reason (Required for Rejection, Optional for Accept)..."
+                          onChange={(e) => setItemRemarksMap((prev) => ({ ...prev, [proj.id]: e.target.value }))}
+                          className="w-full bg-gray-900 border border-gray-800 text-gray-200 px-3 py-2 rounded text-xs focus:outline-none focus:border-cyan-500"
                         />
                         <div className="flex gap-2 pt-1">
                           <button

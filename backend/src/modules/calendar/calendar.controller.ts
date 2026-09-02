@@ -92,9 +92,32 @@ export class CalendarController {
     return this.calendarService.updatePriority(id, body.priority, user, body.reason);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
-  @Post(':id/cancel')
-  cancel(@Param('id') id: string) {
-    return this.calendarService.cancel(id);
+  // EDIT REQUEST WORKFLOW ENDPOINTS
+  @Get('edit-requests/all')
+  getAllEditRequests(@Query('status') status: string, @CurrentUser() user: any) {
+    return this.calendarService.getEditRequests(status, user);
+  }
+
+  @Get(':id/edit-requests')
+  getEditRequestsForEvent(@Param('id') id: string) {
+    return this.calendarService.getEditRequestsForEvent(id);
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER)
+  @Post(':id/edit-request')
+  createEditRequest(@Param('id') id: string, @Body() body: any, @CurrentUser() user: any) {
+    return this.calendarService.createEditRequest(id, body, user);
+  }
+
+  @Roles(Role.MARKETING_MANAGER)
+  @Post('edit-requests/:requestId/approve')
+  approveEditRequest(@Param('requestId') requestId: string, @Body() body: any, @CurrentUser() user: any) {
+    return this.calendarService.approveEditRequest(requestId, body, user);
+  }
+
+  @Roles(Role.MARKETING_MANAGER)
+  @Post('edit-requests/:requestId/reject')
+  rejectEditRequest(@Param('requestId') requestId: string, @Body() body: any, @CurrentUser() user: any) {
+    return this.calendarService.rejectEditRequest(requestId, body, user);
   }
 }

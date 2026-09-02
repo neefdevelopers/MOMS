@@ -283,10 +283,12 @@ export default function ConvertEventToTaskModal({
               </div>
             ) : (
               <div className="space-y-1.5 max-h-40 overflow-y-auto bg-gray-950 border border-gray-800 rounded-xl p-2.5 scrollbar-thin">
-                {staffUsersList.length === 0 ? (
+                {staffUsersList.filter((u) => ['STAFF', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER'].includes(u.role)).length === 0 ? (
                   <div className="text-gray-500 italic text-center py-2 text-[11px]">No active staff members found.</div>
                 ) : (
-                  staffUsersList.map((u) => {
+                  staffUsersList
+                    .filter((u) => ['STAFF', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER'].includes(u.role))
+                    .map((u) => {
                     const isActive = (u.status === 'ACTIVE' || !u.status) && !u.isArchived;
 
                     return (

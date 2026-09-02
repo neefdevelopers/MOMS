@@ -188,17 +188,40 @@ export class ApprovalsService {
       task = await this.prisma.task.findUnique({ where: { id: data.projectId } });
     }
 
-    if (!project && !gReq && !task) throw new NotFoundException('Project, Graphic Requirement, or Task not found');
-
-    const approval = await this.prisma.approval.create({
-      data: {
-        projectId: project ? project.id : null,
+    const targetId = project?.id || gReq?.id || task?.id;
+    const targetEntity = task ? 'TASK' : gReq ? 'GRAPHIC_REQ' : 'PROJECT';
+    const pendingApproval = await this.prisma.approval.findFirst({
+      where: {
+        entityType: targetEntity,
+        entityId: targetId,
         approvalType: ApprovalType.TECHNICAL_REVIEW,
-        reviewerId,
-        status: data.status === 'APPROVED' ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
-        remarks: data.remarks || (data.status === 'APPROVED' ? 'Technical standards passed.' : 'Technical revisions required.'),
+        status: 'PENDING',
       },
     });
+
+    let approval;
+    if (pendingApproval) {
+      approval = await this.prisma.approval.update({
+        where: { id: pendingApproval.id },
+        data: {
+          reviewerId,
+          status: data.status === 'APPROVED' ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
+          remarks: data.remarks || (data.status === 'APPROVED' ? 'Technical standards passed.' : 'Technical revisions required.'),
+        },
+      });
+    } else {
+      approval = await this.prisma.approval.create({
+        data: {
+          entityType: targetEntity,
+          entityId: targetId,
+          projectId: project ? project.id : task?.projectId || null,
+          approvalType: ApprovalType.TECHNICAL_REVIEW,
+          reviewerId,
+          status: data.status === 'APPROVED' ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
+          remarks: data.remarks || (data.status === 'APPROVED' ? 'Technical standards passed.' : 'Technical revisions required.'),
+        },
+      });
+    }
 
     if (project) {
       const newProjectStatus: ProjectStatus = data.status === 'APPROVED' 
@@ -233,7 +256,6 @@ export class ApprovalsService {
       });
     }
 
-    const targetId = project?.id || gReq?.id || task?.id;
     if (data.status === 'REJECTED' && targetId) {
       await this.prisma.task.updateMany({
         where: { OR: [{ id: targetId }, { projectId: targetId }, { graphicRequirementId: targetId }] },

@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame, Clock, ArrowUpDown } from 'lucide-react';
+import Link from 'next/link';
+import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame, Clock, ArrowUpDown, ExternalLink } from 'lucide-react';
 import { TableSortHeader, SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
@@ -143,7 +144,7 @@ export default function TasksPage() {
   const searchParams = useSearchParams();
   const reassignUserParam = searchParams.get('reassignUser');
   const employeeIdParam = searchParams.get('employeeId');
-  const taskIdParam = searchParams.get('taskId');
+  const taskIdParam = searchParams.get('taskId') || searchParams.get('inspect') || searchParams.get('id');
   const createForTypeParam = searchParams.get('createForType');
   const createForIdParam = searchParams.get('createForId');
   const createForTitleParam = searchParams.get('title');
@@ -205,6 +206,10 @@ export default function TasksPage() {
   const [recommendations, setRecommendations] = useState<any>(null);
   const [targetUserIds, setTargetUserIds] = useState<string[]>([]);
   const [reassignReason, setReassignReason] = useState('');
+
+  // Technical Review State
+  const [techReviewRemarks, setTechReviewRemarks] = useState('');
+  const [submittingTechReview, setSubmittingTechReview] = useState(false);
 
   // Deliverable Upload Modal state
   const [uploadTask, setUploadTask] = useState<any>(null);
@@ -285,12 +290,15 @@ export default function TasksPage() {
 
   // Create Task Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [parentEntityType, setParentEntityType] = useState<'PROJECT' | 'SCRIPT' | 'GRAPHIC_REQ'>('PROJECT');
+  const [parentEntityType, setParentEntityType] = useState<'NONE' | 'PROJECT' | 'SCRIPT' | 'GRAPHIC_REQ'>('NONE');
   const [selectedParentId, setSelectedParentId] = useState('');
+  const [taskClientId, setTaskClientId] = useState('');
+  const [taskBrandId, setTaskBrandId] = useState('');
+  const [taskProductId, setTaskProductId] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
   const [taskPriority, setTaskPriority] = useState('MEDIUM');
-  const [taskDueDate, setTaskDueDate] = useState('');
+  const [taskDueDate, setTaskDueDate] = useState(new Date(Date.now() + 86400000).toISOString().split('T')[0]);
   const [taskEstimatedHours, setTaskEstimatedHours] = useState('2.0');
   const [assignedStaffIds, setAssignedStaffIds] = useState<string[]>([]);
 
@@ -298,6 +306,7 @@ export default function TasksPage() {
   const [scriptsList, setScriptsList] = useState<any[]>([]);
   const [graphicReqsList, setGraphicReqsList] = useState<any[]>([]);
   const [staffUsersList, setStaffUsersList] = useState<any[]>([]);
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
   const [creating, setCreating] = useState(false);
 
   const loadReferenceData = async () => {
@@ -360,11 +369,33 @@ export default function TasksPage() {
   }, [reassignUserParam, employeeIdParam]);
 
   useEffect(() => {
-    if (taskIdParam && tasks.length > 0) {
-      const match = tasks.find((t) => t.id === taskIdParam || t.taskId === taskIdParam);
+    if (taskIdParam) {
+      const match = tasks.find((t: any) =>
+        t.id === taskIdParam ||
+        t.taskId === taskIdParam ||
+        t.id?.toLowerCase() === taskIdParam.toLowerCase() ||
+        t.taskId?.toLowerCase() === taskIdParam.toLowerCase()
+      );
       if (match) {
         setInspectedTask(match);
+      } else if (tasks.length > 0) {
+        fetchApi(`/tasks/${taskIdParam}`)
+          .then((fetched: any) => {
+            const item = fetched?.data || fetched;
+            if (item && item.id) setInspectedTask(item);
+          })
+          .catch(() => null);
       }
+
+      // Smooth scroll to record element on page
+      setTimeout(() => {
+        const el = document.getElementById(taskIdParam) || document.getElementById(`task-${taskIdParam}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-2', 'ring-blue-500', 'shadow-2xl');
+          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-500', 'shadow-2xl'), 3500);
+        }
+      }, 400);
     }
   }, [taskIdParam, tasks]);
 
@@ -376,10 +407,6 @@ export default function TasksPage() {
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedParentId) {
-      alert('Every task must belong to one parent entity (Shoot Project, Script, or Graphic Requirement).');
-      return;
-    }
     setCreating(true);
     try {
       const payload: any = {
@@ -388,13 +415,16 @@ export default function TasksPage() {
         priority: taskPriority,
         dueDate: taskDueDate || new Date(Date.now() + 86400000).toISOString(),
         estimatedHours: parseFloat(taskEstimatedHours) || 2.0,
-        parentEntityType,
+        parentEntityType: parentEntityType === 'NONE' ? undefined : parentEntityType,
+        clientId: taskClientId || undefined,
+        brandId: taskBrandId || undefined,
+        productId: taskProductId || undefined,
         assignedUserIds: assignedStaffIds,
       };
 
-      if (parentEntityType === 'PROJECT') payload.projectId = selectedParentId;
-      else if (parentEntityType === 'SCRIPT') payload.scriptId = selectedParentId;
-      else if (parentEntityType === 'GRAPHIC_REQ') payload.graphicRequirementId = selectedParentId;
+      if (parentEntityType === 'PROJECT' && selectedParentId) payload.projectId = selectedParentId;
+      else if (parentEntityType === 'SCRIPT' && selectedParentId) payload.scriptId = selectedParentId;
+      else if (parentEntityType === 'GRAPHIC_REQ' && selectedParentId) payload.graphicRequirementId = selectedParentId;
 
       await fetchApi('/tasks', {
         method: 'POST',
@@ -405,6 +435,10 @@ export default function TasksPage() {
       setTaskTitle('');
       setTaskDescription('');
       setSelectedParentId('');
+      setTaskClientId('');
+      setTaskBrandId('');
+      setTaskProductId('');
+      setTaskDueDate(new Date(Date.now() + 86400000).toISOString().split('T')[0]);
       setAssignedStaffIds([]);
       loadData();
     } catch (err: any) {
@@ -487,6 +521,28 @@ export default function TasksPage() {
     }
   };
 
+  const handleStartInProgress = async (taskId: string) => {
+    try {
+      await fetchApi(`/tasks/${taskId}/progress`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'IN_PROGRESS' }),
+      });
+      alert('🚀 Task status updated to IN PROGRESS!');
+      loadData();
+      if (inspectedTask && inspectedTask.id === taskId) {
+        setInspectedTask((prev: any) => ({
+          ...prev,
+          status: 'IN_PROGRESS',
+          assignedEmployees: prev?.assignedEmployees?.map((a: any) =>
+            a.userId === user?.id ? { ...a, acceptanceStatus: 'ACCEPTED', acceptedAt: new Date().toISOString() } : a
+          ),
+        }));
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to update task status to In Progress');
+    }
+  };
+
   const handleAddRemark = async (taskId: string) => {
     if (!newRemarkText.trim()) return;
     setSubmittingRemark(true);
@@ -527,6 +583,7 @@ export default function TasksPage() {
       if (inspectedTask && inspectedTask.id === uploadTask.id) {
         setInspectedTask({
           ...inspectedTask,
+          status: 'WAITING_FOR_TECHNICAL_REVIEW',
           activeDeliverableUrl: res.task.activeDeliverableUrl,
           activeDeliverableFileName: res.task.activeDeliverableFileName,
           activeDeliverableVersion: res.task.activeDeliverableVersion,
@@ -537,11 +594,59 @@ export default function TasksPage() {
       setUploadTask(null);
       setUploadFileUrl('');
       setUploadFileName('');
+      alert('📤 Deliverable output uploaded successfully! When ready, click "Request Technical Review" to submit for Technical Approval.');
       loadData();
     } catch (err: any) {
       alert(err.message || 'Failed to upload deliverable');
     } finally {
       setUploadingDeliverable(false);
+    }
+  };
+
+  const handleRequestTechnicalReview = async (taskId: string) => {
+    try {
+      await fetchApi(`/tasks/${taskId}/request-technical-review`, {
+        method: 'POST',
+      });
+      alert('⚡ Formal request for Technical Review & Approval sent to Technical Managers! Task status updated to WAITING FOR TECHNICAL REVIEW.');
+      loadData();
+      if (inspectedTask && inspectedTask.id === taskId) {
+        setInspectedTask((prev: any) => ({
+          ...prev,
+          status: 'WAITING_FOR_TECHNICAL_REVIEW',
+        }));
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to request Technical Review');
+    }
+  };
+
+  const handleExecuteTechReview = async (taskId: string, status: 'APPROVED' | 'REJECTED') => {
+    if (status === 'REJECTED' && !techReviewRemarks.trim()) {
+      alert('Please enter a rejection reason / revision feedback before rejecting deliverables.');
+      return;
+    }
+    setSubmittingTechReview(true);
+    try {
+      await fetchApi('/approvals/tech-review', {
+        method: 'POST',
+        body: JSON.stringify({
+          projectId: taskId,
+          status,
+          remarks: techReviewRemarks.trim() || undefined,
+        }),
+      });
+      alert(`⚡ Technical Review decision (${status}) recorded successfully!`);
+      setTechReviewRemarks('');
+      loadData();
+      if (inspectedTask && inspectedTask.id === taskId) {
+        const updated = await fetchApi(`/tasks/${taskId}`);
+        setInspectedTask(updated);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to submit technical review');
+    } finally {
+      setSubmittingTechReview(false);
     }
   };
 
@@ -1142,7 +1247,7 @@ export default function TasksPage() {
                     );
                   }
                   return paginated.map((task) => (
-                    <tr key={task.id} className="hover:bg-gray-900/40 transition-colors border-b border-gray-800/40 last:border-0">
+                    <tr key={task.id} id={task.id} className="hover:bg-gray-900/40 transition-colors border-b border-gray-800/40 last:border-0">
                       {/* Task ID & Title */}
                       <td className="px-3 py-3">
                         <div className="flex items-start gap-2 min-w-0">
@@ -1179,12 +1284,16 @@ export default function TasksPage() {
                       {/* Parent Entity */}
                       <td className="px-3 py-3 text-xs min-w-0">
                         {task.script ? (
-                          <div className="space-y-0.5 min-w-0">
-                            <span className="px-1.5 py-0.2 bg-purple-950/60 text-purple-300 border border-purple-800/50 rounded-full font-mono text-[9px] inline-block shrink-0">
-                              📄 Script
+                          <Link
+                            href={`/scripts?inspect=${task.script.id}`}
+                            className="space-y-0.5 min-w-0 block group"
+                            title="Click to View & Update Script Template"
+                          >
+                            <span className="px-1.5 py-0.2 bg-purple-950/80 text-purple-300 border border-purple-800/80 rounded-full font-mono text-[9px] inline-block shrink-0 group-hover:border-purple-500 group-hover:text-white transition-colors">
+                              📄 Script Template ↗
                             </span>
-                            <div className="text-gray-200 font-medium text-[11px] truncate">{task.script.name}</div>
-                          </div>
+                            <div className="text-gray-200 group-hover:text-purple-300 font-medium text-[11px] truncate transition-colors">{task.script.name}</div>
+                          </Link>
                         ) : task.graphicRequirement ? (
                           <div className="space-y-0.5 min-w-0">
                             <span className="px-1.5 py-0.2 bg-amber-950/60 text-amber-300 border border-amber-800/50 rounded-full font-mono text-[9px] inline-block shrink-0">
@@ -1192,13 +1301,15 @@ export default function TasksPage() {
                             </span>
                             <div className="text-gray-200 font-medium text-[11px] truncate">{task.graphicRequirement.name}</div>
                           </div>
-                        ) : (
+                        ) : task.project ? (
                           <div className="space-y-0.5 min-w-0">
                             <span className="px-1.5 py-0.2 bg-blue-950/60 text-blue-300 border border-blue-800/50 rounded-full font-mono text-[9px] inline-block shrink-0">
                               🎬 Shoot Project
                             </span>
-                            <div className="text-gray-200 font-medium text-[11px] truncate">{task.project?.name}</div>
+                            <div className="text-gray-200 font-medium text-[11px] truncate">{task.project.name}</div>
                           </div>
+                        ) : (
+                          <span className="text-gray-500 italic text-[10px] font-mono">Standalone Task</span>
                         )}
                       </td>
 
@@ -1268,21 +1379,56 @@ export default function TasksPage() {
                             </button>
                           )}
 
-                          <button
-                            onClick={() => openUpdateTaskModal(task)}
-                            className="px-1.5 py-0.5 bg-gray-900 hover:bg-gray-800 text-amber-300 border border-gray-800 hover:border-amber-500/40 rounded text-[10px] font-medium transition-colors"
-                            title="Update Task Status & Progress"
-                          >
-                            ✏️ Update
-                          </button>
+                          {/* Assigned Staff Action: Start Work -> In Progress (Only shown BEFORE deliverable upload & work progress) */}
+                          {!['IN_PROGRESS', 'WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_REVIEW', 'COMPLETED', 'CANCELLED'].includes(task.status?.toUpperCase()) &&
+                           (task.status === 'ACCEPTED' || task.assignedEmployees?.some((a: any) => a.userId === user?.id && a.acceptanceStatus === 'ACCEPTED')) && (
+                            <button
+                              onClick={() => handleStartInProgress(task.id)}
+                              className="px-1.5 py-0.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded text-[10px] font-medium transition-colors flex items-center gap-1 shadow"
+                              title="Change Task Status to In Progress"
+                            >
+                              🚀 Start In Progress
+                            </button>
+                          )}
 
-                          <button
-                            onClick={() => setUploadTask(task)}
-                            className="px-1.5 py-0.5 bg-gray-900 hover:bg-gray-800 text-cyan-300 border border-gray-800 hover:border-cyan-500/40 rounded text-[10px] font-medium transition-colors"
-                            title="Upload Deliverable"
-                          >
-                            📤 Deliverable
-                          </button>
+                          {/* Actions locked for staff when under review */}
+                          {user?.role === 'STAFF' && ['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_REVIEW', 'COMPLETED'].includes(task.status) ? (
+                            <span className="px-2 py-0.5 bg-amber-950/60 text-amber-300 border border-amber-800 rounded font-mono text-[9px] font-bold">
+                              🔒 Under Review
+                            </span>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => openUpdateTaskModal(task)}
+                                className="px-1.5 py-0.5 bg-gray-900 hover:bg-gray-800 text-amber-300 border border-gray-800 hover:border-amber-500/40 rounded text-[10px] font-medium transition-colors"
+                                title="Update Task Status & Progress"
+                              >
+                                ✏️ Update
+                              </button>
+
+                              {/* Upload Deliverables Action (Available AFTER Task is IN_PROGRESS & Not under review) */}
+                              {['IN_PROGRESS', 'ON_HOLD'].includes(task.status) && (
+                                <button
+                                  onClick={() => setUploadTask(task)}
+                                  className="px-1.5 py-0.5 bg-gray-900 hover:bg-gray-800 text-cyan-300 border border-gray-800 hover:border-cyan-500/40 rounded text-[10px] font-medium transition-colors"
+                                  title="Upload Deliverable Output"
+                                >
+                                  📤 Deliverable
+                                </button>
+                              )}
+
+                              {/* Request Technical Review Action (Available AFTER Deliverable Upload) */}
+                              {task.activeDeliverableUrl && ['IN_PROGRESS', 'ON_HOLD'].includes(task.status) && (
+                                <button
+                                  onClick={() => handleRequestTechnicalReview(task.id)}
+                                  className="px-1.5 py-0.5 bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 border border-purple-500/40 rounded text-[10px] font-medium transition-colors flex items-center gap-1 shadow"
+                                  title="Submit Task for Technical Review & Approval"
+                                >
+                                  📩 Request Tech Review
+                                </button>
+                              )}
+                            </>
+                          )}
 
                           <button
                             onClick={() => setInspectedTask(task)}
@@ -1347,10 +1493,19 @@ export default function TasksPage() {
             </p>
 
             <form onSubmit={handleCreateTask} className="space-y-3">
-              {/* Parent Entity Type Switcher */}
+              {/* Parent Entity Type Switcher (Optional) */}
               <div>
-                <label className="block text-gray-400 font-semibold mb-1 text-[10px]">Select Parent Entity Type *</label>
-                <div className="grid grid-cols-3 gap-1.5">
+                <label className="block text-gray-400 font-semibold mb-1 text-[10px]">Select Parent Entity Type (Optional)</label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => { setParentEntityType('NONE'); setSelectedParentId(''); }}
+                    className={`py-1.5 rounded text-[11px] font-bold border transition-colors ${
+                      parentEntityType === 'NONE' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-900 border-gray-800 text-gray-400'
+                    }`}
+                  >
+                    ⚡ Standalone (None)
+                  </button>
                   <button
                     type="button"
                     onClick={() => { setParentEntityType('PROJECT'); setSelectedParentId(''); }}
@@ -1428,6 +1583,62 @@ export default function TasksPage() {
                 )}
               </div>
 
+              {/* Commercial Classification (Client / Brand / Product) - All Optional */}
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-gray-400 font-semibold mb-1 text-[10px]">Client (Optional)</label>
+                  <select
+                    value={taskClientId}
+                    onChange={(e) => {
+                      setTaskClientId(e.target.value);
+                      setTaskBrandId('');
+                      setTaskProductId('');
+                    }}
+                    className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-white font-medium text-xs"
+                  >
+                    <option value="">-- None (Optional) --</option>
+                    {clientsList.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-400 font-semibold mb-1 text-[10px]">Brand (Optional)</label>
+                  <select
+                    value={taskBrandId}
+                    onChange={(e) => {
+                      setTaskBrandId(e.target.value);
+                      setTaskProductId('');
+                    }}
+                    className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-white font-medium text-xs"
+                  >
+                    <option value="">-- None (Optional) --</option>
+                    {brandsList
+                      .filter((b) => !taskClientId || b.clientId === taskClientId)
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>[{b.shortCode}] {b.name}</option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-400 font-semibold mb-1 text-[10px]">Product (Optional)</label>
+                  <select
+                    value={taskProductId}
+                    onChange={(e) => setTaskProductId(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-white font-medium text-xs"
+                  >
+                    <option value="">-- None (Optional) --</option>
+                    {productsList
+                      .filter((p) => !taskBrandId || p.brandId === taskBrandId)
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-gray-400 font-semibold mb-1 text-[10px]">Task Title *</label>
                 <input
@@ -1451,13 +1662,24 @@ export default function TasksPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-gray-400 font-semibold mb-1 text-[10px]">Due Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={taskDueDate}
+                    onChange={(e) => setTaskDueDate(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-white font-mono text-xs focus:outline-none focus:border-blue-500 font-bold"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-gray-400 font-semibold mb-1 text-[10px]">Priority</label>
                   <select
                     value={taskPriority}
                     onChange={(e) => setTaskPriority(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-white font-medium"
+                    className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-white font-medium text-xs"
                   >
                     <option value="LOW">LOW</option>
                     <option value="MEDIUM">MEDIUM</option>
@@ -1473,27 +1695,61 @@ export default function TasksPage() {
                     step="0.5"
                     value={taskEstimatedHours}
                     onChange={(e) => setTaskEstimatedHours(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-white font-mono font-bold"
+                    className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-white font-mono font-bold text-xs"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-gray-400 font-semibold mb-1 text-[10px]">Assign Employees (One or Multiple)</label>
-                {!selectedParentId ? (
-                  <div className="p-3 bg-amber-950/30 border border-amber-800/40 rounded text-amber-300 text-xs font-semibold">
-                    🔒 Select an Approved Shoot Project or Graphic Requirement above to assign staff.
-                  </div>
-                ) : (
-                  <div className="space-y-1 max-h-32 overflow-y-auto bg-gray-950 border border-gray-700 rounded p-2">
-                    {staffUsersList.map((u) => {
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-gray-400 font-semibold text-[10px]">Assign Employees (One or Multiple)</label>
+                  {assignedStaffIds.length > 0 && (
+                    <span className="text-[10px] text-blue-400 font-bold font-mono">
+                      {assignedStaffIds.length} Selected
+                    </span>
+                  )}
+                </div>
+
+                {/* Real-time Employee Search Input Box */}
+                <div className="relative mb-2">
+                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search employee by name, role, or designation..."
+                    value={staffSearchQuery}
+                    onChange={(e) => setStaffSearchQuery(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-lg pl-8 pr-8 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 font-medium"
+                  />
+                  {staffSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setStaffSearchQuery('')}
+                      className="absolute right-2.5 top-2 text-gray-400 hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-1 max-h-36 overflow-y-auto bg-gray-950 border border-gray-700 rounded p-2">
+                  {staffUsersList
+                    .filter((u) => ['STAFF', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER'].includes(u.role))
+                    .filter((u) => {
+                      if (!staffSearchQuery.trim()) return true;
+                      const q = staffSearchQuery.toLowerCase().trim();
+                      const nameMatch = (u.name || '').toLowerCase().includes(q);
+                      const roleMatch = (u.role || '').toLowerCase().includes(q);
+                      const desigMatch = (u.employeeProfile?.designation || '').toLowerCase().includes(q);
+                      return nameMatch || roleMatch || desigMatch;
+                    })
+                    .map((u) => {
                       const empStatus = u.employeeProfile?.employmentStatus || u.status || 'ACTIVE';
                       const isActive = empStatus === 'ACTIVE' && u.status === 'ACTIVE' && !u.isArchived;
 
                       return (
                         <label
                           key={u.id}
-                          className={`flex items-center gap-2 text-xs p-1 rounded ${
+                          className={`flex items-center gap-2 text-xs p-1 rounded transition-colors ${
                             isActive ? 'text-white cursor-pointer hover:bg-gray-900' : 'text-gray-500 bg-gray-950/60 cursor-not-allowed opacity-60'
                           }`}
                         >
@@ -1507,14 +1763,15 @@ export default function TasksPage() {
                             }}
                             className="w-3.5 h-3.5 accent-blue-500 cursor-pointer disabled:cursor-not-allowed"
                           />
-                          <span>
-                            {u.name} ({u.role}) {!isActive && <span className="text-amber-400 font-bold ml-1 font-mono">({empStatus} - Restricted)</span>}
+                          <span className="flex-1 truncate">
+                            <strong>{u.name}</strong> <span className="text-gray-400 text-[10px]">({u.role?.replace(/_/g, ' ')})</span>
+                            {u.employeeProfile?.designation && <span className="text-gray-500 text-[10px] ml-1">• {u.employeeProfile.designation}</span>}
+                            {!isActive && <span className="text-amber-400 font-bold ml-1 font-mono">({empStatus} - Restricted)</span>}
                           </span>
                         </label>
                       );
                     })}
-                  </div>
-                )}
+                </div>
               </div>
 
               <div className="sticky bottom-0 bg-gray-950/95 -mx-6 -mb-6 p-4 border-t border-gray-800 flex items-center justify-between gap-3 z-20 backdrop-blur-md">
@@ -1845,20 +2102,23 @@ export default function TasksPage() {
               <div>
                 <span className="font-mono text-blue-400 font-bold text-xs block">Task ID: {inspectedTask.taskId}</span>
                 <h3 className="text-lg font-bold text-white mt-0.5">{inspectedTask.title}</h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="font-mono text-[10px] text-amber-300 font-bold bg-amber-950 px-2 py-0.5 rounded border border-amber-800 flex items-center gap-1">
-                    🔄 Revisions: {inspectedTask.revisionCount || 0}
-                  </span>
-                  {!isTaskRevision(inspectedTask) && (
-                    <button
-                      type="button"
-                      onClick={() => setRevisionModalTask(inspectedTask)}
-                      className="px-2.5 py-0.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow transition-colors"
-                    >
-                      <RotateCcw className="w-3 h-3" /> Request Revision
-                    </button>
-                  )}
-                </div>
+                {/* Revision Controls - Only for tasks attached to a parent entity */}
+                {Boolean(inspectedTask.projectId || inspectedTask.scriptId || inspectedTask.graphicRequirementId) && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="font-mono text-[10px] text-amber-300 font-bold bg-amber-950 px-2 py-0.5 rounded border border-amber-800 flex items-center gap-1">
+                      🔄 Revisions: {inspectedTask.revisionCount || 0}
+                    </span>
+                    {!isTaskRevision(inspectedTask) && (
+                      <button
+                        type="button"
+                        onClick={() => setRevisionModalTask(inspectedTask)}
+                        className="px-2.5 py-0.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow transition-colors"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Request Revision
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setInspectedTask(null)}
@@ -1917,65 +2177,321 @@ export default function TasksPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Left Column */}
-              <div className="space-y-3">
-                <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg">
-                  <span className="text-[10px] text-gray-500 font-bold block uppercase">Task Description</span>
-                  <p className="text-gray-200 mt-1">{inspectedTask.description || 'No description provided.'}</p>
+            {/* Unified Row-by-Row Layout (Zero Blank Spaces) */}
+            <div className="space-y-3">
+              {/* Review Lock Banner for Staff */}
+              {user?.role === 'STAFF' && inspectedTask.status === 'WAITING_FOR_TECHNICAL_REVIEW' && (
+                <div className="bg-amber-950/70 border border-amber-500/40 p-3 rounded-xl flex items-center gap-2 text-amber-300 text-xs font-medium shadow">
+                  <span>🔒 Task is currently undergoing Technical Review. Updates, deliverable uploads, and remarks are locked for staff until review is completed.</span>
+                </div>
+              )}
+
+              {user?.role === 'STAFF' && inspectedTask.status === 'WAITING_FOR_MEDIA_REVIEW' && (
+                <div className="bg-emerald-950/70 border border-emerald-500/40 p-3 rounded-xl flex items-center gap-2 text-emerald-300 text-xs font-medium shadow">
+                  <span>✓ Technical Review Passed &amp; Approved! Task has advanced to Media Manager Review.</span>
+                </div>
+              )}
+
+              {/* Row 1: Task Description & Technical Review Validations */}
+              <div className="bg-gray-900 border border-gray-800 p-3 rounded-xl space-y-3">
+                <div>
+                  <span className="text-[10px] text-gray-500 font-bold block uppercase tracking-wider">Task Description</span>
+                  <p className="text-gray-200 mt-1 text-xs leading-relaxed">{inspectedTask.description || 'No description provided.'}</p>
                 </div>
 
-                <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg space-y-1.5">
+                {/* Technical Manager Action Form directly inside Task Inspector Modal */}
+                {(user?.role === 'TECHNICAL_MANAGER' || (user?.role as string) === 'ADMINISTRATOR') && inspectedTask.status === 'WAITING_FOR_TECHNICAL_REVIEW' && (
+                  <div className="bg-purple-950/40 border border-purple-800/60 p-3.5 rounded-xl space-y-2.5">
+                    <span className="text-xs font-bold text-purple-300 uppercase tracking-wide block">
+                      ⚡ Technical Manager Review &amp; Validation Form
+                    </span>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] text-gray-300 font-bold block">
+                        Validation Reason / Feedback Notes (Mandatory for Reject, Optional for Accept):
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={techReviewRemarks}
+                        onChange={(e) => setTechReviewRemarks(e.target.value)}
+                        placeholder="Enter technical validation findings, quality check notes, or revision reasons (mandatory for rejection)..."
+                        className="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-gray-200 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        disabled={submittingTechReview || !techReviewRemarks.trim()}
+                        onClick={() => handleExecuteTechReview(inspectedTask.id, 'REJECTED')}
+                        className="px-3 py-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1 shadow"
+                      >
+                        ✖ Request Revisions / Reject
+                      </button>
+                      <button
+                        type="button"
+                        disabled={submittingTechReview}
+                        onClick={() => handleExecuteTechReview(inspectedTask.id, 'APPROVED')}
+                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1 shadow"
+                      >
+                        ✓ Accept &amp; Approve Standards
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Technical Validation Result Section on Task Description Card */}
+                {inspectedTask.approvalHistory && inspectedTask.approvalHistory.filter((a: any) => a.status !== 'PENDING').length > 0 && (
+                  <div className="pt-2.5 border-t border-gray-800 space-y-2">
+                    <span className="text-[10px] text-purple-400 font-bold uppercase tracking-wider block">
+                      ⚡ Technical Validation Result
+                    </span>
+
+                    <div className="space-y-2">
+                      {inspectedTask.approvalHistory
+                        .filter((appr: any, idx: number, self: any[]) => appr.status !== 'PENDING' && self.findIndex((a) => a.id === appr.id) === idx)
+                        .slice(0, 3)
+                        .map((appr: any) => (
+                        <div key={appr.id} className="p-2.5 bg-gray-950 border border-purple-900/40 rounded-lg space-y-1 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className={`px-2 py-0.5 rounded font-mono text-[9px] font-bold ${
+                              appr.status === 'APPROVED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'
+                            }`}>
+                              {appr.status === 'APPROVED' ? '✓ ACCEPTED (APPROVED)' : '✖ REJECTED (REVISIONS REQUESTED)'}
+                            </span>
+                            <span className="text-[10px] text-gray-500 font-mono">
+                              {new Date(appr.createdAt).toLocaleDateString()} {new Date(appr.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="text-gray-300 text-xs">
+                            <strong className="text-gray-400">Reviewer:</strong> {appr.reviewer?.name || 'Technical Manager'}
+                          </div>
+                          <div className="text-xs text-amber-200 bg-amber-950/40 border border-amber-900/50 p-2 rounded mt-1 font-sans leading-relaxed">
+                            <strong className="text-amber-400 block text-[10px] uppercase font-bold">Validation Reason / Notes:</strong>
+                            {appr.remarks || 'Technical standards passed.'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Row 2: Metrics Summary Row (Priority, Due Date, Est Hours, Status & Progress) */}
+              <div className="bg-gray-900 border border-gray-800 p-3 rounded-xl space-y-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Parent Project</span>
-                    <strong className="text-blue-300 text-xs">{inspectedTask.project?.name || 'N/A'}</strong>
-                    <span className="text-[10px] text-gray-400 font-mono ml-2">({inspectedTask.project?.projectId})</span>
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Priority</span>
+                    <strong className={`text-xs px-2 py-0.5 rounded inline-block mt-0.5 ${
+                      inspectedTask.priority === 'CRITICAL' ? 'bg-red-500/20 text-red-400' :
+                      inspectedTask.priority === 'HIGH' ? 'bg-amber-500/20 text-amber-300' : 'bg-blue-500/20 text-blue-300'
+                    }`}>{inspectedTask.priority}</strong>
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Parent Script / Graphic Req</span>
-                    {inspectedTask.script ? (
-                      <span className="px-2 py-0.5 bg-purple-950 text-purple-300 border border-purple-800 rounded font-semibold text-[10px] inline-block">
-                        📄 Script: {inspectedTask.script.name} ({inspectedTask.script.scriptId})
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Due Date</span>
+                    <strong className="text-gray-200 text-xs mt-0.5 block">{new Date(inspectedTask.dueDate).toLocaleDateString()}</strong>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Estimated Hours</span>
+                    <strong className="text-emerald-400 text-xs mt-0.5 block">{inspectedTask.estimatedHours}h</strong>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Current Status</span>
+                    <strong className="text-purple-300 text-xs mt-0.5 block">{inspectedTask.status?.replace(/_/g, ' ')}</strong>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-gray-800/80 space-y-1">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase">Completion Progress</span>
+                    <strong className="text-white font-mono font-bold">{inspectedTask.completionPercentage || 0}%</strong>
+                  </div>
+                  <div className="w-full bg-gray-950 rounded-full h-2 overflow-hidden border border-gray-800">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full transition-all"
+                      style={{ width: `${inspectedTask.completionPercentage || 0}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 3: Parent Entity Details (Only Render If Present OR Standalone Badge) */}
+              {inspectedTask.project || inspectedTask.script || inspectedTask.graphicRequirement ? (
+                <div className="bg-gray-900 border border-gray-800 p-3 rounded-xl space-y-1.5">
+                  {inspectedTask.project && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-gray-500 font-bold uppercase">Parent Project</span>
+                      <div className="text-right">
+                        <strong className="text-blue-300 text-xs">{inspectedTask.project.name}</strong>
+                        {inspectedTask.project.projectId && (
+                          <span className="text-[10px] text-gray-400 font-mono ml-1">({inspectedTask.project.projectId})</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {inspectedTask.script && (
+                    <div className="flex items-center justify-between bg-purple-950/40 p-2.5 rounded-lg border border-purple-800/60">
+                      <div>
+                        <span className="text-[10px] text-purple-300 font-bold uppercase block">Parent Script Template</span>
+                        <span className="text-xs font-bold text-white font-mono">
+                          📄 {inspectedTask.script.name} ({inspectedTask.script.scriptId})
+                        </span>
+                      </div>
+                      <Link
+                        href={`/scripts?inspect=${inspectedTask.script.id}`}
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-md hover:shadow-purple-600/40"
+                        title="View & Update Script Template"
+                      >
+                        <span>Open Script Template</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  )}
+                  {inspectedTask.graphicRequirement && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-gray-500 font-bold uppercase">Parent Graphic Requirement</span>
+                      <span className="px-2 py-0.5 bg-amber-950 text-amber-300 border border-amber-800 rounded font-semibold text-[10px]">
+                        🎨 {inspectedTask.graphicRequirement.name} ({inspectedTask.graphicRequirement.requirementId})
                       </span>
-                    ) : inspectedTask.graphicRequirement ? (
-                      <span className="px-2 py-0.5 bg-amber-950 text-amber-300 border border-amber-800 rounded font-semibold text-[10px] inline-block">
-                        🎨 Graphic Req: {inspectedTask.graphicRequirement.name} ({inspectedTask.graphicRequirement.requirementId})
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 font-mono text-[10px]">Direct Shoot Project Parent</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-gray-900 border border-gray-800 p-3 rounded-xl flex items-center justify-between">
+                  <span className="text-[10px] text-gray-500 font-bold uppercase">Parent Entity</span>
+                  <span className="px-2.5 py-0.5 bg-gray-950 text-gray-300 border border-gray-700 rounded font-mono text-[10px] font-bold">
+                    ⚡ Standalone Direct Task
+                  </span>
+                </div>
+              )}
+
+              {/* Row 4: Commercial Classification (Client / Brand / Product) - Render Only If Present */}
+              {(inspectedTask.client || inspectedTask.brand || inspectedTask.product) && (
+                <div className="bg-gray-900 border border-gray-800 p-3 rounded-xl space-y-1.5">
+                  {inspectedTask.client && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-gray-500 font-bold uppercase">Client</span>
+                      <strong className="text-white text-xs">{inspectedTask.client.name}</strong>
+                    </div>
+                  )}
+                  {inspectedTask.brand && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-gray-500 font-bold uppercase">Brand</span>
+                      <strong className="text-purple-300 text-xs">
+                        {inspectedTask.brand.shortCode ? `[${inspectedTask.brand.shortCode}] ` : ''}{inspectedTask.brand.name}
+                      </strong>
+                    </div>
+                  )}
+                  {inspectedTask.product && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-gray-500 font-bold uppercase">Product</span>
+                      <strong className="text-cyan-300 text-xs">{inspectedTask.product.name}</strong>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Row 5: Assigned Employees */}
+              <div className="bg-gray-900 border border-gray-800 p-3 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-500 font-bold block uppercase">Assigned Employees</span>
+                  <div className="flex items-center gap-1.5">
+                    {inspectedTask.assignedEmployees?.some((a: any) => a.userId === user?.id && a.acceptanceStatus !== 'ACCEPTED') && (
+                      <button
+                        type="button"
+                        onClick={() => handleAcknowledgeAcceptance(inspectedTask.id)}
+                        className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] rounded shadow flex items-center gap-1 transition-colors"
+                      >
+                        ✓ Accept Assignment
+                      </button>
+                    )}
+                    {!['IN_PROGRESS', 'WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_REVIEW', 'COMPLETED', 'CANCELLED'].includes(inspectedTask.status?.toUpperCase()) &&
+                     (inspectedTask.status === 'ACCEPTED' || inspectedTask.assignedEmployees?.some((a: any) => a.userId === user?.id && a.acceptanceStatus === 'ACCEPTED')) && (
+                      <button
+                        type="button"
+                        onClick={() => handleStartInProgress(inspectedTask.id)}
+                        className="px-2 py-0.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] rounded shadow flex items-center gap-1 transition-colors"
+                      >
+                        🚀 Start In Progress
+                      </button>
                     )}
                   </div>
                 </div>
-
-                <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg space-y-1">
-                  <div>
-                    <span className="text-[10px] text-gray-500 font-bold uppercase">Client:</span>{' '}
-                    <strong className="text-white">{inspectedTask.client?.name || 'N/A'}</strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-gray-500 font-bold uppercase">Brand:</span>{' '}
-                    <strong className="text-purple-300">[{inspectedTask.brand?.shortCode}] {inspectedTask.brand?.name}</strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-gray-500 font-bold uppercase">Product (Optional):</span>{' '}
-                    <strong className="text-cyan-300">{inspectedTask.product?.name ? `${inspectedTask.product.name} (${inspectedTask.product.productCode})` : 'N/A (General)'}</strong>
-                  </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(inspectedTask.assignedEmployees || []).length === 0 ? (
+                    <span className="text-gray-500 italic text-xs">No assigned staff</span>
+                  ) : (
+                    inspectedTask.assignedEmployees.map((a: any) => (
+                      <div key={a.id} className="px-2.5 py-1 bg-gray-950 border border-gray-800 rounded flex items-center gap-1.5 text-xs font-medium">
+                        <span className="text-gray-200">👤 {a.user?.name} <span className="text-gray-500 text-[10px]">({a.user?.role?.replace(/_/g, ' ')})</span></span>
+                        <span className={`text-[9px] font-mono px-1 rounded border ${
+                          a.acceptanceStatus === 'ACCEPTED' ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/40' : 'bg-amber-950/60 text-amber-400 border-amber-500/40'
+                        }`}>
+                          {a.acceptanceStatus === 'ACCEPTED' ? '✓ Accepted' : '⏳ Pending'}
+                        </span>
+                      </div>
+                    ))
+                  )}
                 </div>
+              </div>
 
-                {/* Active Work Deliverable (Only Latest File Active) */}
-                <div className="bg-gray-900 border border-cyan-800/50 p-3 rounded-lg space-y-2">
+              {/* Row 6: Active Work Deliverable OR Direct Script Task Technical Review */}
+              {inspectedTask.script ? (
+                <div className="bg-purple-950/40 border border-purple-800/60 p-3.5 rounded-xl space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-cyan-400 font-bold uppercase flex items-center gap-1">
-                      📤 Active Work Deliverable (Latest File Only)
-                    </span>
+                    <div>
+                      <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5 uppercase">
+                        📄 Script Task Submission (No Deliverable File Required)
+                      </span>
+                      <p className="text-[11px] text-gray-300 mt-0.5">
+                        Script tasks do not require output file uploads. When your script storyline &amp; scenes are ready, submit directly for Technical Review.
+                      </p>
+                    </div>
+                  </div>
+
+                  {inspectedTask.status === 'WAITING_FOR_TECHNICAL_REVIEW' ? (
+                    <div className="p-3 bg-purple-950/80 border border-purple-700/80 rounded-lg text-xs font-bold text-purple-200 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-purple-400 animate-spin" />
+                      <span>🔒 Submitted &amp; Currently Waiting for Technical Review</span>
+                    </div>
+                  ) : inspectedTask.status === 'COMPLETED' ? (
+                    <div className="p-3 bg-emerald-950/80 border border-emerald-700/80 rounded-lg text-xs font-bold text-emerald-200 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>✅ Script Task Completed &amp; Approved</span>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => setUploadTask(inspectedTask)}
-                      className="px-2 py-0.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded text-[10px] transition-colors"
+                      onClick={() => handleRequestTechnicalReview(inspectedTask.id)}
+                      className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-purple-600/40"
                     >
-                      + Replace / Upload
+                      <span>📩 Submit Script Direct to Technical Review</span>
+                      <ArrowRight className="w-4 h-4" />
                     </button>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-gray-900 border border-cyan-800/50 p-3 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-cyan-400 font-bold uppercase flex items-center gap-1">
+                      📤 Active Work Deliverable (Latest Output)
+                    </span>
+                    {['IN_PROGRESS', 'ON_HOLD'].includes(inspectedTask.status) || (user?.role !== 'STAFF' && ['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_REVIEW', 'COMPLETED'].includes(inspectedTask.status)) ? (
+                      <button
+                        type="button"
+                        onClick={() => setUploadTask(inspectedTask)}
+                        className="px-2.5 py-0.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded text-[10px] transition-colors"
+                      >
+                        + Upload Deliverable Output
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-gray-500 font-mono italic">
+                        {['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_REVIEW', 'COMPLETED'].includes(inspectedTask.status)
+                          ? '🔒 Under Technical Review (Uploads locked)'
+                          : '🔒 Move task to "In Progress" to upload deliverables'}
+                      </span>
+                    )}
                   </div>
 
                   {inspectedTask.activeDeliverableUrl ? (
@@ -1988,216 +2504,90 @@ export default function TasksPage() {
                           v{inspectedTask.activeDeliverableVersion || 1} (Active)
                         </span>
                       </div>
-                      <div className="flex justify-between items-center pt-1 border-t border-gray-800 text-[10px]">
+                      <div className="flex items-center justify-between pt-1 text-[10px]">
                         <a
                           href={inspectedTask.activeDeliverableUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-cyan-400 hover:underline font-bold"
+                          className="text-cyan-400 hover:underline font-semibold"
                         >
-                          🔗 Open / Download Active Deliverable ↗
+                          🔗 View Output File
                         </a>
                         <span className="text-gray-500 font-mono text-[9px]">Replaces older versions</span>
                       </div>
+
+                      {/* Request Technical Review Button inside Active Deliverable card */}
+                      {['IN_PROGRESS', 'ON_HOLD'].includes(inspectedTask.status) && (
+                        <div className="pt-2 border-t border-cyan-900/40 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => handleRequestTechnicalReview(inspectedTask.id)}
+                            className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-lg shadow-md transition-colors flex items-center gap-1.5"
+                          >
+                            <span>📩 Submit to Technical Review</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <p className="text-gray-500 italic text-[11px] p-1">No deliverable uploaded yet for this task.</p>
                   )}
-
-                  {/* Deliverable Revision Timeline Stream */}
-                  {inspectedTask.deliverableHistory?.length > 0 && (
-                    <div className="pt-2 border-t border-gray-800 space-y-1.5">
-                      <span className="text-[10px] text-gray-400 font-bold uppercase block">Deliverable Revision History Timeline</span>
-                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                        {inspectedTask.deliverableHistory.map((h: any) => (
-                          <div key={h.id} className="p-2 bg-gray-950 border border-gray-800 rounded flex items-center justify-between text-[10px]">
-                            <div>
-                              <span className="font-bold text-gray-200">v{h.version} — {h.fileName}</span>
-                              <div className="text-[9px] text-gray-500">by {h.user?.name} on {new Date(h.createdAt).toLocaleDateString()}</div>
-                            </div>
-                            <a
-                              href={h.fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-400 hover:underline text-[10px]"
-                            >
-                              View History File
-                            </a>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
-              </div>
+              )}
 
-              {/* Right Column */}
-              <div className="space-y-3">
-                <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Assigned Employees</span>
-                    {inspectedTask.assignedEmployees?.some((a: any) => a.userId === user?.id && a.acceptanceStatus !== 'ACCEPTED') && (
-                      <button
-                        type="button"
-                        onClick={() => handleAcknowledgeAcceptance(inspectedTask.id)}
-                        className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] rounded shadow flex items-center gap-1 transition-colors"
-                      >
-                        ✓ Accept Assignment
-                      </button>
-                    )}
+              {/* Row 7: Permanent Execution Remarks History */}
+              <div className="bg-gray-900 border border-gray-800 p-3 rounded-xl space-y-3">
+                <span className="text-[10px] text-gray-500 font-bold block uppercase">Permanent Execution Remarks History</span>
+                
+                {/* Add Remark Form */}
+                <div className="space-y-1.5 pt-1">
+                  <textarea
+                    rows={2}
+                    value={newRemarkText}
+                    onChange={(e) => setNewRemarkText(e.target.value)}
+                    disabled={user?.role === 'STAFF' && ['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_REVIEW', 'COMPLETED'].includes(inspectedTask.status)}
+                    placeholder={
+                      user?.role === 'STAFF' && ['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_REVIEW', 'COMPLETED'].includes(inspectedTask.status)
+                        ? '🔒 Remarks are locked for staff during Technical Review...'
+                        : 'Add an execution remark (User, Date, Time recorded automatically)...'
+                    }
+                    className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-white text-xs focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => handleAddRemark(inspectedTask.id)}
+                      disabled={submittingRemark || !newRemarkText.trim() || (user?.role === 'STAFF' && ['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_REVIEW', 'COMPLETED'].includes(inspectedTask.status))}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] rounded transition-colors disabled:opacity-50"
+                    >
+                      {submittingRemark ? 'Posting...' : 'Post Permanent Remark'}
+                    </button>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {(inspectedTask.assignedEmployees || []).length === 0 ? (
-                      <span className="text-gray-500 italic text-xs">No assigned staff</span>
-                    ) : (
-                      inspectedTask.assignedEmployees.map((a: any) => (
-                        <div key={a.id} className="px-2.5 py-1 bg-gray-950 border border-gray-800 rounded flex items-center gap-1.5 text-xs font-medium">
-                          <span className="text-gray-200">👤 {a.user?.name} <span className="text-gray-500 text-[10px]">({a.user?.role})</span></span>
-                          <span className={`text-[9px] font-mono px-1 rounded border ${
-                            a.acceptanceStatus === 'ACCEPTED' ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/40' : 'bg-amber-950/60 text-amber-400 border-amber-500/40'
-                          }`}>
-                            {a.acceptanceStatus === 'ACCEPTED' ? '✓ Accepted' : '⏳ Pending'}
+                </div>
+
+                {/* Permanent Remarks Timeline */}
+                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                  {(!inspectedTask.remarksHistory || inspectedTask.remarksHistory.length === 0) ? (
+                    <p className="text-gray-500 italic text-[11px]">No execution remarks recorded yet.</p>
+                  ) : (
+                    inspectedTask.remarksHistory.map((rem: any) => (
+                      <div key={rem.id} className="p-2 bg-gray-950 border border-gray-800 rounded-lg text-xs space-y-1">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="font-bold text-blue-400">👤 {rem.user?.name || 'User'} <span className="text-gray-500 font-normal">({rem.user?.role?.replace(/_/g, ' ')})</span></span>
+                          <span className="font-mono text-gray-500">
+                            📅 {new Date(rem.createdAt).toLocaleDateString()} ⏰ {new Date(rem.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg grid grid-cols-2 gap-2 font-mono">
-                  <div>
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Priority</span>
-                    <strong className={`text-xs px-2 py-0.5 rounded ${
-                      inspectedTask.priority === 'CRITICAL' ? 'bg-red-500/20 text-red-400' :
-                      inspectedTask.priority === 'HIGH' ? 'bg-amber-500/20 text-amber-300' : 'bg-blue-500/20 text-blue-300'
-                    }`}>{inspectedTask.priority}</strong>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Due Date</span>
-                    <span className="text-gray-200 text-xs">{new Date(inspectedTask.dueDate).toLocaleDateString()}</span>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Estimated Hours</span>
-                    <strong className="text-emerald-400 text-xs">{inspectedTask.estimatedHours}h</strong>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase">Current Status</span>
-                    <strong className="text-purple-300 text-xs">{inspectedTask.status}</strong>
-                  </div>
-                </div>
-
-                <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg space-y-1">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-gray-500 font-bold uppercase">Completion Percentage</span>
-                    <strong className="text-white text-xs">{inspectedTask.completionPercentage}%</strong>
-                  </div>
-                  <div className="w-full bg-gray-950 rounded-full h-2 overflow-hidden border border-gray-800">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full transition-all"
-                      style={{ width: `${inspectedTask.completionPercentage}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg space-y-3">
-                  <span className="text-[10px] text-gray-500 font-bold block uppercase">Permanent Execution Remarks History</span>
-                  
-                  {/* Add Remark Form */}
-                  <div className="space-y-1.5 pt-1">
-                    <textarea
-                      rows={2}
-                      placeholder="Add an execution remark (User, Date, Time recorded automatically)..."
-                      value={newRemarkText}
-                      onChange={(e) => setNewRemarkText(e.target.value)}
-                      className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-white text-xs focus:outline-none focus:border-blue-500"
-                    />
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => handleAddRemark(inspectedTask.id)}
-                        disabled={submittingRemark || !newRemarkText.trim()}
-                        className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] rounded transition-colors disabled:opacity-50"
-                      >
-                        {submittingRemark ? 'Posting...' : 'Post Permanent Remark'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Permanent Remarks Timeline */}
-                  <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-                    {(!inspectedTask.remarksHistory || inspectedTask.remarksHistory.length === 0) ? (
-                      <p className="text-gray-500 italic text-[11px]">No execution remarks recorded yet.</p>
-                    ) : (
-                      inspectedTask.remarksHistory.map((rem: any) => (
-                        <div key={rem.id} className="p-2 bg-gray-950 border border-gray-800 rounded-lg text-xs space-y-1">
-                          <div className="flex items-center justify-between text-[10px]">
-                            <span className="font-bold text-blue-400">👤 {rem.user?.name || 'User'} <span className="text-gray-500 font-normal">({rem.user?.role})</span></span>
-                            <span className="font-mono text-gray-500">
-                              📅 {new Date(rem.createdAt).toLocaleDateString()} ⏰ {new Date(rem.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
-                          <p className="text-gray-200 text-[11px] leading-snug">{rem.message}</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* Permanent Task Activity Timeline (Never Deleted) */}
-                <div className="bg-gray-900 border border-purple-800/40 p-3 rounded-lg space-y-3">
-                  <div className="flex justify-between items-center border-b border-gray-800 pb-2">
-                    <span className="text-[10px] text-purple-400 font-bold uppercase flex items-center gap-1.5">
-                      📜 Permanent Task Activity Timeline (Immutable Log)
-                    </span>
-                    <span className="text-[9px] text-gray-500 font-mono">Entries Never Deleted</span>
-                  </div>
-
-                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                    {(!inspectedTask.timeline || inspectedTask.timeline.length === 0) ? (
-                      <p className="text-gray-500 italic text-[11px]">No timeline entries recorded yet.</p>
-                    ) : (
-                      inspectedTask.timeline.map((item: any) => {
-                        let eventBadge = 'bg-gray-800 text-gray-300';
-                        let eventIcon = '📌';
-                        if (item.event === 'TASK_CREATED') { eventBadge = 'bg-blue-950 text-blue-300 border-blue-800'; eventIcon = '🆕'; }
-                        else if (item.event === 'TASK_ASSIGNED') { eventBadge = 'bg-purple-950 text-purple-300 border-purple-800'; eventIcon = '👥'; }
-                        else if (item.event === 'EMPLOYEE_ACCEPTED') { eventBadge = 'bg-emerald-950 text-emerald-300 border-emerald-800'; eventIcon = '✍️'; }
-                        else if (item.event === 'STATUS_CHANGED') { eventBadge = 'bg-yellow-950 text-yellow-300 border-yellow-800'; eventIcon = '🔄'; }
-                        else if (item.event === 'PROGRESS_UPDATED') { eventBadge = 'bg-cyan-950 text-cyan-300 border-cyan-800'; eventIcon = '📊'; }
-                        else if (item.event === 'FILE_UPLOADED') { eventBadge = 'bg-teal-950 text-teal-300 border-teal-800'; eventIcon = '📤'; }
-                        else if (item.event === 'REMARK_ADDED') { eventBadge = 'bg-indigo-950 text-indigo-300 border-indigo-800'; eventIcon = '💬'; }
-                        else if (item.event === 'COMPLETED') { eventBadge = 'bg-emerald-950 text-emerald-300 border-emerald-800'; eventIcon = '🎉'; }
-
-                        return (
-                          <div key={item.id} className="p-2.5 bg-gray-950 border border-gray-800 rounded-lg text-xs space-y-1 hover:border-gray-700 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <span className={`px-2 py-0.5 rounded font-bold text-[9px] border ${eventBadge}`}>
-                                {eventIcon} {item.event.replace(/_/g, ' ')}
-                              </span>
-                              <span className="font-mono text-[9px] text-gray-500">
-                                📅 {new Date(item.createdAt).toLocaleDateString()} {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                            <p className="text-gray-200 text-[11px] font-medium leading-snug">{item.description}</p>
-                            {item.user && (
-                              <div className="text-[9px] text-gray-500 font-mono pt-0.5">
-                                Logged by: <span className="text-gray-300 font-bold">{item.user.name}</span> ({item.user.role})
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+                        <p className="text-gray-200 text-[11px] leading-snug">{rem.message}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Revision History & Workflow Controls */}
-            {!isTaskRevision(inspectedTask) && (
+            {/* Revision History & Workflow Controls - ONLY for Tasks Linked to Parent Entity */}
+            {Boolean(inspectedTask.projectId || inspectedTask.scriptId || inspectedTask.graphicRequirementId) && !isTaskRevision(inspectedTask) && (
               <div className="bg-gray-900 border border-amber-800/40 p-3 rounded-lg space-y-3">
                 <RevisionsTab
                   entityType="TASK"
@@ -2257,26 +2647,37 @@ export default function TasksPage() {
 
               {/* Status Select */}
               <div className="space-y-1.5">
-                <label className="font-bold text-gray-200 block text-xs">New Task Status:</label>
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-gray-200 block text-xs">New Task Status:</label>
+                  {user?.role === 'STAFF' && (
+                    <span className="text-[10px] text-amber-400 font-mono font-bold">
+                      Staff Manual Control: In Progress / On Hold
+                    </span>
+                  )}
+                </div>
+
                 <select
                   value={editStatus}
                   onChange={(e) => {
                     const newSt = e.target.value;
                     setEditStatus(newSt);
                     if (newSt === 'COMPLETED') setEditProgress(100);
-                    if (newSt === 'PENDING') setEditProgress(0);
                   }}
                   className="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-white font-bold text-xs focus:outline-none focus:border-amber-500"
                 >
-                  <option value="PENDING">Pending</option>
-                  <option value="ASSIGNED">Assigned</option>
-                  <option value="ACCEPTED">Accepted</option>
-                  <option value="IN_PROGRESS">In Progress</option>
+                  {!['IN_PROGRESS', 'WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_REVIEW', 'COMPLETED', 'CANCELLED'].includes(updatingTask?.status?.toUpperCase()) && (
+                    <option value="IN_PROGRESS">In Progress</option>
+                  )}
                   <option value="ON_HOLD">On Hold</option>
-                  <option value="WAITING_FOR_REVIEW">Waiting for Review</option>
                   <option value="COMPLETED">Completed</option>
-                  <option value="CANCELLED">Cancelled</option>
+                  {user?.role !== 'STAFF' && <option value="CANCELLED">Cancelled</option>}
                 </select>
+
+                {user?.role === 'STAFF' && (
+                  <p className="text-[10px] text-gray-400 leading-relaxed bg-gray-900/60 p-2 rounded border border-gray-800">
+                    💡 <strong>Automated Transitions:</strong> Other statuses (Accepted, Waiting for Review, Completed, Cancelled) update automatically based on actions (accepting task, uploading deliverable, manager review).
+                  </p>
+                )}
               </div>
 
               {/* Progress Percentage */}

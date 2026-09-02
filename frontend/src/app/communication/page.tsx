@@ -113,6 +113,13 @@ export default function CommunicationPage() {
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [submittingResolution, setSubmittingResolution] = useState(false);
 
+  // Permanent Audit Timeline State
+  const [timelineComm, setTimelineComm] = useState<any | null>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+
+  // Chatbot Two-Panel Selection State
+  const [selectedCommId, setSelectedCommId] = useState<string | null>(null);
+
   // Media Manager Custom Category Creation Modal
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [newCategoryLabel, setNewCategoryLabel] = useState('');
@@ -327,6 +334,27 @@ export default function CommunicationPage() {
     }
   };
 
+  const handleMarkThreadAsRead = async (commId: string) => {
+    try {
+      await fetchApi(`/communications/${commId}/mark-as-read`, { method: 'PATCH' });
+      setCommunications((prevComms) =>
+        prevComms.map((c) => {
+          if (c.id === commId || c.parentId === commId) {
+            return {
+              ...c,
+              status: 'READ',
+              readAt: new Date().toISOString(),
+              replies: c.replies?.map((r: any) => ({ ...r, status: 'READ', readAt: new Date().toISOString() })),
+            };
+          }
+          return c;
+        })
+      );
+    } catch (e) {
+      console.error('Failed to mark thread as read:', e);
+    }
+  };
+
   const handleResolveBlocker = async (id: string) => {
     if (submittingResolution) return;
     try {
@@ -345,15 +373,16 @@ export default function CommunicationPage() {
     }
   };
 
-  const handleUpdateStatus = async (id: string, newStatus: string) => {
+  const handleOpenTimeline = async (comm: any) => {
     try {
-      await fetchApi(`/communications/${id}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: newStatus }),
-      });
-      await loadCommunications();
+      setTimelineLoading(true);
+      setTimelineComm({ ...comm, events: [] });
+      const events = await fetchApi(`/communications/${comm.id}/timeline`);
+      setTimelineComm({ ...comm, events: Array.isArray(events) ? events : [] });
     } catch (err) {
-      console.error('Failed to update status:', err);
+      console.error('Failed to load timeline:', err);
+    } finally {
+      setTimelineLoading(false);
     }
   };
 
@@ -565,20 +594,24 @@ export default function CommunicationPage() {
   };
 
   const getEntityLink = (comm: any) => {
+    const targetId = comm.realEntityId || comm.projectId || comm.entityId;
     switch (comm.entityType) {
       case 'PROJECT':
-        return `/projects/${comm.entityId}`;
+        return `/projects/${targetId}`;
       case 'SCRIPT':
-        return `/scripts`;
+        return `/scripts?inspect=${targetId}`;
       case 'GRAPHIC_REQ':
-        return `/graphic-reqs`;
+        return `/graphic-reqs?inspect=${targetId}`;
       case 'TASK':
-        return `/tasks`;
+        return `/tasks?inspect=${targetId}`;
       case 'EQUIPMENT':
-        return `/equipment`;
+        return `/equipment?inspect=${targetId}`;
+      case 'CALENDAR_EVENT':
+      case 'CALENDAR':
+        return `/calendar?inspect=${targetId}`;
       case 'APPROVAL':
       case 'REVIEW':
-        return `/approvals`;
+        return `/approvals?inspect=${targetId}`;
       default:
         return comm.projectId ? `/projects/${comm.projectId}` : '#';
     }
@@ -595,14 +628,30 @@ export default function CommunicationPage() {
     const isBlocker = Boolean(comm.isBlocker) || comm.type === 'BLOCKER';
     const isBlockerOpen = isBlocker && comm.blockerStatus !== 'RESOLVED';
 
+    const isUnreadMessage = comm.senderId !== user?.id && (!comm.readAt || comm.status !== 'READ');
+    const hasUnreadReplies = comm.replies?.some((r: any) => r.senderId !== user?.id && (!r.readAt || r.status !== 'READ'));
+    const isThreadUnread = isUnreadMessage || hasUnreadReplies;
+
     return (
       <div
         key={comm.id}
+        onClick={() => {
+          if (isThreadUnread) {
+            handleMarkThreadAsRead(comm.id);
+          }
+        }}
+        onMouseEnter={() => {
+          if (isThreadUnread) {
+            handleMarkThreadAsRead(comm.id);
+          }
+        }}
         className={`${
           isChild
             ? 'ml-6 pl-3 border-l-2 border-blue-500/30 bg-zinc-950/40'
             : isBlockerOpen
             ? 'bg-red-950/20 border-2 border-red-600/60 shadow-lg shadow-red-950/30'
+            : isThreadUnread
+            ? 'bg-blue-950/20 border-2 border-blue-500/60 shadow-lg shadow-blue-950/40'
             : isBlocker
             ? 'bg-zinc-900/60 border border-emerald-800/40'
             : isRemark
@@ -610,7 +659,7 @@ export default function CommunicationPage() {
             : isApprovalReq
             ? 'bg-emerald-950/10 border border-emerald-800/40'
             : 'bg-card border border-border shadow-sm'
-        } hover:border-zinc-700 rounded-xl p-4 transition-colors space-y-3`}
+        } hover:border-zinc-700 rounded-xl p-4 transition-colors space-y-3 cursor-pointer`}
       >
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2.5">
@@ -654,6 +703,12 @@ export default function CommunicationPage() {
               </span>
             )}
 
+            {isThreadUnread && (
+              <span className="text-[10px] px-2.5 py-0.5 rounded font-bold bg-blue-600 text-white border border-blue-400 flex items-center gap-1 font-mono uppercase shadow animate-pulse">
+                <Bell className="w-3 h-3 text-white" /> UNREAD REPLY / MESSAGE
+              </span>
+            )}
+
             <h3 className="font-bold text-white text-sm">{comm.subject || (isRemark ? 'Operational Remark' : 'Operational Communication')}</h3>
           </div>
 
@@ -673,21 +728,56 @@ export default function CommunicationPage() {
                   {categories.find((cat) => cat.key === comm.type)?.label || comm.type?.replace('_', ' ')}
                 </span>
 
-                <select
-                  value={comm.status || 'SENT'}
-                  onChange={(e) => handleUpdateStatus(comm.id, e.target.value)}
-                  className={`text-[10px] font-mono px-2 py-0.5 rounded border font-semibold focus:outline-none cursor-pointer ${getStatusBadgeClass(
-                    comm.status
-                  )}`}
+                {/* System-Controlled Automated Read Receipt Badge (No manual status selection) */}
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded border font-semibold inline-flex items-center gap-1 ${getStatusBadgeClass(comm.status)}`}>
+                  {comm.status === 'READ' ? (
+                    <>✓✓ Read {comm.readAt ? `· ${new Date(comm.readAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</>
+                  ) : comm.status === 'DELIVERED' ? (
+                    <>✓ Delivered {comm.deliveredAt ? `· ${new Date(comm.deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</>
+                  ) : comm.status === 'CLOSED' ? (
+                    <>Closed</>
+                  ) : (
+                    <>Sent</>
+                  )}
+                </span>
+
+                {/* Permanent Audit Timeline Action */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenTimeline(comm);
+                  }}
+                  className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded text-[10px] font-semibold flex items-center gap-1 transition-colors"
+                  title="View Immutable Communication Audit Timeline"
                 >
-                  <option value="SENT">Sent</option>
-                  <option value="DELIVERED">Delivered</option>
-                  <option value="READ">Read</option>
-                  <option value="CLOSED">Closed</option>
-                </select>
+                  <Clock className="w-3 h-3 text-purple-400" /> Timeline
+                </button>
+
+                {/* View Parent Record Link */}
+                {comm.isEntityAvailable !== false ? (
+                  <Link
+                    href={getEntityLink(comm)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="px-2 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded text-[10px] font-bold flex items-center gap-1 transition-colors"
+                    title="Open Operational Record Context"
+                  >
+                    <ExternalLink className="w-3 h-3 text-purple-400" /> View Record
+                  </Link>
+                ) : (
+                  <span
+                    className="px-2 py-1 bg-red-950/60 text-red-300 border border-red-800 rounded text-[10px] font-bold flex items-center gap-1"
+                    title="Parent operational entity is no longer available"
+                  >
+                    <AlertCircle className="w-3 h-3 text-red-400" /> Related Record Unavailable
+                  </span>
+                )}
 
                 <button
-                  onClick={() => setReplyingToId(isReplying ? null : comm.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setReplyingToId(isReplying ? null : comm.id);
+                  }}
                   className="px-2.5 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-[11px] font-medium flex items-center gap-1 transition-colors"
                 >
                   <CornerDownRight className="w-3 h-3" /> Reply
@@ -930,33 +1020,81 @@ export default function CommunicationPage() {
 
   return (
     <div className="space-y-6 text-xs max-w-7xl mx-auto">
-      {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card border border-border p-6 rounded-xl shadow-lg">
-        <div className="space-y-1">
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <MessageSquare className="w-6 h-6 text-blue-400" /> Operational Communication & Remarks Repository
-          </h1>
-          <p className="text-xs text-gray-400 max-w-3xl">
-            Operational Blocker tracking featuring 4 mandatory fields (<span className="text-blue-300">Reported By</span>, <span className="text-purple-300">Assigned To</span>, <span className="text-emerald-300">Resolution</span>, <span className="text-white">Resolution Date</span>). Resolved blockers remain permanently in history.
-          </p>
+      {/* Header Banner & Operational Summary KPI Grid */}
+      <div className="bg-card border border-border p-6 rounded-2xl shadow-xl space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-4">
+          <div className="space-y-1">
+            <h1 className="text-xl font-bold text-white flex items-center gap-2.5 tracking-tight">
+              <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 shadow-inner">
+                <MessageSquare className="w-5 h-5" />
+              </div>
+              Internal Operational Communication &amp; Remarks Repository
+            </h1>
+            <p className="text-xs text-gray-400 max-w-3xl leading-relaxed">
+              Activity-based operational communication stream linked to parent records (Projects, Scripts, Graphic Reqs, Tasks, Equipment, Calendar Events).
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+            {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(true)}
+                className="px-3.5 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 font-semibold rounded-xl flex items-center gap-1.5 text-xs transition-all shadow-sm hover:shadow-purple-950/40"
+              >
+                <Settings className="w-4 h-4 text-purple-400" /> Custom Category
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl flex items-center gap-2 text-xs transition-all shadow-lg shadow-blue-600/30 active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4" /> Log Operational Entry
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {user?.role === 'MEDIA_MANAGER' && (
-            <button
-              onClick={() => setIsCategoryModalOpen(true)}
-              className="px-3.5 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 font-semibold rounded-lg flex items-center gap-1.5 text-xs transition-colors"
-            >
-              <Settings className="w-4 h-4 text-purple-400" /> Custom Category
-            </button>
-          )}
+        {/* Quick KPI Operational Metrics Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
+          <div className="bg-zinc-950/60 border border-zinc-800/80 p-3 rounded-xl space-y-1">
+            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Total Activities</span>
+            <div className="flex items-center justify-between">
+              <strong className="text-lg text-white font-bold">{communications.length}</strong>
+              <Layers className="w-4 h-4 text-blue-400 opacity-80" />
+            </div>
+          </div>
 
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg flex items-center gap-2 text-xs transition-colors shadow-lg shadow-blue-600/30"
-          >
-            <Plus className="w-4 h-4" /> Log Operational Entry
-          </button>
+          <div className="bg-zinc-950/60 border border-zinc-800/80 p-3 rounded-xl space-y-1">
+            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Open Blockers</span>
+            <div className="flex items-center justify-between">
+              <strong className="text-lg text-red-400 font-bold">
+                {communications.filter((c) => (c.isBlocker || c.type === 'BLOCKER') && c.blockerStatus !== 'RESOLVED').length}
+              </strong>
+              <AlertTriangle className="w-4 h-4 text-red-400 opacity-80 animate-pulse" />
+            </div>
+          </div>
+
+          <div className="bg-zinc-950/60 border border-zinc-800/80 p-3 rounded-xl space-y-1">
+            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Unread Items</span>
+            <div className="flex items-center justify-between">
+              <strong className="text-lg text-blue-300 font-bold">
+                {communications.filter((c) => c.senderId !== user?.id && (!c.readAt || c.status !== 'READ')).length}
+              </strong>
+              <Bell className="w-4 h-4 text-blue-400 opacity-80" />
+            </div>
+          </div>
+
+          <div className="bg-zinc-950/60 border border-zinc-800/80 p-3 rounded-xl space-y-1">
+            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Pending Requests</span>
+            <div className="flex items-center justify-between">
+              <strong className="text-lg text-emerald-400 font-bold">
+                {communications.filter((c) => c.type === 'APPROVAL_REQUEST').length}
+              </strong>
+              <ShieldCheck className="w-4 h-4 text-emerald-400 opacity-80" />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1263,71 +1401,413 @@ export default function CommunicationPage() {
         )}
       </div>
 
-      {/* Communications Feed */}
-      <div className="space-y-3">
-        {(() => {
-          const displayed = communications.filter((comm) => {
-            if (activeViewTab === 'SENT') {
-              return comm.senderId === user?.id;
-            }
-            if (activeViewTab === 'INBOX') {
-              const isNotSender = comm.senderId !== user?.id;
-              const hasExternalReply = comm.replies && comm.replies.some((r: any) => r.senderId !== user?.id);
-              const isAssigned = comm.assignedToId === user?.id;
-              const isMentioned = user?.name && (
-                (comm.recipients && comm.recipients.includes(user.name)) ||
-                (comm.content && comm.content.includes(`@${user.name.split(' ')[0]}`))
-              );
-              return isNotSender || hasExternalReply || isAssigned || isMentioned;
-            }
-            if (activeViewTab === 'REQUESTS') {
+      {/* Two-Panel Chatbot Layout Container */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Activity List & Search/Filter Feed (lg:col-span-5) */}
+        <div className="lg:col-span-5 space-y-4">
+          {/* MOMS Filtration Control Panel */}
+          <div className="bg-card border border-border p-4 rounded-2xl space-y-3 text-xs shadow-md">
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search communications, @mentions, code..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-700 focus:border-blue-500 rounded-xl pl-9 pr-8 py-2 text-white font-medium focus:outline-none transition-all placeholder:text-zinc-500"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-2.5 text-gray-400 hover:text-white"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Entry Classification Switcher */}
+            <div className="grid grid-cols-4 gap-1 bg-zinc-900 border border-zinc-800 p-1 rounded-xl text-[10px] font-semibold text-center">
+              <button
+                onClick={() => setFilterEntryType('ALL')}
+                className={`py-1 rounded-lg transition-all ${filterEntryType === 'ALL' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setFilterEntryType('COMMUNICATION')}
+                className={`py-1 rounded-lg transition-all ${filterEntryType === 'COMMUNICATION' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+              >
+                Comms
+              </button>
+              <button
+                onClick={() => setFilterEntryType('OPEN_BLOCKERS')}
+                className={`py-1 rounded-lg transition-all ${filterEntryType === 'OPEN_BLOCKERS' ? 'bg-red-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+              >
+                Blockers
+              </button>
+              <button
+                onClick={() => setFilterEntryType('REMARK')}
+                className={`py-1 rounded-lg transition-all ${filterEntryType === 'REMARK' ? 'bg-amber-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+              >
+                Remarks
+              </button>
+            </div>
+
+            {/* Entity Type Preset Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+              {entityPresets.map((preset) => {
+                const Icon = preset.icon;
+                const active = selectedEntityType === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => setSelectedEntityType(preset.id)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium transition-all whitespace-nowrap text-[11px] border ${
+                      active
+                        ? 'bg-blue-600 text-white border-blue-500 shadow-md font-semibold'
+                        : 'bg-zinc-900/80 text-gray-400 hover:bg-zinc-800 hover:text-zinc-200 border-zinc-800'
+                    }`}
+                  >
+                    <Icon className="w-3 h-3" />
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Activity List Feed Items */}
+          <div className="space-y-2.5 max-h-[750px] overflow-y-auto pr-1 custom-scrollbar">
+            {(() => {
+              const displayed = communications.filter((comm) => {
+                if (activeViewTab === 'SENT') {
+                  return comm.senderId === user?.id;
+                }
+                if (activeViewTab === 'INBOX') {
+                  const isNotSender = comm.senderId !== user?.id;
+                  const hasExternalReply = comm.replies && comm.replies.some((r: any) => r.senderId !== user?.id);
+                  const isAssigned = comm.assignedToId === user?.id;
+                  const isMentioned = user?.name && (
+                    (comm.recipients && comm.recipients.includes(user.name)) ||
+                    (comm.content && comm.content.includes(`@${user.name.split(' ')[0]}`))
+                  );
+                  return isNotSender || hasExternalReply || isAssigned || isMentioned;
+                }
+                if (activeViewTab === 'REQUESTS') {
+                  return (
+                    ['APPROVAL_REQUEST', 'CLARIFICATION', 'REQUIREMENT', 'ISSUE_REPORT', 'BLOCKER'].includes(comm.type) ||
+                    Boolean(comm.isBlocker)
+                  );
+                }
+                return true;
+              });
+
+              if (loading) {
+                return (
+                  <div className="p-8 text-center text-gray-400 bg-card border border-border rounded-2xl flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    Loading communications...
+                  </div>
+                );
+              }
+
+              if (displayed.length === 0) {
+                return (
+                  <div className="p-8 text-center bg-card border border-border rounded-2xl text-gray-400 space-y-2">
+                    <MessageSquare className="w-8 h-8 text-gray-600 mx-auto" />
+                    <p className="text-xs font-semibold text-zinc-300">No operational entries found</p>
+                    <p className="text-[11px] text-gray-500">Try adjusting filters or view tabs.</p>
+                  </div>
+                );
+              }
+
+              // Auto-select first thread if none selected
+              const activeComm = displayed.find((c) => c.id === selectedCommId) || displayed[0];
+              if (activeComm && activeComm.id !== selectedCommId) {
+                setSelectedCommId(activeComm.id);
+              }
+
+              return displayed.map((comm) => {
+                const isSelected = comm.id === (selectedCommId || activeComm?.id);
+                const isUnreadMessage = comm.senderId !== user?.id && (!comm.readAt || comm.status !== 'READ');
+                const hasUnreadReplies = comm.replies?.some((r: any) => r.senderId !== user?.id && (!r.readAt || r.status !== 'READ'));
+                const isUnread = isUnreadMessage || hasUnreadReplies;
+                const isBlockerOpen = (comm.isBlocker || comm.type === 'BLOCKER') && comm.blockerStatus !== 'RESOLVED';
+
+                return (
+                  <div
+                    key={comm.id}
+                    onClick={() => {
+                      setSelectedCommId(comm.id);
+                      if (isUnread) handleMarkThreadAsRead(comm.id);
+                    }}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-2 relative ${
+                      isSelected
+                        ? 'bg-blue-950/40 border-2 border-blue-500 shadow-xl shadow-blue-950/40'
+                        : isBlockerOpen
+                        ? 'bg-red-950/20 border border-red-700/60 hover:border-red-500'
+                        : isUnread
+                        ? 'bg-blue-950/20 border border-blue-500/50 hover:border-blue-400'
+                        : 'bg-card border-border hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-semibold border ${getEntityBadgeColor(comm.entityType)}`}>
+                          {getEntityIcon(comm.entityType)} {comm.entityType?.replace('_', ' ')}
+                        </span>
+                        <span className="font-mono text-[10px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded">
+                          {comm.entityRef}
+                        </span>
+                      </div>
+
+                      {isUnread && (
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-ping"></span>
+                      )}
+                    </div>
+
+                    <div>
+                      <h4 className="font-bold text-white text-xs line-clamp-1">{comm.subject || 'Operational Communication'}</h4>
+                      <p className="text-[11px] text-gray-400 line-clamp-2 mt-0.5 leading-relaxed">{comm.content}</p>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono pt-1 border-t border-zinc-800/60">
+                      <span className="truncate">From: {comm.sender?.name || 'Staff'}</span>
+                      <span className="shrink-0">{new Date(comm.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+
+        {/* Right Column: Modern Chatbot Conversation & Thread View (lg:col-span-7) */}
+        <div className="lg:col-span-7">
+          {(() => {
+            const displayed = communications.filter((comm) => {
+              if (activeViewTab === 'SENT') return comm.senderId === user?.id;
+              if (activeViewTab === 'INBOX') return comm.senderId !== user?.id || (comm.replies && comm.replies.some((r: any) => r.senderId !== user?.id));
+              return true;
+            });
+            const activeComm = communications.find((c) => c.id === selectedCommId) || displayed[0];
+
+            if (!activeComm) {
               return (
-                ['APPROVAL_REQUEST', 'CLARIFICATION', 'REQUIREMENT', 'ISSUE_REPORT', 'BLOCKER'].includes(comm.type) ||
-                Boolean(comm.isBlocker)
+                <div className="bg-card border border-border rounded-2xl p-12 text-center text-gray-400 space-y-3 min-h-[500px] flex flex-col items-center justify-center">
+                  <MessageSquare className="w-12 h-12 text-zinc-700" />
+                  <p className="text-sm font-semibold text-zinc-300">No communication thread selected</p>
+                  <p className="text-xs text-gray-500">Select an item from the left activity feed to view conversation details.</p>
+                </div>
               );
             }
-            return true;
-          });
 
-          if (loading) {
-            return (
-              <div className="p-12 text-center text-gray-400 bg-card border border-border rounded-xl flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                Loading operational activity feed...
-              </div>
-            );
-          }
+            const isBlocker = Boolean(activeComm.isBlocker) || activeComm.type === 'BLOCKER';
+            const isBlockerOpen = isBlocker && activeComm.blockerStatus !== 'RESOLVED';
+            const isRemark = Boolean(activeComm.isRemark);
+            const commAtts = activeComm.attachments || [];
 
-          if (displayed.length === 0) {
             return (
-              <div className="p-12 text-center bg-card border border-border rounded-xl text-gray-400 space-y-3">
-                <MessageSquare className="w-8 h-8 text-gray-600 mx-auto" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-zinc-300">No operational entries found for this view</p>
-                  <p className="text-xs text-gray-500">
-                    Try switching tabs, resetting filters, or logging a new operational communication entry.
-                  </p>
-                  {(searchQuery || activeFiltersCount > 0) && (
-                    <button
-                      onClick={resetAllFilters}
-                      className="mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium text-xs transition-colors"
-                    >
-                      Reset All Filters
-                    </button>
-                  )}
+              <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[700px]">
+                {/* Chatbot Header */}
+                <div className="p-4 bg-zinc-950 border-b border-border space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[11px] px-2.5 py-1 rounded-md font-semibold border ${getEntityBadgeColor(activeComm.entityType)}`}>
+                        {getEntityIcon(activeComm.entityType)} {activeComm.entityType?.replace('_', ' ')}
+                      </span>
+                      <span className="font-mono text-[11px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded border border-zinc-700">
+                        {activeComm.entityRef}
+                      </span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded border font-semibold ${getCategoryPill(activeComm.type)}`}>
+                        {categories.find((cat) => cat.key === activeComm.type)?.label || activeComm.type?.replace('_', ' ')}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {/* Timeline Modal Action */}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenTimeline(activeComm)}
+                        className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                      >
+                        <Clock className="w-3.5 h-3.5 text-purple-400" /> Timeline
+                      </button>
+
+                      {/* View Record Button */}
+                      {activeComm.isEntityAvailable !== false ? (
+                        <Link
+                          href={getEntityLink(activeComm)}
+                          className="px-3 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 text-purple-400" /> View Record
+                        </Link>
+                      ) : (
+                        <span className="px-2.5 py-1 bg-red-950/60 text-red-300 border border-red-800 rounded-lg text-xs font-semibold flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 text-red-400" /> Unavailable
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h2 className="text-base font-bold text-white">{activeComm.subject || 'Operational Communication'}</h2>
+                    <div className="flex items-center gap-4 text-xs text-gray-400 mt-1">
+                      <span>From: <strong className="text-white">{activeComm.sender?.name || 'Staff'}</strong> ({activeComm.sender?.role || 'STAFF'})</span>
+                      {!isRemark && <span>To: <strong className="text-zinc-200">{activeComm.recipients || 'All Team'}</strong></span>}
+                    </div>
+                  </div>
                 </div>
+
+                {/* Structured Blocker Panel if active blocker */}
+                {isBlocker && (
+                  <div className="p-3 bg-red-950/30 border-b border-red-800/40 text-xs grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-zinc-400 block">Reported By: <strong className="text-white">{activeComm.sender?.name}</strong></span>
+                      <span className="text-zinc-400 block">Assigned To: <strong className="text-purple-300">{activeComm.assignedTo?.name || activeComm.recipients}</strong></span>
+                    </div>
+                    <div>
+                      {isBlockerOpen ? (
+                        <div className="flex items-center justify-between">
+                          <span className="text-red-400 font-bold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> OPEN BLOCKER</span>
+                          <button
+                            onClick={() => setResolvingBlockerId(activeComm.id)}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-xs"
+                          >
+                            Resolve
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-emerald-300 font-semibold block">Resolution: {activeComm.resolutionNotes}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Chat Messages Stream (Bubbles) */}
+                <div className="flex-1 p-4 overflow-y-auto space-y-4 max-h-[500px] custom-scrollbar bg-zinc-950/40">
+                  {/* Lead Message Bubble */}
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-xs p-4 space-y-2 text-zinc-200 shadow-md">
+                      <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono border-b border-zinc-800 pb-1.5">
+                        <span className="font-bold text-blue-400">{activeComm.sender?.name || 'Author'} ({activeComm.sender?.role || 'STAFF'})</span>
+                        <span>{new Date(activeComm.createdAt).toLocaleDateString()} {new Date(activeComm.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+
+                      <div className="text-xs whitespace-pre-wrap leading-relaxed">
+                        {renderContentWithMentions(activeComm.content)}
+                      </div>
+
+                      {commAtts.length > 0 && (
+                        <div className="pt-2 border-t border-zinc-800 space-y-1.5">
+                          <span className="text-[10px] text-purple-400 font-bold uppercase block">Attachments ({commAtts.length}):</span>
+                          <div className="grid grid-cols-1 gap-1.5">
+                            {commAtts.map((att: any) => renderAttachmentItem(att))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Threaded Replies (Incoming on LEFT, Outgoing on RIGHT) */}
+                  {activeComm.replies && activeComm.replies.map((reply: any) => {
+                    const isOutgoing = reply.senderId === user?.id;
+                    const replyAtts = reply.attachments || [];
+
+                    return (
+                      <div key={reply.id} className={`flex ${isOutgoing ? 'justify-end' : 'justify-start'}`}>
+                        <div
+                          className={`max-w-[85%] p-3.5 rounded-2xl space-y-1.5 shadow-md text-xs ${
+                            isOutgoing
+                              ? 'bg-blue-600/20 border border-blue-500/40 text-white rounded-tr-xs'
+                              : 'bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-tl-xs'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-[10px] font-mono text-gray-400 border-b border-zinc-800/60 pb-1">
+                            <span className={isOutgoing ? 'text-blue-300 font-bold' : 'text-purple-300 font-bold'}>
+                              {isOutgoing ? 'You' : reply.sender?.name || 'Team Member'}
+                            </span>
+                            <span>{new Date(reply.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+
+                          <div className="whitespace-pre-wrap leading-relaxed">{renderContentWithMentions(reply.content)}</div>
+
+                          {replyAtts.length > 0 && (
+                            <div className="pt-1.5 border-t border-zinc-800 space-y-1">
+                              {replyAtts.map((att: any) => renderAttachmentItem(att))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Bottom Chatbot Reply Input Bar */}
+                {!isRemark && (
+                  <div className="p-3 bg-zinc-950 border-t border-border space-y-2">
+                    {/* Employee Mention Pills */}
+                    {usersList.length > 0 && (
+                      <div className="flex items-center gap-1.5 overflow-x-auto text-[10px] pb-1 font-mono">
+                        <span className="text-gray-500 font-bold">@Mention:</span>
+                        {usersList.slice(0, 8).map((u) => (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => handleAppendReplyMention(u.name)}
+                            className="px-2 py-0.5 bg-zinc-900 hover:bg-blue-600/30 text-zinc-300 border border-zinc-700 rounded-full transition-colors"
+                          >
+                            @{u.name.split(' ')[0]}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handlePostReply(activeComm);
+                          }
+                        }}
+                        placeholder={`Reply to ${activeComm.sender?.name || 'this thread'}... (use @name to tag)`}
+                        className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-zinc-200 text-xs focus:outline-none focus:border-blue-500 placeholder-zinc-500 font-medium"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAttachSubModal(true)}
+                        className="p-2.5 bg-zinc-900 hover:bg-zinc-800 text-purple-400 border border-zinc-700 rounded-xl transition-colors"
+                        title="Attach File"
+                      >
+                        <Paperclip className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handlePostReply(activeComm)}
+                        disabled={!replyText.trim() || submittingReply}
+                        className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-xl flex items-center gap-1.5 text-xs transition-all shadow-lg shadow-blue-600/30"
+                      >
+                        <Send className="w-4 h-4" /> Send
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
-          }
-
-          return displayed.map((comm) => renderCardThread(comm, false));
-        })()}
+          })()}
+        </div>
       </div>
 
       {/* Log Operational Entry Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-card border border-border rounded-xl w-full max-w-lg p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-thin">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 <Plus className="w-4 h-4 text-blue-400" /> Log Operational Activity Entry
@@ -1878,6 +2358,51 @@ export default function CommunicationPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent Audit Timeline Modal */}
+      {timelineComm && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-xl w-full max-w-lg p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-purple-400" /> Permanent Audit Timeline
+                </h2>
+                <span className="text-xs text-gray-400">{timelineComm.subject || 'Operational Communication'}</span>
+              </div>
+              <button onClick={() => setTimelineComm(null)} className="text-gray-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1 font-sans">
+              {timelineLoading ? (
+                <p className="text-xs text-gray-400 italic">Loading audit timeline...</p>
+              ) : (timelineComm.events || []).length === 0 ? (
+                <p className="text-xs text-gray-400 italic">No timeline events recorded.</p>
+              ) : (
+                timelineComm.events.map((evt: any, idx: number) => (
+                  <div key={idx} className="p-3 bg-zinc-950 border border-zinc-800 rounded-lg flex items-center justify-between text-xs">
+                    <div className="space-y-0.5">
+                      <span className="font-bold text-purple-300 block">{evt.action}</span>
+                      <span className="text-[11px] text-gray-400">User: {evt.user} {evt.role ? `(${evt.role.replace(/_/g, ' ')})` : ''}</span>
+                    </div>
+                    <span className="text-[10px] text-gray-500 font-mono shrink-0 ml-3">
+                      {new Date(evt.timestamp).toLocaleDateString()} {new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-border flex justify-end">
+              <button onClick={() => setTimelineComm(null)} className="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-semibold">
+                Close Timeline
+              </button>
+            </div>
           </div>
         </div>
       )}

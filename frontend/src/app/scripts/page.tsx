@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
+import { useSearchParams } from 'next/navigation';
 import { FileText, UserPlus, X, MessageSquare, Send, Search, Filter, RotateCcw, SlidersHorizontal, Building2, Users, Layers, Check, Copy, Eye, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { SortSelector } from '@/components/common/TableSortHeader';
@@ -142,10 +143,44 @@ export default function ScriptsPage() {
     }
   };
 
+  const searchParams = useSearchParams();
+  const inspectIdParam = searchParams ? (searchParams.get('inspect') || searchParams.get('id') || searchParams.get('scriptId')) : null;
+
   useEffect(() => {
     loadReferenceData();
     loadScripts();
   }, []);
+
+  useEffect(() => {
+    if (inspectIdParam) {
+      const match = scripts.find((s: any) =>
+        s.id === inspectIdParam ||
+        s.scriptId === inspectIdParam ||
+        s.id?.toLowerCase() === inspectIdParam.toLowerCase() ||
+        s.scriptId?.toLowerCase() === inspectIdParam.toLowerCase()
+      );
+      if (match) {
+        setSelectedScript(match);
+      } else {
+        fetchApi(`/scripts/${inspectIdParam}`)
+          .then((fetched: any) => {
+            const item = fetched?.data || fetched;
+            if (item && item.id) setSelectedScript(item);
+          })
+          .catch(() => null);
+      }
+
+      // Smooth scroll to record element on page
+      setTimeout(() => {
+        const el = document.getElementById(inspectIdParam) || document.getElementById(`script-${inspectIdParam}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-2', 'ring-blue-500', 'shadow-2xl');
+          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-500', 'shadow-2xl'), 3500);
+        }
+      }, 400);
+    }
+  }, [inspectIdParam, scripts]);
 
 
 
@@ -840,6 +875,7 @@ export default function ScriptsPage() {
             return (
               <div
                 key={s.id}
+                id={s.id}
                 onClick={() => openInspector(s)}
                 className="bg-card border border-border p-5 rounded-xl space-y-3 flex flex-col justify-between cursor-pointer hover:border-purple-500/50 transition-all shadow-md"
               >
@@ -881,6 +917,8 @@ export default function ScriptsPage() {
                     <div><span className="text-gray-500">Client:</span> <strong className="text-gray-200">{s.client?.name}</strong></div>
                     <div><span className="text-gray-500">Brand:</span> <strong className="text-purple-400">[{s.brand?.shortCode}] {s.brand?.name}</strong></div>
                     <div><span className="text-gray-500">Product:</span> <strong className="text-emerald-400">{s.product?.name || 'N/A'}</strong></div>
+                    <div><span className="text-gray-500">Campaign:</span> <strong className="text-indigo-300">{s.campaign?.name || 'N/A (Optional)'}</strong></div>
+                    <div><span className="text-gray-500">Est. Duration:</span> <strong className="text-cyan-300">{s.estimatedDuration || 'N/A'}</strong></div>
                     <div><span className="text-gray-500">Created By:</span> <strong className="text-indigo-300">{s.createdBy?.name || (s.createdById ? 'Staff Member' : 'Social Media Manager')}</strong></div>
                     <div><span className="text-gray-500">Category:</span> {s.category || 'Social Media'}</div>
                     <div><span className="text-gray-500">Assigned Staff:</span> <strong className="text-amber-300">{assignedStaffNames.length > 0 ? assignedStaffNames.join(', ') : 'Not Assigned'}</strong></div>
@@ -1000,13 +1038,18 @@ export default function ScriptsPage() {
                 <div><span className="text-gray-500">Client:</span> <strong className="text-gray-200">{selectedScript.client?.name}</strong></div>
                 <div><span className="text-gray-500">Brand:</span> <strong className="text-purple-400">[{selectedScript.brand?.shortCode}] {selectedScript.brand?.name}</strong></div>
                 <div><span className="text-gray-500">Product:</span> <strong className="text-emerald-400">{selectedScript.product?.name || 'N/A'}</strong></div>
-                <div><span className="text-gray-500">Campaign:</span> <strong className="text-gray-300">{selectedScript.campaign?.name || 'N/A (Optional)'}</strong></div>
+                <div><span className="text-gray-500">Campaign:</span> <strong className="text-indigo-300">{selectedScript.campaign?.name || 'N/A (Optional)'}</strong></div>
                 <div><span className="text-gray-500">Language:</span> <strong className="text-purple-300">{selectedScript.language}</strong></div>
                 <div><span className="text-gray-500">Category / Purpose:</span> <strong className="text-amber-300">{selectedScript.category}</strong></div>
                 <div><span className="text-gray-500">Objective:</span> <strong className="text-cyan-300">{selectedScript.objective || 'N/A'}</strong></div>
+                <div><span className="text-gray-500">Est. Duration:</span> <strong className="text-cyan-300">{selectedScript.estimatedDuration || 'N/A'}</strong></div>
+                <div><span className="text-gray-500">Priority:</span> <strong className="text-amber-400 font-bold">{selectedScript.priority}</strong></div>
+                <div><span className="text-gray-500">Current Status:</span> <strong className="text-blue-400 font-bold">{selectedScript.status}</strong></div>
+                <div><span className="text-gray-500">Assigned Employees:</span> <strong className="text-amber-300">{selectedScript.scriptAssignments?.map((a: any) => a.user?.name).filter(Boolean).join(', ') || 'Not Assigned'}</strong></div>
+                <div><span className="text-gray-500">Remarks:</span> <strong className="text-amber-300">{selectedScript.remarks || 'None'}</strong></div>
                 <div><span className="text-gray-500">Created By:</span> <strong className="text-gray-200">{selectedScript.createdBy?.name || 'Writer'}</strong></div>
                 <div><span className="text-gray-500">Created At:</span> {new Date(selectedScript.createdAt).toLocaleDateString()}</div>
-                <div><span className="text-gray-500">Total Revisions:</span> <strong className="text-amber-300 font-bold">{selectedScript.revisionCount || 0} (Maintained for reporting)</strong></div>
+                <div><span className="text-gray-500">Total Revisions:</span> <strong className="text-amber-300 font-bold">{selectedScript.revisionCount || 0}</strong></div>
               </div>
 
               {/* Active Revision Requested Status Banner */}

@@ -306,7 +306,23 @@ export default function ProjectDetailPage() {
   };
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading Project Workspace...</div>;
-  if (!project) return <div className="p-8 text-center text-red-400">Project Not Found</div>;
+
+  if (accessDeniedError) {
+    return (
+      <div className="p-12 text-center bg-card border border-red-800/40 rounded-2xl max-w-xl mx-auto my-12 space-y-4 shadow-2xl">
+        <div className="w-16 h-16 bg-red-950/60 border border-red-800 text-red-400 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
+          !
+        </div>
+        <h2 className="text-xl font-bold text-white">Project Access Restricted</h2>
+        <p className="text-xs text-gray-300 leading-relaxed">{accessDeniedError}</p>
+        <Link href="/projects" className="inline-block mt-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition-all shadow-lg shadow-blue-600/30">
+          Return to Projects List
+        </Link>
+      </div>
+    );
+  }
+
+  if (!project) return <div className="p-8 text-center text-red-400 font-semibold">Project Not Found</div>;
 
   const isIndoor = project.shootType === 'INDOOR';
   const outdoor = project.outdoorDetails;

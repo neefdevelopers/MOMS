@@ -172,44 +172,75 @@ export class CommunicationsService {
     const enriched = await Promise.all(
       communications.map(async (comm: any) => {
         let entityName = comm.project?.name || 'Operational Record';
-        let entityRef = comm.project?.projectId || comm.entityId.substring(0, 8);
+        let entityRef = comm.project?.projectId || (comm.entityId ? comm.entityId.substring(0, 8) : 'RECORD');
+        let realEntityId = comm.projectId || comm.entityId;
+        let isEntityAvailable = true;
 
         try {
           if (comm.entityType === 'SCRIPT') {
-            const script = await this.prisma.script.findUnique({
-              where: { id: comm.entityId },
-              select: { scriptId: true, name: true },
+            const script = await this.prisma.script.findFirst({
+              where: { OR: [{ id: comm.entityId }, { scriptId: comm.entityId }] },
+              select: { id: true, scriptId: true, name: true },
             });
             if (script) {
               entityName = script.name;
               entityRef = script.scriptId;
+              realEntityId = script.id;
+            } else {
+              isEntityAvailable = false;
+              entityName = 'Related Record Unavailable';
             }
           } else if (comm.entityType === 'GRAPHIC_REQ') {
-            const graphic = await this.prisma.graphicRequirement.findUnique({
-              where: { id: comm.entityId },
-              select: { requirementId: true, name: true },
+            const graphic = await this.prisma.graphicRequirement.findFirst({
+              where: { OR: [{ id: comm.entityId }, { requirementId: comm.entityId }] },
+              select: { id: true, requirementId: true, name: true },
             });
             if (graphic) {
               entityName = graphic.name;
               entityRef = graphic.requirementId;
+              realEntityId = graphic.id;
+            } else {
+              isEntityAvailable = false;
+              entityName = 'Related Record Unavailable';
             }
           } else if (comm.entityType === 'TASK') {
-            const task = await this.prisma.task.findUnique({
-              where: { id: comm.entityId },
-              select: { taskId: true, title: true },
+            const task = await this.prisma.task.findFirst({
+              where: { OR: [{ id: comm.entityId }, { taskId: comm.entityId }] },
+              select: { id: true, taskId: true, title: true },
             });
             if (task) {
               entityName = task.title;
               entityRef = task.taskId;
+              realEntityId = task.id;
+            } else {
+              isEntityAvailable = false;
+              entityName = 'Related Record Unavailable';
             }
           } else if (comm.entityType === 'EQUIPMENT') {
-            const eq = await this.prisma.equipment.findUnique({
-              where: { id: comm.entityId },
-              select: { equipmentId: true, name: true },
+            const eq = await this.prisma.equipment.findFirst({
+              where: { OR: [{ id: comm.entityId }, { equipmentId: comm.entityId }] },
+              select: { id: true, equipmentId: true, name: true },
             });
             if (eq) {
               entityName = eq.name;
               entityRef = eq.equipmentId;
+              realEntityId = eq.id;
+            } else {
+              isEntityAvailable = false;
+              entityName = 'Related Record Unavailable';
+            }
+          } else if (comm.entityType === 'CALENDAR_EVENT' || comm.entityType === 'CALENDAR') {
+            const calEvent = await (this.prisma as any).mediaCalendarEvent.findUnique({
+              where: { id: comm.entityId },
+              select: { id: true, title: true },
+            }).catch(() => null);
+            if (calEvent) {
+              entityName = calEvent.title;
+              entityRef = `CAL-${calEvent.id.substring(0, 6)}`;
+              realEntityId = calEvent.id;
+            } else {
+              isEntityAvailable = false;
+              entityName = 'Related Record Unavailable';
             }
           } else if (comm.entityType === 'APPROVAL' || comm.entityType === 'REVIEW') {
             const approval = await this.prisma.approval.findUnique({
@@ -219,21 +250,36 @@ export class CommunicationsService {
             if (approval) {
               entityName = `${approval.approvalType} Review`;
               entityRef = approval.project?.projectId || approval.id.substring(0, 8);
+              realEntityId = approval.id;
+            } else {
+              isEntityAvailable = false;
+              entityName = 'Related Record Unavailable';
             }
           } else if (comm.entityType === 'PROJECT') {
-            if (comm.project) {
-              entityName = comm.project.name;
-              entityRef = comm.project.projectId;
+            const prj = await this.prisma.shootProject.findFirst({
+              where: { OR: [{ id: comm.entityId }, { projectId: comm.entityId }, { id: comm.projectId || '' }] },
+              select: { id: true, projectId: true, name: true },
+            });
+            if (prj) {
+              entityName = prj.name;
+              entityRef = prj.projectId;
+              realEntityId = prj.id;
+            } else {
+              isEntityAvailable = false;
+              entityName = 'Related Record Unavailable';
             }
           }
         } catch (e) {
-          // Fallback gracefully if record is not found
+          isEntityAvailable = false;
+          entityName = 'Related Record Unavailable';
         }
 
         return {
           ...comm,
           entityName,
           entityRef,
+          realEntityId,
+          isEntityAvailable,
         };
       })
     );
@@ -935,6 +981,54 @@ export class CommunicationsService {
     });
   }
 
+  async markAsRead(id: string, userId: string) {
+    const now = new Date();
+    const comm = await (this.prisma.communication as any).findUnique({ where: { id } });
+    if (!comm) return { success: false };
+
+    const targetIds = [comm.id];
+    if (comm.parentId) {
+      targetIds.push(comm.parentId);
+    }
+    const children = await (this.prisma.communication as any).findMany({
+      where: { OR: [{ parentId: comm.id }, { id: comm.parentId || comm.id }] },
+      select: { id: true },
+    }).catch(() => []);
+    children.forEach((c: any) => targetIds.push(c.id));
+
+    // Update unread communications where current user is NOT the sender
+    await (this.prisma.communication as any).updateMany({
+      where: {
+        id: { in: targetIds },
+        senderId: { not: userId },
+        readAt: null,
+      },
+      data: {
+        status: 'READ',
+        readAt: now,
+        deliveredAt: now,
+      },
+    }).catch(() => null);
+
+    // Update linked unread notifications for this user
+    await this.prisma.notification.updateMany({
+      where: {
+        userId,
+        OR: [
+          { communicationId: { in: targetIds } },
+          { entityId: { in: targetIds } },
+        ],
+        status: 'UNREAD',
+      },
+      data: {
+        status: 'READ',
+        readAt: now,
+      },
+    }).catch(() => null);
+
+    return { success: true };
+  }
+
   async resolveBlocker(id: string, resolutionNotes: string, resolverId: string) {
     const comm = await (this.prisma.communication as any).findUnique({
       where: { id },
@@ -978,6 +1072,72 @@ export class CommunicationsService {
     }
 
     return updated;
+  }
+
+  async getTimeline(id: string) {
+    const comm = await (this.prisma.communication as any).findUnique({
+      where: { id },
+      include: {
+        sender: { select: { id: true, name: true, role: true } },
+        replies: {
+          include: { sender: { select: { id: true, name: true, role: true } } },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!comm) throw new BadRequestException('Communication record not found');
+
+    const timeline: any[] = [];
+
+    // 1. Created
+    timeline.push({
+      action: 'Communication Created',
+      user: comm.sender?.name || 'Staff Member',
+      role: comm.sender?.role || 'STAFF',
+      timestamp: comm.createdAt,
+    });
+
+    // 2. Delivered
+    if (comm.deliveredAt) {
+      timeline.push({
+        action: 'Delivered to Recipient',
+        user: comm.recipients || 'Recipient',
+        timestamp: comm.deliveredAt,
+      });
+    }
+
+    // 3. Read
+    if (comm.readAt) {
+      timeline.push({
+        action: 'Read by Recipient',
+        user: comm.recipients || 'Recipient',
+        timestamp: comm.readAt,
+      });
+    }
+
+    // 4. Replied
+    if (comm.replies && comm.replies.length > 0) {
+      comm.replies.forEach((r: any) => {
+        timeline.push({
+          action: 'Replied to Thread',
+          user: r.sender?.name || 'Team Member',
+          role: r.sender?.role || 'STAFF',
+          timestamp: r.createdAt,
+        });
+      });
+    }
+
+    // 5. Closed / Blocker Resolved
+    if (comm.closedAt || comm.resolvedAt) {
+      timeline.push({
+        action: comm.isBlocker ? 'Blocker Resolved' : 'Communication Closed',
+        user: comm.resolvedById ? 'Manager' : 'System',
+        timestamp: comm.closedAt || comm.resolvedAt,
+      });
+    }
+
+    timeline.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return timeline;
   }
 }
 

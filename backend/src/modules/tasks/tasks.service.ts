@@ -120,6 +120,17 @@ export class TasksService {
         }).catch(() => null);
         t.sourceType = computed;
       }
+
+      // Attach approvalHistory containing reviewer validations and remarks
+      const approvalHistory = await this.prisma.approval.findMany({
+        where: { entityType: 'TASK', entityId: t.id },
+        include: {
+          reviewer: { select: { id: true, name: true, role: true, avatarUrl: true } },
+          requestedBy: { select: { id: true, name: true, role: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }).catch(() => []);
+      t.approvalHistory = approvalHistory;
     }
     return tasks;
   }
@@ -171,24 +182,30 @@ export class TasksService {
     description: string,
     userId?: string,
   ) {
-    await this.prisma.taskTimeline.create({
-      data: {
-        taskId,
-        event,
-        description,
-        userId: userId || null,
-      },
-    });
+    try {
+      await this.prisma.taskTimeline.create({
+        data: {
+          taskId,
+          event,
+          description,
+          userId: userId || null,
+        },
+      });
 
-    await this.prisma.activityLog.create({
-      data: {
-        userId: userId || null,
-        action: event,
-        entity: 'Task',
-        entityId: taskId,
-        description,
-      },
-    });
+      if (userId) {
+        await this.prisma.activityLog.create({
+          data: {
+            userId,
+            action: event,
+            entity: 'Task',
+            entityId: taskId,
+            description,
+          },
+        });
+      }
+    } catch (err) {
+      console.error('Failed to log timeline event:', err);
+    }
   }
 
   private async sendTaskNotifications(
@@ -236,7 +253,7 @@ export class TasksService {
 
     // Fetch all active staff members with their profiles, assigned projects, and assigned tasks
     const users = await this.prisma.user.findMany({
-      where: { role: Role.STAFF },
+      where: { role: { in: [Role.STAFF, Role.TECHNICAL_MANAGER, Role.SOCIAL_MEDIA_MANAGER] } },
       include: {
         employeeProfile: { include: { department: true } },
         projectAssignments: {
@@ -327,7 +344,8 @@ export class TasksService {
         userId: user.id,
         name: user.name,
         avatarUrl: user.avatarUrl,
-        designation: user.employeeProfile?.designation || 'Staff Member',
+        role: user.role,
+        designation: user.employeeProfile?.designation || user.role?.replace(/_/g, ' ') || 'Staff Member',
         department: user.employeeProfile?.department?.name || 'General',
         additionalDepartments: user.employeeProfile?.additionalDepartments || null,
         capacityHours,
@@ -496,21 +514,10 @@ export class TasksService {
       }
     }
 
-    // Determine Client and Brand IDs
-    let clientId = project?.clientId || data.clientId;
-    let brandId = project?.brandId || data.brandId;
+    // Determine Client, Brand, and Product IDs (All Optional)
+    let clientId = project?.clientId || data.clientId || null;
+    let brandId = project?.brandId || data.brandId || null;
     let productId = project?.productId || data.productId || null;
-
-    if (!clientId) {
-      const firstClient = await this.prisma.client.findFirst();
-      if (!firstClient) throw new BadRequestException('Client ID is required for task creation');
-      clientId = firstClient.id;
-    }
-    if (!brandId) {
-      const firstBrand = await this.prisma.brand.findFirst();
-      if (!firstBrand) throw new BadRequestException('Brand ID is required for task creation');
-      brandId = firstBrand.id;
-    }
 
     // Generate Task ID TSK-00000X safely with collision loop
     let taskCount = await this.prisma.task.count();
@@ -662,19 +669,32 @@ export class TasksService {
   ) {
     const task = await this.findOne(taskId);
 
-    // Employees can only update tasks assigned to them
+    // Employees can only update tasks assigned to them, and cannot update while under review
     if (user.role === Role.STAFF) {
       const isAssigned = task.assignedEmployees.some((a) => a.userId === user.id);
       if (!isAssigned) {
         throw new ForbiddenException("Staff cannot update tasks assigned to other employees.");
       }
+
+      const reviewStatuses = [
+        TaskStatus.WAITING_FOR_TECHNICAL_REVIEW,
+        TaskStatus.WAITING_FOR_MEDIA_REVIEW,
+        TaskStatus.WAITING_FOR_REVIEW,
+        TaskStatus.COMPLETED,
+      ];
+      if (reviewStatuses.includes(task.status as any)) {
+        throw new ForbiddenException("Task is currently undergoing Technical Review. Staff cannot make updates while under review.");
+      }
     }
 
     // Strict Workflow Stage Transition Validations
     if (data.status === TaskStatus.IN_PROGRESS) {
-      const isAccepted = task.status === TaskStatus.ACCEPTED || task.assignedEmployees?.some((a: any) => a.acceptanceStatus === 'ACCEPTED');
-      if (!isAccepted && task.status !== TaskStatus.IN_PROGRESS) {
-        throw new BadRequestException('Task must be explicitly accepted by the assigned employee before starting production.');
+      // Automatically mark assignment as ACCEPTED for staff starting work on this task
+      if (user?.id) {
+        await this.prisma.taskAssignment.updateMany({
+          where: { taskId, userId: user.id, acceptanceStatus: { not: 'ACCEPTED' } },
+          data: { acceptanceStatus: 'ACCEPTED', acceptedAt: new Date() },
+        });
       }
     }
 
@@ -767,16 +787,18 @@ export class TasksService {
       }
     }
 
-    // Update parent project progress percentage
-    const allProjectTasks = await this.prisma.task.findMany({ where: { projectId: task.projectId } });
-    if (allProjectTasks.length > 0) {
-      const avgProgress = Math.round(
-        allProjectTasks.reduce((acc, t) => acc + t.completionPercentage, 0) / allProjectTasks.length,
-      );
-      await this.prisma.shootProject.update({
-        where: { id: task.projectId },
-        data: { progressPercentage: avgProgress },
-      });
+    // Update parent project progress percentage (Only if task is linked to a parent project)
+    if (task.projectId) {
+      const allProjectTasks = await this.prisma.task.findMany({ where: { projectId: task.projectId } });
+      if (allProjectTasks.length > 0) {
+        const avgProgress = Math.round(
+          allProjectTasks.reduce((acc, t) => acc + t.completionPercentage, 0) / allProjectTasks.length,
+        );
+        await this.prisma.shootProject.update({
+          where: { id: task.projectId },
+          data: { progressPercentage: avgProgress },
+        });
+      }
     }
 
     return updated;
@@ -877,6 +899,23 @@ export class TasksService {
 
     const task = await this.findOne(taskId);
 
+    if (user.role === Role.STAFF) {
+      const isAssigned = task.assignedEmployees.some((a) => a.userId === user.id);
+      if (!isAssigned) {
+        throw new ForbiddenException("Staff cannot add remarks to tasks assigned to others.");
+      }
+
+      const reviewStatuses = [
+        TaskStatus.WAITING_FOR_TECHNICAL_REVIEW,
+        TaskStatus.WAITING_FOR_MEDIA_REVIEW,
+        TaskStatus.WAITING_FOR_REVIEW,
+        TaskStatus.COMPLETED,
+      ];
+      if (reviewStatuses.includes(task.status as any)) {
+        throw new ForbiddenException("Task is currently undergoing Technical Review. Remarks are locked for staff during review.");
+      }
+    }
+
     const remark = await this.prisma.taskRemark.create({
       data: {
         taskId: task.id,
@@ -907,11 +946,37 @@ export class TasksService {
 
     const task = await this.findOne(taskId);
 
-    // Employees can only upload to tasks assigned to them
+    // Employees can only upload deliverables after task has been moved to IN_PROGRESS
+    const allowedStatusesForUpload = [
+      TaskStatus.IN_PROGRESS,
+      TaskStatus.ON_HOLD,
+      TaskStatus.WAITING_FOR_TECHNICAL_REVIEW,
+      TaskStatus.WAITING_FOR_MEDIA_REVIEW,
+      TaskStatus.WAITING_FOR_REVIEW,
+      TaskStatus.COMPLETED,
+    ];
+
+    if (!allowedStatusesForUpload.includes(task.status as any)) {
+      throw new BadRequestException(
+        'Deliverables can only be uploaded after the task has been accepted and moved to IN PROGRESS status.'
+      );
+    }
+
+    // Employees cannot upload deliverables while under review
     if (user.role === Role.STAFF) {
       const isAssigned = task.assignedEmployees.some((a) => a.userId === user.id);
       if (!isAssigned) {
         throw new ForbiddenException("Staff cannot upload deliverables to tasks assigned to others.");
+      }
+
+      const reviewStatuses = [
+        TaskStatus.WAITING_FOR_TECHNICAL_REVIEW,
+        TaskStatus.WAITING_FOR_MEDIA_REVIEW,
+        TaskStatus.WAITING_FOR_REVIEW,
+        TaskStatus.COMPLETED,
+      ];
+      if (reviewStatuses.includes(task.status as any)) {
+        throw new ForbiddenException("Task is currently undergoing Technical Review. Deliverable uploads are locked for staff during review.");
       }
     }
 
@@ -932,20 +997,105 @@ export class TasksService {
       },
     });
 
-    // 2. Overwrite / replace active deliverable slot on Task and advance progress to 75%
+    // 2. Overwrite / replace active deliverable slot on Task
     const updatedTask = await this.prisma.task.update({
       where: { id: task.id },
       data: {
         activeDeliverableUrl: data.fileUrl.trim(),
         activeDeliverableFileName: fileName,
         activeDeliverableVersion: newVersion,
-        status: TaskStatus.WAITING_FOR_REVIEW,
+      },
+    });
+
+    // 3. Log FILE_UPLOADED
+    await this.logTimelineEvent(task.id, 'FILE_UPLOADED', `Work deliverable Version v${newVersion} (${fileName}) uploaded by ${user.name}`, user.id);
+
+    return {
+      task: updatedTask,
+      historyEntry,
+    };
+  }
+
+  async requestTechnicalReview(taskId: string, user: any) {
+    const task = await this.findOne(taskId);
+
+    if (user.role === Role.STAFF) {
+      const isAssigned = task.assignedEmployees.some((a) => a.userId === user.id);
+      if (!isAssigned) {
+        throw new ForbiddenException("Staff cannot request technical review for tasks assigned to others.");
+      }
+    }
+
+    if (!task.activeDeliverableUrl && !task.scriptId) {
+      throw new BadRequestException('Please upload a work deliverable output before requesting Technical Review.');
+    }
+
+    if (task.status === TaskStatus.WAITING_FOR_TECHNICAL_REVIEW) {
+      throw new BadRequestException('Task is already submitted for Technical Review.');
+    }
+
+    // 1. Advance status to WAITING_FOR_TECHNICAL_REVIEW and progress to at least 75%
+    const updatedTask = await this.prisma.task.update({
+      where: { id: task.id },
+      data: {
+        status: TaskStatus.WAITING_FOR_TECHNICAL_REVIEW,
         completionPercentage: Math.max(task.completionPercentage, 75),
       },
     });
 
-    // 6. Log FILE_UPLOADED
-    await this.logTimelineEvent(task.id, 'FILE_UPLOADED', `Work deliverable Version v${newVersion} (${fileName}) uploaded by ${user.name}`, user.id);
+    // 2. Log timeline event
+    await this.logTimelineEvent(
+      task.id,
+      'STATUS_CHANGED',
+      `Technical Review requested by ${user.name} (Deliverable: ${task.activeDeliverableFileName || 'v' + task.activeDeliverableVersion})`,
+      user.id,
+    );
+
+    // 3. Create formal Approval record for Technical Manager review
+    await this.prisma.approval.create({
+      data: {
+        entityType: 'TASK',
+        entityId: task.id,
+        approvalType: 'TECHNICAL_REVIEW',
+        targetRole: 'TECHNICAL_MANAGER',
+        requestedById: user.id,
+        projectId: task.projectId || null,
+        status: 'PENDING',
+        remarks: `Work deliverable (${task.activeDeliverableFileName || 'v' + task.activeDeliverableVersion}) submitted for Technical Review by ${user.name}. Approval required.`,
+      },
+    }).catch(() => null);
+
+    // 4. Send Notification specifically to Technical Managers
+    const technicalManagers = await this.prisma.user.findMany({
+      where: { role: 'TECHNICAL_MANAGER', status: 'ACTIVE' },
+      select: { id: true },
+    });
+    for (const tm of technicalManagers) {
+      await this.prisma.notification.create({
+        data: {
+          userId: tm.id,
+          title: 'Technical Review & Approval Requested ⚡',
+          message: `Staff member ${user.name} requested Technical Review for Task ${task.taskId} ('${task.title}'). Technical approval required.`,
+          type: 'ALERT',
+          category: 'APPROVAL',
+          priority: 'HIGH',
+          linkUrl: `/approvals`,
+          eventType: 'TECHNICAL_REVIEW_REQUESTED',
+          entityType: 'TASK',
+          entityId: task.id,
+          entityCode: task.taskId,
+          taskId: task.id,
+          projectId: task.projectId || undefined,
+        },
+      }).catch(() => null);
+    }
+
+    await this.sendTaskNotifications(
+      task.id,
+      'Technical Review Requested',
+      `Technical Review requested for Task ${task.taskId} ('${task.title}'). Status moved to Technical Review.`,
+      'TECHNICAL_REVIEW_REQUESTED',
+    );
 
     if (task.graphicRequirementId) {
       await this.prisma.graphicRequirement.updateMany({
@@ -961,10 +1111,7 @@ export class TasksService {
       }).catch(() => null);
     }
 
-    return {
-      task: updatedTask,
-      historyEntry,
-    };
+    return updatedTask;
   }
 
   async updateEmployeeCapacity(userId: string, dailyCapacityHours: number, managerUserId: string) {
@@ -1032,7 +1179,7 @@ export class TasksService {
 
     // Fetch all active staff users with employee profiles & departments
     const allUsers = await this.prisma.user.findMany({
-      where: { isArchived: false, role: { in: ['STAFF', 'TECHNICAL_MANAGER', 'MEDIA_MANAGER'] } },
+      where: { isArchived: false, role: { in: ['STAFF', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER'] } },
       include: {
         employeeProfile: { include: { department: true } },
         projectAssignments: true,

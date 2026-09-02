@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Palette, Plus, Search, Layers, Calendar, Building2, Tag, CheckSquare, FileText, AlertCircle, ShieldAlert, SlidersHorizontal, RotateCcw, X, Flame, User, Clock } from 'lucide-react';
 import { SortSelector } from '@/components/common/TableSortHeader';
@@ -124,6 +125,8 @@ const getWorkflowStepIndex = (status: string) => {
 
 export default function GraphicReqsPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const inspectIdParam = searchParams ? (searchParams.get('inspect') || searchParams.get('id') || searchParams.get('graphicId')) : null;
   const [reqs, setReqs] = useState<any[]>([]);
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [clientsList, setClientsList] = useState<any[]>([]);
@@ -362,6 +365,24 @@ export default function GraphicReqsPage() {
       const existingTypes = loadedReqs.map((r: any) => r.requirementType).filter(Boolean);
       const mergedTypes = Array.from(new Set([...DEFAULT_REQUIREMENT_TYPES, ...existingTypes]));
       setAvailableTypes(mergedTypes);
+
+      // Auto-open Inspector Popup if inspect or id URL query parameter is present
+      if (typeof window !== 'undefined') {
+        const searchParams = new URLSearchParams(window.location.search);
+        const targetId = searchParams.get('inspect') || searchParams.get('id');
+        if (targetId) {
+          const match = loadedReqs.find((r: any) => r.id === targetId || r.requirementId === targetId);
+          if (match) {
+            setInspectedReq(match);
+          } else {
+            fetchApi(`/graphic-reqs/${targetId}`)
+              .then((fetched) => {
+                if (fetched && fetched.id) setInspectedReq(fetched);
+              })
+              .catch(() => null);
+          }
+        }
+      }
     } catch (err) {
       console.error('Failed to load graphic requirements:', err);
     } finally {
@@ -373,6 +394,37 @@ export default function GraphicReqsPage() {
     loadReferenceData();
     loadGraphicReqs();
   }, []);
+
+  useEffect(() => {
+    if (inspectIdParam) {
+      const match = reqs.find((r: any) =>
+        r.id === inspectIdParam ||
+        r.requirementId === inspectIdParam ||
+        r.id?.toLowerCase() === inspectIdParam.toLowerCase() ||
+        r.requirementId?.toLowerCase() === inspectIdParam.toLowerCase()
+      );
+      if (match) {
+        setInspectedReq(match);
+      } else {
+        fetchApi(`/graphic-reqs/${inspectIdParam}`)
+          .then((fetched: any) => {
+            const item = fetched?.data || fetched;
+            if (item && item.id) setInspectedReq(item);
+          })
+          .catch(() => null);
+      }
+
+      // Smooth scroll to record element on page
+      setTimeout(() => {
+        const el = document.getElementById(inspectIdParam) || document.getElementById(`req-${inspectIdParam}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-2', 'ring-purple-500', 'shadow-2xl');
+          setTimeout(() => el.classList.remove('ring-2', 'ring-purple-500', 'shadow-2xl'), 3500);
+        }
+      }, 400);
+    }
+  }, [inspectIdParam, reqs]);
 
   const loadData = loadGraphicReqs;
 
@@ -584,7 +636,7 @@ export default function GraphicReqsPage() {
     const isReqUnapproved = UNAPPROVED_STATUSES.includes(g.status) || Boolean(linkedEvent && UNAPPROVED_STATUSES.includes(linkedEvent.status));
     const isCreator = Boolean(user?.id && (linkedEvent?.createdById === user.id || g.createdById === user.id));
 
-    if (isReqUnapproved && !isCreator && !isAssignedToUser && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'ADMINISTRATOR') {
+    if (isReqUnapproved && !isCreator && !isAssignedToUser && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'MEDIA_MANAGER' && user?.role !== 'SOCIAL_MEDIA_MANAGER' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN') {
       return false;
     }
 
@@ -700,7 +752,7 @@ export default function GraphicReqsPage() {
             const isReqUnapproved = UNAPPROVED_STATUSES.includes(g.status) || Boolean(linkedEvent && UNAPPROVED_STATUSES.includes(linkedEvent.status));
             const isCreator = Boolean(user?.id && (linkedEvent?.createdById === user.id || g.createdById === user.id));
 
-            if (isReqUnapproved && !isCreator && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'ADMINISTRATOR') {
+            if (isReqUnapproved && !isCreator && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'MEDIA_MANAGER' && user?.role !== 'SOCIAL_MEDIA_MANAGER' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN') {
               return false;
             }
             const isApprovedOrAssigned = ['APPROVED', 'CLIENT_APPROVED', 'TASK_ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_TECHNICAL_REVIEW', 'COMPLETED', 'CANCELLED'].includes(g.status);
@@ -1075,7 +1127,7 @@ export default function GraphicReqsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {paginate(sortData(filteredReqs, sortBy, sortOrder)).map((g) => (
-            <div key={g.id} className="bg-card border border-border p-5 rounded-xl space-y-4 shadow-md hover:border-amber-500/40 transition-colors">
+            <div key={g.id} id={g.id} className="bg-card border border-border p-5 rounded-xl space-y-4 shadow-md hover:border-amber-500/40 transition-all">
               <div className="flex justify-between items-start">
                 <div>
                   <div className="flex items-center gap-2">

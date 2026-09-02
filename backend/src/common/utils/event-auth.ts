@@ -49,6 +49,8 @@ export function canUserViewEvent(
   const isAssigned =
     Boolean(event.assignedStaffId && event.assignedStaffId === user.id) ||
     Boolean(event.approvalAssignedToId && event.approvalAssignedToId === user.id) ||
+    Boolean(event.graphicRequirement && (event.graphicRequirement.assignedToId === user.id || event.graphicRequirement.createdById === user.id)) ||
+    Boolean(event.shoot && (event.shoot.directorId === user.id || event.shoot.leadPhotographerId === user.id || event.shoot.leadVideographerId === user.id || event.shoot.createdById === user.id)) ||
     (Array.isArray(event.assignedTeam) &&
       event.assignedTeam.some((t: any) => t.userId === user.id || t.user?.id === user.id)) ||
     (Array.isArray(event.tasks) &&
