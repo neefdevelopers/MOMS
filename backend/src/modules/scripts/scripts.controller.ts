@@ -7,7 +7,7 @@ import { Role } from '../../common/enums';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.MARKETING_MANAGER, Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER, Role.ADMINISTRATOR)
+@Roles(Role.MARKETING_MANAGER, Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER, Role.STAFF, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
 @Controller('scripts')
 export class ScriptsController {
   constructor(private readonly scriptsService: ScriptsService) {}
@@ -95,6 +95,32 @@ export class ScriptsController {
     return this.scriptsService.update(id, { ...data, updatedById: user?.id });
   }
 
+  @Roles(Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/submit-technical')
+  submitTechnicalReview(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.scriptsService.submitTechnicalReview(id, user);
+  }
+
+  @Roles(Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/review-technical')
+  reviewTechnical(
+    @Param('id') id: string,
+    @Body() body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.scriptsService.reviewTechnical(id, user, body);
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/review-media')
+  reviewMedia(
+    @Param('id') id: string,
+    @Body() body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.scriptsService.reviewMedia(id, user, body);
+  }
+
   @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @Post(':id/approve')
   approveScript(
@@ -105,7 +131,7 @@ export class ScriptsController {
     return this.scriptsService.approveScript(id, user, body);
   }
 
-  @Roles(Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
+  @Roles(Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @Post(':id/resubmit')
   resubmitScript(@Param('id') id: string, @CurrentUser() user: any) {
     return this.scriptsService.resubmitScript(id, user);

@@ -17,19 +17,7 @@ import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
 export default function ScriptsPage() {
   const { user } = useAuth();
 
-  if (user && (user.role === 'STAFF' || user.role === 'TECHNICAL_MANAGER')) {
-    return (
-      <div className="p-8 max-w-2xl mx-auto my-12 text-center bg-card border border-red-800/40 rounded-2xl space-y-4 shadow-2xl">
-        <div className="w-16 h-16 bg-red-950/60 border border-red-800 text-red-400 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
-          !
-        </div>
-        <h2 className="text-xl font-bold text-white">Access Restricted</h2>
-        <p className="text-sm text-gray-300">
-          The Scripts session is reserved exclusively for Marketing Manager, Media Manager, and Social Media Manager. Staff and Technical Manager members do not have access to this module.
-        </p>
-      </div>
-    );
-  }
+
 
   const [scripts, setScripts] = useState<any[]>([]);
   const [projectsList, setProjectsList] = useState<any[]>([]);
@@ -80,6 +68,7 @@ export default function ScriptsPage() {
   const [editStatus, setEditStatus] = useState('DRAFT');
   const [editPriority, setEditPriority] = useState('MEDIUM');
   const [saving, setSaving] = useState(false);
+  const [showFullDetails, setShowFullDetails] = useState(false);
 
   // Mandatory 4 Completion Criteria State
   const [prodComp, setProdComp] = useState(false);
@@ -98,6 +87,7 @@ export default function ScriptsPage() {
 
   // File Upload State
   const [uploadingCategory, setUploadingCategory] = useState<string | null>(null);
+  const [selectedUploadCategory, setSelectedUploadCategory] = useState('SCRIPT_DOCUMENT');
 
   // Create Script Modal State (All Fields)
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -303,14 +293,63 @@ export default function ScriptsPage() {
     }
   };
 
-  const handleApproveScriptAction = async (scriptId: string, action: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT', comment?: string) => {
+  const handleSubmitTechnicalReview = async (scriptId: string) => {
     try {
       setSaving(true);
-      await fetchApi(`/scripts/${scriptId}/approve`, {
+      const res = await fetchApi(`/scripts/${scriptId}/submit-technical`, { method: 'POST' });
+      const updated = await fetchApi(`/scripts/${scriptId}`).catch(() => res);
+      setSelectedScript(updated || res);
+      alert('✓ Script submitted for Technical Manager Review!');
+      await loadScripts();
+    } catch (err: any) {
+      alert(err.message || 'Failed to submit script for technical review');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReviewTechnical = async (scriptId: string, action: 'APPROVE' | 'REJECT', comment?: string) => {
+    try {
+      setSaving(true);
+      const updated = await fetchApi(`/scripts/${scriptId}/review-technical`, {
+        method: 'POST',
+        body: JSON.stringify({ action, comment: comment || (action === 'REJECT' ? 'Technical Manager requested revisions' : undefined) }),
+      });
+      setSelectedScript(updated);
+      await loadScripts();
+    } catch (err: any) {
+      alert(err.message || 'Technical review action failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReviewMedia = async (scriptId: string, action: 'APPROVE' | 'REJECT', comment?: string) => {
+    try {
+      setSaving(true);
+      const res = await fetchApi(`/scripts/${scriptId}/review-media`, {
         method: 'POST',
         body: JSON.stringify({ action, comment }),
       });
-      setSelectedScript(null);
+      const updated = await fetchApi(`/scripts/${scriptId}`).catch(() => res);
+      setSelectedScript(updated || res);
+      await loadScripts();
+    } catch (err: any) {
+      alert(err.message || 'Media Manager review action failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleApproveScriptAction = async (scriptId: string, action: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT', comment?: string) => {
+    try {
+      setSaving(true);
+      const res = await fetchApi(`/scripts/${scriptId}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({ action, comment }),
+      });
+      const updated = await fetchApi(`/scripts/${scriptId}`).catch(() => res);
+      setSelectedScript(updated || res);
       await loadScripts();
     } catch (err: any) {
       alert(err.message || 'Script approval action failed');
@@ -322,10 +361,11 @@ export default function ScriptsPage() {
   const handleResubmitScriptAction = async (scriptId: string) => {
     try {
       setSaving(true);
-      await fetchApi(`/scripts/${scriptId}/resubmit`, {
+      const res = await fetchApi(`/scripts/${scriptId}/resubmit`, {
         method: 'POST',
       });
-      setSelectedScript(null);
+      const updated = await fetchApi(`/scripts/${scriptId}`).catch(() => res);
+      setSelectedScript(updated || res);
       await loadScripts();
     } catch (err: any) {
       alert(err.message || 'Failed to resubmit script');
@@ -333,6 +373,20 @@ export default function ScriptsPage() {
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (selectedScript) {
+      setEditDescription(selectedScript.description || '');
+      setEditDuration(selectedScript.estimatedDuration || '30s');
+      setEditRemarks(selectedScript.remarks || '');
+      setEditStatus(selectedScript.status || 'DRAFT');
+      setEditPriority(selectedScript.priority || 'MEDIUM');
+      setProdComp(!!selectedScript.productionCompleted);
+      setTechAppr(!!selectedScript.technicalReviewApproved);
+      setMediaAppr(!!selectedScript.mediaManagerReviewApproved);
+      setClientConf(!!selectedScript.clientConfirmationRecorded);
+    }
+  }, [selectedScript?.id, selectedScript?.status, selectedScript?.updatedAt]);
 
   const openInspector = (s: any) => {
     setSelectedScript(s);
@@ -344,28 +398,19 @@ export default function ScriptsPage() {
       url: `/projects/${s.projectId}?tab=Scripts`,
       metadata: { project: s.project?.name, client: s.client?.name, brand: s.brand?.name, language: s.language, status: s.status },
     });
-    setEditDescription(s.description || '');
-    setEditDuration(s.estimatedDuration || '30s');
-    setEditRemarks(s.remarks || '');
-    setEditStatus(s.status || 'DRAFT');
-    setEditPriority(s.priority || 'MEDIUM');
-    setProdComp(!!s.productionCompleted);
-    setTechAppr(!!s.technicalReviewApproved);
-    setMediaAppr(!!s.mediaManagerReviewApproved);
-    setClientConf(!!s.clientConfirmationRecorded);
   };
 
   const handleSaveScript = async () => {
     if (!selectedScript) return;
     setSaving(true);
     try {
-      await fetchApi(`/scripts/${selectedScript.id}`, {
+      const updated = await fetchApi(`/scripts/${selectedScript.id}`, {
         method: 'PUT',
         body: JSON.stringify({
           description: editDescription,
           estimatedDuration: editDuration,
           remarks: editRemarks,
-          status: editStatus,
+          status: editStatus || selectedScript.status,
           priority: editPriority,
           productionCompleted: prodComp,
           technicalReviewApproved: techAppr,
@@ -373,7 +418,8 @@ export default function ScriptsPage() {
           clientConfirmationRecorded: clientConf,
         }),
       });
-      setSelectedScript(null);
+      setSelectedScript(updated);
+      alert('✓ Script details saved successfully!');
       loadScripts();
     } catch (err: any) {
       alert(err.message || 'Failed to update script details');
@@ -1031,25 +1077,64 @@ export default function ScriptsPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-gray-950 p-4 rounded-xl border border-gray-800 text-[11px]">
-                <div><span className="text-gray-500">Script ID:</span> <strong className="text-blue-400 font-mono">{selectedScript.scriptId}</strong></div>
-                <div><span className="text-gray-500">Script Name:</span> <strong className="text-white font-mono">{selectedScript.name}</strong></div>
-                <div><span className="text-gray-500">Shoot Project:</span> <strong className="text-gray-200">{selectedScript.project?.name}</strong></div>
-                <div><span className="text-gray-500">Client:</span> <strong className="text-gray-200">{selectedScript.client?.name}</strong></div>
-                <div><span className="text-gray-500">Brand:</span> <strong className="text-purple-400">[{selectedScript.brand?.shortCode}] {selectedScript.brand?.name}</strong></div>
-                <div><span className="text-gray-500">Product:</span> <strong className="text-emerald-400">{selectedScript.product?.name || 'N/A'}</strong></div>
-                <div><span className="text-gray-500">Campaign:</span> <strong className="text-indigo-300">{selectedScript.campaign?.name || 'N/A (Optional)'}</strong></div>
-                <div><span className="text-gray-500">Language:</span> <strong className="text-purple-300">{selectedScript.language}</strong></div>
-                <div><span className="text-gray-500">Category / Purpose:</span> <strong className="text-amber-300">{selectedScript.category}</strong></div>
-                <div><span className="text-gray-500">Objective:</span> <strong className="text-cyan-300">{selectedScript.objective || 'N/A'}</strong></div>
-                <div><span className="text-gray-500">Est. Duration:</span> <strong className="text-cyan-300">{selectedScript.estimatedDuration || 'N/A'}</strong></div>
-                <div><span className="text-gray-500">Priority:</span> <strong className="text-amber-400 font-bold">{selectedScript.priority}</strong></div>
-                <div><span className="text-gray-500">Current Status:</span> <strong className="text-blue-400 font-bold">{selectedScript.status}</strong></div>
-                <div><span className="text-gray-500">Assigned Employees:</span> <strong className="text-amber-300">{selectedScript.scriptAssignments?.map((a: any) => a.user?.name).filter(Boolean).join(', ') || 'Not Assigned'}</strong></div>
-                <div><span className="text-gray-500">Remarks:</span> <strong className="text-amber-300">{selectedScript.remarks || 'None'}</strong></div>
-                <div><span className="text-gray-500">Created By:</span> <strong className="text-gray-200">{selectedScript.createdBy?.name || 'Writer'}</strong></div>
-                <div><span className="text-gray-500">Created At:</span> {new Date(selectedScript.createdAt).toLocaleDateString()}</div>
-                <div><span className="text-gray-500">Total Revisions:</span> <strong className="text-amber-300 font-bold">{selectedScript.revisionCount || 0}</strong></div>
+              {/* Commercial & Script Attributes Summary Card (Important Info First + More Details Toggle) */}
+              <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+                  <div>
+                    <span className="text-gray-500 text-[10px] uppercase font-bold block">Script ID</span>
+                    <strong className="text-blue-400 font-mono text-xs">{selectedScript.scriptId}</strong>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 text-[10px] uppercase font-bold block">Script Name</span>
+                    <strong className="text-white font-mono text-xs block truncate">{selectedScript.name}</strong>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 text-[10px] uppercase font-bold block">Shoot Project</span>
+                    <strong className="text-gray-200 text-xs block truncate">{selectedScript.project?.name || 'N/A'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 text-[10px] uppercase font-bold block">Status &amp; Priority</span>
+                    <div className="flex items-center gap-1 mt-0.5 font-mono">
+                      <span className="px-2 py-0.5 bg-blue-950 text-blue-300 border border-blue-800 rounded font-bold text-[10px]">
+                        {selectedScript.status}
+                      </span>
+                      <span className="px-2 py-0.5 bg-amber-950 text-amber-300 border border-amber-800 rounded font-bold text-[10px]">
+                        {selectedScript.priority}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-2.5 border-t border-gray-900 text-xs">
+                  <span className="text-gray-400 text-[11px]">
+                    👤 Assigned Staff: <strong className="text-amber-300">{selectedScript.scriptAssignments?.map((a: any) => a.user?.name).filter(Boolean).join(', ') || 'Not Assigned'}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowFullDetails(!showFullDetails)}
+                    className="px-3 py-1 bg-gray-900 hover:bg-gray-800 text-purple-300 border border-purple-900/60 rounded-lg font-semibold text-[11px] flex items-center gap-1 transition-all shadow"
+                  >
+                    <span>{showFullDetails ? 'Show Less Details ▴' : 'More Details ▾'}</span>
+                  </button>
+                </div>
+
+                {/* Expanded Full Details Grid */}
+                {showFullDetails && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-3 border-t border-gray-800 text-[11px] animate-in fade-in duration-150">
+                    <div><span className="text-gray-500 block text-[10px]">Client:</span> <strong className="text-gray-200">{selectedScript.client?.name || 'N/A'}</strong></div>
+                    <div><span className="text-gray-500 block text-[10px]">Brand:</span> <strong className="text-purple-400">[{selectedScript.brand?.shortCode}] {selectedScript.brand?.name}</strong></div>
+                    <div><span className="text-gray-500 block text-[10px]">Product:</span> <strong className="text-emerald-400">{selectedScript.product?.name || 'N/A'}</strong></div>
+                    <div><span className="text-gray-500 block text-[10px]">Campaign:</span> <strong className="text-indigo-300">{selectedScript.campaign?.name || 'N/A (Optional)'}</strong></div>
+                    <div><span className="text-gray-500 block text-[10px]">Language:</span> <strong className="text-purple-300">{selectedScript.language}</strong></div>
+                    <div><span className="text-gray-500 block text-[10px]">Category / Purpose:</span> <strong className="text-amber-300">{selectedScript.category}</strong></div>
+                    <div><span className="text-gray-500 block text-[10px]">Objective:</span> <strong className="text-cyan-300">{selectedScript.objective || 'N/A'}</strong></div>
+                    <div><span className="text-gray-500 block text-[10px]">Est. Duration:</span> <strong className="text-cyan-300">{selectedScript.estimatedDuration || 'N/A'}</strong></div>
+                    <div><span className="text-gray-500 block text-[10px]">Created By:</span> <strong className="text-gray-200">{selectedScript.createdBy?.name || 'Writer'}</strong></div>
+                    <div><span className="text-gray-500 block text-[10px]">Created At:</span> <strong className="text-gray-300">{new Date(selectedScript.createdAt).toLocaleDateString()}</strong></div>
+                    <div><span className="text-gray-500 block text-[10px]">Remarks:</span> <strong className="text-amber-300">{selectedScript.remarks || 'None'}</strong></div>
+                    <div><span className="text-gray-500 block text-[10px]">Total Revisions:</span> <strong className="text-amber-300 font-bold">{selectedScript.revisionCount || 0}</strong></div>
+                  </div>
+                )}
               </div>
 
               {/* Active Revision Requested Status Banner */}
@@ -1077,92 +1162,63 @@ export default function ScriptsPage() {
                 </div>
               )}
 
-              {/* 7-Step Script Revision Lifecycle Workflow Guide */}
-              <div className="p-3 bg-gray-950 border border-amber-900/40 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-amber-300 text-xs">🔄 Script Revision Workflow (7 Steps)</span>
-                  <span className="text-[10px] text-amber-400 font-mono font-bold">Total Revisions Count: {selectedScript.revisionCount || 0}</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
-                  <div className={`p-1.5 rounded border ${selectedScript.status?.includes('REVISION') ? 'bg-amber-950 text-amber-300 border-amber-700 font-bold' : 'bg-gray-900 text-gray-400 border-gray-800'}`}>
-                    1. Revision Requested
-                  </div>
-                  <div className={`p-1.5 rounded border ${selectedScript.status === 'IN_PRODUCTION' ? 'bg-blue-950 text-blue-300 border-blue-700 font-bold' : 'bg-gray-900 text-gray-400 border-gray-800'}`}>
-                    2. Assigned Employee Updates Work
-                  </div>
-                  <div className="p-1.5 rounded border bg-gray-900 text-gray-400 border-gray-800">
-                    3. Latest File Uploaded
-                  </div>
-                  <div className={`p-1.5 rounded border ${selectedScript.status === 'WAITING_FOR_TECHNICAL_REVIEW' ? 'bg-purple-950 text-purple-300 border-purple-700 font-bold' : 'bg-gray-900 text-gray-400 border-gray-800'}`}>
-                    4. Technical Review
-                  </div>
-                  <div className={`p-1.5 rounded border ${selectedScript.status === 'WAITING_FOR_MEDIA_REVIEW' ? 'bg-indigo-950 text-indigo-300 border-indigo-700 font-bold' : 'bg-gray-900 text-gray-400 border-gray-800'}`}>
-                    5. Media Manager Review
-                  </div>
-                  <div className={`p-1.5 rounded border ${selectedScript.status === 'WAITING_FOR_CLIENT_CONFIRMATION' ? 'bg-cyan-950 text-cyan-300 border-cyan-700 font-bold' : 'bg-gray-900 text-gray-400 border-gray-800'}`}>
-                    6. Client Confirmation
-                  </div>
-                  <div className={`p-1.5 rounded border ${selectedScript.status === 'COMPLETED' ? 'bg-emerald-950 text-emerald-300 border-emerald-700 font-bold' : 'bg-gray-900 text-gray-400 border-gray-800'}`}>
-                    7. Script Completed
-                  </div>
-                </div>
-              </div>
 
-              {/* Mandatory 4 Completion Prerequisites Panel */}
-              <div className="p-3 bg-gray-950 border border-emerald-900/50 rounded-xl space-y-2.5">
+              {/* Script Workflow Progress Stepper (Task Style) */}
+              <div className="p-4 bg-gray-950 border border-purple-900/60 rounded-xl space-y-3 shadow-lg">
                 <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-                  <h4 className="font-bold text-emerald-300 text-xs flex items-center gap-1.5">
-                    ✅ Script Completion Prerequisites (4 Mandatory Criteria)
+                  <h4 className="font-bold text-purple-300 text-xs flex items-center gap-1.5">
+                    🚀 Script Workflow Progress
                   </h4>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                    prodComp && techAppr && mediaAppr && clientConf
-                      ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
-                      : 'bg-amber-950 text-amber-300 border-amber-800'
-                  }`}>
-                    {[prodComp, techAppr, mediaAppr, clientConf].filter(Boolean).length} / 4 Approved
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded border bg-purple-950 text-purple-300 border-purple-800">
+                    Current Status: {selectedScript.status || 'IN_PRODUCTION'}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                  <label className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${prodComp ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200' : 'bg-gray-900 border-gray-800 text-gray-400'}`}>
-                    <input
-                      type="checkbox"
-                      checked={prodComp}
-                      onChange={(e) => setProdComp(e.target.checked)}
-                      className="rounded accent-emerald-500 w-4 h-4"
-                    />
-                    <span className="font-medium">1. Production is Complete</span>
-                  </label>
+                <div className="flex items-center justify-between overflow-x-auto py-2 px-1 gap-1">
+                  {[
+                    { key: 'IN_PRODUCTION', label: '1. Production' },
+                    { key: 'WAITING_FOR_TECHNICAL_REVIEW', label: '2. Technical Review' },
+                    { key: 'WAITING_FOR_MEDIA_REVIEW', label: '3. Media Review' },
+                    { key: 'WAITING_FOR_CLIENT_CONFIRMATION', label: '4. Client Confirmation' },
+                    { key: 'COMPLETED', label: '5. Completed' },
+                  ].map((stage, i) => {
+                    let currentIdx = 0;
+                    if (selectedScript.status === 'COMPLETED' || (prodComp && techAppr && mediaAppr && clientConf)) currentIdx = 4;
+                    else if (selectedScript.status === 'WAITING_FOR_CLIENT_CONFIRMATION' || clientConf) currentIdx = 3;
+                    else if (selectedScript.status === 'WAITING_FOR_MEDIA_REVIEW' || selectedScript.status === 'APPROVED' || mediaAppr) currentIdx = 2;
+                    else if (selectedScript.status === 'WAITING_FOR_TECHNICAL_REVIEW' || techAppr) currentIdx = 1;
+                    else currentIdx = 0;
 
-                  <label className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${techAppr ? 'bg-purple-950/60 border-purple-800 text-purple-200' : 'bg-gray-900 border-gray-800 text-gray-400'}`}>
-                    <input
-                      type="checkbox"
-                      checked={techAppr}
-                      onChange={(e) => setTechAppr(e.target.checked)}
-                      className="rounded accent-purple-500 w-4 h-4"
-                    />
-                    <span className="font-medium">2. Technical Review Approved</span>
-                  </label>
+                    const isCurrent = currentIdx === i;
+                    const isPassed = currentIdx >= 0 && i < currentIdx;
 
-                  <label className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${mediaAppr ? 'bg-indigo-950/60 border-indigo-800 text-indigo-200' : 'bg-gray-900 border-gray-800 text-gray-400'}`}>
-                    <input
-                      type="checkbox"
-                      checked={mediaAppr}
-                      onChange={(e) => setMediaAppr(e.target.checked)}
-                      className="rounded accent-indigo-500 w-4 h-4"
-                    />
-                    <span className="font-medium">3. Media Manager Review Approved</span>
-                  </label>
+                    return (
+                      <React.Fragment key={stage.key}>
+                        <div className="flex flex-col items-center min-w-[85px] text-center">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
+                            isCurrent
+                              ? 'bg-purple-500 text-white font-extrabold ring-2 ring-purple-400 animate-pulse shadow-lg shadow-purple-500/50'
+                              : isPassed
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-gray-900 text-gray-500 border border-gray-800'
+                          }`}>
+                            {isPassed ? '✓' : i + 1}
+                          </div>
+                          <span className={`text-[10px] mt-1 font-semibold leading-tight ${
+                            isCurrent ? 'text-purple-300 font-bold' : isPassed ? 'text-emerald-400' : 'text-gray-500'
+                          }`}>
+                            {stage.label}
+                          </span>
+                        </div>
 
-                  <label className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${clientConf ? 'bg-cyan-950/60 border-cyan-800 text-cyan-200' : 'bg-gray-900 border-gray-800 text-gray-400'}`}>
-                    <input
-                      type="checkbox"
-                      checked={clientConf}
-                      onChange={(e) => setClientConf(e.target.checked)}
-                      className="rounded accent-cyan-500 w-4 h-4"
-                    />
-                    <span className="font-medium">4. Client Confirmation Recorded</span>
-                  </label>
+                        {i < 4 && (
+                          <div className={`h-0.5 flex-1 min-w-[12px] ${
+                            currentIdx >= 0 && i < currentIdx ? 'bg-emerald-500' : 'bg-gray-800'
+                          }`} />
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1508,32 +1564,59 @@ export default function ScriptsPage() {
                 )}
               </div>
 
-              {/* Linked Script Attachments Section (7 Categories & Active Version Replacement) */}
-              <div className="p-4 bg-gray-950 border border-gray-800 rounded-xl space-y-3 pt-3">
+              {/* Linked Script Attachments Section (Select Category First -> Upload File) */}
+              <div className="p-4 bg-gray-950 border border-gray-800 rounded-xl space-y-4 pt-3">
                 <div className="flex justify-between items-center border-b border-gray-800 pb-2">
                   <h4 className="font-bold text-white text-xs flex items-center gap-1.5">
                     <FileText className="w-4 h-4 text-purple-400" /> Linked Script Attachments &amp; Production Files
                   </h4>
-                  <span className="text-[10px] text-amber-400/90 font-mono">
-                    ⚡ Only latest active version stored • Timeline preserves revision history
+                  <span className="text-[10px] text-purple-400 font-mono font-bold">
+                    ⚡ Select category type first, then choose file to upload
                   </span>
                 </div>
 
+                {/* Upload Control Card (Select Category Type -> Upload File Button) */}
+                <div className="p-3.5 bg-gray-900 border border-purple-900/60 rounded-xl space-y-2.5 shadow-md">
+                  <span className="text-purple-300 font-bold text-xs block">📤 Upload File Under Attachment Category:</span>
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <select
+                      value={selectedUploadCategory}
+                      onChange={(e) => setSelectedUploadCategory(e.target.value)}
+                      className="bg-gray-950 border border-purple-800 text-white px-3 py-2 rounded-lg text-xs font-semibold focus:outline-none focus:border-purple-500 shadow-inner"
+                    >
+                      <option value="SCRIPT_DOCUMENT">📄 1. Script Document</option>
+                      <option value="REFERENCE_IMAGE">🖼️ 2. Reference Images</option>
+                      <option value="REFERENCE_VIDEO">🎬 3. Reference Videos</option>
+                      <option value="AUDIO_REFERENCE">🎵 4. Audio References</option>
+                      <option value="BRAND_GUIDELINES">🎨 5. Brand Guidelines</option>
+                      <option value="PRODUCT_INFORMATION">📦 6. Product Information</option>
+                      <option value="SUPPORTING_DOCUMENT">📁 7. Supporting Documents</option>
+                    </select>
+
+                    <label className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs cursor-pointer flex items-center gap-1.5 shadow transition-all">
+                      <span>{uploadingCategory ? 'Uploading File…' : '+ Choose File & Upload'}</span>
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            handleFileUpload(e.target.files[0], selectedUploadCategory);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* All 7 Categories Display Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[11px]">
                   {/* Category 1: Script Document */}
                   <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-blue-300">📄 1. Script Document</span>
-                      <label className="text-[10px] bg-blue-900/40 border border-blue-700/50 text-blue-300 px-2 py-0.5 rounded cursor-pointer hover:bg-blue-800/50 transition-colors">
-                        {uploadingCategory === 'SCRIPT_DOCUMENT' ? 'Replacing…' : 'Replace File'}
-                        <input
-                          type="file"
-                          className="hidden"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) handleFileUpload(e.target.files[0], 'SCRIPT_DOCUMENT');
-                          }}
-                        />
-                      </label>
+                      <span className="text-[10px] text-gray-400">
+                        ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'SCRIPT_DOCUMENT' || f.fileName.endsWith('.pdf') || f.fileName.endsWith('.docx')).length || 0})
+                      </span>
                     </div>
                     {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'SCRIPT_DOCUMENT' || f.fileName.endsWith('.pdf') || f.fileName.endsWith('.docx')).length > 0 ? (
                       selectedScript.files?.filter((f: any) => f.attachmentCategory === 'SCRIPT_DOCUMENT' || f.fileName.endsWith('.pdf') || f.fileName.endsWith('.docx')).map((f: any) => (
@@ -1551,17 +1634,9 @@ export default function ScriptsPage() {
                   <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-purple-300">🖼️ 2. Reference Images</span>
-                      <label className="text-[10px] bg-purple-900/40 border border-purple-700/50 text-purple-300 px-2 py-0.5 rounded cursor-pointer hover:bg-purple-800/50 transition-colors">
-                        {uploadingCategory === 'REFERENCE_IMAGE' ? 'Replacing…' : 'Replace File'}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) handleFileUpload(e.target.files[0], 'REFERENCE_IMAGE');
-                          }}
-                        />
-                      </label>
+                      <span className="text-[10px] text-gray-400">
+                        ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'REFERENCE_IMAGE' || f.fileType?.startsWith('image/')).length || 0})
+                      </span>
                     </div>
                     {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'REFERENCE_IMAGE' || f.fileType?.startsWith('image/')).length > 0 ? (
                       selectedScript.files?.filter((f: any) => f.attachmentCategory === 'REFERENCE_IMAGE' || f.fileType?.startsWith('image/')).map((f: any) => (
@@ -1579,17 +1654,9 @@ export default function ScriptsPage() {
                   <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-emerald-300">🎬 3. Reference Videos</span>
-                      <label className="text-[10px] bg-emerald-900/40 border border-emerald-700/50 text-emerald-300 px-2 py-0.5 rounded cursor-pointer hover:bg-emerald-800/50 transition-colors">
-                        {uploadingCategory === 'REFERENCE_VIDEO' ? 'Replacing…' : 'Replace File'}
-                        <input
-                          type="file"
-                          accept="video/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) handleFileUpload(e.target.files[0], 'REFERENCE_VIDEO');
-                          }}
-                        />
-                      </label>
+                      <span className="text-[10px] text-gray-400">
+                        ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'REFERENCE_VIDEO' || f.fileType?.startsWith('video/')).length || 0})
+                      </span>
                     </div>
                     {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'REFERENCE_VIDEO' || f.fileType?.startsWith('video/')).length > 0 ? (
                       selectedScript.files?.filter((f: any) => f.attachmentCategory === 'REFERENCE_VIDEO' || f.fileType?.startsWith('video/')).map((f: any) => (
@@ -1607,17 +1674,9 @@ export default function ScriptsPage() {
                   <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-cyan-300">🎵 4. Audio References</span>
-                      <label className="text-[10px] bg-cyan-900/40 border border-cyan-700/50 text-cyan-300 px-2 py-0.5 rounded cursor-pointer hover:bg-cyan-800/50 transition-colors">
-                        {uploadingCategory === 'AUDIO_REFERENCE' ? 'Replacing…' : 'Replace File'}
-                        <input
-                          type="file"
-                          accept="audio/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) handleFileUpload(e.target.files[0], 'AUDIO_REFERENCE');
-                          }}
-                        />
-                      </label>
+                      <span className="text-[10px] text-gray-400">
+                        ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'AUDIO_REFERENCE' || f.fileType?.startsWith('audio/')).length || 0})
+                      </span>
                     </div>
                     {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'AUDIO_REFERENCE' || f.fileType?.startsWith('audio/')).length > 0 ? (
                       selectedScript.files?.filter((f: any) => f.attachmentCategory === 'AUDIO_REFERENCE' || f.fileType?.startsWith('audio/')).map((f: any) => (
@@ -1635,16 +1694,9 @@ export default function ScriptsPage() {
                   <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-amber-300">🎨 5. Brand Guidelines</span>
-                      <label className="text-[10px] bg-amber-900/40 border border-amber-700/50 text-amber-300 px-2 py-0.5 rounded cursor-pointer hover:bg-amber-800/50 transition-colors">
-                        {uploadingCategory === 'BRAND_GUIDELINES' ? 'Replacing…' : 'Replace File'}
-                        <input
-                          type="file"
-                          className="hidden"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) handleFileUpload(e.target.files[0], 'BRAND_GUIDELINES');
-                          }}
-                        />
-                      </label>
+                      <span className="text-[10px] text-gray-400">
+                        ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'BRAND_GUIDELINES').length || 0})
+                      </span>
                     </div>
                     {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'BRAND_GUIDELINES').length > 0 ? (
                       selectedScript.files?.filter((f: any) => f.attachmentCategory === 'BRAND_GUIDELINES').map((f: any) => (
@@ -1662,16 +1714,9 @@ export default function ScriptsPage() {
                   <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-indigo-300">📦 6. Product Information</span>
-                      <label className="text-[10px] bg-indigo-900/40 border border-indigo-700/50 text-indigo-300 px-2 py-0.5 rounded cursor-pointer hover:bg-indigo-800/50 transition-colors">
-                        {uploadingCategory === 'PRODUCT_INFORMATION' ? 'Replacing…' : 'Replace File'}
-                        <input
-                          type="file"
-                          className="hidden"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) handleFileUpload(e.target.files[0], 'PRODUCT_INFORMATION');
-                          }}
-                        />
-                      </label>
+                      <span className="text-[10px] text-gray-400">
+                        ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'PRODUCT_INFORMATION').length || 0})
+                      </span>
                     </div>
                     {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'PRODUCT_INFORMATION').length > 0 ? (
                       selectedScript.files?.filter((f: any) => f.attachmentCategory === 'PRODUCT_INFORMATION').map((f: any) => (
@@ -1690,16 +1735,9 @@ export default function ScriptsPage() {
                 <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-gray-300">📁 7. Supporting Documents</span>
-                    <label className="text-[10px] bg-gray-800 border border-gray-700 text-gray-300 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-700 transition-colors">
-                      {uploadingCategory === 'SUPPORTING_DOCUMENT' ? 'Replacing…' : 'Replace File'}
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={(e) => {
-                          if (e.target.files?.[0]) handleFileUpload(e.target.files[0], 'SUPPORTING_DOCUMENT');
-                        }}
-                      />
-                    </label>
+                    <span className="text-[10px] text-gray-400">
+                      ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'SUPPORTING_DOCUMENT').length || 0})
+                    </span>
                   </div>
                   {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'SUPPORTING_DOCUMENT').length > 0 ? (
                     selectedScript.files?.filter((f: any) => f.attachmentCategory === 'SUPPORTING_DOCUMENT').map((f: any) => (
@@ -1714,76 +1752,258 @@ export default function ScriptsPage() {
                 </div>
               </div>
 
-              {/* Marketing Manager Approval Controls */}
-              {(user?.role === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMIN') && selectedScript.status !== 'APPROVED' && (
-                <div className="p-4 bg-amber-950/30 border border-amber-800/60 rounded-xl space-y-3">
+              {/* Current Active Stage Status Card */}
+              {selectedScript.status === 'REVISION_REQUESTED' && (
+                <div className="p-4 bg-red-950/40 border border-red-800/80 rounded-xl space-y-2.5 text-red-200 shadow-xl">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-amber-300 text-xs flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-amber-400" /> Marketing Manager Script Approval Action
-                    </h4>
-                    <span className="text-[10px] bg-purple-950 text-purple-300 border border-purple-800 px-2 py-0.5 rounded font-bold">
-                      Current Status: {selectedScript.status}
+                    <span className="font-extrabold text-xs flex items-center gap-2 text-red-300">
+                      ❌ Technical Review REJECTED (Revisions Required)
+                    </span>
+                    <span className="text-[10px] bg-red-900 text-red-100 border border-red-700 px-2 py-0.5 rounded font-mono font-bold">
+                      REVISION_REQUESTED
                     </span>
                   </div>
-
-                  <div className="flex items-center gap-2 flex-wrap pt-1">
-                    <button
-                      type="button"
-                      onClick={() => handleApproveScriptAction(selectedScript.id, 'APPROVE')}
-                      disabled={saving}
-                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg shadow-md transition-all flex items-center gap-1.5"
-                    >
-                      <Check className="w-4 h-4" /> Accept / Approve Script Now
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const comment = prompt('Enter revisions requested for creator:');
-                        if (comment) handleApproveScriptAction(selectedScript.id, 'REQUEST_CHANGES', comment);
-                      }}
-                      disabled={saving}
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5"
-                    >
-                      <RotateCcw className="w-4 h-4" /> Request Revision
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const reason = prompt('Enter rejection reason:');
-                        if (reason) handleApproveScriptAction(selectedScript.id, 'REJECT', reason);
-                      }}
-                      disabled={saving}
-                      className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5"
-                    >
-                      <X className="w-4 h-4" /> Reject Script
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Resubmit for Creator when Changes Requested */}
-              {selectedScript.status === 'CHANGES_REQUESTED' && (
-                <div className="p-4 bg-orange-950/30 border border-orange-800/60 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-orange-300 text-xs">Revisions Requested by Marketing Manager</span>
-                    <button
-                      type="button"
-                      onClick={() => handleResubmitScriptAction(selectedScript.id)}
-                      disabled={saving}
-                      className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5"
-                    >
-                      🔄 Resubmit for Approval
-                    </button>
-                  </div>
-                  {selectedScript.remarks && (
-                    <p className="text-gray-300 text-xs italic bg-gray-900 p-2 rounded border border-gray-800">
-                      "{selectedScript.remarks}"
+                  <div className="p-3 bg-red-900/40 border border-red-800/60 rounded-lg text-xs space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-red-300 block">💬 Technical Manager Rejection Reason:</span>
+                    <p className="text-white font-medium whitespace-pre-wrap">
+                      {selectedScript.remarks || 'No specific rejection reason supplied. Please check operational remarks below and update storyline or attachments.'}
                     </p>
-                  )}
+                  </div>
+                  <p className="text-[11px] text-gray-300">
+                    Update script details or attachments above, then click <strong>🔄 Resubmit Revised Script for Technical Review</strong> below to request Technical Manager review again.
+                  </p>
                 </div>
               )}
+
+              {/* Permanent Review Decision Trail */}
+              {(() => {
+                const reviewEvents = (selectedScript.timeline || []).filter((t: any) =>
+                  ['TECHNICAL_REVIEW_APPROVED', 'TECHNICAL_REVIEW_REJECTED', 'MEDIA_REVIEW_APPROVED', 'MEDIA_REVIEW_REJECTED', 'MARKETING_REVIEW_REJECTED', 'SCRIPT_APPROVED'].includes(t.event) ||
+                  t.description?.includes('APPROVED by') ||
+                  t.description?.includes('REJECTED by')
+                );
+
+                if (reviewEvents.length === 0) return null;
+
+                return (
+                  <div className="p-4 bg-gray-950 border border-gray-800 rounded-xl space-y-3 shadow-md">
+                    <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2 border-b border-gray-800 pb-2">
+                      📜 Permanent Review Decision Trail ({reviewEvents.length} Decision{reviewEvents.length > 1 ? 's' : ''})
+                    </h4>
+                    <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                      {reviewEvents.map((ev: any, idx: number) => {
+                        const isAppr = ev.event?.includes('APPROVED') || ev.description?.includes('APPROVED');
+                        const isTech = ev.event?.includes('TECHNICAL');
+                        const isMedia = ev.event?.includes('MEDIA');
+                        const reviewerName = ev.triggeredBy?.name || 'Reviewing Manager';
+                        const reviewerRole = (ev.triggeredBy?.role || (isTech ? 'TECHNICAL_MANAGER' : isMedia ? 'MEDIA_MANAGER' : 'MARKETING_MANAGER')).replace(/_/g, ' ');
+                        const dateStr = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : '';
+
+                        return (
+                          <div
+                            key={ev.id || idx}
+                            className={`p-3 rounded-lg border text-xs space-y-1.5 ${
+                              isAppr ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300' : 'bg-red-950/20 border-red-800/40 text-red-300'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded border uppercase ${
+                                  isAppr ? 'bg-emerald-900/60 border-emerald-700 text-emerald-200' : 'bg-red-900/60 border-red-700 text-red-200'
+                                }`}>
+                                  {isAppr ? '✅ APPROVED' : '❌ CHANGES REQUESTED'}
+                                </span>
+                                <span className="font-bold text-[11px] text-gray-200">
+                                  {isTech ? 'Technical Review' : isMedia ? 'Media Manager Review' : 'Marketing Approval'}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-gray-400 font-mono">{dateStr}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-gray-300">
+                              <span>Reviewed By: <strong className="text-white font-semibold">{reviewerName}</strong> ({reviewerRole})</span>
+                            </div>
+                            {ev.description && (
+                              <p className="text-[11px] text-gray-300 font-mono bg-gray-900/80 p-2 rounded border border-gray-800/60">
+                                {ev.description}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Sequential Multi-Level Approval Chain Controls */}
+              <div className="space-y-3">
+                {/* Step 1: Submit / Resubmit for Technical Review (Assigned Staff / Writer / Creator) */}
+                {!selectedScript.technicalReviewApproved && !['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'PENDING_MARKETING_APPROVAL', 'APPROVED', 'COMPLETED'].includes(selectedScript.status) && (
+                  <div className="p-4 bg-purple-950/40 border border-purple-800/60 rounded-xl space-y-2.5 shadow-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-purple-300 text-xs flex items-center gap-1.5">
+                        {['REVISION_REQUESTED', 'CHANGES_REQUESTED'].includes(selectedScript.status)
+                          ? '🚀 Assigned Staff Action: Resubmit Revised Script for Technical Review'
+                          : '🚀 Assigned Staff Action: Submit for Technical Review'}
+                      </span>
+                      <span className="text-[10px] bg-purple-950 text-purple-200 border border-purple-700 px-2 py-0.5 rounded font-mono font-bold">
+                        Status: {selectedScript.status}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-300">
+                      {['REVISION_REQUESTED', 'CHANGES_REQUESTED'].includes(selectedScript.status)
+                        ? 'Revisions were requested by Technical Manager. Edit the script storyline or attachments above, then click below to resubmit for Technical Manager Review again.'
+                        : 'Once storyline narration and reference files are complete, submit this script to start the sequential approval chain (Technical Review → Media Manager Review → Marketing Manager Approval).'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleSubmitTechnicalReview(selectedScript.id)}
+                      disabled={saving}
+                      className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-lg shadow-md transition-all flex items-center gap-2 text-xs"
+                    >
+                      {['REVISION_REQUESTED', 'CHANGES_REQUESTED'].includes(selectedScript.status)
+                        ? '🔄 Resubmit Revised Script for Technical Review'
+                        : '🚀 Submit Script for Technical Review'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Step 2: Technical Manager Review Action (Strictly for Technical Manager / Admin) */}
+                {selectedScript.status === 'WAITING_FOR_TECHNICAL_REVIEW' && (
+                  (user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
+                    <div className="p-4 bg-blue-950/40 border border-blue-800/60 rounded-xl space-y-3 shadow-lg">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-blue-300 text-xs flex items-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4 text-blue-400" /> Level 1: Technical Manager Review Action
+                        </h4>
+                        <span className="text-[10px] bg-blue-950 text-blue-300 border border-blue-800 px-2 py-0.5 rounded font-mono font-bold">
+                          Status: WAITING_FOR_TECHNICAL_REVIEW
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleReviewTechnical(selectedScript.id, 'APPROVE')}
+                          disabled={saving}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                        >
+                          <Check className="w-4 h-4" /> Approve Technical Review
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const comment = prompt('Enter rejection / revision remarks for assigned staff:');
+                            if (comment !== null) {
+                              handleReviewTechnical(selectedScript.id, 'REJECT', comment.trim() || 'Technical Manager requested revisions');
+                            }
+                          }}
+                          disabled={saving}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                        >
+                          <RotateCcw className="w-4 h-4" /> Reject &amp; Revert to In Production
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-blue-950/20 border border-blue-800/40 rounded-xl flex items-center justify-between">
+                      <span className="text-blue-300 font-semibold text-xs flex items-center gap-2">
+                        ⏳ Script submitted — Currently waiting for Technical Manager Review
+                      </span>
+                      <span className="text-[10px] text-gray-400 font-mono">Pending Tech Review</span>
+                    </div>
+                  )
+                )}
+
+                {/* Step 3: Media Manager Review Action (Strictly for Media Manager / Admin) */}
+                {selectedScript.status === 'WAITING_FOR_MEDIA_REVIEW' && (
+                  (user?.role === 'MEDIA_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
+                    <div className="p-4 bg-indigo-950/40 border border-indigo-800/60 rounded-xl space-y-3 shadow-lg">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-indigo-300 text-xs flex items-center gap-1.5">
+                          🎬 Level 2: Media Manager Review Action
+                        </h4>
+                        <span className="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded font-mono font-bold">
+                          Status: WAITING_FOR_MEDIA_REVIEW
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleReviewMedia(selectedScript.id, 'APPROVE')}
+                          disabled={saving}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                        >
+                          <Check className="w-4 h-4" /> Approve Media Review
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const comment = prompt('Enter rejection / revision remarks for assigned staff:');
+                            if (comment) handleReviewMedia(selectedScript.id, 'REJECT', comment);
+                          }}
+                          disabled={saving}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                        >
+                          <RotateCcw className="w-4 h-4" /> Reject &amp; Revert to In Production
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-indigo-950/20 border border-indigo-800/40 rounded-xl flex items-center justify-between">
+                      <span className="text-indigo-300 font-semibold text-xs flex items-center gap-2">
+                        ⏳ Technical Review Passed — Currently waiting for Media Manager Review
+                      </span>
+                      <span className="text-[10px] text-gray-400 font-mono">Pending Media Review</span>
+                    </div>
+                  )
+                )}
+
+                {/* Step 4: Marketing Manager Final Approval Action (Strictly for Marketing Manager / Admin) */}
+                {selectedScript.status === 'PENDING_MARKETING_APPROVAL' && (
+                  (user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
+                    <div className="p-4 bg-amber-950/40 border border-amber-800/60 rounded-xl space-y-3 shadow-lg">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-amber-300 text-xs flex items-center gap-1.5">
+                          🏆 Level 3: Marketing Manager Final Approval Action
+                        </h4>
+                        <span className="text-[10px] bg-amber-950 text-amber-300 border border-amber-800 px-2 py-0.5 rounded font-mono font-bold">
+                          Status: PENDING_MARKETING_APPROVAL
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleApproveScriptAction(selectedScript.id, 'APPROVE')}
+                          disabled={saving}
+                          className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                        >
+                          <Check className="w-4 h-4" /> Final Approve Script
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const comment = prompt('Enter rejection / revision remarks for assigned staff:');
+                            if (comment) handleApproveScriptAction(selectedScript.id, 'REQUEST_CHANGES', comment);
+                          }}
+                          disabled={saving}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                        >
+                          <RotateCcw className="w-4 h-4" /> Reject &amp; Revert to In Production
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-amber-950/20 border border-amber-800/40 rounded-xl flex items-center justify-between">
+                      <span className="text-amber-300 font-semibold text-xs flex items-center gap-2">
+                        ⏳ Media Review Passed — Currently waiting for Marketing Manager Final Approval
+                      </span>
+                      <span className="text-[10px] text-gray-400 font-mono">Pending Marketing Approval</span>
+                    </div>
+                  )
+                )}
+              </div>
 
               {/* Revision Cycles & Resubmission Controls */}
               <div className="p-4 bg-gray-950 border border-gray-800 rounded-xl space-y-3">

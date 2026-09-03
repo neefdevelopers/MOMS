@@ -52,11 +52,20 @@ export class TasksService {
       if (params.dateTo) where.dueDate.lte = new Date(params.dateTo);
     }
 
-    // RBAC: Staff only see their assigned tasks
-    if (params.role === Role.STAFF || params.employeeId) {
-      const targetUserId = params.employeeId || params.userId;
+    // RBAC: STAFF and SOCIAL_MEDIA_MANAGER users MUST ONLY see tasks strictly assigned to their user ID
+    const isRestrictedRole =
+      params.role === Role.STAFF ||
+      params.role === Role.SOCIAL_MEDIA_MANAGER ||
+      (params.role as string) === 'STAFF' ||
+      (params.role as string) === 'SOCIAL_MEDIA_MANAGER';
+
+    if (isRestrictedRole) {
       where.assignedEmployees = {
-        some: { userId: targetUserId },
+        some: { userId: params.userId },
+      };
+    } else if (params.employeeId) {
+      where.assignedEmployees = {
+        some: { userId: params.employeeId },
       };
     }
 
@@ -111,6 +120,47 @@ export class TasksService {
         computed = 'CALENDAR_EVENT';
       } else {
         computed = 'DIRECT_TASK';
+      }
+
+      // Automatic Task Status & Completion Percentage Synchronization with Linked Script
+      if (t.script) {
+        let mappedTaskStatus = t.status;
+        let mappedProgress = t.completionPercentage;
+        const norm = (t.script.status || '').toUpperCase().replace(/\s+/g, '_');
+
+        if (norm.includes('REVISION') || norm.includes('CHANGES') || norm.includes('REJECTED')) {
+          mappedTaskStatus = TaskStatus.REVISION_REQUESTED;
+        } else if (norm === 'COMPLETED') {
+          mappedTaskStatus = TaskStatus.COMPLETED;
+          mappedProgress = 100;
+        } else if (norm === 'WAITING_FOR_TECHNICAL_REVIEW') {
+          mappedTaskStatus = TaskStatus.WAITING_FOR_TECHNICAL_REVIEW;
+          mappedProgress = Math.max(mappedProgress, 50);
+        } else if (norm === 'WAITING_FOR_MEDIA_REVIEW') {
+          mappedTaskStatus = TaskStatus.WAITING_FOR_MEDIA_REVIEW;
+          mappedProgress = Math.max(mappedProgress, 75);
+        } else if (norm === 'PENDING_MARKETING_APPROVAL' || norm === 'WAITING_FOR_MARKETING_APPROVAL') {
+          mappedTaskStatus = TaskStatus.WAITING_FOR_MEDIA_REVIEW;
+          mappedProgress = Math.max(mappedProgress, 80);
+        } else if (norm === 'APPROVED') {
+          mappedTaskStatus = TaskStatus.APPROVED;
+          mappedProgress = Math.max(mappedProgress, 85);
+        } else if (norm === 'IN_PRODUCTION' || norm === 'DRAFT' || norm === 'ACCEPTED') {
+          if (t.status === TaskStatus.ACCEPTED) {
+            mappedTaskStatus = TaskStatus.ACCEPTED;
+          } else if (t.status !== TaskStatus.PENDING && t.status !== TaskStatus.ASSIGNED) {
+            mappedTaskStatus = TaskStatus.IN_PROGRESS;
+          }
+        }
+
+        if (mappedTaskStatus !== t.status || mappedProgress !== t.completionPercentage) {
+          await this.prisma.task.update({
+            where: { id: t.id },
+            data: { status: mappedTaskStatus, completionPercentage: mappedProgress },
+          }).catch(() => null);
+          t.status = mappedTaskStatus;
+          t.completionPercentage = mappedProgress;
+        }
       }
 
       if (computed !== t.sourceType) {
@@ -662,6 +712,35 @@ export class TasksService {
     return this.findOne(taskId);
   }
 
+  private async verifyTaskAcceptance(task: any, user: any) {
+    if (!user || user.role === Role.ADMINISTRATOR || (user.role as string) === 'ADMIN') {
+      return;
+    }
+
+    const isAssigned =
+      task.assignedToId === user.id ||
+      (Array.isArray(task.assignedEmployees) &&
+        task.assignedEmployees.some(
+          (e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id,
+        ));
+
+    if (isAssigned) {
+      const assignment = (task.assignedEmployees || []).find(
+        (e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id,
+      );
+
+      const isAssignmentAccepted =
+        assignment &&
+        (assignment.acceptanceStatus === 'ACCEPTED' || assignment.acceptanceStatus === 'Accepted');
+
+      const isTaskAccepted = task.status === TaskStatus.ACCEPTED;
+
+      if (!isAssignmentAccepted && !isTaskAccepted) {
+        throw new ForbiddenException('Task must be accepted before you can perform this action.');
+      }
+    }
+  }
+
   async updateProgress(
     taskId: string,
     data: { status?: TaskStatus; completionPercentage?: number; remarks?: string; dueDate?: string },
@@ -669,10 +748,13 @@ export class TasksService {
   ) {
     const task = await this.findOne(taskId);
 
+    // Global Enforced Task Acceptance Gate
+    await this.verifyTaskAcceptance(task, user);
+
     // Employees can only update tasks assigned to them, and cannot update while under review
-    if (user.role === Role.STAFF) {
-      const isAssigned = task.assignedEmployees.some((a) => a.userId === user.id);
-      if (!isAssigned) {
+    if (user.role === Role.STAFF || user.role === Role.SOCIAL_MEDIA_MANAGER) {
+      const isAssigned = task.assignedEmployees.some((a: any) => a.userId === user.id);
+      if (!isAssigned && user.role === Role.STAFF) {
         throw new ForbiddenException("Staff cannot update tasks assigned to other employees.");
       }
 
@@ -683,18 +765,7 @@ export class TasksService {
         TaskStatus.COMPLETED,
       ];
       if (reviewStatuses.includes(task.status as any)) {
-        throw new ForbiddenException("Task is currently undergoing Technical Review. Staff cannot make updates while under review.");
-      }
-    }
-
-    // Strict Workflow Stage Transition Validations
-    if (data.status === TaskStatus.IN_PROGRESS) {
-      // Automatically mark assignment as ACCEPTED for staff starting work on this task
-      if (user?.id) {
-        await this.prisma.taskAssignment.updateMany({
-          where: { taskId, userId: user.id, acceptanceStatus: { not: 'ACCEPTED' } },
-          data: { acceptanceStatus: 'ACCEPTED', acceptedAt: new Date() },
-        });
+        throw new ForbiddenException("Task is currently undergoing review. Updates are locked during review.");
       }
     }
 
@@ -807,23 +878,19 @@ export class TasksService {
   async acknowledgeTaskAcceptance(taskId: string, user: any) {
     const task = await this.findOne(taskId);
 
-    const assignment = await this.prisma.taskAssignment.findFirst({
-      where: { taskId: task.id, userId: user.id },
+    await this.prisma.taskAssignment.upsert({
+      where: { taskId_userId: { taskId: task.id, userId: user.id } },
+      create: {
+        taskId: task.id,
+        userId: user.id,
+        acceptanceStatus: 'ACCEPTED',
+        acceptedAt: new Date(),
+      },
+      update: {
+        acceptanceStatus: 'ACCEPTED',
+        acceptedAt: new Date(),
+      },
     });
-
-    if (!assignment && user.role === Role.STAFF) {
-      throw new NotFoundException('You are not assigned to this task.');
-    }
-
-    if (assignment) {
-      await this.prisma.taskAssignment.update({
-        where: { id: assignment.id },
-        data: {
-          acceptanceStatus: 'ACCEPTED',
-          acceptedAt: new Date(),
-        },
-      });
-    }
 
     // Update main task status to ACCEPTED and progress to 25% if currently PENDING or ASSIGNED
     if (task.status === TaskStatus.PENDING || task.status === TaskStatus.ASSIGNED) {
@@ -836,18 +903,122 @@ export class TasksService {
       });
     }
 
-    // 3. Log EMPLOYEE_ACCEPTED
+    // Log EMPLOYEE_ACCEPTED
     await this.logTimelineEvent(task.id, 'EMPLOYEE_ACCEPTED', `Task receipt acknowledged & ACCEPTED by ${user.name} (Progress: 25%)`, user.id);
 
-    if (task.scriptId) {
-      await this.prisma.scriptTimeline.create({
-        data: {
-          scriptId: task.scriptId,
-          triggeredById: user.id,
-          event: 'TASK_ACCEPTED',
-          description: `Assigned task ${task.taskId} acknowledged & ACCEPTED by ${user.name || user.email}`,
-        },
-      });
+    // Ensure corresponding Script exists under user's Script session upon Task acceptance
+    let targetScriptId = task.scriptId;
+    const isScriptTaskType = true;
+
+    if (isScriptTaskType) {
+      try {
+        if (!targetScriptId) {
+          let clientId = task.clientId;
+          let brandId = task.brandId;
+          let projId = task.projectId;
+
+          if (!clientId) {
+            let c = await this.prisma.client.findFirst();
+            if (!c) {
+              c = await this.prisma.client.create({
+                data: { name: 'General Client', companyName: 'General Organization', contactPerson: 'System', mobile: '0000000000', email: 'client@moms.com' },
+              });
+            }
+            clientId = c.id;
+          }
+
+          if (!brandId) {
+            let b = await this.prisma.brand.findFirst();
+            if (!b) {
+              b = await this.prisma.brand.create({
+                data: { shortCode: 'GEN', name: 'General Brand', clientId: clientId },
+              });
+            }
+            brandId = b.id;
+          }
+
+          if (!projId) {
+            let p = await this.prisma.shootProject.findFirst();
+            if (!p) {
+              let projCount = await this.prisma.shootProject.count();
+              p = await this.prisma.shootProject.create({
+                data: {
+                  projectId: `PROJ-${(projCount + 1).toString().padStart(6, '0')}`,
+                  name: 'General Production Project',
+                  clientId: clientId,
+                  brandId: brandId,
+                  shootType: 'INDOOR',
+                  shootDate: new Date(Date.now() + 7 * 86400000),
+                  shootLocation: 'Studio',
+                  status: 'PLANNED',
+                  createdById: user.id,
+                },
+              });
+            }
+            projId = p.id;
+          }
+
+          let existingScript = await this.prisma.script.findFirst({
+            where: {
+              name: task.title,
+              projectId: projId,
+            },
+          });
+
+          if (!existingScript) {
+            let scriptCount = await this.prisma.script.count();
+            let autoScriptId = `SCR-${(scriptCount + 1).toString().padStart(6, '0')}`;
+            let duplicateCheck = await this.prisma.script.findUnique({ where: { scriptId: autoScriptId } });
+            while (duplicateCheck) {
+              scriptCount++;
+              autoScriptId = `SCR-${(scriptCount + 1).toString().padStart(6, '0')}`;
+              duplicateCheck = await this.prisma.script.findUnique({ where: { scriptId: autoScriptId } });
+            }
+
+            existingScript = await this.prisma.script.create({
+              data: {
+                scriptId: autoScriptId,
+                name: task.title,
+                description: task.description,
+                projectId: projId,
+                clientId: clientId,
+                brandId: brandId,
+                productId: task.productId || undefined,
+                priority: task.priority || 'MEDIUM',
+                status: 'DRAFT',
+                createdById: user.id,
+              },
+            });
+          }
+
+          if (existingScript) {
+            targetScriptId = existingScript.id;
+            await this.prisma.task.update({
+              where: { id: task.id },
+              data: { scriptId: existingScript.id },
+            });
+          }
+        }
+
+        if (targetScriptId && user.id) {
+          await this.prisma.scriptAssignment.upsert({
+            where: { scriptId_userId_responsibility: { scriptId: targetScriptId, userId: user.id, responsibility: 'SCRIPTWRITER' } },
+            create: { scriptId: targetScriptId, userId: user.id, responsibility: 'SCRIPTWRITER' },
+            update: { assignedAt: new Date() },
+          }).catch(() => null);
+
+          await this.prisma.scriptTimeline.create({
+            data: {
+              scriptId: targetScriptId,
+              triggeredById: user.id,
+              event: 'TASK_ACCEPTED',
+              description: `Assigned task ${task.taskId} acknowledged & ACCEPTED by ${user.name || user.email}`,
+            },
+          }).catch(() => null);
+        }
+      } catch (scriptErr) {
+        console.error('Non-blocking script auto-creation error during task acceptance:', scriptErr);
+      }
     }
 
     return this.findOne(task.id);
@@ -898,6 +1069,7 @@ export class TasksService {
     }
 
     const task = await this.findOne(taskId);
+    await this.verifyTaskAcceptance(task, user);
 
     if (user.role === Role.STAFF) {
       const isAssigned = task.assignedEmployees.some((a) => a.userId === user.id);
@@ -945,6 +1117,7 @@ export class TasksService {
     }
 
     const task = await this.findOne(taskId);
+    await this.verifyTaskAcceptance(task, user);
 
     // Employees can only upload deliverables after task has been moved to IN_PROGRESS
     const allowedStatusesForUpload = [
@@ -1018,6 +1191,7 @@ export class TasksService {
 
   async requestTechnicalReview(taskId: string, user: any) {
     const task = await this.findOne(taskId);
+    await this.verifyTaskAcceptance(task, user);
 
     if (user.role === Role.STAFF) {
       const isAssigned = task.assignedEmployees.some((a) => a.userId === user.id);

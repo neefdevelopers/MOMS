@@ -38,8 +38,9 @@ export class ReportsController {
     @Query('status') status?: string,
     @Query('search') search?: string
   ) {
-    // Staff users can ONLY access their own employee metrics; override employeeId parameter
-    const effectiveEmpId = user.role === Role.STAFF ? user.id : (employeeId || user.id);
+    // Staff and Social Media Manager users can ONLY access their own employee metrics; override employeeId parameter
+    const isRestricted = user.role === Role.STAFF || user.role === Role.SOCIAL_MEDIA_MANAGER;
+    const effectiveEmpId = isRestricted ? user.id : (employeeId || user.id);
     return this.reportsService.getPersonalizedDashboard(effectiveEmpId, period, startDate, endDate, clientId, brandId, productId, departmentId, effectiveEmpId, projectId, status, search);
   }
 

@@ -274,13 +274,12 @@ export function canUserViewTask(
   if (
     user.role === 'MEDIA_MANAGER' ||
     user.role === 'TECHNICAL_MANAGER' ||
-    user.role === 'MARKETING_MANAGER' ||
-    user.role === 'SOCIAL_MEDIA_MANAGER'
+    user.role === 'MARKETING_MANAGER'
   ) {
     return true;
   }
 
-  if (user.role === 'STAFF') {
+  if (user.role === 'STAFF' || user.role === 'SOCIAL_MEDIA_MANAGER') {
     const isAssigned =
       task.assignedToId === user.id ||
       (Array.isArray(task.assignedEmployees) &&
@@ -313,13 +312,12 @@ export function canUserViewScript(
   if (
     user.role === 'MEDIA_MANAGER' ||
     user.role === 'TECHNICAL_MANAGER' ||
-    user.role === 'MARKETING_MANAGER' ||
-    user.role === 'SOCIAL_MEDIA_MANAGER'
+    user.role === 'MARKETING_MANAGER'
   ) {
     return true;
   }
 
-  if (user.role === 'STAFF') {
+  if (user.role === 'STAFF' || user.role === 'SOCIAL_MEDIA_MANAGER') {
     const isAssigned =
       script.assignedToId === user.id ||
       script.writerId === user.id ||

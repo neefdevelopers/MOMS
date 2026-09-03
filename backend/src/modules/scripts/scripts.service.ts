@@ -50,9 +50,11 @@ export class ScriptsService {
       if (p.dateTo) where.createdAt.lte = new Date(p.dateTo);
     }
 
-    // Role-based query filtering for STAFF: only assigned scripts, tasks, or projects
-    if (p.role === 'STAFF' && p.userId) {
+    // Role-based query filtering for STAFF and SOCIAL_MEDIA_MANAGER:
+    // Only see scripts created by them or assigned to them via tasks/assignments
+    if ((p.role === 'STAFF' || p.role === 'SOCIAL_MEDIA_MANAGER') && p.userId) {
       where.OR = [
+        { createdById: p.userId },
         { scriptAssignments: { some: { userId: p.userId } } },
         { tasks: { some: { assignedEmployees: { some: { userId: p.userId } } } } },
         { project: { assignedTeam: { some: { userId: p.userId } } } },
@@ -217,10 +219,43 @@ export class ScriptsService {
   };
 
   async logTimeline(scriptId: string, event: string, description?: string, triggeredById?: string) {
-    return this.prisma.scriptTimeline.create({
-      data: { scriptId, event, description: description || this.EVENT_LABELS[event] || event, triggeredById: triggeredById || null },
+    const descText = description || this.EVENT_LABELS[event] || event;
+    const timelineItem = await this.prisma.scriptTimeline.create({
+      data: { scriptId, event, description: descText, triggeredById: triggeredById || null },
       include: { triggeredBy: { select: { id: true, name: true, role: true } } },
     });
+
+    // Also sync timeline log event to all linked Task Timelines & Task Remarks
+    const linkedTasks = await this.prisma.task.findMany({ where: { scriptId }, select: { id: true } });
+    for (const t of linkedTasks) {
+      await this.prisma.taskTimeline.create({
+        data: {
+          taskId: t.id,
+          event: 'STATUS_CHANGED',
+          description: `[Script Workflow] ${descText}`,
+          userId: triggeredById || null,
+        },
+      }).catch(() => null);
+
+      if (event.includes('REJECTED') || event.includes('APPROVED')) {
+        let fallbackUserId = triggeredById;
+        if (!fallbackUserId) {
+          const u = await this.prisma.user.findFirst({ select: { id: true } });
+          fallbackUserId = u?.id;
+        }
+        if (fallbackUserId) {
+          await this.prisma.taskRemark.create({
+            data: {
+              taskId: t.id,
+              userId: fallbackUserId,
+              message: `[Operational Timeline Log] ${descText}`,
+            },
+          }).catch(() => null);
+        }
+      }
+    }
+
+    return timelineItem;
   }
 
   async getTimeline(scriptId: string) {
@@ -545,6 +580,7 @@ export class ScriptsService {
 
     // Auto-set status to COMPLETED if all 4 criteria are fulfilled
     let finalStatus = data.status || existing.status;
+
     if (allCriteriaMet && finalStatus !== 'COMPLETED' && finalStatus !== 'Completed') {
       finalStatus = 'COMPLETED';
     }
@@ -571,7 +607,7 @@ export class ScriptsService {
         priority: data.priority,
         remarks: data.remarks,
         productionCompleted: prodComp,
-        technicalReviewApproved: techAppr,
+        technicalReviewApproved: finalStatus === 'WAITING_FOR_TECHNICAL_REVIEW' ? false : techAppr,
         mediaManagerReviewApproved: mediaAppr,
         clientConfirmationRecorded: clientConf,
         revisionCount: isRevisionReq ? { increment: 1 } : undefined,
@@ -603,7 +639,311 @@ export class ScriptsService {
       await this.logTimeline(id, 'PRODUCTION_UPDATED', 'Script production details updated', data.updatedById);
     }
 
+    await this.syncLinkedTasks(id, updated);
+
     return updated;
+  }
+
+  private async syncLinkedTasks(scriptId: string, statusOrScript?: string | any) {
+    if (!scriptId) return;
+
+    let script: any = null;
+    let statusStr = typeof statusOrScript === 'string' ? statusOrScript : '';
+
+    if (typeof statusOrScript === 'object' && statusOrScript !== null) {
+      script = statusOrScript;
+      statusStr = script.status;
+    } else {
+      script = await this.prisma.script.findUnique({ where: { id: scriptId } });
+    }
+
+    if (!script) return;
+
+    const linkedTasks = await this.prisma.task.findMany({ where: { scriptId } });
+    if (!linkedTasks || linkedTasks.length === 0) return;
+
+    const norm = (statusStr || script.status || '').toUpperCase().replace(/\s+/g, '_');
+    let taskStatus: string | null = null;
+    let progressBonus = 25;
+
+    if (norm.includes('REVISION') || norm.includes('CHANGES') || norm.includes('REJECTED')) {
+      taskStatus = 'REVISION_REQUESTED';
+      progressBonus = 40;
+    } else if (norm === 'COMPLETED') {
+      taskStatus = 'COMPLETED';
+      progressBonus = 100;
+    } else if (norm === 'WAITING_FOR_TECHNICAL_REVIEW') {
+      taskStatus = 'WAITING_FOR_TECHNICAL_REVIEW';
+      progressBonus = 50;
+    } else if (norm === 'WAITING_FOR_MEDIA_REVIEW') {
+      taskStatus = 'WAITING_FOR_MEDIA_REVIEW';
+      progressBonus = 75;
+    } else if (norm === 'PENDING_MARKETING_APPROVAL' || norm === 'WAITING_FOR_MARKETING_APPROVAL') {
+      taskStatus = 'WAITING_FOR_MARKETING_APPROVAL';
+      progressBonus = 80;
+    } else if (norm === 'APPROVED') {
+      taskStatus = 'APPROVED';
+      progressBonus = 85;
+    }
+
+    for (const t of linkedTasks) {
+      const updateData: any = {};
+
+      if (taskStatus) {
+        updateData.status = taskStatus;
+        updateData.completionPercentage = taskStatus === 'COMPLETED' ? 100 : Math.max(t.completionPercentage, progressBonus);
+      }
+
+      if (script.name && t.title !== script.name) {
+        updateData.title = script.name;
+      }
+      if (script.description !== undefined && script.description !== null && t.description !== script.description) {
+        updateData.description = script.description;
+      }
+      if (script.priority && t.priority !== script.priority) {
+        updateData.priority = script.priority;
+      }
+      if (script.remarks !== undefined && script.remarks !== null && t.remarks !== script.remarks) {
+        updateData.remarks = script.remarks;
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await this.prisma.task.update({
+          where: { id: t.id },
+          data: updateData,
+        }).catch(() => null);
+      }
+    }
+  }
+
+  async submitTechnicalReview(scriptId: string, user: { id: string; name?: string; role: string }) {
+    const script = await this.findOne(scriptId);
+
+    const isResubmission = script.status === 'REVISION_REQUESTED' || script.status === 'CHANGES_REQUESTED';
+
+    const updated = await this.prisma.script.update({
+      where: { id: scriptId },
+      data: {
+        status: 'WAITING_FOR_TECHNICAL_REVIEW',
+        technicalReviewApproved: false,
+        mediaManagerReviewApproved: false,
+        remarks: isResubmission ? `Revised script resubmitted by ${user.name || user.role}` : script.remarks,
+      },
+    });
+
+    // Update active Revision records to SUBMITTED
+    await this.prisma.revision.updateMany({
+      where: { entityType: 'SCRIPT', entityId: scriptId, status: 'REVISION_REQUESTED' },
+      data: {
+        status: 'SUBMITTED',
+        submittedAt: new Date(),
+      },
+    }).catch(() => null);
+
+    // Add operational remark
+    await this.prisma.scriptRemark.create({
+      data: {
+        scriptId: scriptId,
+        userId: user.id,
+        message: `🔄 Script ${isResubmission ? 'resubmitted after revisions' : 'submitted'} for Technical Manager Review by ${user.name || user.role}.`,
+      },
+    }).catch(() => null);
+
+    await this.logTimeline(
+      scriptId,
+      'TECHNICAL_REVIEW_SUBMITTED',
+      `Script ${isResubmission ? 'resubmitted after revisions' : 'submitted'} for Technical Review by ${user.name || user.role}`,
+      user.id,
+    );
+
+    // Notify Technical Managers
+    const techManagers = await this.prisma.user.findMany({
+      where: { role: { in: ['TECHNICAL_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+    });
+
+    if (techManagers.length > 0) {
+      await this.prisma.notification.createMany({
+        data: techManagers.map((tm) => ({
+          userId: tm.id,
+          title: isResubmission ? 'Revised Script Resubmitted' : 'Script Pending Technical Review',
+          message: `Script "${script.scriptId}: ${script.name}" was ${isResubmission ? 'resubmitted after revisions' : 'submitted'} for Technical Manager Review.`,
+          type: 'INFO',
+          linkUrl: '/scripts',
+          eventType: 'TECHNICAL_REVIEW_REQUESTED',
+          entityType: 'SCRIPT',
+          entityId: script.id,
+          entityCode: script.scriptId,
+          scriptId: script.id,
+        })),
+      }).catch(() => null);
+    }
+
+    await this.syncLinkedTasks(scriptId, updated);
+    return updated;
+  }
+
+  async reviewTechnical(
+    scriptId: string,
+    user: { id: string; name?: string; role: string },
+    body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+  ) {
+    const { action, comment } = body;
+
+    if (action === 'APPROVE') {
+      const script = await this.findOne(scriptId);
+
+      const updated = await this.prisma.script.update({
+        where: { id: scriptId },
+        data: {
+          status: 'WAITING_FOR_MEDIA_REVIEW',
+          technicalReviewApproved: true,
+        },
+      });
+
+      // Add operational remark
+      await this.prisma.scriptRemark.create({
+        data: {
+          scriptId: scriptId,
+          userId: user.id,
+          message: `✅ Technical Review APPROVED by Technical Manager ${user.name || ''}. Automatically forwarded for Level 2: Media Manager Review.`,
+        },
+      }).catch(() => null);
+
+      await this.logTimeline(
+        scriptId,
+        'TECHNICAL_REVIEW_APPROVED',
+        `Technical Review APPROVED by Technical Manager ${user.name || ''}. Automatically submitted for Media Manager Review.`,
+        user.id,
+      );
+
+      // Notify Media Managers
+      const mediaManagers = await this.prisma.user.findMany({
+        where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+      });
+
+      if (mediaManagers.length > 0) {
+        await this.prisma.notification.createMany({
+          data: mediaManagers.map((mm) => ({
+            userId: mm.id,
+            title: 'Script Pending Media Manager Review',
+            message: `Script "${script.scriptId}: ${script.name}" was approved by Technical Manager and automatically forwarded for Media Manager Review.`,
+            type: 'INFO',
+            linkUrl: '/scripts',
+            eventType: 'MEDIA_REVIEW_REQUESTED',
+            entityType: 'SCRIPT',
+            entityId: script.id,
+            entityCode: script.scriptId,
+            scriptId: script.id,
+          })),
+        }).catch(() => null);
+      }
+
+      await this.syncLinkedTasks(scriptId, updated);
+      return updated;
+    } else {
+      // REJECT by Technical Manager -> Revert to REVISION_REQUESTED with explicit rejection reason
+      const rejectionReason = comment ? `Technical Review Rejection Reason: ${comment}` : 'Technical Manager requested revisions';
+      const script = await this.findOne(scriptId);
+
+      const updated = await this.prisma.script.update({
+        where: { id: scriptId },
+        data: {
+          status: 'REVISION_REQUESTED',
+          technicalReviewApproved: false,
+          mediaManagerReviewApproved: false,
+          revisionCount: { increment: 1 },
+          remarks: rejectionReason,
+        },
+      });
+
+      // Auto-create formal Revision record for traceable history
+      const assignedUser = script.scriptAssignments?.[0]?.userId || script.createdById || user.id;
+      const revCount = (script.revisionCount || 0) + 1;
+      await this.prisma.revision.create({
+        data: {
+          entityType: 'SCRIPT',
+          entityId: scriptId,
+          projectId: script.projectId || undefined,
+          revisionNumber: revCount,
+          reason: comment || 'Technical Manager requested revisions',
+          detailedRequest: comment || 'Technical review failed. Revisions required before resubmission.',
+          priority: script.priority || 'HIGH',
+          reviewStage: 'TECHNICAL_REVIEW',
+          requestedById: user.id,
+          originalAssigneeId: assignedUser,
+          assignedToId: assignedUser,
+          status: 'REVISION_REQUESTED',
+        },
+      }).catch((err) => console.error('Failed to auto-create revision record:', err));
+
+      await this.prisma.scriptRemark.create({
+        data: {
+          scriptId: scriptId,
+          userId: user.id,
+          message: `❌ Technical Review REJECTED by Technical Manager ${user.name || ''}: ${comment || 'Revisions required. Please update storyline or attachments and resubmit.'}`,
+        },
+      }).catch(() => null);
+
+      await this.logTimeline(
+        scriptId,
+        'TECHNICAL_REVIEW_REJECTED',
+        `Technical Review REJECTED by Technical Manager ${user.name || ''}: ${comment || 'Revisions required'}. Reverted to In Production for assigned staff.`,
+        user.id,
+      );
+
+      await this.syncLinkedTasks(scriptId, updated);
+      return updated;
+    }
+  }
+
+  async reviewMedia(
+    scriptId: string,
+    user: { id: string; name?: string; role: string },
+    body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+  ) {
+    const { action, comment } = body;
+
+    if (action === 'APPROVE') {
+      const updated = await this.prisma.script.update({
+        where: { id: scriptId },
+        data: {
+          status: 'PENDING_MARKETING_APPROVAL',
+          mediaManagerReviewApproved: true,
+        },
+      });
+
+      await this.logTimeline(
+        scriptId,
+        'MEDIA_REVIEW_APPROVED',
+        `Media Manager Review APPROVED by Media Manager ${user.name || ''}. Automatically submitted for Marketing Manager Approval.`,
+        user.id,
+      );
+
+      await this.syncLinkedTasks(scriptId, 'PENDING_MARKETING_APPROVAL');
+      return updated;
+    } else {
+      // REJECT by Media Manager -> Directly revert to REVISION_REQUESTED (step before Technical Review)
+      const updated = await this.prisma.script.update({
+        where: { id: scriptId },
+        data: {
+          status: 'REVISION_REQUESTED',
+          technicalReviewApproved: false,
+          mediaManagerReviewApproved: false,
+          revisionCount: { increment: 1 },
+          remarks: comment || 'Media Manager requested revisions',
+        },
+      });
+
+      await this.logTimeline(
+        scriptId,
+        'MEDIA_REVIEW_REJECTED',
+        `Media Manager Review REJECTED by Media Manager ${user.name || ''}: ${comment || 'Revisions required'}. Reverted to In Production for assigned staff.`,
+        user.id,
+      );
+
+      await this.syncLinkedTasks(scriptId, 'REVISION_REQUESTED');
+      return updated;
+    }
   }
 
   async approveScript(
@@ -613,14 +953,13 @@ export class ScriptsService {
   ) {
     const script = await this.findOne(scriptId);
 
-    // Self-approval check (Section 11)
+    // Self-approval check
     if (script.createdById && script.createdById === user.id && user.role !== 'ADMINISTRATOR' && user.role !== 'ADMIN') {
       throw new ForbiddenException(
         'Business Rule Violation: Self-approval is strictly prohibited. You cannot approve a script that you created.',
       );
     }
 
-    // Ensure user is Marketing Manager or Admin
     if (user.role !== 'MARKETING_MANAGER' && user.role !== 'ADMINISTRATOR' && user.role !== 'ADMIN') {
       throw new ForbiddenException('Only Marketing Manager can approve or review scripts.');
     }
@@ -628,13 +967,14 @@ export class ScriptsService {
     const { action, comment, rejectionReason } = body;
 
     if (action === 'APPROVE') {
-      await this.prisma.script.update({
+      const updated = await this.prisma.script.update({
         where: { id: scriptId },
         data: {
           status: 'APPROVED',
           approvedById: user.id,
           approvedAt: new Date(),
           mediaManagerReviewApproved: true,
+          technicalReviewApproved: true,
         },
       });
       await this.logTimeline(
@@ -643,91 +983,32 @@ export class ScriptsService {
         `Script approved by Marketing Manager ${user.name || ''}`,
         user.id,
       );
-
-      if (script.createdById) {
-        await this.prisma.notification.create({
-          data: {
-            userId: script.createdById,
-            title: 'Script Approved',
-            message: `Your Script "${script.scriptId}: ${script.name}" has been APPROVED by Marketing Manager.`,
-            type: 'SUCCESS',
-            linkUrl: '/scripts',
-            eventType: 'SCRIPT_APPROVED',
-            entityType: 'SCRIPT',
-            entityId: script.id,
-            entityCode: script.scriptId,
-            scriptId: script.id,
-          },
-        });
-      }
-    } else if (action === 'REQUEST_CHANGES') {
-      await this.prisma.script.update({
+      await this.syncLinkedTasks(scriptId, 'APPROVED');
+      return updated;
+    } else {
+      // REQUEST_CHANGES or REJECT by Marketing Manager -> Directly revert to REVISION_REQUESTED (step before Technical Review)
+      const reason = rejectionReason || comment || 'Revisions requested by Marketing Manager';
+      const updated = await this.prisma.script.update({
         where: { id: scriptId },
         data: {
-          status: 'CHANGES_REQUESTED',
-          remarks: comment || 'Marketing Manager requested revisions',
-        },
-      });
-      await this.logTimeline(
-        scriptId,
-        'REVISION_REQUESTED',
-        `Marketing Manager requested changes: ${comment || 'Revisions required'}`,
-        user.id,
-      );
-
-      if (script.createdById) {
-        await this.prisma.notification.create({
-          data: {
-            userId: script.createdById,
-            title: 'Script Revisions Requested',
-            message: `Marketing Manager requested changes on Script "${script.scriptId}: ${script.name}": ${comment || 'Revisions required'}`,
-            type: 'WARNING',
-            linkUrl: '/scripts',
-            eventType: 'SCRIPT_REVISION_REQUESTED',
-            entityType: 'SCRIPT',
-            entityId: script.id,
-            entityCode: script.scriptId,
-            scriptId: script.id,
-          },
-        });
-      }
-    } else if (action === 'REJECT') {
-      const reason = rejectionReason || comment || 'Script rejected by Marketing Manager';
-      await this.prisma.script.update({
-        where: { id: scriptId },
-        data: {
-          status: 'REJECTED',
-          rejectedAt: new Date(),
-          rejectionReason: reason,
+          status: 'REVISION_REQUESTED',
+          technicalReviewApproved: false,
+          mediaManagerReviewApproved: false,
+          revisionCount: { increment: 1 },
           remarks: reason,
         },
       });
+
       await this.logTimeline(
         scriptId,
-        'SCRIPT_REJECTED',
-        `Script rejected by Marketing Manager: ${reason}`,
+        'MARKETING_REVIEW_REJECTED',
+        `Marketing Manager requested changes: ${reason}. Reverted to In Production for assigned staff.`,
         user.id,
       );
 
-      if (script.createdById) {
-        await this.prisma.notification.create({
-          data: {
-            userId: script.createdById,
-            title: 'Script Rejected',
-            message: `Your Script "${script.scriptId}: ${script.name}" was REJECTED: ${reason}`,
-            type: 'ERROR',
-            linkUrl: '/scripts',
-            eventType: 'SCRIPT_REJECTED',
-            entityType: 'SCRIPT',
-            entityId: script.id,
-            entityCode: script.scriptId,
-            scriptId: script.id,
-          },
-        });
-      }
+      await this.syncLinkedTasks(scriptId, 'REVISION_REQUESTED');
+      return updated;
     }
-
-    return this.findOne(scriptId);
   }
 
   async resubmitScript(scriptId: string, user: { id: string; name?: string }) {
@@ -738,6 +1019,8 @@ export class ScriptsService {
         status: 'PENDING_MARKETING_APPROVAL',
       },
     });
+
+    await this.syncLinkedTasks(scriptId, 'PENDING_MARKETING_APPROVAL');
 
     await this.logTimeline(
       scriptId,
