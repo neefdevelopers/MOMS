@@ -76,10 +76,6 @@ export default function RequestRevisionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isRevision || (entityType === 'TASK' && entityTitle?.toLowerCase().includes('revision'))) {
-      alert('Cannot request a revision on a task that is already a revision task.');
-      return;
-    }
     if (!reason.trim()) {
       alert('Revision Reason is required.');
       return;

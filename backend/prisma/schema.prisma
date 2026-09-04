@@ -401,21 +401,24 @@ model Script {
   estimatedDuration  String?
   status                      String       @default("DRAFT")
   priority                    String       @default("MEDIUM")
-  remarks                     String?
-  revisionCount               Int          @default(0)
-  productionCompleted         Boolean      @default(false)
-  technicalReviewApproved     Boolean      @default(false)
-  mediaManagerReviewApproved  Boolean      @default(false)
-  clientConfirmationRecorded  Boolean      @default(false)
-  createdById                 String?
-  createdBy                   User?        @relation("ScriptCreator", fields: [createdById], references: [id])
-  approvedById                String?
+  remarks                    String?
+  revisionCount              Int          @default(0)
+  preTechnicalReviewStatus   String?      @default("IN_PRODUCTION")
+  technicalReviewRound       Int          @default(0)
+  productionCompleted        Boolean      @default(false)
+  technicalReviewApproved    Boolean      @default(false)
+  mediaManagerReviewApproved Boolean      @default(false)
+  marketingManagerApproved   Boolean      @default(false)
+  clientConfirmationRecorded Boolean      @default(false)
+  createdById                String?
+  createdBy                  User?        @relation("ScriptCreator", fields: [createdById], references: [id])
+  approvedById               String?
   approvedBy                  User?        @relation("ScriptApprover", fields: [approvedById], references: [id])
-  approvedAt                  DateTime?
-  rejectedAt                  DateTime?
-  rejectionReason             String?
-  createdAt                   DateTime     @default(now())
-  updatedAt                   DateTime     @updatedAt
+  approvedAt                 DateTime?
+  rejectedAt                 DateTime?
+  rejectionReason            String?
+  createdAt                  DateTime     @default(now())
+  updatedAt                  DateTime     @updatedAt
 
   tasks              Task[]
   files              FileMetadata[]
@@ -423,6 +426,7 @@ model Script {
   timeline           ScriptTimeline[]
   scriptRemarks      ScriptRemark[]
   deliverables       ScriptDeliverable[]
+  approvals          Approval[]   @relation("ScriptApprovals")
 }
 
 model ScriptAssignment {
@@ -854,10 +858,16 @@ model Approval {
   id            String        @id @default(uuid())
   projectId     String?
   project       ShootProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scriptId      String?
+  script        Script?       @relation("ScriptApprovals", fields: [scriptId], references: [id], onDelete: Cascade)
   entityType    String        @default("PROJECT") // PROJECT, SCRIPT, GRAPHIC_REQ, TASK, EQUIPMENT
   entityId      String?
-  approvalType  String        @default("TECHNICAL_REVIEW") // TECHNICAL_REVIEW, MEDIA_MANAGER_REVIEW
-  targetRole    String        @default("TECHNICAL_MANAGER") // TECHNICAL_MANAGER, MEDIA_MANAGER
+  approvalType  String        @default("TECHNICAL_REVIEW") // TECHNICAL_REVIEW, MEDIA_MANAGER_REVIEW, MARKETING_MANAGER_REVIEW
+  stage         String?       // TECHNICAL_REVIEW, MEDIA_REVIEW, MARKETING_REVIEW
+  round         Int           @default(1)
+  version       String?
+  returnedStatus String?
+  targetRole    String        @default("TECHNICAL_MANAGER") // TECHNICAL_MANAGER, MEDIA_MANAGER, MARKETING_MANAGER
   requestedById String?
   requestedBy   User?         @relation("ApprovalRequester", fields: [requestedById], references: [id], onDelete: Cascade)
   reviewerId    String?

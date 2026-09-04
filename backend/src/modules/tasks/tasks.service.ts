@@ -103,6 +103,14 @@ export class TasksService {
         remarksHistory: { include: { user: true }, orderBy: { createdAt: 'desc' } },
         deliverableHistory: { include: { user: true }, orderBy: { version: 'desc' } },
         timeline: { include: { user: true }, orderBy: { createdAt: 'desc' } },
+        revisions: {
+          include: {
+            requestedBy: { select: { id: true, name: true, role: true } },
+            assignedTo: { select: { id: true, name: true, role: true } },
+            originalAssignee: { select: { id: true, name: true, role: true } },
+          },
+          orderBy: { revisionNumber: 'desc' },
+        },
       },
       orderBy: { dueDate: 'asc' },
     });
@@ -125,32 +133,46 @@ export class TasksService {
       // Automatic Task Status & Completion Percentage Synchronization with Linked Script
       if (t.script) {
         let mappedTaskStatus = t.status;
-        let mappedProgress = t.completionPercentage;
+        let mappedProgress = t.completionPercentage || 0;
         const norm = (t.script.status || '').toUpperCase().replace(/\s+/g, '_');
-
-        if (norm.includes('REVISION') || norm.includes('CHANGES') || norm.includes('REJECTED')) {
-          mappedTaskStatus = TaskStatus.REVISION_REQUESTED;
+        if (norm === 'WAITING_FOR_TECHNICAL_REVIEW') {
+          mappedTaskStatus = TaskStatus.WAITING_FOR_TECHNICAL_REVIEW;
+          mappedProgress = mappedProgress >= 100 || mappedProgress < 50 ? 50 : Math.min(mappedProgress, 60);
+        } else if (norm === 'WAITING_FOR_MEDIA_REVIEW') {
+          mappedTaskStatus = TaskStatus.WAITING_FOR_MEDIA_REVIEW;
+          mappedProgress = mappedProgress >= 100 || mappedProgress < 75 ? 75 : Math.min(mappedProgress, 80);
+        } else if (norm === 'PENDING_MARKETING_APPROVAL' || norm === 'WAITING_FOR_MARKETING_APPROVAL') {
+          mappedTaskStatus = TaskStatus.PENDING_MARKETING_APPROVAL;
+          mappedProgress = mappedProgress >= 100 || mappedProgress < 85 ? 85 : Math.min(mappedProgress, 90);
+        } else if (norm === 'APPROVED') {
+          mappedTaskStatus = TaskStatus.APPROVED;
+          mappedProgress = 90;
         } else if (norm === 'COMPLETED') {
           mappedTaskStatus = TaskStatus.COMPLETED;
           mappedProgress = 100;
-        } else if (norm === 'WAITING_FOR_TECHNICAL_REVIEW') {
-          mappedTaskStatus = TaskStatus.WAITING_FOR_TECHNICAL_REVIEW;
-          mappedProgress = Math.max(mappedProgress, 50);
-        } else if (norm === 'WAITING_FOR_MEDIA_REVIEW') {
-          mappedTaskStatus = TaskStatus.WAITING_FOR_MEDIA_REVIEW;
-          mappedProgress = Math.max(mappedProgress, 75);
-        } else if (norm === 'PENDING_MARKETING_APPROVAL' || norm === 'WAITING_FOR_MARKETING_APPROVAL') {
-          mappedTaskStatus = TaskStatus.WAITING_FOR_MEDIA_REVIEW;
-          mappedProgress = Math.max(mappedProgress, 80);
-        } else if (norm === 'APPROVED') {
-          mappedTaskStatus = TaskStatus.APPROVED;
-          mappedProgress = Math.max(mappedProgress, 85);
-        } else if (norm === 'IN_PRODUCTION' || norm === 'DRAFT' || norm === 'ACCEPTED') {
-          if (t.status === TaskStatus.ACCEPTED) {
+        } else if (norm === 'ASSIGNED' || norm.includes('REVISION') || norm.includes('CHANGES') || norm.includes('REJECTED')) {
+          mappedTaskStatus = TaskStatus.ASSIGNED;
+          mappedProgress = 0;
+        } else if (norm === 'IN_PRODUCTION' || norm === 'DRAFT' || norm === 'ACCEPTED' || norm === 'IN_PROGRESS') {
+          if (t.status === TaskStatus.ASSIGNED || (t.status as any) === 'REVISION_REQUESTED') {
+            mappedTaskStatus = TaskStatus.ASSIGNED;
+            mappedProgress = 0;
+          } else if (t.status === TaskStatus.ACCEPTED) {
             mappedTaskStatus = TaskStatus.ACCEPTED;
-          } else if (t.status !== TaskStatus.PENDING && t.status !== TaskStatus.ASSIGNED) {
+            mappedProgress = mappedProgress >= 100 || !mappedProgress ? 15 : Math.min(mappedProgress, 25);
+          } else if (t.status !== TaskStatus.PENDING) {
             mappedTaskStatus = TaskStatus.IN_PROGRESS;
+            mappedProgress = mappedProgress >= 100 || !mappedProgress ? 25 : Math.min(mappedProgress, 45);
           }
+        }
+
+        // Ensure ASSIGNED / REVISION_REQUESTED always has 0%
+        if ((mappedTaskStatus === TaskStatus.ASSIGNED || (mappedTaskStatus as any) === 'REVISION_REQUESTED') && mappedProgress > 0) {
+          mappedProgress = 0;
+        } else if (mappedTaskStatus === TaskStatus.IN_PROGRESS && mappedProgress >= 100) {
+          mappedProgress = 25;
+        } else if (mappedTaskStatus === TaskStatus.ACCEPTED && mappedProgress >= 100) {
+          mappedProgress = 15;
         }
 
         if (mappedTaskStatus !== t.status || mappedProgress !== t.completionPercentage) {
@@ -160,6 +182,24 @@ export class TasksService {
           }).catch(() => null);
           t.status = mappedTaskStatus;
           t.completionPercentage = mappedProgress;
+        }
+      } else {
+        // For non-script tasks (Direct / Event / Graphic Req), ensure status & progress consistency
+        let mappedProgress = t.completionPercentage || 0;
+        if ((t.status === TaskStatus.ASSIGNED || (t.status as any) === 'REVISION_REQUESTED') && mappedProgress > 0) {
+          mappedProgress = 0;
+          await this.prisma.task.update({
+            where: { id: t.id },
+            data: { completionPercentage: 0 },
+          }).catch(() => null);
+          t.completionPercentage = 0;
+        } else if (t.status === TaskStatus.IN_PROGRESS && mappedProgress >= 100) {
+          mappedProgress = 25;
+          await this.prisma.task.update({
+            where: { id: t.id },
+            data: { completionPercentage: 25 },
+          }).catch(() => null);
+          t.completionPercentage = 25;
         }
       }
 
@@ -199,6 +239,14 @@ export class TasksService {
         remarksHistory: { include: { user: true }, orderBy: { createdAt: 'desc' } },
         deliverableHistory: { include: { user: true }, orderBy: { version: 'desc' } },
         timeline: { include: { user: true }, orderBy: { createdAt: 'desc' } },
+        revisions: {
+          include: {
+            requestedBy: { select: { id: true, name: true, role: true } },
+            assignedTo: { select: { id: true, name: true, role: true } },
+            originalAssignee: { select: { id: true, name: true, role: true } },
+          },
+          orderBy: { revisionNumber: 'desc' },
+        },
       },
     });
     if (!task) {
@@ -215,6 +263,14 @@ export class TasksService {
           remarksHistory: { include: { user: true }, orderBy: { createdAt: 'desc' } },
           deliverableHistory: { include: { user: true }, orderBy: { version: 'desc' } },
           timeline: { include: { user: true }, orderBy: { createdAt: 'desc' } },
+          revisions: {
+            include: {
+              requestedBy: { select: { id: true, name: true, role: true } },
+              assignedTo: { select: { id: true, name: true, role: true } },
+              originalAssignee: { select: { id: true, name: true, role: true } },
+            },
+            orderBy: { revisionNumber: 'desc' },
+          },
         },
       });
     }
@@ -294,6 +350,43 @@ export class TasksService {
           projectId: task.projectId,
         },
       });
+    }
+  }
+
+  private async notifyManagersByRole(
+    task: any,
+    roles: string[],
+    title: string,
+    message: string,
+    eventType: string,
+    linkUrl = '/tasks',
+  ) {
+    try {
+      const managers = await this.prisma.user.findMany({
+        where: { role: { in: roles as any }, status: 'ACTIVE' },
+        select: { id: true },
+      });
+      if (managers.length > 0) {
+        await this.prisma.notification.createMany({
+          data: managers.map((m) => ({
+            userId: m.id,
+            title,
+            message,
+            type: 'ALERT',
+            category: 'APPROVAL',
+            priority: 'HIGH',
+            linkUrl,
+            eventType,
+            entityType: 'TASK',
+            entityId: task.id,
+            entityCode: task.taskId,
+            taskId: task.id,
+            projectId: task.projectId || undefined,
+          })),
+        });
+      }
+    } catch (e) {
+      console.error('Error sending manager notification:', e);
     }
   }
 
@@ -670,17 +763,17 @@ export class TasksService {
       },
     });
 
-    // Assign new employees exclusively
+    // Assign new employees exclusively with NOT_YET_ACCEPTED status
     for (const uId of assignedUserIds) {
       await this.prisma.taskAssignment.create({
-        data: { taskId: task.id, userId: uId },
+        data: { taskId: task.id, userId: uId, acceptanceStatus: 'NOT_YET_ACCEPTED' },
       });
 
       await this.prisma.notification.create({
         data: {
           userId: uId,
           title: 'Task Reassigned to You',
-          message: `Task ${task.taskId}: ${task.title} has been reassigned to you.`,
+          message: `Task ${task.taskId}: ${task.title} has been reassigned to you. Task acceptance required.`,
           type: 'TASK_REASSIGNED',
           linkUrl: `/tasks`,
           eventType: 'TASK_REASSIGNED',
@@ -692,6 +785,17 @@ export class TasksService {
         },
       });
     }
+
+    // Reset task status to ASSIGNED and progress to 0% so new assignee starts fresh working cycle
+    await this.prisma.task.update({
+      where: { id: task.id },
+      data: {
+        status: TaskStatus.ASSIGNED,
+        completionPercentage: 0,
+        technicalReviewApproved: false,
+        mediaManagerApproved: false,
+      },
+    });
 
     const newUsers = await this.prisma.user.findMany({
       where: { id: { in: assignedUserIds } },
@@ -733,10 +837,8 @@ export class TasksService {
         assignment &&
         (assignment.acceptanceStatus === 'ACCEPTED' || assignment.acceptanceStatus === 'Accepted');
 
-      const isTaskAccepted = task.status === TaskStatus.ACCEPTED;
-
-      if (!isAssignmentAccepted && !isTaskAccepted) {
-        throw new ForbiddenException('Task must be accepted before you can perform this action.');
+      if (!isAssignmentAccepted) {
+        throw new ForbiddenException('Task acceptance is required before you can perform this action.');
       }
     }
   }
@@ -787,11 +889,22 @@ export class TasksService {
     const newDueDate = data.dueDate ? new Date(data.dueDate) : undefined;
     const isDeadlineChanged = newDueDate && newDueDate.getTime() !== new Date(task.dueDate).getTime();
 
+    let finalCompletionPercentage = data.completionPercentage !== undefined ? data.completionPercentage : undefined;
+    if (data.status === TaskStatus.ASSIGNED || (data.status as any) === 'REVISION_REQUESTED' || (data.status as any) === 'CHANGES_REQUESTED') {
+      if (finalCompletionPercentage === undefined) {
+        finalCompletionPercentage = 0;
+      }
+    } else if (data.status === TaskStatus.COMPLETED) {
+      if (finalCompletionPercentage === undefined) {
+        finalCompletionPercentage = 100;
+      }
+    }
+
     const updated = await this.prisma.task.update({
       where: { id: taskId },
       data: {
         status: data.status || undefined,
-        completionPercentage: data.completionPercentage !== undefined ? data.completionPercentage : undefined,
+        completionPercentage: finalCompletionPercentage,
         remarks: data.remarks || undefined,
         dueDate: newDueDate || undefined,
       },
@@ -808,17 +921,44 @@ export class TasksService {
       );
     }
 
-    // 2. Log STATUS_CHANGED
+    // 2. Log STATUS_CHANGED & Send Targeted Notifications
     if (data.status && data.status !== task.status) {
       await this.logTimelineEvent(task.id, 'STATUS_CHANGED', `Status changed from ${task.status} to ${data.status}`, user.id);
 
-      // Notification: Review Requested
+      // Notification: General Review Requested
       if (data.status === TaskStatus.WAITING_FOR_REVIEW) {
         await this.sendTaskNotifications(
           task.id,
           'Task Review Requested',
           `Task ${task.taskId} ('${task.title}') is ready for review (Status: Waiting for Review)`,
           'TASK_REVIEW_REQUESTED',
+        );
+      } else if (data.status === TaskStatus.WAITING_FOR_TECHNICAL_REVIEW) {
+        await this.notifyManagersByRole(
+          task,
+          ['TECHNICAL_MANAGER', 'ADMINISTRATOR', 'ADMIN'],
+          'Technical Review Requested ⚡',
+          `Task ${task.taskId} ('${task.title}') is waiting for Technical Manager Review.`,
+          'TECHNICAL_REVIEW_REQUESTED',
+          '/approvals',
+        );
+      } else if (data.status === TaskStatus.WAITING_FOR_MEDIA_REVIEW) {
+        await this.notifyManagersByRole(
+          task,
+          ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'],
+          'Media Manager Approval Requested 🎬',
+          `Task ${task.taskId} ('${task.title}') is waiting for Media Manager Approval.`,
+          'MEDIA_REVIEW_REQUESTED',
+          '/tasks',
+        );
+      } else if (data.status === TaskStatus.PENDING_MARKETING_APPROVAL) {
+        await this.notifyManagersByRole(
+          task,
+          ['MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'],
+          'Marketing Manager Approval Requested 📢',
+          `Task ${task.taskId} ('${task.title}') is waiting for Marketing Manager Approval.`,
+          'MARKETING_REVIEW_REQUESTED',
+          '/tasks',
         );
       }
     }
@@ -892,19 +1032,23 @@ export class TasksService {
       },
     });
 
-    // Update main task status to ACCEPTED and progress to 25% if currently PENDING or ASSIGNED
-    if (task.status === TaskStatus.PENDING || task.status === TaskStatus.ASSIGNED) {
-      await this.prisma.task.update({
-        where: { id: task.id },
-        data: {
-          status: TaskStatus.ACCEPTED,
-          completionPercentage: Math.max(task.completionPercentage, 25),
-        },
-      });
-    }
+    // Update main task status to IN_PROGRESS upon acceptance
+    await this.prisma.task.update({
+      where: { id: task.id },
+      data: {
+        status: TaskStatus.IN_PROGRESS,
+        completionPercentage: task.completionPercentage >= 100 || !task.completionPercentage ? 25 : Math.min(task.completionPercentage, 45),
+      },
+    });
+
+    // Update any active revision in REVISION_REQUESTED state for this task to IN_PROGRESS
+    await this.prisma.revision.updateMany({
+      where: { taskId: task.id, status: 'REVISION_REQUESTED' },
+      data: { status: 'IN_PROGRESS' },
+    }).catch(() => null);
 
     // Log EMPLOYEE_ACCEPTED
-    await this.logTimelineEvent(task.id, 'EMPLOYEE_ACCEPTED', `Task receipt acknowledged & ACCEPTED by ${user.name} (Progress: 25%)`, user.id);
+    await this.logTimelineEvent(task.id, 'EMPLOYEE_ACCEPTED', `Task accepted and in progress by ${user.name}`, user.id);
 
     // Ensure corresponding Script exists under user's Script session upon Task acceptance
     let targetScriptId = task.scriptId;
@@ -1000,7 +1144,15 @@ export class TasksService {
           }
         }
 
-        if (targetScriptId && user.id) {
+        if (targetScriptId) {
+          await this.prisma.script.update({
+            where: { id: targetScriptId },
+            data: {
+              status: 'IN_PROGRESS',
+              preTechnicalReviewStatus: 'IN_PROGRESS',
+            },
+          }).catch(() => null);
+
           await this.prisma.scriptAssignment.upsert({
             where: { scriptId_userId_responsibility: { scriptId: targetScriptId, userId: user.id, responsibility: 'SCRIPTWRITER' } },
             create: { scriptId: targetScriptId, userId: user.id, responsibility: 'SCRIPTWRITER' },
@@ -1012,7 +1164,7 @@ export class TasksService {
               scriptId: targetScriptId,
               triggeredById: user.id,
               event: 'TASK_ACCEPTED',
-              description: `Assigned task ${task.taskId} acknowledged & ACCEPTED by ${user.name || user.email}`,
+              description: `Assigned task ${task.taskId} acknowledged & ACCEPTED by ${user.name || user.email}. Script status updated to IN_PROGRESS.`,
             },
           }).catch(() => null);
         }
@@ -1048,7 +1200,7 @@ export class TasksService {
       where: { id: task.id },
       data: {
         status: TaskStatus.IN_PROGRESS,
-        completionPercentage: Math.max(task.completionPercentage, 45),
+        completionPercentage: task.completionPercentage >= 100 || !task.completionPercentage ? 35 : Math.min(task.completionPercentage, 45),
       },
     });
 
@@ -1056,6 +1208,19 @@ export class TasksService {
       await this.prisma.graphicRequirement.updateMany({
         where: { id: task.graphicRequirementId },
         data: { status: 'IN_PROGRESS' },
+      }).catch(() => null);
+    }
+
+    if (task.scriptId) {
+      await this.prisma.script.updateMany({
+        where: {
+          id: task.scriptId,
+          status: { in: ['DRAFT', 'READY', 'ASSIGNED', 'IN_PRODUCTION'] },
+        },
+        data: {
+          status: 'IN_PROGRESS',
+          preTechnicalReviewStatus: 'IN_PROGRESS',
+        },
       }).catch(() => null);
     }
 
@@ -1208,12 +1373,12 @@ export class TasksService {
       throw new BadRequestException('Task is already submitted for Technical Review.');
     }
 
-    // 1. Advance status to WAITING_FOR_TECHNICAL_REVIEW and progress to at least 75%
+    // 1. Advance status to WAITING_FOR_TECHNICAL_REVIEW and progress to 50%
     const updatedTask = await this.prisma.task.update({
       where: { id: task.id },
       data: {
         status: TaskStatus.WAITING_FOR_TECHNICAL_REVIEW,
-        completionPercentage: Math.max(task.completionPercentage, 75),
+        completionPercentage: 50,
       },
     });
 
@@ -1270,6 +1435,13 @@ export class TasksService {
       `Technical Review requested for Task ${task.taskId} ('${task.title}'). Status moved to Technical Review.`,
       'TECHNICAL_REVIEW_REQUESTED',
     );
+
+    if (task.scriptId) {
+      await this.prisma.script.updateMany({
+        where: { id: task.scriptId },
+        data: { status: 'WAITING_FOR_TECHNICAL_REVIEW', technicalReviewApproved: false },
+      }).catch(() => null);
+    }
 
     if (task.graphicRequirementId) {
       await this.prisma.graphicRequirement.updateMany({

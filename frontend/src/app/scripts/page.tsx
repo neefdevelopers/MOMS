@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useSearchParams } from 'next/navigation';
-import { FileText, UserPlus, X, MessageSquare, Send, Search, Filter, RotateCcw, SlidersHorizontal, Building2, Users, Layers, Check, Copy, Eye, ShieldCheck } from 'lucide-react';
+import { FileText, UserPlus, X, MessageSquare, Send, Search, Filter, RotateCcw, SlidersHorizontal, Building2, Users, Layers, Check, Copy, Eye, ShieldCheck, Lock } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
@@ -311,11 +311,17 @@ export default function ScriptsPage() {
   const handleReviewTechnical = async (scriptId: string, action: 'APPROVE' | 'REJECT', comment?: string) => {
     try {
       setSaving(true);
-      const updated = await fetchApi(`/scripts/${scriptId}/review-technical`, {
+      await fetchApi(`/scripts/${scriptId}/review-technical`, {
         method: 'POST',
         body: JSON.stringify({ action, comment: comment || (action === 'REJECT' ? 'Technical Manager requested revisions' : undefined) }),
       });
-      setSelectedScript(updated);
+      // Always re-fetch the full script with all relations after review action
+      const refreshed = await fetchApi(`/scripts/${scriptId}`);
+      const latestScript = refreshed?.data || refreshed;
+      if (latestScript?.id) {
+        setSelectedScript(latestScript);
+        setScripts((prev) => prev.map((s) => (s.id === latestScript.id ? latestScript : s)));
+      }
       await loadScripts();
     } catch (err: any) {
       alert(err.message || 'Technical review action failed');
@@ -327,12 +333,17 @@ export default function ScriptsPage() {
   const handleReviewMedia = async (scriptId: string, action: 'APPROVE' | 'REJECT', comment?: string) => {
     try {
       setSaving(true);
-      const res = await fetchApi(`/scripts/${scriptId}/review-media`, {
+      await fetchApi(`/scripts/${scriptId}/review-media`, {
         method: 'POST',
         body: JSON.stringify({ action, comment }),
       });
-      const updated = await fetchApi(`/scripts/${scriptId}`).catch(() => res);
-      setSelectedScript(updated || res);
+      // Always re-fetch the full script with all relations after review action
+      const refreshed = await fetchApi(`/scripts/${scriptId}`);
+      const latestScript = refreshed?.data || refreshed;
+      if (latestScript?.id) {
+        setSelectedScript(latestScript);
+        setScripts((prev) => prev.map((s) => (s.id === latestScript.id ? latestScript : s)));
+      }
       await loadScripts();
     } catch (err: any) {
       alert(err.message || 'Media Manager review action failed');
@@ -428,6 +439,28 @@ export default function ScriptsPage() {
     }
   };
 
+  const handleUpdateStatusToInProgress = async () => {
+    if (!selectedScript) return;
+    setSaving(true);
+    try {
+      const updated = await fetchApi(`/scripts/${selectedScript.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: 'IN_PROGRESS',
+          preTechnicalReviewStatus: 'IN_PROGRESS',
+        }),
+      });
+      setSelectedScript(updated);
+      setEditStatus('IN_PROGRESS');
+      alert('✓ Script status updated to IN PROGRESS!');
+      loadScripts();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update status');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Keyboard Shortcuts Save & Cancel Listeners
   useEffect(() => {
     const handleGlobalSave = () => {
@@ -479,8 +512,14 @@ export default function ScriptsPage() {
     if (filterProduct !== 'ALL' && s.productId !== filterProduct) return false;
     if (filterLanguage !== 'ALL' && s.language !== filterLanguage) return false;
     if (filterCategory !== 'ALL' && s.category !== filterCategory) return false;
-    if (filterStatus === 'PENDING_MARKETING_APPROVAL' || filterStatus === 'PENDING') {
-      if (!['PENDING_MARKETING_APPROVAL', 'DRAFT', 'PENDING_APPROVAL', 'CHANGES_REQUESTED'].includes(s.status)) return false;
+    if (filterStatus === 'PENDING_MARKETING_APPROVAL' || filterStatus === 'PENDING' || filterStatus === 'WAITING_FOR_MARKETING_APPROVAL') {
+      if (!['PENDING_MARKETING_APPROVAL', 'WAITING_FOR_MARKETING_APPROVAL', 'DRAFT', 'PENDING_APPROVAL', 'CHANGES_REQUESTED'].includes(s.status)) return false;
+    } else if (filterStatus === 'WAITING_FOR_TECHNICAL_REVIEW') {
+      if (s.status !== 'WAITING_FOR_TECHNICAL_REVIEW') return false;
+    } else if (filterStatus === 'WAITING_FOR_MEDIA_REVIEW') {
+      if (s.status !== 'WAITING_FOR_MEDIA_REVIEW') return false;
+    } else if (filterStatus === 'APPROVED') {
+      if (!['APPROVED', 'COMPLETED'].includes(s.status)) return false;
     } else if (filterStatus !== 'ALL' && s.status !== filterStatus) {
       return false;
     }
@@ -519,33 +558,100 @@ export default function ScriptsPage() {
         )}
       </div>
 
-      {user?.role === 'MARKETING_MANAGER' && (
-        <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/40 flex items-center justify-between gap-4">
+      {/* Technical Manager Script Review Session */}
+      {(user?.role === 'TECHNICAL_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+        <div className="p-4 rounded-xl bg-blue-950/40 border border-blue-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center shrink-0 font-bold">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/20 text-blue-300 flex items-center justify-center shrink-0 font-bold text-lg">
+              ⚡
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-blue-200">Technical Manager Script Review Session</h4>
+              <p className="text-xs text-blue-300/80">
+                Review submitted scripts and revised rounds, inspect storyline &amp; technical specs, and approve or reject for technical compliance.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFilterStatus(filterStatus === 'WAITING_FOR_TECHNICAL_REVIEW' ? 'ALL' : 'WAITING_FOR_TECHNICAL_REVIEW')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${
+              filterStatus === 'WAITING_FOR_TECHNICAL_REVIEW'
+                ? 'bg-blue-600 text-white shadow-blue-600/30'
+                : 'bg-blue-900/60 hover:bg-blue-800 text-blue-200 border border-blue-700'
+            }`}
+          >
+            <span>⚡ Pending Technical Manager Review</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-950 text-blue-300 border border-blue-500/40 font-mono font-bold">
+              {scripts.filter((s) => s.status === 'WAITING_FOR_TECHNICAL_REVIEW').length}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Media Manager Script Session */}
+      {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+        <div className="p-4 rounded-xl bg-cyan-950/40 border border-cyan-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center shrink-0 font-bold text-lg">
+              🎬
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-cyan-200">Media Manager Script Session</h4>
+              <p className="text-xs text-cyan-300/80">
+                Review technical-approved scripts, inspect storyline &amp; deliverables, and approve for client confirmation.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFilterStatus(filterStatus === 'WAITING_FOR_MEDIA_REVIEW' ? 'ALL' : 'WAITING_FOR_MEDIA_REVIEW')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${
+              filterStatus === 'WAITING_FOR_MEDIA_REVIEW'
+                ? 'bg-cyan-600 text-white shadow-cyan-600/30'
+                : 'bg-cyan-900/60 hover:bg-cyan-800 text-cyan-200 border border-cyan-700'
+            }`}
+          >
+            <span>📋 Pending Media Manager Approval</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-mono font-bold">
+              {scripts.filter((s) => s.status === 'WAITING_FOR_MEDIA_REVIEW').length}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Marketing Manager Script Session */}
+      {(user?.role === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+        <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center shrink-0 font-bold text-lg">
               📜
             </div>
             <div>
               <h4 className="text-sm font-bold text-purple-200">Marketing Manager Script Approval Session</h4>
               <p className="text-xs text-purple-300/80">
-                Review submitted script storylines, approve production scripts, or request revisions.
+                Review submitted script storylines, approve production scripts for scheduling, or request revisions.
               </p>
             </div>
           </div>
           <button
-            onClick={() => setFilterStatus(filterStatus === 'PENDING_MARKETING_APPROVAL' ? 'ALL' : 'PENDING_MARKETING_APPROVAL')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ${
-              filterStatus === 'PENDING_MARKETING_APPROVAL'
+            type="button"
+            onClick={() => setFilterStatus(filterStatus === 'PENDING_MARKETING_APPROVAL' || filterStatus === 'WAITING_FOR_MARKETING_APPROVAL' ? 'ALL' : 'PENDING_MARKETING_APPROVAL')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${
+              filterStatus === 'PENDING_MARKETING_APPROVAL' || filterStatus === 'WAITING_FOR_MARKETING_APPROVAL'
                 ? 'bg-purple-600 text-white shadow-purple-600/30'
                 : 'bg-purple-900/60 hover:bg-purple-800 text-purple-200 border border-purple-700'
             }`}
           >
-            {filterStatus === 'PENDING_MARKETING_APPROVAL' ? '✓ Showing Pending Approvals' : `Filter Pending Approvals (${scripts.filter((s) => s.status === 'PENDING_MARKETING_APPROVAL' || s.status === 'DRAFT').length})`}
+            <span>📋 Pending Marketing Manager Approval</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-purple-950 text-purple-300 border border-purple-500/40 font-mono font-bold">
+              {scripts.filter((s) => ['PENDING_MARKETING_APPROVAL', 'WAITING_FOR_MARKETING_APPROVAL', 'DRAFT', 'PENDING_APPROVAL', 'CHANGES_REQUESTED'].includes(s.status)).length}
+            </span>
           </button>
         </div>
       )}
 
-      {/* Quick Approval Status Filtration Bar (All / Pending / Approved) */}
+      {/* Quick Approval Status Filtration Bar (All / Technical Review / Media Review / Marketing Approval / Approved) */}
       <div className="flex items-center gap-2 border-b border-border pb-3 overflow-x-auto">
         <button
           onClick={() => setFilterStatus('ALL')}
@@ -562,21 +668,49 @@ export default function ScriptsPage() {
         </button>
 
         <button
-          onClick={() => setFilterStatus('PENDING_MARKETING_APPROVAL')}
+          onClick={() => setFilterStatus(filterStatus === 'WAITING_FOR_TECHNICAL_REVIEW' ? 'ALL' : 'WAITING_FOR_TECHNICAL_REVIEW')}
           className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-sm ${
-            filterStatus === 'PENDING_MARKETING_APPROVAL' || filterStatus === 'PENDING'
-              ? 'bg-amber-500 text-slate-950 shadow-amber-500/30 font-extrabold'
+            filterStatus === 'WAITING_FOR_TECHNICAL_REVIEW'
+              ? 'bg-blue-600 text-white shadow-blue-600/30 font-extrabold'
               : 'bg-card border border-border text-gray-400 hover:text-white'
           }`}
         >
-          <span>⏳ Pending Approval</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-950 text-amber-300 border border-amber-500/40 font-mono font-bold">
-            {scripts.filter((s) => ['PENDING_MARKETING_APPROVAL', 'DRAFT', 'PENDING_APPROVAL', 'CHANGES_REQUESTED'].includes(s.status)).length}
+          <span>⚡ Waiting Technical Review</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-950 text-blue-300 border border-blue-500/40 font-mono font-bold">
+            {scripts.filter((s) => s.status === 'WAITING_FOR_TECHNICAL_REVIEW').length}
           </span>
         </button>
 
         <button
-          onClick={() => setFilterStatus('APPROVED')}
+          onClick={() => setFilterStatus(filterStatus === 'WAITING_FOR_MEDIA_REVIEW' ? 'ALL' : 'WAITING_FOR_MEDIA_REVIEW')}
+          className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-sm ${
+            filterStatus === 'WAITING_FOR_MEDIA_REVIEW'
+              ? 'bg-cyan-600 text-white shadow-cyan-600/30 font-extrabold'
+              : 'bg-card border border-border text-gray-400 hover:text-white'
+          }`}
+        >
+          <span>🎬 Waiting Media Review</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-mono font-bold">
+            {scripts.filter((s) => s.status === 'WAITING_FOR_MEDIA_REVIEW').length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setFilterStatus(filterStatus === 'PENDING_MARKETING_APPROVAL' || filterStatus === 'WAITING_FOR_MARKETING_APPROVAL' ? 'ALL' : 'PENDING_MARKETING_APPROVAL')}
+          className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-sm ${
+            filterStatus === 'PENDING_MARKETING_APPROVAL' || filterStatus === 'PENDING' || filterStatus === 'WAITING_FOR_MARKETING_APPROVAL'
+              ? 'bg-purple-600 text-white shadow-purple-600/30 font-extrabold'
+              : 'bg-card border border-border text-gray-400 hover:text-white'
+          }`}
+        >
+          <span>📜 Pending Marketing Approval</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-purple-950 text-purple-300 border border-purple-500/40 font-mono font-bold">
+            {scripts.filter((s) => ['PENDING_MARKETING_APPROVAL', 'WAITING_FOR_MARKETING_APPROVAL', 'DRAFT', 'PENDING_APPROVAL', 'CHANGES_REQUESTED'].includes(s.status)).length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setFilterStatus(filterStatus === 'APPROVED' ? 'ALL' : 'APPROVED')}
           className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-sm ${
             filterStatus === 'APPROVED'
               ? 'bg-emerald-600 text-white shadow-emerald-600/30 font-extrabold'
@@ -585,7 +719,7 @@ export default function ScriptsPage() {
         >
           <span>✓ Approved Scripts</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-500/40 font-mono font-bold">
-            {scripts.filter((s) => s.status === 'APPROVED').length}
+            {scripts.filter((s) => ['APPROVED', 'COMPLETED'].includes(s.status)).length}
           </span>
         </button>
       </div>
@@ -855,6 +989,7 @@ export default function ScriptsPage() {
                     <option value="READY">Ready</option>
                     <option value="ASSIGNED">Assigned</option>
                     <option value="IN_PRODUCTION">In Production</option>
+                    <option value="IN_PROGRESS">In Progress</option>
                     <option value="WAITING_FOR_TECHNICAL_REVIEW">Waiting for Technical Review</option>
                     <option value="WAITING_FOR_MEDIA_REVIEW">Waiting for Media Review</option>
                     <option value="WAITING_FOR_CLIENT_CONFIRMATION">Waiting for Client Confirmation</option>
@@ -1008,7 +1143,51 @@ export default function ScriptsPage() {
                 <div className="pt-2 border-t border-gray-800 flex items-center justify-between text-[11px] text-gray-400 gap-2 flex-wrap">
                   <span>Created by: <strong className="text-gray-200">{s.createdBy?.name || 'Writer'}</strong></span>
 
-                  {(user?.role === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMIN') && s.status !== 'APPROVED' ? (
+                  {s.status === 'WAITING_FOR_TECHNICAL_REVIEW' && (user?.role === 'TECHNICAL_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
+                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => handleReviewTechnical(s.id, 'APPROVE')}
+                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded text-[10px] flex items-center gap-1 shadow-sm transition-colors"
+                      >
+                        ⚡ Approve Tech Review
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const comment = prompt('Enter rejection reason for technical revision:');
+                          if (comment && comment.trim()) {
+                            handleReviewTechnical(s.id, 'REJECT', comment.trim());
+                          }
+                        }}
+                        className="px-2 py-1 bg-red-600/20 hover:bg-red-600/30 border border-red-500/40 text-red-300 font-bold rounded text-[10px] flex items-center gap-1"
+                      >
+                        ❌ Reject
+                      </button>
+                    </div>
+                  ) : s.status === 'WAITING_FOR_MEDIA_REVIEW' && (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
+                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => handleReviewMedia(s.id, 'APPROVE')}
+                        className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-extrabold rounded text-[10px] flex items-center gap-1 shadow-sm transition-colors"
+                      >
+                        🎬 Approve Media Review
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const comment = prompt('Enter rejection reason for media review:');
+                          if (comment && comment.trim()) {
+                            handleReviewMedia(s.id, 'REJECT', comment.trim());
+                          }
+                        }}
+                        className="px-2 py-1 bg-red-600/20 hover:bg-red-600/30 border border-red-500/40 text-red-300 font-bold rounded text-[10px] flex items-center gap-1"
+                      >
+                        ❌ Reject
+                      </button>
+                    </div>
+                  ) : (s.status === 'PENDING_MARKETING_APPROVAL' || s.status === 'WAITING_FOR_MARKETING_APPROVAL' || s.status === 'CHANGES_REQUESTED' || s.status === 'DRAFT' || s.status === 'PENDING_APPROVAL') && (user?.role === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
                     <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
@@ -1048,8 +1227,26 @@ export default function ScriptsPage() {
       )}
 
       {/* Script Details Modal */}
-      {selectedScript && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+      {selectedScript && (() => {
+        // Lock editing only during ACTIVE review states (not COMPLETED)
+        const isReviewLocked = ['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_MARKETING_APPROVAL'].includes(selectedScript.status);
+        const isStaffUser = user?.role === 'STAFF' || user?.role === 'SOCIAL_MEDIA_MANAGER';
+        // isEditingLocked: locks storyline textarea, file uploads, remarks fields during active reviews for staff
+        const isEditingLocked = isReviewLocked && isStaffUser;
+        // isFieldsLocked: locks Duration / Status / Priority for staff only during active reviews
+        // COMPLETED scripts are always editable (managers need to adjust details after completion)
+        const isFieldsLocked = isReviewLocked && isStaffUser;
+        const isAdminUser = user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN';
+        const isScriptCreator = Boolean(user?.id && selectedScript?.createdById && user.id === selectedScript.createdById);
+        const isAssignedScriptWriter = Boolean(
+          selectedScript?.scriptAssignments?.some((a: any) => a.userId === user?.id || a.user?.id === user?.id) ||
+          selectedScript?.assignedUserId === user?.id ||
+          user?.role === 'STAFF'
+        );
+        const canRequestScriptRevision = (isAdminUser || isScriptCreator) && !isAssignedScriptWriter;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-border p-6 rounded-2xl max-w-2xl w-full space-y-4 max-h-[90vh] overflow-y-auto text-xs">
             <div className="flex justify-between items-center border-b border-gray-800 pb-3">
                 <div className="flex items-center gap-2">
@@ -1059,13 +1256,15 @@ export default function ScriptsPage() {
                   <span className="font-mono text-[10px] text-amber-300 font-bold bg-amber-950 px-2 py-0.5 rounded border border-amber-800 flex items-center gap-1">
                     🔄 Revisions: {selectedScript.revisionCount || 0}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setRevisionModalScript(selectedScript)}
-                    className="px-2.5 py-0.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow transition-colors"
-                  >
-                    <RotateCcw className="w-3 h-3" /> Request Revision
-                  </button>
+                  {canRequestScriptRevision && (
+                    <button
+                      type="button"
+                      onClick={() => setRevisionModalScript(selectedScript)}
+                      className="px-2.5 py-0.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow transition-colors"
+                    >
+                      <RotateCcw className="w-3 h-3" /> Request Revision
+                    </button>
+                  )}
                 </div>
                 <h2 className="text-base font-bold text-white mt-1 font-mono">{selectedScript.name}</h2>
               <button
@@ -1151,14 +1350,16 @@ export default function ScriptsPage() {
                   <p className="text-zinc-200 leading-relaxed">
                     Reviewer requested changes for this script. The assigned script writer is making requested revisions before re-submitting.
                   </p>
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      onClick={() => setRevisionModalScript(selectedScript)}
-                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow transition-colors"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" /> Request Another Revision
-                    </button>
-                  </div>
+                  {canRequestScriptRevision && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => setRevisionModalScript(selectedScript)}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow transition-colors"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" /> Request Another Revision
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1177,16 +1378,18 @@ export default function ScriptsPage() {
                 <div className="flex items-center justify-between overflow-x-auto py-2 px-1 gap-1">
                   {[
                     { key: 'IN_PRODUCTION', label: '1. Production' },
-                    { key: 'WAITING_FOR_TECHNICAL_REVIEW', label: '2. Technical Review' },
-                    { key: 'WAITING_FOR_MEDIA_REVIEW', label: '3. Media Review' },
-                    { key: 'WAITING_FOR_CLIENT_CONFIRMATION', label: '4. Client Confirmation' },
-                    { key: 'COMPLETED', label: '5. Completed' },
+                    { key: 'IN_PROGRESS', label: '2. In Progress' },
+                    { key: 'WAITING_FOR_TECHNICAL_REVIEW', label: '3. Technical Review' },
+                    { key: 'WAITING_FOR_MEDIA_REVIEW', label: '4. Media Review' },
+                    { key: 'WAITING_FOR_CLIENT_CONFIRMATION', label: '5. Client Confirmation' },
+                    { key: 'COMPLETED', label: '6. Completed' },
                   ].map((stage, i) => {
                     let currentIdx = 0;
-                    if (selectedScript.status === 'COMPLETED' || (prodComp && techAppr && mediaAppr && clientConf)) currentIdx = 4;
-                    else if (selectedScript.status === 'WAITING_FOR_CLIENT_CONFIRMATION' || clientConf) currentIdx = 3;
-                    else if (selectedScript.status === 'WAITING_FOR_MEDIA_REVIEW' || selectedScript.status === 'APPROVED' || mediaAppr) currentIdx = 2;
-                    else if (selectedScript.status === 'WAITING_FOR_TECHNICAL_REVIEW' || techAppr) currentIdx = 1;
+                    if (selectedScript.status === 'COMPLETED' || (prodComp && techAppr && mediaAppr && clientConf)) currentIdx = 5;
+                    else if (selectedScript.status === 'WAITING_FOR_CLIENT_CONFIRMATION' || clientConf) currentIdx = 4;
+                    else if (selectedScript.status === 'WAITING_FOR_MEDIA_REVIEW' || selectedScript.status === 'APPROVED' || mediaAppr) currentIdx = 3;
+                    else if (selectedScript.status === 'WAITING_FOR_TECHNICAL_REVIEW' || techAppr) currentIdx = 2;
+                    else if (selectedScript.status === 'IN_PROGRESS') currentIdx = 1;
                     else currentIdx = 0;
 
                     const isCurrent = currentIdx === i;
@@ -1211,7 +1414,7 @@ export default function ScriptsPage() {
                           </span>
                         </div>
 
-                        {i < 4 && (
+                        {i < 5 && (
                           <div className={`h-0.5 flex-1 min-w-[12px] ${
                             currentIdx >= 0 && i < currentIdx ? 'bg-emerald-500' : 'bg-gray-800'
                           }`} />
@@ -1222,50 +1425,58 @@ export default function ScriptsPage() {
                 </div>
               </div>
 
-              {/* Editable Fields */}
+              {/* Read-Only Notice for Scripts Under Review */}
+              {isEditingLocked && (
+                <div className="p-3.5 bg-amber-950/60 border border-amber-600/80 rounded-xl text-amber-200 text-xs font-semibold flex items-center gap-2.5 shadow-md">
+                  <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div>
+                    <span className="font-bold">
+                      {selectedScript.status === 'WAITING_FOR_TECHNICAL_REVIEW'
+                        ? '🔒 Script Under Technical Review (Read-Only Mode):'
+                        : selectedScript.status === 'WAITING_FOR_MEDIA_REVIEW'
+                        ? '🔒 Script Under Media Review (Read-Only Mode):'
+                        : '🔒 Script Under Marketing Review (Read-Only Mode):'}
+                    </span>
+                    <p className="text-[11px] text-amber-300/80 font-normal mt-0.5">
+                      {selectedScript.status === 'WAITING_FOR_TECHNICAL_REVIEW'
+                        ? 'This script has been submitted for Technical Manager approval. Editing is temporarily disabled until the Technical Manager approves or rejects the script.'
+                        : selectedScript.status === 'WAITING_FOR_MEDIA_REVIEW'
+                        ? 'This script has been approved by the Technical Manager and submitted for Media Manager approval. Editing is disabled until the Media Manager completes the review or returns the script for revision.'
+                        : 'This script has been submitted for Marketing Manager Approval. Editing is disabled until the Marketing Manager completes the review or returns the script for revision.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Script Metrics & Workflow Attributes (Read-Only Synchronized Display) */}
               <div className="space-y-3 pt-2">
                 <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Estimated Duration</label>
-                    <input
-                      type="text"
-                      value={editDuration}
-                      onChange={(e) => setEditDuration(e.target.value)}
-                      className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-lg"
-                    />
+                  <div className="bg-gray-900/90 border border-gray-800 rounded-xl p-3 space-y-1">
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase tracking-wider">Estimated Duration</span>
+                    <div className="text-xs font-bold text-cyan-300 font-mono">
+                      {selectedScript.estimatedDuration || editDuration || '30s'}
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Current Status</label>
-                    <select
-                      value={editStatus}
-                      onChange={(e) => setEditStatus(e.target.value)}
-                      className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-lg"
-                    >
-                      <option value="DRAFT">Draft</option>
-                      <option value="READY">Ready</option>
-                      <option value="ASSIGNED">Assigned</option>
-                      <option value="IN_PRODUCTION">In Production</option>
-                      <option value="WAITING_FOR_TECHNICAL_REVIEW">Waiting for Technical Review</option>
-                      <option value="WAITING_FOR_MEDIA_REVIEW">Waiting for Media Review</option>
-                      <option value="WAITING_FOR_CLIENT_CONFIRMATION">Waiting for Client Confirmation</option>
-                      <option value="CLIENT_REVISION_REQUESTED">Client Revision Requested</option>
-                      <option value="COMPLETED">Completed</option>
-                      <option value="CLOSED">Closed</option>
-                      <option value="CANCELLED">Cancelled</option>
-                    </select>
+                  <div className="bg-gray-900/90 border border-gray-800 rounded-xl p-3 space-y-1">
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase tracking-wider">Current Status</span>
+                    <div>
+                      <span className="inline-block px-2 py-0.5 bg-blue-950 text-blue-300 border border-blue-800 rounded font-mono font-bold text-[11px]">
+                        {(selectedScript.status || editStatus)?.replace(/_/g, ' ')}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Priority</label>
-                    <select
-                      value={editPriority}
-                      onChange={(e) => setEditPriority(e.target.value)}
-                      className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-lg"
-                    >
-                      <option value="LOW">LOW</option>
-                      <option value="MEDIUM">MEDIUM</option>
-                      <option value="HIGH">HIGH</option>
-                      <option value="CRITICAL">CRITICAL</option>
-                    </select>
+                  <div className="bg-gray-900/90 border border-gray-800 rounded-xl p-3 space-y-1">
+                    <span className="text-[10px] text-gray-500 font-bold block uppercase tracking-wider">Priority</span>
+                    <div>
+                      <span className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-[11px] ${
+                        (selectedScript.priority || editPriority) === 'CRITICAL' ? 'bg-red-950 text-red-300 border border-red-800' :
+                        (selectedScript.priority || editPriority) === 'HIGH' ? 'bg-amber-950 text-amber-300 border border-amber-800' :
+                        (selectedScript.priority || editPriority) === 'LOW' ? 'bg-zinc-900 text-zinc-300 border border-zinc-700' :
+                        'bg-blue-950 text-blue-300 border border-blue-800'
+                      }`}>
+                        {selectedScript.priority || editPriority || 'MEDIUM'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1329,14 +1540,25 @@ export default function ScriptsPage() {
                       <textarea
                         rows={6}
                         value={editDescription}
+                        disabled={isEditingLocked}
                         onChange={(e) => setEditDescription(e.target.value)}
                         placeholder="Enter scene narration, voiceover dialogues, shots..."
-                        className="w-full bg-gray-900 border border-purple-900/60 text-white p-3 rounded-xl text-xs font-mono focus:outline-none focus:border-purple-500"
+                        className="w-full bg-gray-900 border border-purple-900/60 text-white p-3 rounded-xl text-xs font-mono focus:outline-none focus:border-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
-                      <span className="text-[10px] text-gray-400 flex items-center justify-between font-mono">
+                      <div className="flex items-center justify-between font-mono text-[10px] text-gray-400">
                         <span>Tip: Use [Scene X] headers and VO: for voiceover dialogues</span>
-                        <span>{editDescription?.length || 0} characters</span>
-                      </span>
+                        <div className="flex items-center gap-3">
+                          <span>{editDescription?.length || 0} characters</span>
+                          <button
+                            type="button"
+                            onClick={handleSaveScript}
+                            disabled={saving || isEditingLocked}
+                            className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg shadow text-xs flex items-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            💾 {saving ? 'Saving...' : isEditingLocked ? 'Read Only' : 'Save Storyline'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1346,9 +1568,10 @@ export default function ScriptsPage() {
                   <input
                     type="text"
                     value={editRemarks}
+                    disabled={isEditingLocked}
                     onChange={(e) => setEditRemarks(e.target.value)}
                     placeholder="Enter operational remarks..."
-                    className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-lg"
+                    className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -1581,8 +1804,9 @@ export default function ScriptsPage() {
                   <div className="flex flex-wrap items-center gap-2.5">
                     <select
                       value={selectedUploadCategory}
+                      disabled={isEditingLocked}
                       onChange={(e) => setSelectedUploadCategory(e.target.value)}
-                      className="bg-gray-950 border border-purple-800 text-white px-3 py-2 rounded-lg text-xs font-semibold focus:outline-none focus:border-purple-500 shadow-inner"
+                      className="bg-gray-950 border border-purple-800 text-white px-3 py-2 rounded-lg text-xs font-semibold focus:outline-none focus:border-purple-500 shadow-inner disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value="SCRIPT_DOCUMENT">📄 1. Script Document</option>
                       <option value="REFERENCE_IMAGE">🖼️ 2. Reference Images</option>
@@ -1593,13 +1817,14 @@ export default function ScriptsPage() {
                       <option value="SUPPORTING_DOCUMENT">📁 7. Supporting Documents</option>
                     </select>
 
-                    <label className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs cursor-pointer flex items-center gap-1.5 shadow transition-all">
-                      <span>{uploadingCategory ? 'Uploading File…' : '+ Choose File & Upload'}</span>
+                    <label className={`px-4 py-2 font-bold rounded-lg text-xs flex items-center gap-1.5 shadow transition-all ${isEditingLocked ? 'bg-gray-800 text-gray-400 border border-gray-700 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 text-white cursor-pointer'}`}>
+                      <span>{isEditingLocked ? '🔒 Upload Locked During Review' : uploadingCategory ? 'Uploading File…' : '+ Choose File & Upload'}</span>
                       <input
                         type="file"
+                        disabled={isEditingLocked}
                         className="hidden"
                         onChange={(e) => {
-                          if (e.target.files?.[0]) {
+                          if (!isEditingLocked && e.target.files?.[0]) {
                             handleFileUpload(e.target.files[0], selectedUploadCategory);
                           }
                         }}
@@ -1752,175 +1977,286 @@ export default function ScriptsPage() {
                 </div>
               </div>
 
-              {/* Current Active Stage Status Card */}
-              {selectedScript.status === 'REVISION_REQUESTED' && (
-                <div className="p-4 bg-red-950/40 border border-red-800/80 rounded-xl space-y-2.5 text-red-200 shadow-xl">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-xs flex items-center gap-2 text-red-300">
-                      ❌ Technical Review REJECTED (Revisions Required)
-                    </span>
-                    <span className="text-[10px] bg-red-900 text-red-100 border border-red-700 px-2 py-0.5 rounded font-mono font-bold">
-                      REVISION_REQUESTED
-                    </span>
-                  </div>
-                  <div className="p-3 bg-red-900/40 border border-red-800/60 rounded-lg text-xs space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-red-300 block">💬 Technical Manager Rejection Reason:</span>
-                    <p className="text-white font-medium whitespace-pre-wrap">
-                      {selectedScript.remarks || 'No specific rejection reason supplied. Please check operational remarks below and update storyline or attachments.'}
-                    </p>
-                  </div>
-                  <p className="text-[11px] text-gray-300">
-                    Update script details or attachments above, then click <strong>🔄 Resubmit Revised Script for Technical Review</strong> below to request Technical Manager review again.
-                  </p>
+
+              {/* ══════════════════════════════════════════════════════
+                   TECHNICAL APPROVAL REQUEST SUBMISSION SESSION
+                   Allows staff/writer/creator to submit/resubmit script
+                   for Technical Review.
+                ══════════════════════════════════════════════════════ */}
+              <div className="p-4 bg-purple-950/40 border border-purple-800/70 rounded-xl space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-purple-900/60 pb-2">
+                  <h4 className="font-extrabold text-purple-300 text-xs flex items-center gap-2">
+                    <Send className="w-4 h-4 text-purple-400" /> 🚀 Technical Approval Request Submission Session
+                  </h4>
+                  <span className="text-[10px] bg-purple-950 text-purple-200 border border-purple-700 px-2 py-0.5 rounded font-mono font-bold">
+                    Current Status: {selectedScript.status}
+                  </span>
                 </div>
-              )}
 
-              {/* Permanent Review Decision Trail */}
-              {(() => {
-                const reviewEvents = (selectedScript.timeline || []).filter((t: any) =>
-                  ['TECHNICAL_REVIEW_APPROVED', 'TECHNICAL_REVIEW_REJECTED', 'MEDIA_REVIEW_APPROVED', 'MEDIA_REVIEW_REJECTED', 'MARKETING_REVIEW_REJECTED', 'SCRIPT_APPROVED'].includes(t.event) ||
-                  t.description?.includes('APPROVED by') ||
-                  t.description?.includes('REJECTED by')
-                );
-
-                if (reviewEvents.length === 0) return null;
-
-                return (
-                  <div className="p-4 bg-gray-950 border border-gray-800 rounded-xl space-y-3 shadow-md">
-                    <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2 border-b border-gray-800 pb-2">
-                      📜 Permanent Review Decision Trail ({reviewEvents.length} Decision{reviewEvents.length > 1 ? 's' : ''})
-                    </h4>
-                    <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-                      {reviewEvents.map((ev: any, idx: number) => {
-                        const isAppr = ev.event?.includes('APPROVED') || ev.description?.includes('APPROVED');
-                        const isTech = ev.event?.includes('TECHNICAL');
-                        const isMedia = ev.event?.includes('MEDIA');
-                        const reviewerName = ev.triggeredBy?.name || 'Reviewing Manager';
-                        const reviewerRole = (ev.triggeredBy?.role || (isTech ? 'TECHNICAL_MANAGER' : isMedia ? 'MEDIA_MANAGER' : 'MARKETING_MANAGER')).replace(/_/g, ' ');
-                        const dateStr = ev.createdAt ? new Date(ev.createdAt).toLocaleString() : '';
-
-                        return (
-                          <div
-                            key={ev.id || idx}
-                            className={`p-3 rounded-lg border text-xs space-y-1.5 ${
-                              isAppr ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300' : 'bg-red-950/20 border-red-800/40 text-red-300'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded border uppercase ${
-                                  isAppr ? 'bg-emerald-900/60 border-emerald-700 text-emerald-200' : 'bg-red-900/60 border-red-700 text-red-200'
-                                }`}>
-                                  {isAppr ? '✅ APPROVED' : '❌ CHANGES REQUESTED'}
-                                </span>
-                                <span className="font-bold text-[11px] text-gray-200">
-                                  {isTech ? 'Technical Review' : isMedia ? 'Media Manager Review' : 'Marketing Approval'}
-                                </span>
-                              </div>
-                              <span className="text-[10px] text-gray-400 font-mono">{dateStr}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-[11px] text-gray-300">
-                              <span>Reviewed By: <strong className="text-white font-semibold">{reviewerName}</strong> ({reviewerRole})</span>
-                            </div>
-                            {ev.description && (
-                              <p className="text-[11px] text-gray-300 font-mono bg-gray-900/80 p-2 rounded border border-gray-800/60">
-                                {ev.description}
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Sequential Multi-Level Approval Chain Controls */}
-              <div className="space-y-3">
-                {/* Step 1: Submit / Resubmit for Technical Review (Assigned Staff / Writer / Creator) */}
-                {!selectedScript.technicalReviewApproved && !['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'PENDING_MARKETING_APPROVAL', 'APPROVED', 'COMPLETED'].includes(selectedScript.status) && (
-                  <div className="p-4 bg-purple-950/40 border border-purple-800/60 rounded-xl space-y-2.5 shadow-lg">
+                {selectedScript.status === 'WAITING_FOR_TECHNICAL_REVIEW' ? (
+                  <div className="p-3 bg-blue-950/60 border border-blue-700/80 rounded-lg space-y-2 text-blue-200">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-purple-300 text-xs flex items-center gap-1.5">
-                        {['REVISION_REQUESTED', 'CHANGES_REQUESTED'].includes(selectedScript.status)
-                          ? '🚀 Assigned Staff Action: Resubmit Revised Script for Technical Review'
-                          : '🚀 Assigned Staff Action: Submit for Technical Review'}
+                      <span className="font-bold text-xs flex items-center gap-1.5 text-blue-300">
+                        ⏳ Technical Approval Request Submitted (Round #{selectedScript.technicalReviewRound || 1})
                       </span>
-                      <span className="text-[10px] bg-purple-950 text-purple-200 border border-purple-700 px-2 py-0.5 rounded font-mono font-bold">
-                        Status: {selectedScript.status}
+                      <span className="text-[10px] bg-blue-900 text-blue-100 px-2 py-0.5 rounded font-mono font-bold">
+                        Under Technical Review
                       </span>
                     </div>
-                    <p className="text-[11px] text-gray-300">
-                      {['REVISION_REQUESTED', 'CHANGES_REQUESTED'].includes(selectedScript.status)
-                        ? 'Revisions were requested by Technical Manager. Edit the script storyline or attachments above, then click below to resubmit for Technical Manager Review again.'
-                        : 'Once storyline narration and reference files are complete, submit this script to start the sequential approval chain (Technical Review → Media Manager Review → Marketing Manager Approval).'}
+                    <p className="text-[11px] text-blue-200/90 font-normal">
+                      This script has been submitted and is currently waiting for Technical Manager evaluation.
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => handleSubmitTechnicalReview(selectedScript.id)}
-                      disabled={saving}
-                      className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-lg shadow-md transition-all flex items-center gap-2 text-xs"
-                    >
-                      {['REVISION_REQUESTED', 'CHANGES_REQUESTED'].includes(selectedScript.status)
-                        ? '🔄 Resubmit Revised Script for Technical Review'
-                        : '🚀 Submit Script for Technical Review'}
-                    </button>
+                  </div>
+                ) : (selectedScript.status === 'WAITING_FOR_MEDIA_REVIEW' || selectedScript.status === 'WAITING_FOR_MARKETING_APPROVAL' || selectedScript.status === 'APPROVED' || selectedScript.status === 'COMPLETED') ? (
+                  <div className="p-3 bg-emerald-950/40 border border-emerald-800/60 rounded-lg space-y-1 text-emerald-200">
+                    <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-300">
+                      ✅ Technical Approval Completed
+                    </span>
+                    <p className="text-[11px] text-emerald-300/80 font-normal">
+                      This script has passed Level 1 Technical Review and is advancing through the subsequent manager approval stages.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    <p className="text-[11px] text-gray-300 leading-relaxed">
+                      {selectedScript.technicalReviewRound > 0 || selectedScript.rejectionReason || (selectedScript.revisionCount || 0) > 0
+                        ? `This script was returned for corrections. Edit the storyline narration and reference files above, then click below to resubmit for Technical Manager Approval (Round #${(selectedScript.technicalReviewRound || 0) + 1}).`
+                        : 'Submit this script storyline narration and attached reference files to initiate Level 1: Technical Manager Review & Approval.'}
+                    </p>
+                    <div className="flex items-center gap-2 flex-wrap pt-1">
+                      {selectedScript.status !== 'IN_PROGRESS' && (
+                        <button
+                          type="button"
+                          onClick={handleUpdateStatusToInProgress}
+                          disabled={saving}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                        >
+                          ▶️ Update Status to IN PROGRESS
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleSubmitTechnicalReview(selectedScript.id)}
+                        disabled={saving}
+                        className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-lg shadow-lg shadow-purple-600/30 transition-all flex items-center gap-2 text-xs"
+                      >
+                        {selectedScript.technicalReviewRound > 0 || selectedScript.rejectionReason || (selectedScript.revisionCount || 0) > 0
+                          ? `🔄 Submit Revised Script for Technical Approval (Round #${(selectedScript.technicalReviewRound || 0) + 1})`
+                          : '🚀 Request Technical Approval'}
+                      </button>
+                    </div>
                   </div>
                 )}
+              </div>
 
-                {/* Step 2: Technical Manager Review Action (Strictly for Technical Manager / Admin) */}
+              {/* ══════════════════════════════════════════════════════
+                   TECHNICAL REVIEW RESULTS LIST (ACCEPTED & REJECTED WITH REASON)
+                   Always visible dedicated section for Technical Review decisions.
+                ══════════════════════════════════════════════════════ */}
+              <div className="p-4 bg-gray-950 border border-gray-800 rounded-xl space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-gray-800 pb-2.5">
+                  <h4 className="font-extrabold text-xs text-gray-200 uppercase tracking-wider flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-blue-400" /> 📋 Technical Review Results &amp; Decision History
+                  </h4>
+                  <span className="text-[10px] text-blue-400 font-mono font-bold">
+                    Level 1 Technical Compliance Log
+                  </span>
+                </div>
+
+                {(() => {
+                  const techReviews = (selectedScript.approvals || []).filter(
+                    (a: any) => (a.stage === 'TECHNICAL_REVIEW' || a.approvalType === 'TECHNICAL_REVIEW') && (a.status === 'APPROVED' || a.status === 'REJECTED'),
+                  );
+
+                  // Sort: latest round first
+                  const sorted = [...techReviews].sort((a: any, b: any) => {
+                    if ((b.round || 0) !== (a.round || 0)) return (b.round || 0) - (a.round || 0);
+                    return new Date(b.reviewedAt || b.createdAt).getTime() - new Date(a.reviewedAt || a.createdAt).getTime();
+                  });
+
+                  // If no approval records exist, check for timeline/rejection reason fallbacks
+                  const timelineRejections = (selectedScript.timeline || []).filter((t: any) =>
+                    t.event === 'TECHNICAL_REVIEW_REJECTED' || t.event === 'TECHNICAL_REVIEW_APPROVED',
+                  );
+
+                  if (sorted.length === 0 && timelineRejections.length === 0 && !selectedScript.rejectionReason) {
+                    return (
+                      <div className="p-6 text-center bg-gray-900/60 border border-gray-800/80 rounded-xl space-y-1.5">
+                        <ShieldCheck className="w-8 h-8 text-gray-600 mx-auto" />
+                        <p className="text-xs font-semibold text-gray-300">No Technical Review Decisions Recorded Yet</p>
+                        <p className="text-[11px] text-gray-500">
+                          This script has not completed any Technical Manager review rounds. Submit for Technical Approval above to start Level 1 review.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      {sorted.length > 0 ? (
+                        sorted.map((rev: any, idx: number) => {
+                          const isApproved = rev.status === 'APPROVED';
+                          const roundNum = rev.round || sorted.length - idx;
+                          const reviewerName = rev.reviewer?.name || rev.requestedBy?.name || 'Technical Manager';
+                          const reviewerRole = (rev.reviewer?.role || 'TECHNICAL_MANAGER').replace(/_/g, ' ');
+                          const dateStr = rev.reviewedAt
+                            ? new Date(rev.reviewedAt).toLocaleString()
+                            : rev.createdAt
+                            ? new Date(rev.createdAt).toLocaleString()
+                            : '—';
+                          const remarksText = rev.remarks || (isApproved ? 'Technical review requirements verified and approved.' : selectedScript.rejectionReason || 'No detailed reason supplied.');
+
+                          return (
+                            <div
+                              key={rev.id || idx}
+                              className={`p-4 rounded-xl border-2 space-y-3 shadow-md transition-all ${
+                                isApproved
+                                  ? 'bg-emerald-950/25 border-emerald-600/60'
+                                  : 'bg-red-950/25 border-red-600/60'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between border-b border-gray-800/80 pb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2.5 py-0.5 text-[10px] font-mono font-extrabold rounded border uppercase ${
+                                    isApproved
+                                      ? 'bg-emerald-900/70 border-emerald-600 text-emerald-200'
+                                      : 'bg-red-900/70 border-red-600 text-red-200'
+                                  }`}>
+                                    {isApproved ? '✅ ACCEPTED WITH REASON' : '❌ REJECTED WITH REASON'}
+                                  </span>
+                                  <span className="font-bold text-xs text-white font-mono">
+                                    Technical Review — Round #{roundNum}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-gray-400 font-mono">{dateStr}</span>
+                              </div>
+
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-[11px]">
+                                <div>
+                                  <span className="text-gray-500 text-[10px] uppercase font-bold block">Reviewer</span>
+                                  <strong className="text-white">{reviewerName}</strong>
+                                  <span className="text-[10px] text-gray-400 block font-mono">({reviewerRole})</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500 text-[10px] uppercase font-bold block">Decision Outcome</span>
+                                  <strong className={isApproved ? 'text-emerald-400 font-extrabold' : 'text-red-400 font-extrabold'}>
+                                    {isApproved ? 'ACCEPTED / APPROVED' : 'REJECTED — REVISION REQUIRED'}
+                                  </strong>
+                                </div>
+                                {!isApproved && rev.returnedStatus && (
+                                  <div>
+                                    <span className="text-gray-500 text-[10px] uppercase font-bold block">Returned To Status</span>
+                                    <span className="text-amber-300 font-mono font-bold text-[10px] bg-amber-950 border border-amber-800 px-2 py-0.5 rounded inline-block">
+                                      {rev.returnedStatus}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className={`p-3 rounded-lg border text-xs space-y-1 ${
+                                isApproved
+                                  ? 'bg-emerald-900/30 border-emerald-700/50 text-emerald-200'
+                                  : 'bg-red-900/30 border-red-700/50 text-red-200'
+                              }`}>
+                                <span className="text-[10px] uppercase font-bold block flex items-center gap-1 tracking-wider">
+                                  {isApproved ? '💬 Approval Reason / Notes:' : '💬 Rejection Reason / Revision Instructions:'}
+                                </span>
+                                <p className="text-white font-medium text-[11px] whitespace-pre-wrap leading-relaxed">
+                                  {remarksText}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        /* Fallback from Timeline / Rejection Reason */
+                        <div className="p-4 rounded-xl border-2 bg-red-950/25 border-red-600/60 space-y-3">
+                          <div className="flex items-center justify-between border-b border-gray-800/80 pb-2">
+                            <span className="px-2.5 py-0.5 text-[10px] font-mono font-extrabold rounded border uppercase bg-red-900/70 border-red-600 text-red-200">
+                              ❌ REJECTED WITH REASON
+                            </span>
+                            <span className="text-[10px] text-gray-400 font-mono">
+                              {selectedScript.rejectedAt ? new Date(selectedScript.rejectedAt).toLocaleString() : 'Latest Round'}
+                            </span>
+                          </div>
+                          <div className="p-3 bg-red-900/30 border border-red-700/50 rounded-lg space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-red-300 block">💬 Rejection Reason:</span>
+                            <p className="text-white font-medium text-[11px] whitespace-pre-wrap">
+                              {selectedScript.rejectionReason || selectedScript.remarks || 'Script rejected during Technical Review. Revisions required.'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* ══════════════════════════════════════════════════════
+                   MANAGEMENT ACTION SESSIONS (LEVEL 1, 2, 3 DECISION CONTROLS)
+                ══════════════════════════════════════════════════════ */}
+              <div className="space-y-3">
+                {/* Step 2: Technical Manager Review Action */}
                 {selectedScript.status === 'WAITING_FOR_TECHNICAL_REVIEW' && (
                   (user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
-                    <div className="p-4 bg-blue-950/40 border border-blue-800/60 rounded-xl space-y-3 shadow-lg">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-bold text-blue-300 text-xs flex items-center gap-1.5">
-                          <ShieldCheck className="w-4 h-4 text-blue-400" /> Level 1: Technical Manager Review Action
+                    <div className="p-4 bg-blue-950/50 border-2 border-blue-600/80 rounded-xl space-y-3 shadow-2xl animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between border-b border-blue-800/60 pb-2">
+                        <h4 className="font-extrabold text-blue-300 text-xs flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-blue-400" /> Level 1: Technical Manager Review Decision Controls
                         </h4>
-                        <span className="text-[10px] bg-blue-950 text-blue-300 border border-blue-800 px-2 py-0.5 rounded font-mono font-bold">
+                        <span className="text-[10px] bg-blue-900 text-blue-200 border border-blue-700 px-2.5 py-0.5 rounded font-mono font-bold">
                           Status: WAITING_FOR_TECHNICAL_REVIEW
                         </span>
                       </div>
+                      <p className="text-[11px] text-blue-200/90 leading-relaxed font-normal">
+                        This script has been submitted for Technical Manager approval. Inspect technical details, storyline narration, and reference files, then approve or reject with mandatory revision feedback.
+                      </p>
                       <div className="flex items-center gap-2 flex-wrap pt-1">
                         <button
                           type="button"
-                          onClick={() => handleReviewTechnical(selectedScript.id, 'APPROVE')}
+                          onClick={() => {
+                            const note = prompt('Optional: Enter approval reason / notes for technical compliance:');
+                            handleReviewTechnical(selectedScript.id, 'APPROVE', note || 'Technical Review Approved');
+                          }}
                           disabled={saving}
-                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg shadow-lg transition-all flex items-center gap-2 text-xs"
                         >
-                          <Check className="w-4 h-4" /> Approve Technical Review
+                          <Check className="w-4 h-4" /> Accept &amp; Approve Technical Review
                         </button>
                         <button
                           type="button"
                           onClick={() => {
-                            const comment = prompt('Enter rejection / revision remarks for assigned staff:');
-                            if (comment !== null) {
-                              handleReviewTechnical(selectedScript.id, 'REJECT', comment.trim() || 'Technical Manager requested revisions');
+                            const comment = prompt('Rejection reason is mandatory. Enter rejection reason for script revision:');
+                            if (comment && comment.trim()) {
+                              handleReviewTechnical(selectedScript.id, 'REJECT', comment.trim());
+                            } else if (comment !== null) {
+                              alert('Rejection reason is mandatory.');
                             }
                           }}
                           disabled={saving}
-                          className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                          className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-extrabold rounded-lg shadow-lg transition-all flex items-center gap-2 text-xs"
                         >
-                          <RotateCcw className="w-4 h-4" /> Reject &amp; Revert to In Production
+                          <RotateCcw className="w-4 h-4" /> Reject Technical Review
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3 bg-blue-950/20 border border-blue-800/40 rounded-xl flex items-center justify-between">
+                    <div className="p-3.5 bg-blue-950/30 border border-blue-800/60 rounded-xl flex items-center justify-between shadow-md">
                       <span className="text-blue-300 font-semibold text-xs flex items-center gap-2">
-                        ⏳ Script submitted — Currently waiting for Technical Manager Review
+                        ⏳ Waiting for Technical Review
                       </span>
-                      <span className="text-[10px] text-gray-400 font-mono">Pending Tech Review</span>
+                      <span className="text-[10px] text-gray-400 font-mono">Technical Manager Authority Required</span>
                     </div>
                   )
                 )}
 
-                {/* Step 3: Media Manager Review Action (Strictly for Media Manager / Admin) */}
+                {/* Step 3: Media Manager Review Action */}
                 {selectedScript.status === 'WAITING_FOR_MEDIA_REVIEW' && (
                   (user?.role === 'MEDIA_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
                     <div className="p-4 bg-indigo-950/40 border border-indigo-800/60 rounded-xl space-y-3 shadow-lg">
                       <div className="flex items-center justify-between">
                         <h4 className="font-bold text-indigo-300 text-xs flex items-center gap-1.5">
-                          🎬 Level 2: Media Manager Review Action
+                          🎬 Level 2: Media Manager Review Session
                         </h4>
                         <span className="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded font-mono font-bold">
                           Status: WAITING_FOR_MEDIA_REVIEW
@@ -1933,41 +2269,45 @@ export default function ScriptsPage() {
                           disabled={saving}
                           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
                         >
-                          <Check className="w-4 h-4" /> Approve Media Review
+                          <Check className="w-4 h-4" /> Approve Script
                         </button>
                         <button
                           type="button"
                           onClick={() => {
-                            const comment = prompt('Enter rejection / revision remarks for assigned staff:');
-                            if (comment) handleReviewMedia(selectedScript.id, 'REJECT', comment);
+                            const comment = prompt('Rejection reason is mandatory. Enter rejection reason:');
+                            if (comment && comment.trim()) {
+                              handleReviewMedia(selectedScript.id, 'REJECT', comment.trim());
+                            } else if (comment !== null) {
+                              alert('Rejection reason is mandatory.');
+                            }
                           }}
                           disabled={saving}
                           className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
                         >
-                          <RotateCcw className="w-4 h-4" /> Reject &amp; Revert to In Production
+                          <RotateCcw className="w-4 h-4" /> Reject Script
                         </button>
                       </div>
                     </div>
                   ) : (
                     <div className="p-3 bg-indigo-950/20 border border-indigo-800/40 rounded-xl flex items-center justify-between">
                       <span className="text-indigo-300 font-semibold text-xs flex items-center gap-2">
-                        ⏳ Technical Review Passed — Currently waiting for Media Manager Review
+                        ⏳ Technical Review Approved — Waiting for Media Review
                       </span>
-                      <span className="text-[10px] text-gray-400 font-mono">Pending Media Review</span>
+                      <span className="text-[10px] text-gray-400 font-mono">Media Manager Review</span>
                     </div>
                   )
                 )}
 
-                {/* Step 4: Marketing Manager Final Approval Action (Strictly for Marketing Manager / Admin) */}
-                {selectedScript.status === 'PENDING_MARKETING_APPROVAL' && (
+                {/* Step 4: Marketing Manager Review Action */}
+                {(selectedScript.status === 'WAITING_FOR_MARKETING_APPROVAL' || selectedScript.status === 'PENDING_MARKETING_APPROVAL') && (
                   (user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
                     <div className="p-4 bg-amber-950/40 border border-amber-800/60 rounded-xl space-y-3 shadow-lg">
                       <div className="flex items-center justify-between">
                         <h4 className="font-bold text-amber-300 text-xs flex items-center gap-1.5">
-                          🏆 Level 3: Marketing Manager Final Approval Action
+                          🏆 Level 3: Marketing Manager Approval Session
                         </h4>
                         <span className="text-[10px] bg-amber-950 text-amber-300 border border-amber-800 px-2 py-0.5 rounded font-mono font-bold">
-                          Status: PENDING_MARKETING_APPROVAL
+                          Status: Waiting for Marketing Manager Approval
                         </span>
                       </div>
 
@@ -1978,28 +2318,32 @@ export default function ScriptsPage() {
                           disabled={saving}
                           className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
                         >
-                          <Check className="w-4 h-4" /> Final Approve Script
+                          <Check className="w-4 h-4" /> Approve Script
                         </button>
 
                         <button
                           type="button"
                           onClick={() => {
-                            const comment = prompt('Enter rejection / revision remarks for assigned staff:');
-                            if (comment) handleApproveScriptAction(selectedScript.id, 'REQUEST_CHANGES', comment);
+                            const comment = prompt('Rejection reason is mandatory. Enter rejection reason:');
+                            if (comment && comment.trim()) {
+                              handleApproveScriptAction(selectedScript.id, 'REJECT', comment.trim());
+                            } else if (comment !== null) {
+                              alert('Rejection reason is mandatory.');
+                            }
                           }}
                           disabled={saving}
                           className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
                         >
-                          <RotateCcw className="w-4 h-4" /> Reject &amp; Revert to In Production
+                          <RotateCcw className="w-4 h-4" /> Reject Script
                         </button>
                       </div>
                     </div>
                   ) : (
                     <div className="p-3 bg-amber-950/20 border border-amber-800/40 rounded-xl flex items-center justify-between">
                       <span className="text-amber-300 font-semibold text-xs flex items-center gap-2">
-                        ⏳ Media Review Passed — Currently waiting for Marketing Manager Final Approval
+                        ⏳ Media Manager Approved — Waiting for Marketing Manager Approval
                       </span>
-                      <span className="text-[10px] text-gray-400 font-mono">Pending Marketing Approval</span>
+                      <span className="text-[10px] text-gray-400 font-mono">Marketing Approval</span>
                     </div>
                   )
                 )}
@@ -2031,16 +2375,17 @@ export default function ScriptsPage() {
               <button
                 type="button"
                 onClick={handleSaveScript}
-                disabled={saving}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-md shadow-blue-600/30"
+                disabled={saving || isEditingLocked}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-md shadow-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {saving ? 'Saving Changes...' : 'Save Script Details'}
+                {saving ? 'Saving...' : isEditingLocked ? 'Read Only' : 'Save Changes'}
               </button>
             </div>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Create Script Modal */}
       {showCreateModal && (
@@ -2191,6 +2536,7 @@ export default function ScriptsPage() {
                   <option value="READY">Ready</option>
                   <option value="ASSIGNED">Assigned</option>
                   <option value="IN_PRODUCTION">In Production</option>
+                  <option value="IN_PROGRESS">In Progress</option>
                   <option value="WAITING_FOR_TECHNICAL_REVIEW">Waiting for Technical Review</option>
                   <option value="WAITING_FOR_MEDIA_REVIEW">Waiting for Media Review</option>
                   <option value="WAITING_FOR_CLIENT_CONFIRMATION">Waiting for Client Confirmation</option>

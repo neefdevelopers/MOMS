@@ -80,6 +80,26 @@ export class ApprovalsService {
       },
     });
 
+    const scriptTechQueue = await this.prisma.script.findMany({
+      where: { status: 'WAITING_FOR_TECHNICAL_REVIEW' },
+      include: {
+        client: true,
+        brand: true,
+        files: true,
+        tasks: taskIncludes,
+      },
+    });
+
+    const scriptMediaQueue = await this.prisma.script.findMany({
+      where: { status: 'WAITING_FOR_MEDIA_REVIEW' },
+      include: {
+        client: true,
+        brand: true,
+        files: true,
+        tasks: taskIncludes,
+      },
+    });
+
     const clientQueue = await this.prisma.shootProject.findMany({
       where: { status: ProjectStatus.WAITING_FOR_CLIENT_CONFIRMATION },
       include: { client: true, brand: true, files: true, tasks: taskIncludes },
@@ -146,9 +166,33 @@ export class ApprovalsService {
       isStandaloneTask: true,
     }));
 
+    const mappedScriptTech = scriptTechQueue.map((s) => ({
+      id: s.id,
+      projectId: s.scriptId,
+      name: s.name,
+      client: s.client,
+      brand: s.brand,
+      status: s.status,
+      files: s.files,
+      tasks: s.tasks,
+      isScript: true,
+    }));
+
+    const mappedScriptMedia = scriptMediaQueue.map((s) => ({
+      id: s.id,
+      projectId: s.scriptId,
+      name: s.name,
+      client: s.client,
+      brand: s.brand,
+      status: s.status,
+      files: s.files,
+      tasks: s.tasks,
+      isScript: true,
+    }));
+
     return {
-      technicalReviewQueue: [...techQueue, ...mappedGrTech, ...mappedTaskTech],
-      mediaReviewQueue: [...mediaQueue, ...mappedGrMedia, ...mappedTaskMedia],
+      technicalReviewQueue: [...techQueue, ...mappedGrTech, ...mappedTaskTech, ...mappedScriptTech],
+      mediaReviewQueue: [...mediaQueue, ...mappedGrMedia, ...mappedTaskMedia, ...mappedScriptMedia],
       clientConfirmationQueue: clientQueue,
       revisionQueue: revisionQueue,
     };
@@ -180,6 +224,7 @@ export class ApprovalsService {
     let project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
     let gReq = null;
     let task = null;
+    let script = null;
 
     if (!project) {
       gReq = await this.prisma.graphicRequirement.findUnique({ where: { id: data.projectId } });
@@ -187,9 +232,12 @@ export class ApprovalsService {
     if (!project && !gReq) {
       task = await this.prisma.task.findUnique({ where: { id: data.projectId } });
     }
+    if (!project && !gReq && !task) {
+      script = await this.prisma.script.findUnique({ where: { id: data.projectId } });
+    }
 
-    const targetId = project?.id || gReq?.id || task?.id;
-    const targetEntity = task ? 'TASK' : gReq ? 'GRAPHIC_REQ' : 'PROJECT';
+    const targetId = project?.id || gReq?.id || task?.id || script?.id;
+    const targetEntity = script ? 'SCRIPT' : task ? 'TASK' : gReq ? 'GRAPHIC_REQ' : 'PROJECT';
     const pendingApproval = await this.prisma.approval.findFirst({
       where: {
         entityType: targetEntity,
@@ -214,7 +262,8 @@ export class ApprovalsService {
         data: {
           entityType: targetEntity,
           entityId: targetId,
-          projectId: project ? project.id : task?.projectId || null,
+          scriptId: script ? script.id : null,
+          projectId: project ? project.id : task?.projectId || script?.projectId || null,
           approvalType: ApprovalType.TECHNICAL_REVIEW,
           reviewerId,
           status: data.status === 'APPROVED' ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
@@ -254,13 +303,70 @@ export class ApprovalsService {
           technicalReviewApproved: data.status === 'APPROVED',
         },
       });
+
+      if (task.scriptId) {
+        await this.prisma.script.update({
+          where: { id: task.scriptId },
+          data: {
+            status: newTaskStatus,
+            preTechnicalReviewStatus: null,
+            technicalReviewApproved: data.status === 'APPROVED',
+            rejectionReason: data.status === 'REJECTED' ? (data.remarks || 'Technical review rejected').trim() : null,
+            rejectedAt: data.status === 'REJECTED' ? new Date() : null,
+          },
+        }).catch(() => null);
+      }
+    }
+
+    if (script) {
+      const newScriptStatus = data.status === 'APPROVED' ? 'WAITING_FOR_MEDIA_REVIEW' : 'IN_PROGRESS';
+      await this.prisma.script.update({
+        where: { id: script.id },
+        data: {
+          status: newScriptStatus,
+          preTechnicalReviewStatus: null,
+          technicalReviewApproved: data.status === 'APPROVED',
+          rejectionReason: data.status === 'REJECTED' ? (data.remarks || 'Technical review rejected').trim() : null,
+          rejectedAt: data.status === 'REJECTED' ? new Date() : null,
+        },
+      });
+      await this.prisma.task.updateMany({
+        where: { scriptId: script.id },
+        data: { status: newScriptStatus, technicalReviewApproved: data.status === 'APPROVED' },
+      }).catch(() => null);
     }
 
     if (data.status === 'REJECTED' && targetId) {
       await this.prisma.task.updateMany({
-        where: { OR: [{ id: targetId }, { projectId: targetId }, { graphicRequirementId: targetId }] },
+        where: { OR: [{ id: targetId }, { projectId: targetId }, { graphicRequirementId: targetId }, { scriptId: targetId }] },
         data: { status: 'IN_PROGRESS', technicalReviewApproved: false },
       }).catch(() => null);
+    } else if (data.status === 'APPROVED') {
+      // Notify Media Managers that item passed Technical Review and is waiting for Media Manager Approval
+      const mediaManagers = await this.prisma.user.findMany({
+        where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
+        select: { id: true },
+      });
+      if (mediaManagers.length > 0) {
+        const entityLabel = task ? `Task ${task.taskId} ('${task.title}')` : script ? `Script "${script.scriptId}: ${script.name}"` : project ? `Project "${project.name}"` : gReq ? `Graphic Requirement "${gReq.name}"` : 'Production item';
+        await this.prisma.notification.createMany({
+          data: mediaManagers.map((mm) => ({
+            userId: mm.id,
+            title: 'Media Manager Review Requested 🎬',
+            message: `${entityLabel} passed Technical Review and is waiting for Media Manager Approval.`,
+            type: 'ALERT',
+            category: 'APPROVAL',
+            priority: 'HIGH',
+            linkUrl: task ? '/tasks' : script ? '/scripts' : '/approvals',
+            eventType: 'MEDIA_REVIEW_REQUESTED',
+            entityType: task ? 'TASK' : script ? 'SCRIPT' : project ? 'PROJECT' : 'GRAPHIC_REQ',
+            entityId: (task?.id || script?.id || project?.id || gReq?.id) as string,
+            taskId: task?.id || undefined,
+            projectId: project?.id || task?.projectId || undefined,
+            scriptId: script?.id || task?.scriptId || undefined,
+          })),
+        }).catch(() => null);
+      }
     }
 
     return approval;
@@ -322,6 +428,33 @@ export class ApprovalsService {
           completionPercentage: data.status === 'APPROVED' ? 100 : task.completionPercentage,
         },
       });
+    }
+
+    if (data.status === 'APPROVED') {
+      // Notify Marketing Managers that item passed Media Review and is ready for confirmation/marketing signoff
+      const marketingManagers = await this.prisma.user.findMany({
+        where: { role: { in: ['MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
+        select: { id: true },
+      });
+      if (marketingManagers.length > 0) {
+        const entityLabel = task ? `Task ${task.taskId} ('${task.title}')` : project ? `Project "${project.name}"` : gReq ? `Graphic Requirement "${gReq.name}"` : 'Production item';
+        await this.prisma.notification.createMany({
+          data: marketingManagers.map((mm) => ({
+            userId: mm.id,
+            title: 'Marketing Manager Approval Requested 📢',
+            message: `${entityLabel} was approved by Media Manager and is ready for Marketing Manager Approval / Confirmation.`,
+            type: 'ALERT',
+            category: 'APPROVAL',
+            priority: 'HIGH',
+            linkUrl: task ? '/tasks' : '/approvals',
+            eventType: 'MARKETING_REVIEW_REQUESTED',
+            entityType: task ? 'TASK' : project ? 'PROJECT' : 'GRAPHIC_REQ',
+            entityId: (task?.id || project?.id || gReq?.id) as string,
+            taskId: task?.id || undefined,
+            projectId: project?.id || task?.projectId || undefined,
+          })),
+        }).catch(() => null);
+      }
     }
 
     return approval;

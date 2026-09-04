@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ScriptsService } from './scripts.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -89,10 +89,16 @@ export class ScriptsController {
     });
   }
 
-  @Roles(Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
+  @Roles(Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Put(':id')
   update(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) {
-    return this.scriptsService.update(id, { ...data, updatedById: user?.id });
+    return this.scriptsService.update(id, { ...data, updatedById: user?.id, userRole: user?.role });
+  }
+
+  @Roles(Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Patch(':id')
+  patchUpdate(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) {
+    return this.scriptsService.update(id, { ...data, updatedById: user?.id, userRole: user?.role });
   }
 
   @Roles(Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)

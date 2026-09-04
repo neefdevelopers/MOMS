@@ -186,7 +186,7 @@ export default function RevisionsTab({
         <div className="space-y-4">
           {revisions.map((rev) => {
             const isAssignedToUser = rev.assignedToId === userId;
-            const isReviewer = canRequestRevision;
+            const isReviewer = userRole === 'TECHNICAL_MANAGER' || userRole === 'MEDIA_MANAGER' || userRole === 'MARKETING_MANAGER' || userRole === 'ADMIN' || userRole === 'ADMINISTRATOR' || rev.requestedById === userId;
 
             return (
               <div

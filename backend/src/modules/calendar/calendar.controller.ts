@@ -34,19 +34,19 @@ export class CalendarController {
     return this.calendarService.getHistory(id, user);
   }
 
-  @Roles(Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER, Role.MARKETING_MANAGER)
+  @Roles(Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @Post()
   create(@Body() data: any, @CurrentUser() user: any) {
     return this.calendarService.create(data, user);
   }
 
-  @Roles(Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER, Role.MARKETING_MANAGER)
+  @Roles(Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @Put(':id')
   update(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) {
     return this.calendarService.update(id, data, user);
   }
 
-  @Roles(Role.MEDIA_MANAGER, Role.SOCIAL_MEDIA_MANAGER)
+  @Roles(Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
   @Post(':id/submit')
   submitForClientApproval(@Param('id') id: string, @CurrentUser() user: any) {
     return this.calendarService.submitForClientApproval(id, user);

@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ShootType, Priority } from '../../common/enums';
+import { ShootType, Priority, Role } from '../../common/enums';
 import { canUserViewEvent } from '../../common/utils/event-auth';
 
 @Injectable()
@@ -170,6 +170,10 @@ export class CalendarService {
   }
 
   async create(data: any, user?: any) {
+    if (user && user.role !== Role.MEDIA_MANAGER && user.role !== Role.MARKETING_MANAGER && user.role !== Role.ADMINISTRATOR && user.role !== 'ADMIN') {
+      throw new ForbiddenException('403 Forbidden: Only Media Managers and Marketing Managers can create calendar events.');
+    }
+
     const eventSource = data.eventSource || 'SHOOT';
     if (eventSource !== 'GRAPHIC_REQUIREMENT' && eventSource !== 'SHOOT') {
       throw new BadRequestException('Event Source is required and must be GRAPHIC_REQUIREMENT or SHOOT.');

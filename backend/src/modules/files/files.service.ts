@@ -106,6 +106,19 @@ export class FilesService {
       }
     }
 
+    if (data.scriptId) {
+      const script = await this.prisma.script.findUnique({ where: { id: data.scriptId } });
+      if (script) {
+        const isReviewLocked = ['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_MARKETING_APPROVAL', 'COMPLETED'].includes(script.status);
+        const isStaffUser = userRole === 'STAFF' || userRole === 'SOCIAL_MEDIA_MANAGER';
+        if (isReviewLocked && isStaffUser) {
+          throw new ForbiddenException(
+            'Script is currently under review. File uploads and attachment modifications are locked for staff during review.',
+          );
+        }
+      }
+    }
+
     const project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
     if (!project) throw new NotFoundException('Parent project not found');
 

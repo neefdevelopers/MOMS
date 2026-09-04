@@ -550,7 +550,7 @@ export default function CalendarPage() {
     );
   });
 
-  const canCreateEvents = ['MEDIA_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'].includes(user?.role || '');
+  const canCreateEvents = ['MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'].includes(user?.role || '');
 
   // Helper to compute date range for Month, Week, or Day
   const getPeriodRange = (mode: 'month' | 'week' | 'day' | 'all', refDate: Date) => {
@@ -765,7 +765,7 @@ export default function CalendarPage() {
             <span>{sortOrder === 'asc' ? 'Earliest First' : 'Latest First'}</span>
           </button>
 
-          {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'TECHNICAL_MANAGER' || user?.role === 'STAFF') && (
+          {canCreateEvents && (
             <button
               onClick={() => {
                 resetForm();
@@ -1447,7 +1447,7 @@ export default function CalendarPage() {
                   </Link>
                 ) : null}
 
-                {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER') && eventItem.status !== 'CANCELLED' && (
+                {(user?.role === 'MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && eventItem.status !== 'CANCELLED' && (
                   <div className="flex gap-1.5 flex-wrap items-center">
                     {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
                       ['APPROVED', 'READY', 'APPROVED_BY_MARKETING'].includes(eventItem.status) ||
@@ -1555,7 +1555,7 @@ export default function CalendarPage() {
             )}
 
             {/* Approved Event Edit Request Alert Banner */}
-            {editingEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER') && (
+            {editingEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
               <div className="p-3.5 bg-amber-950/60 border border-amber-500/50 rounded-xl space-y-2 text-xs">
                 <div className="flex items-center gap-2 font-bold text-amber-300">
                   <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
@@ -2222,13 +2222,13 @@ export default function CalendarPage() {
               <button
                 type="submit"
                 className={`px-4 py-2 text-white rounded font-semibold transition-all ${
-                  editingEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER')
+                  editingEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN')
                     ? 'bg-amber-600 hover:bg-amber-500 shadow-lg shadow-amber-600/30 font-bold'
                     : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/30'
                 }`}
               >
                 {editingEvent
-                  ? ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER')
+                  ? ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN')
                     ? 'Submit Edit Request'
                     : 'Save Event'
                   : 'Schedule Event'}
