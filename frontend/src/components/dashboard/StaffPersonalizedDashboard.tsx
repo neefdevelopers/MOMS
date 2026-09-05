@@ -353,7 +353,7 @@ export default function StaffPersonalizedDashboard({ user }: StaffPersonalizedDa
                   </div>
 
                   <Link
-                    href={dl.type === 'TASK' ? '/tasks' : dl.type === 'SCRIPT' ? '/scripts' : '/graphic-reqs'}
+                    href={dl.type === 'GRAPHIC_REQ' ? '/graphic-reqs' : '/tasks'}
                     className="p-1.5 text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors"
                   >
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -422,71 +422,48 @@ export default function StaffPersonalizedDashboard({ user }: StaffPersonalizedDa
           </div>
         </div>
 
-        {/* 4. Pending Reviews */}
+        {/* 4. Assigned Graphic Requirements */}
         <div className="bg-zinc-950/90 border border-zinc-800/90 rounded-2xl p-5 space-y-4 shadow-xl">
           <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
             <div className="flex items-center gap-2">
-              <FileCheck className="w-4.5 h-4.5 text-purple-400" />
+              <Palette className="w-4.5 h-4.5 text-purple-400" />
               <h3 className="text-sm font-bold text-white tracking-wide">
-                Assigned Scripts & Graphic Reqs ({assignedScripts.length + assignedGraphicReqs.length})
+                Assigned Graphic Requirements ({assignedGraphicReqs.length})
               </h3>
             </div>
+            <Link href="/graphic-reqs" className="text-[11px] text-purple-400 hover:text-purple-300 font-bold">
+              View All →
+            </Link>
           </div>
 
           <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
-            {assignedScripts.length > 0 || assignedGraphicReqs.length > 0 ? (
-              <>
-                {assignedScripts.map((s: any) => (
-                  <div
-                    key={s.id}
-                    className="p-3 bg-zinc-900/40 hover:bg-zinc-900 border border-zinc-800 rounded-xl transition-all flex items-center justify-between gap-3"
-                  >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-[10px] text-purple-400 font-bold">{s.scriptId}</span>
-                        <span className="text-xs font-bold text-white truncate max-w-[200px]">{s.name}</span>
-                      </div>
-                      <p className="text-[10px] text-zinc-400">
-                        Status: <span className="text-purple-300 font-mono">{s.status}</span>
-                      </p>
+            {assignedGraphicReqs.length > 0 ? (
+              assignedGraphicReqs.map((g: any) => (
+                <div
+                  key={g.id}
+                  className="p-3 bg-zinc-900/40 hover:bg-zinc-900 border border-zinc-800 rounded-xl transition-all flex items-center justify-between gap-3"
+                >
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] text-amber-400 font-bold">{g.requirementId || g.id}</span>
+                      <span className="text-xs font-bold text-white truncate max-w-[200px]">{g.name || g.title}</span>
                     </div>
-
-                    <Link
-                      href={`/scripts?scriptId=${s.id}`}
-                      className="text-[11px] font-bold text-purple-400 hover:text-purple-300 bg-purple-950/40 border border-purple-800/60 px-2.5 py-1 rounded-lg"
-                    >
-                      Open Script
-                    </Link>
+                    <p className="text-[10px] text-zinc-400">
+                      Status: <span className="text-amber-300 font-mono">{g.status}</span>
+                    </p>
                   </div>
-                ))}
 
-                {assignedGraphicReqs.map((g: any) => (
-                  <div
-                    key={g.id}
-                    className="p-3 bg-zinc-900/40 hover:bg-zinc-900 border border-zinc-800 rounded-xl transition-all flex items-center justify-between gap-3"
+                  <Link
+                    href={`/graphic-reqs?inspect=${g.id}`}
+                    className="text-[11px] font-bold text-amber-400 hover:text-amber-300 bg-amber-950/40 border border-amber-800/60 px-2.5 py-1 rounded-lg"
                   >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-[10px] text-amber-400 font-bold">{g.requirementId}</span>
-                        <span className="text-xs font-bold text-white truncate max-w-[200px]">{g.name}</span>
-                      </div>
-                      <p className="text-[10px] text-zinc-400">
-                        Status: <span className="text-amber-300 font-mono">{g.status}</span>
-                      </p>
-                    </div>
-
-                    <Link
-                      href={`/graphic-reqs?reqId=${g.id}`}
-                      className="text-[11px] font-bold text-amber-400 hover:text-amber-300 bg-amber-950/40 border border-amber-800/60 px-2.5 py-1 rounded-lg"
-                    >
-                      Open Graphic Req
-                    </Link>
-                  </div>
-                ))}
-              </>
+                    Open Req
+                  </Link>
+                </div>
+              ))
             ) : (
               <div className="py-8 text-center text-xs text-zinc-500">
-                No active scripts or graphic requirements assigned.
+                You are not currently assigned to any active graphic requirements.
               </div>
             )}
           </div>

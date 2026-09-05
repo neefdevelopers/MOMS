@@ -188,7 +188,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   TECHNICAL_MANAGER: {
     DASHBOARD: ['VIEW', 'EXPORT'],
     PROJECTS: ['VIEW', 'EDIT', 'EXPORT'],
-    SCRIPTS: [],
+    SCRIPTS: ['VIEW', 'EDIT', 'EXPORT'],
     GRAPHIC_REQUIREMENTS: ['VIEW', 'EDIT', 'EXPORT'],
     TASKS: ['VIEW', 'EDIT', 'EXPORT'],
     EQUIPMENT: ['VIEW', 'EDIT'],
@@ -206,7 +206,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   STAFF: {
     DASHBOARD: ['VIEW'],
     PROJECTS: ['VIEW'],
-    SCRIPTS: ['VIEW'],
+    SCRIPTS: [],
     GRAPHIC_REQUIREMENTS: ['VIEW'],
     TASKS: ['VIEW', 'EDIT'],
     EQUIPMENT: ['VIEW'],
@@ -269,7 +269,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     PRODUCTS: [],
     STAFF: [],
     REPORTS: [],
-    CALENDAR: ['VIEW'],
+    CALENDAR: ['VIEW', 'CREATE', 'EDIT', 'EXPORT'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
     REVISIONS: ['VIEW', 'CREATE', 'EDIT'],
     ACTIVITY_LOGS: [],

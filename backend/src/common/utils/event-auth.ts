@@ -9,6 +9,11 @@ export const APPROVED_CALENDAR_STATUSES = [
   'IN_PRODUCTION',
   'WAITING_FOR_TECHNICAL_REVIEW',
   'TECHNICAL_REVIEW',
+  'WAITING_FOR_MEDIA_REVIEW',
+  'MEDIA_MANAGER_REVIEW',
+  'WAITING_FOR_CLIENT_CONFIRMATION',
+  'COMPLETED',
+  'CLOSED',
 ];
 
 export const UNAPPROVED_CALENDAR_STATUSES = [
@@ -19,7 +24,6 @@ export const UNAPPROVED_CALENDAR_STATUSES = [
   'DRAFT',
   'CHANGES_REQUESTED',
   'REVISION_REQUESTED',
-  'WAITING_FOR_MEDIA_REVIEW',
 ];
 
 /**
@@ -65,6 +69,27 @@ export function canUserViewEvent(
     return true;
   }
 
+  // TECHNICAL_MANAGER: Show if event is waiting for technical review or after technical manager approval
+  if (user.role === 'TECHNICAL_MANAGER') {
+    const TECH_MANAGER_ALLOWED_EVENT_STATUSES = [
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+      'APPROVED',
+      'CLIENT_APPROVED',
+      'SCHEDULED',
+      'PUBLISHED',
+      'COMPLETED',
+      'CLOSED',
+    ];
+    return (
+      TECH_MANAGER_ALLOWED_EVENT_STATUSES.includes(event.status) ||
+      Boolean(event.technicalReviewApproved)
+    );
+  }
+
   // 4. WORKFLOW & APPROVAL STATUS CHECK
   const isApproved = APPROVED_CALENDAR_STATUSES.includes(event.status);
 
@@ -73,8 +98,7 @@ export function canUserViewEvent(
     if (
       user.role === 'MEDIA_MANAGER' ||
       user.role === 'SOCIAL_MEDIA_MANAGER' ||
-      user.role === 'MARKETING_MANAGER' ||
-      user.role === 'TECHNICAL_MANAGER'
+      user.role === 'MARKETING_MANAGER'
     ) {
       return true;
     }
@@ -104,14 +128,45 @@ export function canUserViewRequirement(
   // 1. ADMIN
   if (user.role === 'ADMIN' || user.role === 'ADMINISTRATOR') return true;
 
-  // 2. CREATOR CHECK
+  // 2. TECHNICAL_MANAGER: Strictly show graphic requirements that have reached
+  // the stage of waiting for technical manager approval or after that.
+  if (user.role === 'TECHNICAL_MANAGER') {
+    const TECH_MANAGER_ALLOWED_STATUSES = [
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+      'CLIENT_CONFIRMATION',
+      'CLIENT_REVISION_REQUESTED',
+      'COMPLETED',
+      'CLOSED',
+    ];
+    return (
+      TECH_MANAGER_ALLOWED_STATUSES.includes(requirement.status) ||
+      Boolean(requirement.technicalReviewApproved) ||
+      Boolean(requirement.project && TECH_MANAGER_ALLOWED_STATUSES.includes(requirement.project.status)) ||
+      Boolean(
+        Array.isArray(requirement.tasks) &&
+          requirement.tasks.some(
+            (t: any) => TECH_MANAGER_ALLOWED_STATUSES.includes(t.status) || t.technicalReviewApproved,
+          ),
+      ) ||
+      Boolean(
+        Array.isArray(requirement.approvals) &&
+          requirement.approvals.some((a: any) => a.approvalType === 'TECHNICAL_REVIEW'),
+      )
+    );
+  }
+
+  // 3. CREATOR CHECK
   const isCreator =
     Boolean(requirement.createdById && requirement.createdById === user.id) ||
     Boolean(requirement.createdBy && (requirement.createdBy.id === user.id || requirement.createdBy.userId === user.id));
 
   if (isCreator) return true;
 
-  // 3. DIRECT ASSIGNMENT CHECK — ASSIGNED USERS ALWAYS HAVE ACCESS REGARDLESS OF APPROVAL STATUS
+  // 4. DIRECT ASSIGNMENT CHECK — ASSIGNED USERS ALWAYS HAVE ACCESS REGARDLESS OF APPROVAL STATUS
   const isTaskAssigned =
     Array.isArray(requirement.tasks) &&
     requirement.tasks.some(
@@ -133,7 +188,7 @@ export function canUserViewRequirement(
     return true;
   }
 
-  // 4. ROLE APPROVAL GATES FOR UNASSIGNED REQUIREMENTS
+  // 5. ROLE APPROVAL GATES FOR UNASSIGNED REQUIREMENTS
   if (user.role === 'STAFF') {
     return false; // Unassigned staff cannot view
   }
@@ -152,10 +207,6 @@ export function canUserViewRequirement(
 
   if (user.role === 'MARKETING_MANAGER' || user.role === 'MEDIA_MANAGER' || user.role === 'SOCIAL_MEDIA_MANAGER') {
     return true;
-  }
-
-  if (user.role === 'TECHNICAL_MANAGER' && isReqUnapproved) {
-    return false;
   }
 
   if (isReqUnapproved) {
@@ -177,7 +228,35 @@ export function canUserViewProject(
   // 1. ADMIN
   if (user.role === 'ADMIN' || user.role === 'ADMINISTRATOR') return true;
 
-  // 2. CREATOR CHECK
+  // 2. TECHNICAL_MANAGER: Strictly show projects that have reached the stage of
+  // waiting for technical manager approval or after that (or have pending technical review approvals)
+  if (user.role === 'TECHNICAL_MANAGER') {
+    const TECH_MANAGER_ALLOWED_PROJECT_STATUSES = [
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'POST_PRODUCTION',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+      'COMPLETED',
+      'CLOSED',
+      'DELIVERED',
+    ];
+    const hasPendingTechApproval = Array.isArray(project.approvals) && project.approvals.some(
+      (a: any) => a.approvalType === 'TECHNICAL_REVIEW' || a.targetRole === 'TECHNICAL_MANAGER'
+    );
+    const hasPendingTaskReview = Array.isArray(project.tasks) && project.tasks.some(
+      (t: any) => t.status === 'WAITING_FOR_TECHNICAL_REVIEW' || t.status === 'IN_REVISION' || t.status === 'COMPLETED'
+    );
+    return (
+      TECH_MANAGER_ALLOWED_PROJECT_STATUSES.includes(project.status) ||
+      Boolean(project.technicalReviewApproved) ||
+      Boolean(hasPendingTechApproval) ||
+      Boolean(hasPendingTaskReview)
+    );
+  }
+
+  // 3. CREATOR CHECK
   const isCreator =
     Boolean(project.createdById && project.createdById === user.id) ||
     Boolean(project.createdBy && (project.createdBy.id === user.id || project.createdBy.userId === user.id)) ||
@@ -207,15 +286,11 @@ export function canUserViewProject(
 
   if (user.role === 'MARKETING_MANAGER') return true;
 
-  if (user.role === 'TECHNICAL_MANAGER' && isProjectUnapproved) {
-    return false;
-  }
-
   if (isProjectUnapproved) {
     return false;
   }
 
-  // 3. STAFF ROLE SPECIFIC ASSIGNMENT RULE:
+  // 4. STAFF ROLE SPECIFIC ASSIGNMENT RULE:
   // Staff MUST be assigned to the project team, its tasks, or its graphic requirements to view it
   if (user.role === 'STAFF') {
     const isTeamMember =
@@ -268,24 +343,49 @@ export function canUserViewTask(
 
   if (user.role === 'ADMIN' || user.role === 'ADMINISTRATOR') return true;
 
+  const isAssigned =
+    task.assignedToId === user.id ||
+    (Array.isArray(task.assignedEmployees) &&
+      task.assignedEmployees.some(
+        (e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id,
+      ));
+
+  // 2. TECHNICAL_MANAGER: Strictly show tasks that have reached the stage of
+  // waiting for technical manager approval or after that.
+  if (user.role === 'TECHNICAL_MANAGER') {
+    const TECH_MANAGER_ALLOWED_TASK_STATUSES = [
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+      'CLIENT_CONFIRMATION',
+      'CLIENT_REVISION_REQUESTED',
+      'COMPLETED',
+      'CLOSED',
+      'APPROVED',
+      'SCHEDULED',
+      'PUBLISHED',
+    ];
+    return (
+      TECH_MANAGER_ALLOWED_TASK_STATUSES.includes(task.status) ||
+      Boolean(task.technicalReviewApproved)
+    );
+  }
+
   const isCreator = Boolean(task.createdById && task.createdById === user.id);
   if (isCreator) return true;
 
   if (
     user.role === 'MEDIA_MANAGER' ||
-    user.role === 'TECHNICAL_MANAGER' ||
     user.role === 'MARKETING_MANAGER'
   ) {
     return true;
   }
 
   if (user.role === 'STAFF' || user.role === 'SOCIAL_MEDIA_MANAGER') {
-    const isAssigned =
-      task.assignedToId === user.id ||
-      (Array.isArray(task.assignedEmployees) &&
-        task.assignedEmployees.some(
-          (e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id,
-        ));
     return isAssigned;
   }
 
@@ -303,6 +403,32 @@ export function canUserViewScript(
 
   if (user.role === 'ADMIN' || user.role === 'ADMINISTRATOR') return true;
 
+  // 2. TECHNICAL_MANAGER: Strictly show scripts that have reached the stage of
+  // waiting for technical manager approval or after that
+  if (user.role === 'TECHNICAL_MANAGER') {
+    const TECH_MANAGER_ALLOWED_SCRIPT_STATUSES = [
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW_PENDING',
+      'SUBMITTED_FOR_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_MARKETING_APPROVAL',
+      'PENDING_MARKETING_APPROVAL',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+      'PENDING_CLIENT_APPROVAL',
+      'CLIENT_REVIEW',
+      'APPROVED',
+      'COMPLETED',
+      'CLOSED',
+    ];
+    return (
+      TECH_MANAGER_ALLOWED_SCRIPT_STATUSES.includes(script.status) ||
+      Boolean(script.technicalReviewApproved) ||
+      ['TECHNICAL_REVIEW_APPROVED', 'MEDIA_REVIEW_APPROVED', 'MARKETING_APPROVED', 'CLIENT_APPROVED', 'COMPLETED'].includes(script.approvalStatus)
+    );
+  }
+
   const isCreator =
     Boolean(script.authorId && script.authorId === user.id) ||
     Boolean(script.createdById && script.createdById === user.id) ||
@@ -311,13 +437,16 @@ export function canUserViewScript(
 
   if (
     user.role === 'MEDIA_MANAGER' ||
-    user.role === 'TECHNICAL_MANAGER' ||
     user.role === 'MARKETING_MANAGER'
   ) {
     return true;
   }
 
-  if (user.role === 'STAFF' || user.role === 'SOCIAL_MEDIA_MANAGER') {
+  if (user.role === 'STAFF') {
+    return false;
+  }
+
+  if (user.role === 'SOCIAL_MEDIA_MANAGER') {
     const isAssigned =
       script.assignedToId === user.id ||
       script.writerId === user.id ||

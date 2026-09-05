@@ -34,6 +34,8 @@ import {
   Check,
   X,
   RotateCcw,
+  ShieldCheck,
+  ArrowRight,
 } from 'lucide-react';
 
 export default function ProjectDetailPage() {
@@ -445,6 +447,17 @@ export default function ProjectDetailPage() {
                 >
                   <RotateCcw className="w-3 h-3" /> Request Revision
                 </button>
+                {user?.role === 'TECHNICAL_MANAGER' && (
+                  <Link
+                    href="/approvals"
+                    className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold rounded-lg text-[11px] flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition-all border border-cyan-400/40"
+                    title="Open Technical Manager Approval Session"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-cyan-200" />
+                    <span>Go to Technical Manager Approval Session</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-cyan-200" />
+                  </Link>
+                )}
               </div>
             </div>
 

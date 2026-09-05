@@ -217,4 +217,22 @@ export class ScriptsController {
   deleteDeliverable(@Param('deliverableId') deliverableId: string) {
     return this.scriptsService.deleteDeliverable(deliverableId);
   }
+
+  // --- Attachment Link Endpoints (link + name, replacing file uploads) ---
+
+  @Roles(Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/attachment-links')
+  addAttachmentLink(
+    @Param('id') scriptId: string,
+    @Body() body: { name: string; url: string; attachmentCategory: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.scriptsService.addAttachmentLink(scriptId, body, user?.id);
+  }
+
+  @Roles(Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Delete('attachment-links/:linkId')
+  deleteAttachmentLink(@Param('linkId') linkId: string, @CurrentUser() user: any) {
+    return this.scriptsService.deleteAttachmentLink(linkId, user?.id);
+  }
 }

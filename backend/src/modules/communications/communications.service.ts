@@ -26,28 +26,75 @@ export class CommunicationsService {
     role?: string,
   ) {
     let userName = '';
+    let cleanUserName = '';
+    let firstName = '';
     if (userId) {
       try {
         const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
-        if (u) userName = u.name;
+        if (u && u.name) {
+          userName = u.name;
+          cleanUserName = u.name.replace(/\s*\([^)]*\)/g, '').trim();
+          firstName = cleanUserName.split(' ')[0].trim();
+        }
       } catch (e) {}
     }
 
     const where: any = {};
 
-    // STAFF & non-Admin role filtering: include communications sent by, assigned to, or mentioning the user, plus child replies
-    if (role !== 'MEDIA_MANAGER' && role !== 'ADMIN' && role !== 'ADMINISTRATOR' && userId) {
+    // Privacy & Access Control:
+    // Only give access to:
+    // 1. The creator / sender of the communication (senderId === userId)
+    // 2. The assigned / receiving person (assignedToId === userId)
+    // 3. User explicitly addressed in recipients (recipients contains user name or user role)
+    // 4. User mentioned in content (@userName or userName)
+    // 5. User participation in thread replies (replies sent by / addressed to user)
+    // 6. System Announcements (isAnnouncement === true or type === 'ANNOUNCEMENT')
+    // 7. Global Admins (ADMIN, ADMINISTRATOR)
+    const isGlobalAdmin = role === 'ADMIN' || role === 'ADMINISTRATOR';
+    if (!isGlobalAdmin && userId) {
       const userConditions: any[] = [
         { senderId: userId },
         { assignedToId: userId },
-        { project: { assignedTeam: { some: { userId } } } },
-        { parentId: { not: null } },
+        { isAnnouncement: true },
+        { type: 'ANNOUNCEMENT' },
+        { replies: { some: { senderId: userId } } },
+        { replies: { some: { assignedToId: userId } } },
       ];
       if (userName) {
         userConditions.push(
           { recipients: { contains: userName } },
-          { content: { contains: `@${userName.split(' ')[0]}` } },
-          { content: { contains: userName } }
+          { content: { contains: userName } },
+          { replies: { some: { recipients: { contains: userName } } } }
+        );
+      }
+      if (cleanUserName && cleanUserName !== userName) {
+        userConditions.push(
+          { recipients: { contains: cleanUserName } },
+          { content: { contains: cleanUserName } },
+          { replies: { some: { recipients: { contains: cleanUserName } } } }
+        );
+      }
+      if (firstName) {
+        userConditions.push(
+          { recipients: { contains: firstName } },
+          { content: { contains: `@${firstName}` } },
+          { replies: { some: { recipients: { contains: firstName } } } },
+          { replies: { some: { content: { contains: `@${firstName}` } } } }
+        );
+      }
+      if (role === 'MEDIA_MANAGER') {
+        userConditions.push(
+          { recipients: { contains: 'Media Manager' } },
+          { recipients: { contains: 'MEDIA_MANAGER' } },
+          { replies: { some: { recipients: { contains: 'Media Manager' } } } },
+          { replies: { some: { recipients: { contains: 'MEDIA_MANAGER' } } } }
+        );
+      } else if (role === 'TECHNICAL_MANAGER') {
+        userConditions.push(
+          { recipients: { contains: 'Technical Manager' } },
+          { recipients: { contains: 'TECHNICAL_MANAGER' } },
+          { replies: { some: { recipients: { contains: 'Technical Manager' } } } },
+          { replies: { some: { recipients: { contains: 'TECHNICAL_MANAGER' } } } }
         );
       }
       where.OR = userConditions;

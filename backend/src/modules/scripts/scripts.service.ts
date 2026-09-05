@@ -66,13 +66,13 @@ export class ScriptsService {
     }
 
     // Role-based query filtering for STAFF and SOCIAL_MEDIA_MANAGER:
-    // Only see scripts created by them or assigned to them via tasks/assignments
+    // Only see scripts created by them or assigned to them via accepted tasks/assignments
     if ((p.role === 'STAFF' || p.role === 'SOCIAL_MEDIA_MANAGER') && p.userId) {
       where.OR = [
         { createdById: p.userId },
         { scriptAssignments: { some: { userId: p.userId } } },
-        { tasks: { some: { assignedEmployees: { some: { userId: p.userId } } } } },
-        { project: { assignedTeam: { some: { userId: p.userId } } } },
+        { tasks: { some: { assignedEmployees: { some: { userId: p.userId, acceptanceStatus: 'ACCEPTED' } } } } },
+        { project: { createdById: p.userId } },
       ];
     }
 
@@ -99,7 +99,7 @@ export class ScriptsService {
       }
     }
 
-    return this.prisma.script.findMany({
+    const scripts = await this.prisma.script.findMany({
       where,
       include: {
         project: true,
@@ -121,6 +121,7 @@ export class ScriptsService {
           orderBy: { createdAt: 'asc' },
         },
         deliverables: { orderBy: { createdAt: 'asc' } },
+        attachmentLinks: { orderBy: { createdAt: 'desc' } },
         approvals: {
           include: {
             reviewer: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
@@ -131,6 +132,11 @@ export class ScriptsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    if (p.userId && p.role) {
+      return scripts.filter((s) => canUserViewScript({ id: p.userId, role: p.role }, s));
+    }
+    return scripts;
   }
 
   async findOne(id: string, user?: any) {
@@ -156,6 +162,7 @@ export class ScriptsService {
           orderBy: { createdAt: 'asc' },
         },
         deliverables: { orderBy: { createdAt: 'asc' } },
+        attachmentLinks: { orderBy: { createdAt: 'desc' } },
         approvals: {
           include: {
             reviewer: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
@@ -1402,5 +1409,51 @@ export class ScriptsService {
 
   async resubmitScript(scriptId: string, user: { id: string; name?: string; role: string }) {
     return this.submitTechnicalReview(scriptId, user);
+  }
+
+  // ── Attachment Links (link + name, replacing file uploads) ──
+
+  async addAttachmentLink(
+    scriptId: string,
+    data: { name: string; url: string; attachmentCategory: string },
+    userId?: string,
+  ) {
+    const script = await this.prisma.script.findUnique({ where: { id: scriptId } });
+    if (!script) throw new NotFoundException('Script not found');
+
+    const link = await this.prisma.scriptAttachmentLink.create({
+      data: {
+        scriptId,
+        name: data.name.trim(),
+        url: data.url.trim(),
+        attachmentCategory: data.attachmentCategory || 'SCRIPT_DOCUMENT',
+        addedById: userId || null,
+      },
+    });
+
+    await this.logTimeline(
+      scriptId,
+      'PRODUCTION_UPDATED',
+      `Attachment link added [${data.attachmentCategory}]: "${data.name}" → ${data.url}`,
+      userId,
+    );
+
+    return this.findOne(scriptId);
+  }
+
+  async deleteAttachmentLink(linkId: string, userId?: string) {
+    const link = await this.prisma.scriptAttachmentLink.findUnique({ where: { id: linkId } });
+    if (!link) throw new NotFoundException('Attachment link not found');
+
+    await this.prisma.scriptAttachmentLink.delete({ where: { id: linkId } });
+
+    await this.logTimeline(
+      link.scriptId,
+      'PRODUCTION_UPDATED',
+      `Attachment link removed [${link.attachmentCategory}]: "${link.name}"`,
+      userId,
+    );
+
+    return this.findOne(link.scriptId);
   }
 }

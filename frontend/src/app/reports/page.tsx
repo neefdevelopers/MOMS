@@ -36,8 +36,30 @@ export default function ReportsPage() {
   const [attendanceData, setAttendanceData] = useState<any>(null);
   const [globalPeriod, setGlobalPeriod] = useState<'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'custom'>('this_month');
   const [attendancePeriod, setAttendancePeriod] = useState('this_month');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [attStartDateInput, setAttStartDateInput] = useState('');
+  const [attEndDateInput, setAttEndDateInput] = useState('');
+  // Local input state for smooth custom date editing (does not trigger instant filtering while editing)
+  const [startDateInput, setStartDateInput] = useState('');
+  const [endDateInput, setEndDateInput] = useState('');
+  // Actually applied custom dates for queries
+  const [appliedStartDate, setAppliedStartDate] = useState('');
+  const [appliedEndDate, setAppliedEndDate] = useState('');
+
+  const handleApplyCustomDates = () => {
+    setAppliedStartDate(startDateInput);
+    setAppliedEndDate(endDateInput);
+  };
+
+  const handlePeriodChange = (newPeriod: 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'custom') => {
+    setGlobalPeriod(newPeriod);
+    if (newPeriod !== 'custom') {
+      setAppliedStartDate('');
+      setAppliedEndDate('');
+    } else if (startDateInput && endDateInput) {
+      setAppliedStartDate(startDateInput);
+      setAppliedEndDate(endDateInput);
+    }
+  };
   const [clientId, setClientId] = useState('');
   const [brandId, setBrandId] = useState('');
   const [productId, setProductId] = useState('');
@@ -67,7 +89,7 @@ export default function ReportsPage() {
 
     const metadata = [
       `Report: ${activeTab.toUpperCase()}`,
-      `Period: ${globalPeriod}`,
+      `Period: ${globalPeriod}${globalPeriod === 'custom' && (appliedStartDate || appliedEndDate) ? ` (${appliedStartDate || 'N/A'} to ${appliedEndDate || 'N/A'})` : ''}`,
       `Generated: ${new Date().toLocaleString()}`
     ];
 
@@ -476,7 +498,7 @@ export default function ReportsPage() {
     async function load() {
       try {
         setLoading(true);
-        let query = `?period=${globalPeriod}${globalPeriod === 'custom' && startDate ? `&startDate=${startDate}` : ''}${globalPeriod === 'custom' && endDate ? `&endDate=${endDate}` : ''}`;
+        let query = `?period=${globalPeriod}${globalPeriod === 'custom' && appliedStartDate ? `&startDate=${appliedStartDate}` : ''}${globalPeriod === 'custom' && appliedEndDate ? `&endDate=${appliedEndDate}` : ''}`;
         if (clientId) query += `&clientId=${clientId}`;
         if (brandId) query += `&brandId=${brandId}`;
         if (productId) query += `&productId=${productId}`;
@@ -553,7 +575,7 @@ export default function ReportsPage() {
       }
     }
     load();
-  }, [globalPeriod, startDate, endDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, searchQuery, user?.role]);
+  }, [globalPeriod, appliedStartDate, appliedEndDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, searchQuery, user?.role]);
 
   const isMediaManager = user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN';
   const isTechnicalManager = user?.role === 'TECHNICAL_MANAGER';
@@ -614,9 +636,9 @@ export default function ReportsPage() {
       <div className="bg-card border border-border rounded-xl px-4 py-3 flex flex-wrap items-center gap-2">
         {/* Period */}
         <select
-          className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs"
+          className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs focus:border-indigo-500 focus:outline-none"
           value={globalPeriod}
-          onChange={(e) => setGlobalPeriod(e.target.value as any)}
+          onChange={(e) => handlePeriodChange(e.target.value as any)}
         >
           <option value="today">Today</option>
           <option value="yesterday">Yesterday</option>
@@ -624,14 +646,50 @@ export default function ReportsPage() {
           <option value="last_week">Last Week</option>
           <option value="this_month">This Month</option>
           <option value="last_month">Last Month</option>
-          <option value="custom">Custom</option>
+          <option value="custom">Custom Range</option>
         </select>
         {globalPeriod === 'custom' && (
-          <>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-white text-xs" />
+          <div className="flex items-center gap-1.5 bg-gray-900/90 border border-gray-700 px-2 py-1 rounded-lg">
+            <input
+              type="date"
+              value={startDateInput}
+              onChange={e => setStartDateInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleApplyCustomDates(); }}
+              className="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-white text-xs focus:border-indigo-500 focus:outline-none"
+              title="Start Date"
+            />
             <span className="text-gray-500 text-xs">→</span>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-white text-xs" />
-          </>
+            <input
+              type="date"
+              value={endDateInput}
+              onChange={e => setEndDateInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleApplyCustomDates(); }}
+              className="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-white text-xs focus:border-indigo-500 focus:outline-none"
+              title="End Date"
+            />
+            <button
+              type="button"
+              onClick={handleApplyCustomDates}
+              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold rounded text-xs transition-all shadow-sm flex items-center gap-1"
+            >
+              Apply
+            </button>
+            {(startDateInput || endDateInput || appliedStartDate || appliedEndDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDateInput('');
+                  setEndDateInput('');
+                  setAppliedStartDate('');
+                  setAppliedEndDate('');
+                }}
+                className="px-1.5 py-1 text-gray-400 hover:text-white text-xs"
+                title="Clear dates"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         )}
 
         <div className="w-px h-5 bg-gray-700 mx-1" />
@@ -684,9 +742,22 @@ export default function ReportsPage() {
                     <option value="CANCELLED">Cancelled</option>
                   </select>
                 </div>
-                {(clientId || brandId || departmentId || employeeId || status) && (
+                {(clientId || brandId || departmentId || employeeId || status || appliedStartDate || appliedEndDate) && (
                   <button
-                    onClick={() => { setClientId(''); setBrandId(''); setProductId(''); setProjectId(''); setDepartmentId(''); setEmployeeId(''); setStatus(''); setSearchQuery(''); }}
+                    onClick={() => {
+                      setClientId('');
+                      setBrandId('');
+                      setProductId('');
+                      setProjectId('');
+                      setDepartmentId('');
+                      setEmployeeId('');
+                      setStatus('');
+                      setSearchQuery('');
+                      setStartDateInput('');
+                      setEndDateInput('');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                    }}
                     className="w-full text-xs text-rose-400 hover:text-rose-300 py-1 border border-rose-900/50 rounded-lg hover:bg-rose-950/30 transition-colors"
                   >✕ Clear All Filters</button>
                 )}
@@ -1775,20 +1846,22 @@ export default function ReportsPage() {
                 <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-800 p-1 rounded-lg">
                   <input
                     type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    value={attStartDateInput}
+                    onChange={(e) => setAttStartDateInput(e.target.value)}
                     className="bg-gray-800 text-white text-xs px-2 py-1 rounded border border-gray-700 focus:outline-none"
+                    title="Attendance Start Date"
                   />
                   <span className="text-gray-500">to</span>
                   <input
                     type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    value={attEndDateInput}
+                    onChange={(e) => setAttEndDateInput(e.target.value)}
                     className="bg-gray-800 text-white text-xs px-2 py-1 rounded border border-gray-700 focus:outline-none"
+                    title="Attendance End Date"
                   />
                   <button
-                    onClick={() => fetchAttendance('custom', startDate, endDate)}
-                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-xs transition-colors"
+                    onClick={() => fetchAttendance('custom', attStartDateInput, attEndDateInput)}
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-xs transition-colors shadow-sm"
                   >
                     Apply
                   </button>

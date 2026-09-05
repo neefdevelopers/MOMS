@@ -45,7 +45,9 @@ interface TechnicalManagerDashboardProps {
 export default function TechnicalManagerDashboard({ user }: TechnicalManagerDashboardProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [hubMode, setHubMode] = useState<'AWAITING' | 'APPROVED'>('AWAITING');
   const [reviewTab, setReviewTab] = useState<'ALL' | 'SCRIPTS' | 'GRAPHICS' | 'DELIVERABLES' | 'ASSIGNED'>('ALL');
+  const [approvedTab, setApprovedTab] = useState<'ALL' | 'GRAPHICS' | 'SCRIPTS' | 'TASKS' | 'PROJECTS'>('ALL');
 
   // Active Technical Review Modal state
   const [activeReviewItem, setActiveReviewItem] = useState<{
@@ -121,12 +123,12 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
       if (activeReviewItem.type === 'GRAPHIC') {
         await fetchApi(`/graphic-reqs/${activeReviewItem.id}`, {
           method: 'PATCH',
-          body: JSON.stringify({ status: 'WAITING_FOR_MEDIA_REVIEW' }),
+          body: JSON.stringify({ status: 'WAITING_FOR_MEDIA_REVIEW', technicalReviewApproved: true }),
         });
       } else if (activeReviewItem.type === 'SCRIPT') {
         await fetchApi(`/scripts/${activeReviewItem.id}`, {
           method: 'PATCH',
-          body: JSON.stringify({ status: 'WAITING_FOR_MEDIA_REVIEW', approvalStatus: 'TECHNICAL_REVIEW_APPROVED' }),
+          body: JSON.stringify({ status: 'WAITING_FOR_MEDIA_REVIEW', approvalStatus: 'TECHNICAL_REVIEW_APPROVED', technicalReviewApproved: true }),
         });
       } else if (activeReviewItem.type === 'APPROVAL') {
         await fetchApi(`/approvals/${activeReviewItem.id}/status`, {
@@ -237,11 +239,16 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
     upcomingDeadlinesCount: 0,
     activeTechnicalTasksCount: 0,
     equipmentMaintenanceCount: 0,
+    totalApprovedCount: 0,
   };
 
   const pendingApprovals = data?.pendingTechnicalReviews || [];
-  const scriptsAwaiting = data?.scriptsAwaitingTechnicalReview || [];
-  const graphicsAwaiting = data?.graphicRequirementsAwaitingTechnicalReview || [];
+  const scriptsAwaiting = (data?.scriptsAwaitingTechnicalReview || []).filter(
+    (sc: any) => sc.status === 'WAITING_FOR_TECHNICAL_REVIEW' || sc.status === 'TECHNICAL_REVIEW' || sc.status === 'TECHNICAL_REVIEW_PENDING' || sc.status === 'SUBMITTED_FOR_REVIEW'
+  );
+  const graphicsAwaiting = (data?.graphicRequirementsAwaitingTechnicalReview || []).filter(
+    (gr: any) => gr.status === 'WAITING_FOR_TECHNICAL_REVIEW' || gr.status === 'TECHNICAL_REVIEW'
+  );
   const projectsAttention = data?.projectsRequiringTechnicalAttention || [];
   const upcomingDeadlines = data?.upcomingTechnicalDeadlines || [];
   const technicalTasks = data?.technicalTasks || [];
@@ -254,6 +261,14 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
       !n.message?.includes('Administrative workload rebalancing')
   );
   const activityLog = data?.recentTechnicalActivity || [];
+
+  const approvedGraphics = data?.approvedGraphics || [];
+  const approvedScripts = data?.approvedScripts || [];
+  const approvedTasks = data?.approvedTasks || [];
+  const approvedProjects = data?.approvedProjects || [];
+  const totalApprovedCount =
+    data?.approvedTechnicalItems?.totalCount ||
+    approvedGraphics.length + approvedScripts.length + approvedTasks.length + approvedProjects.length;
 
   const totalWaitingCount =
     metrics.totalWaitingForTechnicalReviewCount ||
@@ -277,7 +292,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               </span>
             </div>
             <p className="text-xs text-zinc-400 mt-0.5">
-              Work waiting for technical review, script & graphic sign-offs, production readiness, and technical deadlines
+              Work waiting for technical review, script & graphic sign-offs, live downstream updates on approved work, and technical deadlines
             </p>
           </div>
         </div>
@@ -293,15 +308,24 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
         </div>
       </div>
 
-      {/* KPI Metric Counter Bar (6 Cards) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      {/* KPI Metric Counter Bar (7 Cards) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
         <div className="p-3.5 bg-emerald-950/40 border border-emerald-800/80 rounded-2xl space-y-1 shadow-lg relative overflow-hidden">
           <div className="flex items-center justify-between text-emerald-400">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Waiting Tech Review</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">Waiting Review</span>
             <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
           </div>
           <div className="text-2xl font-black text-white font-mono">{totalWaitingCount}</div>
           <span className="text-[10px] text-emerald-300 font-bold block">Requires Action</span>
+        </div>
+
+        <div className="p-3.5 bg-zinc-950/80 border border-teal-800/60 rounded-2xl space-y-1 shadow-lg">
+          <div className="flex items-center justify-between text-teal-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider">Approved & Live</span>
+            <CheckCircle2 className="w-4 h-4 text-teal-400" />
+          </div>
+          <div className="text-2xl font-black text-teal-300 font-mono">{totalApprovedCount}</div>
+          <span className="text-[10px] text-teal-400 font-semibold block">Tracking Updates</span>
         </div>
 
         <div className="p-3.5 bg-zinc-950/80 border border-zinc-800/80 rounded-2xl space-y-1 shadow-lg">
@@ -309,7 +333,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
             <span className="text-[10px] font-bold uppercase tracking-wider">Scripts Awaiting</span>
             <FileText className="w-4 h-4 text-purple-400" />
           </div>
-          <div className="text-xl font-black text-purple-300 font-mono">{metrics.scriptsAwaitingCount}</div>
+          <div className="text-xl font-black text-purple-300 font-mono">{scriptsAwaiting.length}</div>
           <span className="text-[10px] text-purple-400 font-semibold block">Script Tech Review</span>
         </div>
 
@@ -318,7 +342,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
             <span className="text-[10px] font-bold uppercase tracking-wider">Graphics Awaiting</span>
             <Palette className="w-4 h-4 text-amber-400" />
           </div>
-          <div className="text-xl font-black text-amber-300 font-mono">{metrics.graphicsAwaitingCount}</div>
+          <div className="text-xl font-black text-amber-300 font-mono">{graphicsAwaiting.length}</div>
           <span className="text-[10px] text-amber-400 font-semibold block">Stage 2: Tech Review</span>
         </div>
 
@@ -327,7 +351,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
             <span className="text-[10px] font-bold uppercase tracking-wider">Projects Attention</span>
             <Film className="w-4 h-4 text-blue-400" />
           </div>
-          <div className="text-xl font-black text-blue-300 font-mono">{metrics.projectsAttentionCount}</div>
+          <div className="text-xl font-black text-blue-300 font-mono">{projectsAttention.length}</div>
           <span className="text-[10px] text-blue-400 font-semibold block">Technical Readiness</span>
         </div>
 
@@ -336,7 +360,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
             <span className="text-[10px] font-bold uppercase tracking-wider">Tech Deadlines</span>
             <Clock className="w-4 h-4 text-rose-400" />
           </div>
-          <div className="text-xl font-black text-rose-300 font-mono">{metrics.upcomingDeadlinesCount}</div>
+          <div className="text-xl font-black text-rose-300 font-mono">{upcomingDeadlines.length}</div>
           <span className="text-[10px] text-rose-400 font-semibold block">Due Next 7 Days</span>
         </div>
 
@@ -345,269 +369,577 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
             <span className="text-[10px] font-bold uppercase tracking-wider">Technical Tasks</span>
             <CheckSquare className="w-4 h-4 text-cyan-400" />
           </div>
-          <div className="text-xl font-black text-cyan-300 font-mono">{metrics.activeTechnicalTasksCount}</div>
+          <div className="text-xl font-black text-cyan-300 font-mono">{technicalTasks.length}</div>
           <span className="text-[10px] text-cyan-400 font-semibold block">In Production</span>
         </div>
       </div>
 
-      {/* Primary Section: WAITING FOR TECHNICAL REVIEW COMMAND HUB */}
+      {/* Primary Section: COMMAND HUB (TOGGLE: AWAITING REVIEW vs APPROVED & TRACKING UPDATES) */}
       <div className="bg-zinc-950 border-2 border-emerald-800/80 rounded-2xl p-5 space-y-4 shadow-2xl">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-950 text-emerald-400 rounded-xl border border-emerald-800 shrink-0">
-              <FileCheck className="w-6 h-6" />
+            <div className={`p-2.5 rounded-xl border shrink-0 ${hubMode === 'AWAITING' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-teal-950 text-teal-300 border-teal-700'}`}>
+              {hubMode === 'AWAITING' ? <FileCheck className="w-6 h-6" /> : <Activity className="w-6 h-6" />}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-black text-white tracking-wide uppercase">
-                  ⚡ Waiting for Technical Review Command Hub
+                  {hubMode === 'AWAITING' ? '⚡ Waiting for Technical Review Command Hub' : '✅ Approved Technical Work & Live Downstream Updates'}
                 </h2>
-                <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700">
-                  {totalWaitingCount} Items Awaiting Your Review
+                <span className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border ${hubMode === 'AWAITING' ? 'bg-emerald-950 text-emerald-300 border-emerald-700' : 'bg-teal-950 text-teal-300 border-teal-700'}`}>
+                  {hubMode === 'AWAITING' ? `${totalWaitingCount} Items Awaiting Review` : `${totalApprovedCount} Approved Items Tracking`}
                 </span>
               </div>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Identify and sign off on Scripts, Graphic Requirements (5-Stage Workflow), Production Deliverables, and Assigned Review Requests
+                {hubMode === 'AWAITING'
+                  ? 'Sign off on Scripts, Graphic Requirements, Production Deliverables, and Assigned Review Requests'
+                  : 'Track downstream updates, Media Manager review progress, Client Confirmation, and latest remarks on all technical-approved items'}
               </p>
             </div>
           </div>
 
-          {/* Category Filter Pills */}
-          <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800 text-[11px] overflow-x-auto">
-            <button
-              onClick={() => setReviewTab('ALL')}
-              className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                reviewTab === 'ALL'
-                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-700 shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              All Items ({totalWaitingCount})
-            </button>
-            <button
-              onClick={() => setReviewTab('SCRIPTS')}
-              className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                reviewTab === 'SCRIPTS'
-                  ? 'bg-purple-950 text-purple-300 border border-purple-800 shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              Scripts ({scriptsAwaiting.length})
-            </button>
-            <button
-              onClick={() => setReviewTab('GRAPHICS')}
-              className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                reviewTab === 'GRAPHICS'
-                  ? 'bg-amber-950 text-amber-300 border border-amber-800 shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              Graphic Reqs ({graphicsAwaiting.length})
-            </button>
-            <button
-              onClick={() => setReviewTab('DELIVERABLES')}
-              className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                reviewTab === 'DELIVERABLES'
-                  ? 'bg-blue-950 text-blue-300 border border-blue-800 shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              Sign-Offs ({pendingApprovals.length})
-            </button>
+          {/* Main Mode Toggle & Category Filter Pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Mode Switcher */}
+            <div className="flex items-center bg-zinc-900 p-1 rounded-xl border border-zinc-700 text-xs">
+              <button
+                onClick={() => setHubMode('AWAITING')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                  hubMode === 'AWAITING'
+                    ? 'bg-emerald-600 text-white shadow'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                <span>⚡ Awaiting Review</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/40 font-mono">{totalWaitingCount}</span>
+              </button>
+              <button
+                onClick={() => setHubMode('APPROVED')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                  hubMode === 'APPROVED'
+                    ? 'bg-teal-600 text-white shadow'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                <span>✅ Approved & Updates</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/40 font-mono">{totalApprovedCount}</span>
+              </button>
+            </div>
+
+            {/* Sub Filter Pills for Awaiting Mode */}
+            {hubMode === 'AWAITING' && (
+              <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800 text-[11px] overflow-x-auto">
+                <button
+                  onClick={() => setReviewTab('ALL')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    reviewTab === 'ALL'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-700 shadow-sm'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  All ({totalWaitingCount})
+                </button>
+                <button
+                  onClick={() => setReviewTab('SCRIPTS')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    reviewTab === 'SCRIPTS'
+                      ? 'bg-purple-950 text-purple-300 border border-purple-800 shadow-sm'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Scripts ({scriptsAwaiting.length})
+                </button>
+                <button
+                  onClick={() => setReviewTab('GRAPHICS')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    reviewTab === 'GRAPHICS'
+                      ? 'bg-amber-950 text-amber-300 border border-amber-800 shadow-sm'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Graphics ({graphicsAwaiting.length})
+                </button>
+                <button
+                  onClick={() => setReviewTab('DELIVERABLES')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    reviewTab === 'DELIVERABLES'
+                      ? 'bg-blue-950 text-blue-300 border border-blue-800 shadow-sm'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Sign-Offs ({pendingApprovals.length})
+                </button>
+              </div>
+            )}
+
+            {/* Sub Filter Pills for Approved Mode */}
+            {hubMode === 'APPROVED' && (
+              <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800 text-[11px] overflow-x-auto">
+                <button
+                  onClick={() => setApprovedTab('ALL')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    approvedTab === 'ALL'
+                      ? 'bg-teal-950 text-teal-300 border border-teal-700 shadow-sm'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  All ({totalApprovedCount})
+                </button>
+                <button
+                  onClick={() => setApprovedTab('GRAPHICS')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    approvedTab === 'GRAPHICS'
+                      ? 'bg-amber-950 text-amber-300 border border-amber-800 shadow-sm'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Graphics ({approvedGraphics.length})
+                </button>
+                <button
+                  onClick={() => setApprovedTab('SCRIPTS')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    approvedTab === 'SCRIPTS'
+                      ? 'bg-purple-950 text-purple-300 border border-purple-800 shadow-sm'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Scripts ({approvedScripts.length})
+                </button>
+                <button
+                  onClick={() => setApprovedTab('TASKS')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    approvedTab === 'TASKS'
+                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-800 shadow-sm'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Tasks ({approvedTasks.length})
+                </button>
+                <button
+                  onClick={() => setApprovedTab('PROJECTS')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    approvedTab === 'PROJECTS'
+                      ? 'bg-blue-950 text-blue-300 border border-blue-800 shadow-sm'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Projects ({approvedProjects.length})
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Review Cards List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* 1. Graphic Requirements Awaiting Technical Review (5-stage Workflow Visualizer) */}
-          {(reviewTab === 'ALL' || reviewTab === 'GRAPHICS') &&
-            graphicsAwaiting.map((gr: any) => (
-              <div
-                key={gr.id}
-                className="bg-zinc-900/80 hover:bg-zinc-900 border border-amber-900/60 p-4 rounded-2xl space-y-3 transition-all flex flex-col justify-between shadow-lg group"
-              >
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 uppercase flex items-center gap-1">
-                      <Palette className="w-3.5 h-3.5 text-amber-400" />
-                      Graphic Req • Stage 2 Review
-                    </span>
-                    <span className="text-[10px] font-mono text-amber-400 font-bold">
-                      {gr.requirementId || 'GRAPHIC'}
-                    </span>
-                  </div>
-
-                  <h4 className="font-bold text-white text-xs leading-snug group-hover:text-amber-300 transition-colors">
-                    {gr.name}
-                  </h4>
-
-                  <p className="text-[11px] text-zinc-400">
-                    Project: <span className="text-zinc-200 font-medium">{gr.project?.name || 'Standalone'}</span>
-                  </p>
-
-                  {/* 5-Stage Graphic Requirement Workflow Progress Bar */}
-                  <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-800/80 space-y-1.5">
-                    <div className="flex items-center justify-between text-[9px] font-mono">
-                      <span className="text-zinc-400 uppercase font-bold">Defined Workflow Stage:</span>
-                      <span className="text-amber-400 font-bold">Stage 2: Technical Review</span>
+        {/* MODE 1: Awaiting Technical Review Cards */}
+        {hubMode === 'AWAITING' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* 1. Graphic Requirements Awaiting Technical Review (5-stage Workflow Visualizer) */}
+            {(reviewTab === 'ALL' || reviewTab === 'GRAPHICS') &&
+              graphicsAwaiting.map((gr: any) => (
+                <div
+                  key={gr.id}
+                  className="bg-zinc-900/80 hover:bg-zinc-900 border border-amber-900/60 p-4 rounded-2xl space-y-3 transition-all flex flex-col justify-between shadow-lg group"
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 uppercase flex items-center gap-1">
+                        <Palette className="w-3.5 h-3.5 text-amber-400" />
+                        Graphic Req • Stage 2 Review
+                      </span>
+                      <span className="text-[10px] font-mono text-amber-400 font-bold">
+                        {gr.requirementId || 'GRAPHIC'}
+                      </span>
                     </div>
 
-                    <div className="grid grid-cols-5 gap-1 pt-0.5">
-                      <div className="h-1.5 rounded-full bg-emerald-500" title="Stage 1: Production Complete ✓" />
-                      <div className="h-1.5 rounded-full bg-amber-400 animate-pulse" title="Stage 2: Technical Review (⚡ ACTIVE)" />
-                      <div className="h-1.5 rounded-full bg-zinc-800" title="Stage 3: Media Manager Review" />
-                      <div className="h-1.5 rounded-full bg-zinc-800" title="Stage 4: Client Confirmation" />
-                      <div className="h-1.5 rounded-full bg-zinc-800" title="Stage 5: Completed" />
+                    <h4 className="font-bold text-white text-xs leading-snug group-hover:text-amber-300 transition-colors">
+                      {gr.name}
+                    </h4>
+
+                    <p className="text-[11px] text-zinc-400">
+                      Project: <span className="text-zinc-200 font-medium">{gr.project?.name || 'Standalone'}</span>
+                    </p>
+
+                    {/* 5-Stage Graphic Requirement Workflow Progress Bar */}
+                    <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-800/80 space-y-1.5">
+                      <div className="flex items-center justify-between text-[9px] font-mono">
+                        <span className="text-zinc-400 uppercase font-bold">Defined Workflow Stage:</span>
+                        <span className="text-amber-400 font-bold">Stage 2: Technical Review</span>
+                      </div>
+
+                      <div className="grid grid-cols-5 gap-1 pt-0.5">
+                        <div className="h-1.5 rounded-full bg-emerald-500" title="Stage 1: Production Complete ✓" />
+                        <div className="h-1.5 rounded-full bg-amber-400 animate-pulse" title="Stage 2: Technical Review (⚡ ACTIVE)" />
+                        <div className="h-1.5 rounded-full bg-zinc-800" title="Stage 3: Media Manager Review" />
+                        <div className="h-1.5 rounded-full bg-zinc-800" title="Stage 4: Client Confirmation" />
+                        <div className="h-1.5 rounded-full bg-zinc-800" title="Stage 5: Completed" />
+                      </div>
+
+                      <div className="text-[9px] text-zinc-500 font-mono text-center pt-0.5">
+                        Production ✓ → <strong className="text-amber-300">Technical Review ⚡</strong> → Media Mgr → Client → Done
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions Footer */}
+                  <div className="pt-2.5 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-1.5">
+                    <button
+                      onClick={() =>
+                        setActiveReviewItem({
+                          id: gr.id,
+                          type: 'GRAPHIC',
+                          code: gr.requirementId || 'GRAPHIC',
+                          title: gr.name,
+                          description: gr.description,
+                          status: gr.status,
+                          projectId: gr.projectId,
+                          projectName: gr.project?.name,
+                          rawData: gr,
+                        })
+                      }
+                      className="w-full text-xs font-bold py-2 rounded-xl bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-800/80 flex items-center justify-center gap-1.5 shadow-md transition-all"
+                    >
+                      <Wrench className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Perform Technical Review</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+            {/* 2. Scripts Awaiting Technical Review */}
+            {(reviewTab === 'ALL' || reviewTab === 'SCRIPTS') &&
+              scriptsAwaiting.map((sc: any) => (
+                <div
+                  key={sc.id}
+                  className="bg-zinc-900/80 hover:bg-zinc-900 border border-purple-900/60 p-4 rounded-2xl space-y-3 transition-all flex flex-col justify-between shadow-lg group"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 uppercase flex items-center gap-1">
+                        <FileText className="w-3.5 h-3.5 text-purple-400" />
+                        Script Technical Review
+                      </span>
+                      <span className="text-[10px] font-mono text-purple-400 font-bold">
+                        {sc.scriptId || 'SCRIPT'}
+                      </span>
                     </div>
 
-                    <div className="text-[9px] text-zinc-500 font-mono text-center pt-0.5">
-                      Production ✓ → <strong className="text-amber-300">Technical Review ⚡</strong> → Media Mgr → Client → Done
+                    <h4 className="font-bold text-white text-xs leading-snug group-hover:text-purple-300 transition-colors">
+                      {sc.name}
+                    </h4>
+
+                    <p className="text-[11px] text-zinc-400">
+                      Project: <span className="text-zinc-200 font-medium">{sc.project?.name || 'Independent'}</span>
+                    </p>
+
+                    <div className="p-2 bg-zinc-950 rounded-xl border border-zinc-800 text-[10px] text-zinc-400">
+                      Awaiting technical validation of shooting script format, scene breakdown & technical requirements.
                     </div>
                   </div>
-                </div>
 
-                {/* Actions Footer */}
-                <div className="pt-2.5 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-1.5">
-                  <button
-                    onClick={() =>
-                      setActiveReviewItem({
-                        id: gr.id,
-                        type: 'GRAPHIC',
-                        code: gr.requirementId || 'GRAPHIC',
-                        title: gr.name,
-                        description: gr.description,
-                        status: gr.status,
-                        projectId: gr.projectId,
-                        projectName: gr.project?.name,
-                        rawData: gr,
-                      })
-                    }
-                    className="w-full text-xs font-bold py-2 rounded-xl bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-800/80 flex items-center justify-center gap-1.5 shadow-md transition-all"
-                  >
-                    <Wrench className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Perform Technical Review</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-
-          {/* 2. Scripts Awaiting Technical Review */}
-          {(reviewTab === 'ALL' || reviewTab === 'SCRIPTS') &&
-            scriptsAwaiting.map((sc: any) => (
-              <div
-                key={sc.id}
-                className="bg-zinc-900/80 hover:bg-zinc-900 border border-purple-900/60 p-4 rounded-2xl space-y-3 transition-all flex flex-col justify-between shadow-lg group"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 uppercase flex items-center gap-1">
-                      <FileText className="w-3.5 h-3.5 text-purple-400" />
-                      Script Technical Review
-                    </span>
-                    <span className="text-[10px] font-mono text-purple-400 font-bold">
-                      {sc.scriptId || 'SCRIPT'}
-                    </span>
-                  </div>
-
-                  <h4 className="font-bold text-white text-xs leading-snug group-hover:text-purple-300 transition-colors">
-                    {sc.name}
-                  </h4>
-
-                  <p className="text-[11px] text-zinc-400">
-                    Project: <span className="text-zinc-200 font-medium">{sc.project?.name || 'Independent'}</span>
-                  </p>
-
-                  <div className="p-2 bg-zinc-950 rounded-xl border border-zinc-800 text-[10px] text-zinc-400">
-                    Awaiting technical validation of shooting script format, scene breakdown & technical requirements.
+                  <div className="pt-2.5 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-1.5">
+                    <button
+                      onClick={() =>
+                        setActiveReviewItem({
+                          id: sc.id,
+                          type: 'SCRIPT',
+                          code: sc.scriptId || 'SCRIPT',
+                          title: sc.name,
+                          description: sc.description,
+                          status: sc.status,
+                          projectId: sc.projectId,
+                          projectName: sc.project?.name,
+                          rawData: sc,
+                        })
+                      }
+                      className="w-full text-xs font-bold py-2 rounded-xl bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-800/80 flex items-center justify-center gap-1.5 shadow-md transition-all"
+                    >
+                      <Wrench className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Perform Technical Review</span>
+                    </button>
                   </div>
                 </div>
+              ))}
 
-                <div className="pt-2.5 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-1.5">
-                  <button
-                    onClick={() =>
-                      setActiveReviewItem({
-                        id: sc.id,
-                        type: 'SCRIPT',
-                        code: sc.scriptId || 'SCRIPT',
-                        title: sc.name,
-                        description: sc.description,
-                        status: sc.status,
-                        projectId: sc.projectId,
-                        projectName: sc.project?.name,
-                        rawData: sc,
-                      })
-                    }
-                    className="w-full text-xs font-bold py-2 rounded-xl bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-800/80 flex items-center justify-center gap-1.5 shadow-md transition-all"
-                  >
-                    <Wrench className="w-3.5 h-3.5 text-purple-400" />
-                    <span>Perform Technical Review</span>
-                  </button>
-                </div>
-              </div>
-            ))}
+            {/* 3. Pending Technical Sign-offs & Deliverable Approvals */}
+            {(reviewTab === 'ALL' || reviewTab === 'DELIVERABLES' || reviewTab === 'ASSIGNED') &&
+              pendingApprovals.map((app: any) => (
+                <div
+                  key={app.id}
+                  className="bg-zinc-900/80 hover:bg-zinc-900 border border-blue-900/60 p-4 rounded-2xl space-y-3 transition-all flex flex-col justify-between shadow-lg group"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800 uppercase">
+                        Technical Sign-Off Request
+                      </span>
+                      <span className="text-[10px] text-zinc-500 font-mono">
+                        {new Date(app.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
 
-          {/* 3. Pending Technical Sign-offs & Deliverable Approvals */}
-          {(reviewTab === 'ALL' || reviewTab === 'DELIVERABLES' || reviewTab === 'ASSIGNED') &&
-            pendingApprovals.map((app: any) => (
-              <div
-                key={app.id}
-                className="bg-zinc-900/80 hover:bg-zinc-900 border border-blue-900/60 p-4 rounded-2xl space-y-3 transition-all flex flex-col justify-between shadow-lg group"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800 uppercase">
-                      Technical Sign-Off Request
-                    </span>
-                    <span className="text-[10px] text-zinc-500 font-mono">
-                      {new Date(app.createdAt).toLocaleDateString()}
-                    </span>
+                    <h4 className="font-bold text-white text-xs leading-snug group-hover:text-blue-300 transition-colors">
+                      {app.title || app.project?.name || 'Deliverable Sign-Off'}
+                    </h4>
+
+                    <p className="text-[11px] text-zinc-400 line-clamp-2">
+                      {app.description || 'Pending Technical Manager quality sign-off.'}
+                    </p>
                   </div>
 
-                  <h4 className="font-bold text-white text-xs leading-snug group-hover:text-blue-300 transition-colors">
-                    {app.title || app.project?.name || 'Deliverable Sign-Off'}
-                  </h4>
-
-                  <p className="text-[11px] text-zinc-400 line-clamp-2">
-                    {app.description || 'Pending Technical Manager quality sign-off.'}
-                  </p>
+                  <div className="pt-2.5 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-1.5">
+                    <button
+                      onClick={() =>
+                        setActiveReviewItem({
+                          id: app.id,
+                          type: 'APPROVAL',
+                          code: 'APPROVAL',
+                          title: app.title || 'Technical Sign-off',
+                          description: app.description,
+                          status: app.status,
+                          projectId: app.projectId,
+                          projectName: app.project?.name,
+                          submittedBy: app.requestedBy?.name,
+                          createdAt: app.createdAt,
+                          rawData: app,
+                        })
+                      }
+                      className="w-full text-xs font-bold py-2 rounded-xl bg-blue-950/80 hover:bg-blue-900 text-blue-300 border border-blue-800/80 flex items-center justify-center gap-1.5 shadow-md transition-all"
+                    >
+                      <Wrench className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Perform Technical Review</span>
+                    </button>
+                  </div>
                 </div>
+              ))}
 
-                <div className="pt-2.5 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-1.5">
-                  <button
-                    onClick={() =>
-                      setActiveReviewItem({
-                        id: app.id,
-                        type: 'APPROVAL',
-                        code: 'APPROVAL',
-                        title: app.title || 'Technical Sign-off',
-                        description: app.description,
-                        status: app.status,
-                        projectId: app.projectId,
-                        projectName: app.project?.name,
-                        submittedBy: app.requestedBy?.name,
-                        createdAt: app.createdAt,
-                        rawData: app,
-                      })
-                    }
-                    className="w-full text-xs font-bold py-2 rounded-xl bg-blue-950/80 hover:bg-blue-900 text-blue-300 border border-blue-800/80 flex items-center justify-center gap-1.5 shadow-md transition-all"
-                  >
-                    <Wrench className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Perform Technical Review</span>
-                  </button>
-                </div>
+            {totalWaitingCount === 0 && (
+              <div className="col-span-full py-12 text-center bg-zinc-900/20 border border-zinc-800/80 rounded-2xl space-y-2">
+                <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
+                <h4 className="text-sm font-bold text-white">All Technical Reviews Complete</h4>
+                <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                  No scripts, graphic requirements, production deliverables, or review requests are currently awaiting technical review.
+                </p>
               </div>
-            ))}
+            )}
+          </div>
+        )}
 
-          {totalWaitingCount === 0 && (
-            <div className="col-span-full py-12 text-center bg-zinc-900/20 border border-zinc-800/80 rounded-2xl space-y-2">
-              <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
-              <h4 className="text-sm font-bold text-white">All Technical Reviews Complete</h4>
-              <p className="text-xs text-zinc-400 max-w-md mx-auto">
-                No scripts, graphic requirements, production deliverables, or review requests are currently awaiting technical review.
-              </p>
-            </div>
-          )}
-        </div>
+        {/* MODE 2: Approved Technical Work & Live Downstream Updates */}
+        {hubMode === 'APPROVED' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Approved Graphic Requirements */}
+            {(approvedTab === 'ALL' || approvedTab === 'GRAPHICS') &&
+              approvedGraphics.map((gr: any) => (
+                <div
+                  key={gr.id}
+                  className="bg-zinc-900/80 border border-teal-900/60 p-4 rounded-2xl space-y-3 shadow-lg flex flex-col justify-between"
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-700 uppercase flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
+                        Tech Approved ✓
+                      </span>
+                      <span className="text-[10px] font-mono font-bold text-zinc-400">
+                        {gr.requirementId}
+                      </span>
+                    </div>
+
+                    <h4 className="font-bold text-white text-xs">{gr.name}</h4>
+                    <p className="text-[11px] text-zinc-400">
+                      Project: <span className="text-zinc-200">{gr.project?.name || 'Standalone'}</span>
+                    </p>
+
+                    {/* Current Stage & Downstream Status */}
+                    <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-[9px] font-mono">
+                        <span className="text-zinc-400 uppercase font-bold">Downstream Stage:</span>
+                        <span className="text-teal-300 font-bold">
+                          {gr.status === 'WAITING_FOR_MEDIA_REVIEW' ? 'Media Manager Review' : gr.status === 'WAITING_FOR_CLIENT_CONFIRMATION' ? 'Client Confirmation' : gr.status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-5 gap-1 pt-0.5">
+                        <div className="h-1.5 rounded-full bg-emerald-500" title="Stage 1: Production Complete ✓" />
+                        <div className="h-1.5 rounded-full bg-emerald-500" title="Stage 2: Tech Review Approved ✓" />
+                        <div className={`h-1.5 rounded-full ${gr.status === 'WAITING_FOR_MEDIA_REVIEW' ? 'bg-cyan-400 animate-pulse' : ['WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED', 'CLOSED'].includes(gr.status) ? 'bg-emerald-500' : 'bg-zinc-800'}`} title="Stage 3: Media Manager Review" />
+                        <div className={`h-1.5 rounded-full ${gr.status === 'WAITING_FOR_CLIENT_CONFIRMATION' ? 'bg-indigo-400 animate-pulse' : ['COMPLETED', 'CLOSED'].includes(gr.status) ? 'bg-emerald-500' : 'bg-zinc-800'}`} title="Stage 4: Client Confirmation" />
+                        <div className={`h-1.5 rounded-full ${['COMPLETED', 'CLOSED'].includes(gr.status) ? 'bg-emerald-500' : 'bg-zinc-800'}`} title="Stage 5: Completed" />
+                      </div>
+                    </div>
+
+                    {/* Latest Remark / Update */}
+                    {gr.remarksHistory && gr.remarksHistory.length > 0 && (
+                      <div className="p-2 bg-zinc-950/60 rounded-lg border border-zinc-800 text-[10px] text-zinc-400">
+                        <span className="text-zinc-500 font-mono">Latest Note: </span>
+                        <span className="text-zinc-300 italic line-clamp-1">{gr.remarksHistory[0]?.remark || gr.remarksHistory[0]?.content}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-teal-400 font-bold">Status: {gr.status}</span>
+                    <Link
+                      href={`/graphic-reqs?inspect=${gr.id}`}
+                      className="text-[11px] font-bold text-teal-400 hover:text-teal-300 flex items-center gap-1 font-mono"
+                    >
+                      <span>Track Updates</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </div>
+              ))}
+
+            {/* Approved Scripts */}
+            {(approvedTab === 'ALL' || approvedTab === 'SCRIPTS') &&
+              approvedScripts.map((sc: any) => (
+                <div
+                  key={sc.id}
+                  className="bg-zinc-900/80 border border-teal-900/60 p-4 rounded-2xl space-y-3 shadow-lg flex flex-col justify-between"
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-700 uppercase flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
+                        Script Tech Approved ✓
+                      </span>
+                      <span className="text-[10px] font-mono text-zinc-400 font-bold">{sc.scriptId}</span>
+                    </div>
+
+                    <h4 className="font-bold text-white text-xs">{sc.name}</h4>
+                    <p className="text-[11px] text-zinc-400">
+                      Project: <span className="text-zinc-200">{sc.project?.name || 'Independent'}</span>
+                    </p>
+
+                    <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-800 space-y-1">
+                      <div className="flex items-center justify-between text-[9px] font-mono">
+                        <span className="text-zinc-400 uppercase font-bold">Downstream Status:</span>
+                        <span className="text-teal-300 font-bold">{sc.status}</span>
+                      </div>
+                      <div className="text-[10px] text-zinc-400">
+                        Approval: <strong className="text-teal-300">{sc.approvalStatus || 'APPROVED'}</strong>
+                      </div>
+                    </div>
+
+                    {sc.scriptRemarks && sc.scriptRemarks.length > 0 && (
+                      <div className="p-2 bg-zinc-950/60 rounded-lg border border-zinc-800 text-[10px] text-zinc-400">
+                        <span className="text-zinc-500 font-mono">Latest Update: </span>
+                        <span className="text-zinc-300 italic line-clamp-1">{sc.scriptRemarks[0]?.content}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-teal-400 font-bold">Status: {sc.status}</span>
+                    <Link
+                      href={`/scripts?id=${sc.id}`}
+                      className="text-[11px] font-bold text-teal-400 hover:text-teal-300 flex items-center gap-1 font-mono"
+                    >
+                      <span>Track Updates</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </div>
+              ))}
+
+            {/* Approved Tasks */}
+            {(approvedTab === 'ALL' || approvedTab === 'TASKS') &&
+              approvedTasks.map((t: any) => (
+                <div
+                  key={t.id}
+                  className="bg-zinc-900/80 border border-teal-900/60 p-4 rounded-2xl space-y-3 shadow-lg flex flex-col justify-between"
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-700 uppercase flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
+                        Task Approved ✓
+                      </span>
+                      <span className="text-[10px] font-mono text-zinc-400 font-bold">{t.taskId}</span>
+                    </div>
+
+                    <h4 className="font-bold text-white text-xs">{t.title}</h4>
+                    <p className="text-[11px] text-zinc-400">
+                      Project: <span className="text-zinc-200">{t.project?.name || t.script?.name || t.graphicRequirement?.name || 'General Task'}</span>
+                    </p>
+
+                    <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-between text-[10px]">
+                      <span className="text-zinc-400 font-mono">Task Status:</span>
+                      <span className="font-bold text-teal-300 font-mono uppercase">{t.status}</span>
+                    </div>
+
+                    {t.remarksHistory && t.remarksHistory.length > 0 && (
+                      <div className="p-2 bg-zinc-950/60 rounded-lg border border-zinc-800 text-[10px] text-zinc-400">
+                        <span className="text-zinc-500 font-mono">Latest Update: </span>
+                        <span className="text-zinc-300 italic line-clamp-1">{t.remarksHistory[0]?.remark || t.remarksHistory[0]?.content}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-teal-400 font-bold">Progress: {t.completionPercentage || 100}%</span>
+                    <Link
+                      href={`/tasks?id=${t.id}`}
+                      className="text-[11px] font-bold text-teal-400 hover:text-teal-300 flex items-center gap-1 font-mono"
+                    >
+                      <span>Track Task</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </div>
+              ))}
+
+            {/* Approved Projects */}
+            {(approvedTab === 'ALL' || approvedTab === 'PROJECTS') &&
+              approvedProjects.map((p: any) => (
+                <div
+                  key={p.id}
+                  className="bg-zinc-900/80 border border-teal-900/60 p-4 rounded-2xl space-y-3 shadow-lg flex flex-col justify-between"
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-700 uppercase flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
+                        Project Tech Approved ✓
+                      </span>
+                      <span className="text-[10px] font-mono text-zinc-400 font-bold">{p.projectId}</span>
+                    </div>
+
+                    <h4 className="font-bold text-white text-xs">{p.name}</h4>
+                    <p className="text-[11px] text-zinc-400">
+                      Client: <span className="text-zinc-200">{p.client?.name || 'General'}</span>
+                    </p>
+
+                    <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-between text-[10px]">
+                      <span className="text-zinc-400 font-mono">Project Status:</span>
+                      <span className="font-bold text-teal-300 font-mono uppercase">{p.status}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-teal-400 font-bold">Status: {p.status}</span>
+                    <Link
+                      href={`/projects/${p.id}`}
+                      className="text-[11px] font-bold text-teal-400 hover:text-teal-300 flex items-center gap-1 font-mono"
+                    >
+                      <span>Inspect Project</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </div>
+              ))}
+
+            {totalApprovedCount === 0 && (
+              <div className="col-span-full py-12 text-center bg-zinc-900/20 border border-zinc-800/80 rounded-2xl space-y-2">
+                <Activity className="w-10 h-10 text-teal-400 mx-auto" />
+                <h4 className="text-sm font-bold text-white">No Approved Items Tracking</h4>
+                <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                  When you approve scripts, graphic requirements, tasks, or projects, they will show here with their latest downstream updates and progress.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* User-Specific Favorites & Recently Accessed Grid */}

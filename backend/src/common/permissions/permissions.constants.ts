@@ -381,7 +381,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     [ModuleType.PRODUCTS]: [PermissionType.VIEW],
     [ModuleType.STAFF]: [],
     [ModuleType.REPORTS]: [PermissionType.VIEW],
-    [ModuleType.CALENDAR]: [PermissionType.VIEW],
+    [ModuleType.CALENDAR]: [PermissionType.VIEW, PermissionType.CREATE, PermissionType.EDIT, PermissionType.EXPORT],
     [ModuleType.COMMUNICATIONS]: [PermissionType.VIEW, PermissionType.CREATE],
     [ModuleType.ACTIVITY_LOGS]: [PermissionType.VIEW],
     [ModuleType.SETTINGS]: [],

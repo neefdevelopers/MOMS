@@ -67,3 +67,27 @@ html, body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3) !important;
 }
 
+/* Global Calendar Date Picker Styling */
+input[type="date"], input[type="datetime-local"] {
+  color-scheme: dark !important;
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(0.8) sepia(100%) saturate(300%) hue-rotate(180deg) brightness(1.2);
+  opacity: 0.85;
+  transition: opacity 0.2s, transform 0.15s ease-in-out;
+  padding: 3px;
+  border-radius: 4px;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  transform: scale(1.18);
+  background-color: rgba(99, 102, 241, 0.2);
+}
+
+

@@ -14,12 +14,17 @@ import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 import { ReassignmentRecommendationsModal } from '@/components/dashboard/ReassignmentRecommendationsModal';
 import RevisionsTab from '@/components/revisions/RevisionsTab';
 import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
+import { TimelineView, TimelineEntry } from '@/components/common/TimelineView';
 
 const isTaskRevision = (t: any) =>
   Boolean(
     t?.taskType === 'REVISION' ||
     t?.sourceType === 'REVISION' ||
     t?.revisionId ||
+    t?.status === 'REVISION_REQUESTED' ||
+    t?.status === 'CHANGES_REQUESTED' ||
+    (Array.isArray(t?.revisions) && t.revisions.length > 0 && t.status !== 'COMPLETED' && t.status !== 'CLOSED') ||
+    (t?.revisionCount && t.revisionCount > 0 && t.status !== 'COMPLETED' && t.status !== 'CLOSED') ||
     t?.title?.toLowerCase().includes('revision')
   );
 
@@ -310,8 +315,10 @@ export default function TasksPage() {
   const [scriptNewDelivTitle, setScriptNewDelivTitle] = useState('');
   const [scriptNewDelivDuration, setScriptNewDelivDuration] = useState('');
 
-  // Uploading Category
-  const [scriptUploadingCategory, setScriptUploadingCategory] = useState<string | null>(null);
+  // Attachment Link State (replaces file upload)
+  const [scriptNewLinkName, setScriptNewLinkName] = useState('');
+  const [scriptNewLinkUrl, setScriptNewLinkUrl] = useState('');
+  const [scriptAddingLink, setScriptAddingLink] = useState(false);
 
   useEffect(() => {
     if (inspectedTask?.script?.id || inspectedTask?.scriptId) {
@@ -387,36 +394,35 @@ export default function TasksPage() {
     }
   };
 
-  const handleFileUploadInTaskScript = async (file: File, category: string) => {
-    if (!fullScript || !file) return;
-    setScriptUploadingCategory(category);
+  const handleAddScriptAttachmentLink = async () => {
+    if (!fullScript || !scriptNewLinkName.trim() || !scriptNewLinkUrl.trim()) return;
+    setScriptAddingLink(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('projectId', fullScript.projectId);
-      formData.append('scriptId', fullScript.id);
-      formData.append('attachmentCategory', category);
-
-      const token = localStorage.getItem('moms_token') || localStorage.getItem('token');
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
-      const res = await fetch(`${apiBase}/files/upload`, {
+      const updated = await fetchApi(`/scripts/${fullScript.id}/attachment-links`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
+        body: JSON.stringify({
+          name: scriptNewLinkName.trim(),
+          url: scriptNewLinkUrl.trim(),
+          attachmentCategory: selectedScriptAttachmentCategory,
+        }),
       });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || 'Attachment upload failed');
-      }
-
-      const updated = await fetchApi(`/scripts/${fullScript.id}`);
       setFullScript(updated);
-      alert(`✓ File uploaded successfully under category "${category.replace(/_/g, ' ')}"!`);
+      setScriptNewLinkName('');
+      setScriptNewLinkUrl('');
     } catch (err: any) {
-      alert(err.message || 'Failed to upload file');
+      alert(err.message || 'Failed to add attachment link');
     } finally {
-      setScriptUploadingCategory(null);
+      setScriptAddingLink(false);
+    }
+  };
+
+  const handleDeleteScriptAttachmentLink = async (linkId: string) => {
+    if (!fullScript) return;
+    try {
+      const updated = await fetchApi(`/scripts/attachment-links/${linkId}`, { method: 'DELETE' });
+      setFullScript(updated);
+    } catch (err: any) {
+      alert(err.message || 'Failed to remove attachment link');
     }
   };
 
@@ -878,7 +884,14 @@ export default function TasksPage() {
       case 'ON_HOLD':
         return 'bg-amber-950 text-amber-300 border-amber-800';
       case 'WAITING_FOR_REVIEW':
+      case 'WAITING_FOR_TECHNICAL_REVIEW':
         return 'bg-purple-950 text-purple-300 border-purple-800';
+      case 'WAITING_FOR_MEDIA_REVIEW':
+        return 'bg-indigo-950 text-indigo-300 border-indigo-800';
+      case 'REVISION_REQUESTED':
+      case 'CHANGES_REQUESTED':
+      case 'ON_REVISION':
+        return 'bg-amber-950/90 text-amber-300 border-amber-500 font-extrabold shadow-sm animate-pulse';
       case 'COMPLETED':
         return 'bg-emerald-950 text-emerald-300 border-emerald-800';
       case 'CANCELLED':
@@ -1178,6 +1191,58 @@ export default function TasksPage() {
         remarks: inspectedTask.script?.remarks || '',
       }
     : null;
+
+  const visibleTasks = React.useMemo(() => {
+    const filtered = tasks.filter((t) => {
+      if (user?.role === 'TECHNICAL_MANAGER') {
+        const TECH_MANAGER_ALLOWED_TASK_STATUSES = [
+          'WAITING_FOR_TECHNICAL_REVIEW',
+          'TECHNICAL_REVIEW',
+          'WAITING_FOR_REVIEW',
+          'WAITING_FOR_MEDIA_REVIEW',
+          'MEDIA_REVIEW',
+          'MEDIA_MANAGER_REVIEW',
+          'WAITING_FOR_CLIENT_CONFIRMATION',
+          'CLIENT_CONFIRMATION',
+          'CLIENT_REVISION_REQUESTED',
+          'COMPLETED',
+          'CLOSED',
+          'APPROVED',
+          'SCHEDULED',
+          'PUBLISHED',
+        ];
+        return (
+          TECH_MANAGER_ALLOWED_TASK_STATUSES.includes(t.status) ||
+          Boolean(t.technicalReviewApproved)
+        );
+      }
+      return true;
+    });
+
+    // Deduplicate any duplicate task rows for the same parent script / graphic requirement
+    const seenEntities = new Set<string>();
+    const deduplicated: any[] = [];
+
+    for (const t of filtered) {
+      const entityKey = t.scriptId
+        ? `SCRIPT_${t.scriptId}`
+        : t.graphicRequirementId
+        ? `GRAPHIC_${t.graphicRequirementId}`
+        : null;
+
+      if (!entityKey) {
+        deduplicated.push(t);
+        continue;
+      }
+
+      if (!seenEntities.has(entityKey)) {
+        seenEntities.add(entityKey);
+        deduplicated.push(t);
+      }
+    }
+
+    return deduplicated;
+  }, [tasks, user?.role]);
 
   return (
     <div className="space-y-6">
@@ -1707,7 +1772,7 @@ export default function TasksPage() {
               <tbody className="divide-y divide-gray-800/40 text-gray-200">
                 {(() => {
                   const filteredAndSorted = sortData(
-                    tasks.filter((t) => statusFilter === 'ALL' || t.status === statusFilter),
+                    visibleTasks.filter((t) => statusFilter === 'ALL' || t.status === statusFilter),
                     sortBy,
                     sortOrder
                   );
@@ -1740,9 +1805,9 @@ export default function TasksPage() {
                               <span className="font-mono text-[9px] text-blue-400 font-bold bg-blue-950/40 border border-blue-900/40 px-1 py-0.2 rounded shrink-0">
                                 {task.taskId}
                               </span>
-                              {(task.taskType === 'REVISION' || task.sourceType === 'REVISION' || task.revisionId || task.title?.toLowerCase().includes('revision')) && (
-                                <span className="font-mono text-[9px] text-amber-300 font-extrabold bg-amber-950/80 border border-amber-700/80 px-1.5 py-0.5 rounded shrink-0 flex items-center gap-1 shadow-sm shadow-amber-900/50">
-                                  🔄 REVISION
+                              {isTaskRevision(task) && (
+                                <span className="font-mono text-[9px] text-amber-300 font-extrabold bg-amber-950/90 border border-amber-500/80 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 shadow-md shadow-amber-900/50 animate-pulse">
+                                  🔄 ON REVISION {task.revisionCount ? `#${task.revisionCount}` : (task.revisions?.length ? `#${task.revisions.length}` : '')}
                                 </span>
                               )}
                               <span className="font-semibold text-gray-100 text-xs truncate">{task.title}</span>
@@ -1833,11 +1898,17 @@ export default function TasksPage() {
                       </td>
 
                       <td className="px-3 py-3 min-w-0">
-                        <span className={`px-2 py-0.5 rounded-full font-mono text-[8px] font-bold uppercase tracking-wide border inline-block truncate max-w-full ${getStatusBadge(
-                          task.status
-                        )}`}>
-                          {task.status?.replace(/_/g, ' ')}
-                        </span>
+                        {isTaskRevision(task) && task.status !== 'COMPLETED' ? (
+                          <span className="px-2 py-0.5 rounded-full font-mono text-[8px] font-extrabold uppercase tracking-wide border inline-block truncate max-w-full bg-amber-950/90 text-amber-300 border-amber-500 shadow-sm animate-pulse">
+                            🔄 ON REVISION {task.revisionCount ? `#${task.revisionCount}` : ''}
+                          </span>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded-full font-mono text-[8px] font-bold uppercase tracking-wide border inline-block truncate max-w-full ${getStatusBadge(
+                            task.status
+                          )}`}>
+                            {task.status?.replace(/_/g, ' ')}
+                          </span>
+                        )}
                       </td>
 
                       {/* Actions */}
@@ -1956,7 +2027,7 @@ export default function TasksPage() {
           <PaginationControls
             currentPage={currentPage}
             pageSize={pageSize}
-            totalItems={tasks.filter((t) => statusFilter === 'ALL' || t.status === statusFilter).length}
+            totalItems={visibleTasks.filter((t) => statusFilter === 'ALL' || t.status === statusFilter).length}
             onPageChange={setCurrentPage}
             onPageSizeChange={setPageSize}
           />
@@ -2627,6 +2698,17 @@ export default function TasksPage() {
                         <RotateCcw className="w-3 h-3" /> Request Revision
                       </button>
                     )}
+                    {user?.role === 'TECHNICAL_MANAGER' && (
+                      <Link
+                        href="/approvals"
+                        className="px-2.5 py-0.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold rounded text-[10px] flex items-center gap-1 shadow-md shadow-cyan-500/20 transition-all border border-cyan-400/40"
+                        title="Open Technical Manager Approval Session"
+                      >
+                        <ShieldCheck className="w-3 h-3 text-cyan-200" />
+                        <span>Go to Technical Manager Approval Session</span>
+                        <ArrowRight className="w-3 h-3 text-cyan-200" />
+                      </Link>
+                    )}
                   </div>
                   <div className="text-right">
                     <h2 className="text-base font-bold text-white font-mono">{inspectedTask.title || activeScript?.name}</h2>
@@ -2681,11 +2763,11 @@ export default function TasksPage() {
                     </div>
                   )}
                   {/* Dedicated Task Description Section */}
-                  <div className="bg-gray-950 border border-blue-900/60 p-4 rounded-xl space-y-2.5 shadow-md">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-gray-800 pb-2">
+                  <div className="bg-gray-950 border border-blue-800/70 p-4 rounded-xl space-y-2.5 shadow-md">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-blue-900/50 pb-2">
                       <div className="flex items-center gap-2">
                         <FileText className="w-4 h-4 text-blue-400" />
-                        <h3 className="font-bold text-white text-xs uppercase tracking-wider">
+                        <h3 className="font-bold text-blue-200 text-xs uppercase tracking-wider">
                           📋 Task Description
                         </h3>
                         {inspectedTask.taskId && (
@@ -2693,6 +2775,7 @@ export default function TasksPage() {
                             {inspectedTask.taskId}
                           </span>
                         )}
+                        <span className="text-[9px] text-blue-500 bg-blue-950/60 px-1.5 py-0.5 rounded font-bold border border-blue-900/60 uppercase tracking-wider">Task</span>
                       </div>
                       <div className="flex items-center gap-3 text-[10px] font-mono text-gray-400">
                         {inspectedTask.dueDate && (
@@ -2709,7 +2792,7 @@ export default function TasksPage() {
                           Task: {inspectedTask.title}
                         </div>
                       )}
-                      <div className="bg-gray-900/90 border border-gray-800/80 rounded-lg p-3 text-xs text-gray-200 leading-relaxed font-normal whitespace-pre-wrap">
+                      <div className="bg-blue-950/20 border border-blue-900/40 rounded-lg p-3 text-xs text-gray-200 leading-relaxed font-normal whitespace-pre-wrap">
                         {inspectedTask.description?.trim() || 'No specific task description provided.'}
                       </div>
                     </div>
@@ -2918,8 +3001,9 @@ export default function TasksPage() {
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-purple-400" />
                           <h3 className="font-bold text-white text-xs uppercase tracking-wider">
-                            📜 Full Script Storyline &amp; Scene Narration
+                            📜 Script Storyline &amp; Scene Narration
                           </h3>
+                          <span className="text-[9px] text-purple-400 bg-purple-950/60 px-1.5 py-0.5 rounded font-bold border border-purple-900/60 uppercase tracking-wider">Script</span>
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -2949,7 +3033,7 @@ export default function TasksPage() {
                               onClick={() => setScriptStorylineTab('edit')}
                               className={`px-2 py-0.5 rounded transition-colors ${scriptStorylineTab === 'edit' ? 'bg-purple-600 text-white font-bold' : 'text-gray-400 hover:text-white'}`}
                             >
-                              ✏️ Edit Storyline
+                              ✏️ Edit Script Storyline
                             </button>
                           </div>
                         </div>
@@ -3009,73 +3093,25 @@ export default function TasksPage() {
                   </div>
 
                   {/* Operational Timeline Section */}
-                  <div className="p-4 bg-gray-950 border border-emerald-900/40 rounded-xl space-y-3">
-                    <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-                      <h4 className="font-bold text-emerald-300 text-xs flex items-center gap-1.5">
-                        <span className="text-emerald-400">⏱</span> Operational Timeline
-                      </h4>
-                      <span className="text-[10px] text-gray-500 italic">Entries are permanent and never deleted</span>
-                    </div>
-
-                    {(() => {
-                      const timelineEvents = activeScript?.timeline || activeScript?.taskTimeline || inspectedTask?.taskTimeline || [];
-                      if (timelineEvents.length === 0) {
-                        return <p className="text-gray-500 italic text-[11px]">No timeline events yet</p>;
-                      }
-                      return (
-                        <div className="relative pl-5 space-y-3">
-                          <div className="absolute left-[7px] top-1 bottom-1 w-px bg-gray-700" />
-                          {timelineEvents.map((t: any, idx: number) => {
-                            const eventColors: Record<string, string> = {
-                              SCRIPT_CREATED: 'bg-blue-500',
-                              ASSIGNED: 'bg-purple-500',
-                              PRODUCTION_STARTED: 'bg-emerald-500',
-                              PRODUCTION_UPDATED: 'bg-cyan-500',
-                              TECHNICAL_REVIEW: 'bg-amber-500',
-                              MEDIA_REVIEW: 'bg-orange-500',
-                              CLIENT_CONFIRMATION: 'bg-indigo-500',
-                              REVISION_REQUESTED: 'bg-red-500',
-                              COMPLETED: 'bg-green-500',
-                              CLOSED: 'bg-gray-500',
-                            };
-                            const eventLabels: Record<string, string> = {
-                              SCRIPT_CREATED: 'Script Created',
-                              ASSIGNED: 'Assigned',
-                              PRODUCTION_STARTED: 'Production Started',
-                              PRODUCTION_UPDATED: 'Production Updated',
-                              TECHNICAL_REVIEW: 'Technical Review',
-                              MEDIA_REVIEW: 'Media Review',
-                              CLIENT_CONFIRMATION: 'Client Confirmation',
-                              REVISION_REQUESTED: 'Revision Requested',
-                              COMPLETED: 'Completed',
-                              CLOSED: 'Closed',
-                            };
-                            const dotColor = eventColors[t.event] || 'bg-gray-500';
-                            const label = eventLabels[t.event] || t.event || 'Workflow Event';
-                            return (
-                              <div key={t.id || idx} className="flex items-start gap-3">
-                                <div className={`w-3.5 h-3.5 rounded-full ${dotColor} shrink-0 mt-0.5 border-2 border-gray-900 z-10`} />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="font-bold text-white text-[11px]">{label}</span>
-                                    <span className="text-[10px] text-gray-500 font-mono whitespace-nowrap">
-                                      {t.createdAt ? new Date(t.createdAt).toLocaleString() : ''}
-                                    </span>
-                                  </div>
-                                  {t.description && (
-                                    <p className="text-gray-400 text-[10px] mt-0.5">{t.description}</p>
-                                  )}
-                                  {(t.triggeredBy || t.user) && (
-                                    <p className="text-[10px] text-gray-500 mt-0.5">By: {t.triggeredBy?.name || t.user?.name}</p>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                  </div>
+                  {(() => {
+                    const rawEvents = activeScript?.timeline || activeScript?.taskTimeline || inspectedTask?.timeline || inspectedTask?.taskTimeline || [];
+                    const timelineEntries: TimelineEntry[] = rawEvents.map((t: any, idx: number) => ({
+                      id: t.id || `st-${idx}`,
+                      createdAt: t.createdAt,
+                      action: t.event || t.action || 'WORKFLOW_EVENT',
+                      user: t.user || t.triggeredBy,
+                      description: t.description || t.remarks || t.message,
+                      remarks: t.remarks,
+                    }));
+                    return (
+                      <TimelineView
+                        entries={timelineEntries}
+                        title="Operational Timeline & Audit Trail"
+                        order="desc"
+                        emptyMessage="No operational timeline events recorded yet."
+                      />
+                    );
+                  })()}
 
                   {/* Permanent Remarks Section */}
                   <div className="p-4 bg-gray-950 border border-amber-900/40 rounded-xl space-y-3">
@@ -3219,19 +3255,20 @@ export default function TasksPage() {
                     )}
                   </div>
 
-                  {/* Linked Script Attachments & Production Files Section */}
+                  {/* Linked Script Attachments & Production Files Section (Link-based) */}
                   <div className="p-4 bg-gray-950 border border-gray-800 rounded-xl space-y-4 pt-3">
                     <div className="flex justify-between items-center border-b border-gray-800 pb-2">
                       <h4 className="font-bold text-white text-xs flex items-center gap-1.5">
                         <FileText className="w-4 h-4 text-purple-400" /> Linked Script Attachments &amp; Production Files
                       </h4>
                       <span className="text-[10px] text-purple-400 font-mono font-bold">
-                        ⚡ Select category type first, then choose file to upload
+                        🔗 Add links by name under each category
                       </span>
                     </div>
 
+                    {/* Add Link Control Card */}
                     <div className="p-3.5 bg-gray-900 border border-purple-900/60 rounded-xl space-y-2.5 shadow-md">
-                      <span className="text-purple-300 font-bold text-xs block">📤 Upload File Under Attachment Category:</span>
+                      <span className="text-purple-300 font-bold text-xs block">🔗 Add Deliverable Output Link:</span>
                       <div className="flex flex-wrap items-center gap-2.5">
                         <select
                           value={selectedScriptAttachmentCategory}
@@ -3247,56 +3284,85 @@ export default function TasksPage() {
                           <option value="PRODUCT_INFORMATION">📦 6. Product Information</option>
                           <option value="SUPPORTING_DOCUMENT">📁 7. Supporting Documents</option>
                         </select>
-
-                        <label className={`px-4 py-2 font-bold rounded-lg text-xs flex items-center gap-1.5 shadow transition-all ${isScriptEditingLocked ? 'bg-gray-800 text-gray-400 border border-gray-700 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 text-white cursor-pointer'}`}>
-                          <span>{isScriptEditingLocked ? '🔒 Upload Locked During Review' : scriptUploadingCategory ? 'Uploading File…' : '+ Choose File & Upload'}</span>
-                          <input
-                            type="file"
-                            disabled={isScriptEditingLocked}
-                            className="hidden"
-                            onChange={(e) => {
-                              if (!isScriptEditingLocked && e.target.files?.[0]) {
-                                handleFileUploadInTaskScript(e.target.files[0], selectedScriptAttachmentCategory);
-                              }
-                            }}
-                          />
-                        </label>
+                        <input
+                          type="text"
+                          value={scriptNewLinkName}
+                          disabled={isScriptEditingLocked}
+                          onChange={(e) => setScriptNewLinkName(e.target.value)}
+                          placeholder="Link name (e.g. Final Script v3)"
+                          className="flex-1 min-w-[150px] bg-gray-950 border border-gray-700 text-white px-3 py-2 rounded-lg text-xs focus:border-purple-500 focus:outline-none placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        />
+                        <input
+                          type="url"
+                          value={scriptNewLinkUrl}
+                          disabled={isScriptEditingLocked}
+                          onChange={(e) => setScriptNewLinkUrl(e.target.value)}
+                          placeholder="https://drive.google.com/..."
+                          className="flex-1 min-w-[180px] bg-gray-950 border border-gray-700 text-white px-3 py-2 rounded-lg text-xs focus:border-purple-500 focus:outline-none placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        />
+                        <button
+                          disabled={isScriptEditingLocked || scriptAddingLink || !scriptNewLinkName.trim() || !scriptNewLinkUrl.trim()}
+                          onClick={handleAddScriptAttachmentLink}
+                          className="px-4 py-2 font-bold rounded-lg text-xs flex items-center gap-1.5 shadow transition-all bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {scriptAddingLink ? 'Adding…' : isScriptEditingLocked ? '🔒 Locked' : '+ Add Link'}
+                        </button>
                       </div>
                     </div>
 
+                    {/* All 7 Categories Link Display */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[11px]">
                       {[
-                        { key: 'SCRIPT_DOCUMENT', label: '📄 1. Script Document', extMatch: (f: any) => f.attachmentCategory === 'SCRIPT_DOCUMENT' || f.fileName?.endsWith('.pdf') || f.fileName?.endsWith('.docx') },
-                        { key: 'REFERENCE_IMAGE', label: '🖼️ 2. Reference Images', extMatch: (f: any) => f.attachmentCategory === 'REFERENCE_IMAGE' || f.fileType?.startsWith('image/') },
-                        { key: 'REFERENCE_VIDEO', label: '🎬 3. Reference Videos', extMatch: (f: any) => f.attachmentCategory === 'REFERENCE_VIDEO' || f.fileType?.startsWith('video/') },
-                        { key: 'AUDIO_REFERENCE', label: '🎵 4. Audio References', extMatch: (f: any) => f.attachmentCategory === 'AUDIO_REFERENCE' || f.fileType?.startsWith('audio/') },
-                        { key: 'BRAND_GUIDELINES', label: '🎨 5. Brand Guidelines', extMatch: (f: any) => f.attachmentCategory === 'BRAND_GUIDELINES' },
-                        { key: 'PRODUCT_INFORMATION', label: '📦 6. Product Information', extMatch: (f: any) => f.attachmentCategory === 'PRODUCT_INFORMATION' },
-                        { key: 'SUPPORTING_DOCUMENT', label: '📁 7. Supporting Documents', extMatch: (f: any) => f.attachmentCategory === 'SUPPORTING_DOCUMENT' },
+                        { key: 'SCRIPT_DOCUMENT', label: '📄 1. Script Document', color: 'text-blue-300' },
+                        { key: 'REFERENCE_IMAGE', label: '🖼️ 2. Reference Images', color: 'text-purple-300' },
+                        { key: 'REFERENCE_VIDEO', label: '🎬 3. Reference Videos', color: 'text-emerald-300' },
+                        { key: 'AUDIO_REFERENCE', label: '🎵 4. Audio References', color: 'text-cyan-300' },
+                        { key: 'BRAND_GUIDELINES', label: '🎨 5. Brand Guidelines', color: 'text-amber-300' },
+                        { key: 'PRODUCT_INFORMATION', label: '📦 6. Product Information', color: 'text-indigo-300' },
+                        { key: 'SUPPORTING_DOCUMENT', label: '📁 7. Supporting Documents', color: 'text-gray-300' },
                       ].map((cat) => {
-                        const allFiles = activeScript?.files || scriptAttachments || [];
-                        const catFiles = allFiles.filter((f: any) => cat.extMatch(f));
+                        const activeScriptData = fullScript || activeScript;
+                        const catLinks = (activeScriptData?.attachmentLinks || []).filter(
+                          (l: any) => l.attachmentCategory === cat.key
+                        );
                         return (
                           <div key={cat.key} className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
                             <div className="flex justify-between items-center">
-                              <span className="font-bold text-purple-300">{cat.label}</span>
-                              <span className="text-[10px] text-gray-400">({catFiles.length})</span>
+                              <span className={`font-bold ${cat.color}`}>{cat.label}</span>
+                              <span className="text-[10px] text-gray-400">({catLinks.length})</span>
                             </div>
-                            {catFiles.length > 0 ? (
-                              catFiles.map((f: any) => (
-                                <div key={f.id} className="flex items-center justify-between gap-1 bg-gray-950 p-1.5 rounded border border-gray-800">
-                                  <span className="text-gray-200 font-mono text-[10px] truncate">{f.fileName}</span>
-                                  <span className="text-[9px] text-emerald-400 bg-emerald-950 px-1.5 py-0.5 rounded font-bold border border-emerald-800 shrink-0">ACTIVE</span>
+                            {catLinks.length > 0 ? (
+                              catLinks.map((l: any) => (
+                                <div key={l.id} className="flex items-center justify-between gap-1 bg-gray-950 p-1.5 rounded border border-gray-800 group">
+                                  <a
+                                    href={l.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-purple-300 hover:text-purple-100 font-mono text-[10px] truncate underline underline-offset-2 flex-1"
+                                    title={l.url}
+                                  >
+                                    🔗 {l.name}
+                                  </a>
+                                  {!isScriptEditingLocked && (
+                                    <button
+                                      onClick={() => handleDeleteScriptAttachmentLink(l.id)}
+                                      className="text-red-500 hover:text-red-300 text-[10px] font-bold ml-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                                      title="Remove link"
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
                                 </div>
                               ))
                             ) : (
-                              <span className="text-gray-500 italic text-[10px]">No files attached under this category</span>
+                              <span className="text-gray-500 italic text-[10px]">No links added</span>
                             )}
                           </div>
                         );
                       })}
                     </div>
                   </div>
+
 
                   {/* Technical Review Rejected — Revision Required Status Card */}
                   {(activeScript?.status === 'REVISION_REQUESTED' || (Boolean(activeScript?.rejectionReason) && !activeScript?.technicalReviewApproved && ['IN_PRODUCTION', 'IN_PROGRESS', 'ASSIGNED', 'DRAFT', 'READY'].includes(activeScript?.status))) && (
@@ -3709,30 +3775,43 @@ export default function TasksPage() {
                       )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => setInspectedTask(null)}
-                    className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded font-bold text-xs"
-                  >
-                    ✕ Close
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {user?.role === 'TECHNICAL_MANAGER' && (
+                      <Link
+                        href="/approvals"
+                        className="px-2.5 py-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold rounded-lg text-[11px] flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition-all border border-cyan-400/40"
+                        title="Open Technical Manager Approval Session"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-cyan-200" />
+                        <span>Go to Technical Manager Approval Session</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-cyan-200" />
+                      </Link>
+                    )}
+                    <button
+                      onClick={() => setInspectedTask(null)}
+                      className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded font-bold text-xs"
+                    >
+                      ✕ Close
+                    </button>
+                  </div>
                 </div>
 
                 {/* Linked Parent Event Banner for Separate Revision Task */}
                 {isTaskRevision(inspectedTask) && (
-                  <div className="bg-amber-950/60 border border-amber-500/60 p-3 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs shadow-md animate-in fade-in duration-150">
+                  <div className="bg-amber-950/80 border-2 border-amber-500/80 p-3 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs shadow-lg animate-in fade-in duration-150">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2.5 py-0.5 bg-amber-600/30 text-amber-200 border border-amber-500/60 rounded font-mono font-bold text-[10px] flex items-center gap-1">
-                        🔄 Separate Revision Task
+                      <span className="px-2.5 py-0.5 bg-amber-600/40 text-amber-200 border border-amber-500 rounded-full font-mono font-extrabold text-[10px] flex items-center gap-1 animate-pulse">
+                        🔄 ON REVISION {inspectedTask.revisionCount ? `#${inspectedTask.revisionCount}` : (inspectedTask.revisions?.length ? `#${inspectedTask.revisions.length}` : '')}
                       </span>
-                      <span className="text-zinc-200 text-xs">
-                        Linked to Parent Item:{' '}
+                      <span className="text-zinc-200 text-xs font-semibold">
+                        Parent Entity:{' '}
                         <strong className="text-amber-300 font-bold">
-                          {inspectedTask.script?.name || inspectedTask.graphicRequirement?.name || inspectedTask.project?.name || inspectedTask.client?.name || 'Parent Production Item'}
+                          {inspectedTask.script?.name || inspectedTask.graphicRequirement?.name || inspectedTask.project?.name || inspectedTask.client?.name || 'Production Item'}
                         </strong>
                       </span>
                     </div>
-                    <span className="px-2 py-0.5 bg-emerald-950/60 text-emerald-400 border border-emerald-800 rounded font-mono text-[10px] font-bold">
-                      Individual Task Progress: {inspectedTask.completionPercentage || 0}%
+                    <span className="px-2.5 py-0.5 bg-amber-900/60 text-amber-300 border border-amber-700/80 rounded font-mono text-[10px] font-bold">
+                      Work In-Place (No Duplication)
                     </span>
                   </div>
                 )}
@@ -3862,6 +3941,28 @@ export default function TasksPage() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Comprehensive Task Timeline & Updations History */}
+                  {(() => {
+                    const rawEvents = inspectedTask?.timeline || inspectedTask?.taskTimeline || [];
+                    const timelineEntries: TimelineEntry[] = rawEvents.map((t: any, idx: number) => ({
+                      id: t.id || `tt-${idx}`,
+                      createdAt: t.createdAt,
+                      action: t.event || t.action || 'TASK_UPDATED',
+                      user: t.user || t.triggeredBy,
+                      description: t.description || t.remarks || t.message,
+                      remarks: t.remarks,
+                    }));
+
+                    return (
+                      <TimelineView
+                        entries={timelineEntries}
+                        title="Task Activity Timeline & Updations"
+                        order="desc"
+                        emptyMessage="No timeline updations recorded yet for this task."
+                      />
+                    );
+                  })()}
 
                   {/* Technical Review Submission Action */}
                   {!['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'PENDING_MARKETING_APPROVAL', 'APPROVED', 'COMPLETED'].includes(inspectedTask.status) && !isPendingAcceptance && (

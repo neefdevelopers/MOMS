@@ -286,12 +286,18 @@ export class RevisionsService {
               },
             });
           }
+
+          // Link primary task to revision record
+          await this.prisma.revision.update({
+            where: { id: revision.id },
+            data: { taskId: existingScriptTasks[0].id },
+          });
         }
       } catch (e) {
         console.error('Error resetting script for revision:', e);
       }
     } else {
-      // AUTOMATIC TASK CREATION for Project / Graphic Item Revisions
+      // AUTOMATIC TASK IN-PLACE UPDATE for Project / Graphic Item Revisions (No duplicate task rows created)
       try {
         let clientId = null;
         let brandId = null;
@@ -309,64 +315,136 @@ export class RevisionsService {
           }
         }
 
-        if (!clientId) {
-          const firstClient = await this.prisma.client.findFirst();
-          if (firstClient) clientId = firstClient.id;
-        }
-        if (!brandId) {
-          const firstBrand = await this.prisma.brand.findFirst();
-          if (firstBrand) brandId = firstBrand.id;
-        }
-
-        let taskCount = await this.prisma.task.count();
-        let autoTaskId = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
-        let existingTask = await this.prisma.task.findUnique({ where: { taskId: autoTaskId } });
-        while (existingTask) {
-          taskCount++;
-          autoTaskId = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
-          existingTask = await this.prisma.task.findUnique({ where: { taskId: autoTaskId } });
-        }
-
-        const taskTitle = `Revision Required – ${entityTitle}`;
-        const taskDesc = `Revision Description:\n${dto.detailedRequest.trim()}\n\nReason:\n${dto.reason.trim()}\n\nRelated Item: ${entityTitle}\nRemarks: ${dto.reviewerComments || 'None'}\nSpecific Area: ${dto.specificArea || 'N/A'}`;
-
-        const createdTask = await this.prisma.task.create({
-          data: {
-            taskId: autoTaskId,
-            title: taskTitle,
-            description: taskDesc,
-            projectId: resolvedProjectId || null,
-            scriptId: dto.entityType === 'SCRIPT' ? dto.entityId : null,
-            graphicRequirementId: dto.entityType === 'GRAPHIC_REQ' ? dto.entityId : null,
-            clientId: clientId || '',
-            brandId: brandId || '',
-            productId: productId || null,
-            priority,
-            dueDate: dueDate || new Date(Date.now() + 86400000 * 3),
-            estimatedHours: 2.0,
-            status: 'ASSIGNED',
-            completionPercentage: 0,
-            sourceType: 'REVISION',
-            taskType: 'REVISION',
-            revisionId: revision.id,
-            assignedEmployees: {
-              create: [
-                {
-                  userId: assignedToId,
-                  acceptanceStatus: 'NOT_YET_ACCEPTED',
-                },
-              ],
-            },
+        const existingEntityTasks = await this.prisma.task.findMany({
+          where: {
+            OR: [
+              ...(dto.entityType === 'GRAPHIC_REQ' ? [{ graphicRequirementId: dto.entityId }] : []),
+              ...(dto.entityType === 'PROJECT' && resolvedProjectId ? [{ projectId: resolvedProjectId }] : []),
+              ...((dto.entityType === 'CALENDAR' || dto.entityType === 'CALENDAR_EVENT') && resolvedProjectId ? [{ projectId: resolvedProjectId }] : []),
+            ],
           },
         });
 
-        // Link Task ID back to Revision record
-        await this.prisma.revision.update({
-          where: { id: revision.id },
-          data: { taskId: createdTask.id },
-        });
+        if (existingEntityTasks.length > 0) {
+          // Restart existing tasks in-place WITHOUT creating duplicate tasks
+          for (const t of existingEntityTasks) {
+            await this.prisma.task.update({
+              where: { id: t.id },
+              data: {
+                status: 'ASSIGNED',
+                completionPercentage: 0,
+                priority,
+                dueDate: dueDate || undefined,
+                remarks: `Revision #${revisionNumber}: ${dto.reason.trim()}`,
+                technicalReviewApproved: false,
+                mediaManagerApproved: false,
+              },
+            });
+
+            await this.prisma.taskAssignment.deleteMany({
+              where: { taskId: t.id },
+            });
+
+            await this.prisma.taskAssignment.create({
+              data: {
+                taskId: t.id,
+                userId: assignedToId,
+                acceptanceStatus: 'NOT_YET_ACCEPTED',
+              },
+            });
+
+            // Log timeline event for revision request on this task
+            await this.prisma.taskTimeline.create({
+              data: {
+                taskId: t.id,
+                userId: user.id,
+                event: 'REVISION_REQUESTED',
+                description: `Revision #${revisionNumber} requested by ${user.name}. Reason: ${dto.reason.trim()}`,
+              },
+            }).catch(() => null);
+          }
+
+          // Link first task to revision record
+          await this.prisma.revision.update({
+            where: { id: revision.id },
+            data: { taskId: existingEntityTasks[0].id },
+          });
+
+          if (dto.entityType === 'CALENDAR' || dto.entityType === 'CALENDAR_EVENT') {
+            await this.prisma.calendarApprovalHistory.create({
+              data: {
+                calendarEventId: dto.entityId,
+                version: revisionNumber,
+                userId: user.id,
+                role: user.role || 'MARKETING_MANAGER',
+                action: 'CHANGES_REQUESTED',
+                previousStatus: 'APPROVED',
+                newStatus: 'CHANGES_REQUESTED',
+                comment: `Revision #${revisionNumber} requested by ${user.name}: ${dto.reason.trim()}`,
+              },
+            }).catch(() => null);
+          }
+        } else {
+          // Only create a new task if no task ever existed for this item
+          if (!clientId) {
+            const firstClient = await this.prisma.client.findFirst();
+            if (firstClient) clientId = firstClient.id;
+          }
+          if (!brandId) {
+            const firstBrand = await this.prisma.brand.findFirst();
+            if (firstBrand) brandId = firstBrand.id;
+          }
+
+          let taskCount = await this.prisma.task.count();
+          let autoTaskId = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
+          let existingTask = await this.prisma.task.findUnique({ where: { taskId: autoTaskId } });
+          while (existingTask) {
+            taskCount++;
+            autoTaskId = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
+            existingTask = await this.prisma.task.findUnique({ where: { taskId: autoTaskId } });
+          }
+
+          const taskTitle = `Revision Required – ${entityTitle}`;
+          const taskDesc = `Revision Description:\n${dto.detailedRequest.trim()}\n\nReason:\n${dto.reason.trim()}\n\nRelated Item: ${entityTitle}\nRemarks: ${dto.reviewerComments || 'None'}\nSpecific Area: ${dto.specificArea || 'N/A'}`;
+
+          const createdTask = await this.prisma.task.create({
+            data: {
+              taskId: autoTaskId,
+              title: taskTitle,
+              description: taskDesc,
+              projectId: resolvedProjectId || null,
+              scriptId: dto.entityType === 'SCRIPT' ? dto.entityId : null,
+              graphicRequirementId: dto.entityType === 'GRAPHIC_REQ' ? dto.entityId : null,
+              clientId: clientId || '',
+              brandId: brandId || '',
+              productId: productId || null,
+              priority,
+              dueDate: dueDate || new Date(Date.now() + 86400000 * 3),
+              estimatedHours: 2.0,
+              status: 'ASSIGNED',
+              completionPercentage: 0,
+              sourceType: 'REVISION',
+              taskType: 'REVISION',
+              revisionId: revision.id,
+              assignedEmployees: {
+                create: [
+                  {
+                    userId: assignedToId,
+                    acceptanceStatus: 'NOT_YET_ACCEPTED',
+                  },
+                ],
+              },
+            },
+          });
+
+          // Link Task ID back to Revision record
+          await this.prisma.revision.update({
+            where: { id: revision.id },
+            data: { taskId: createdTask.id },
+          });
+        }
       } catch (e) {
-        console.error('Error creating task for revision:', e);
+        console.error('Error handling task for revision:', e);
       }
     }
 

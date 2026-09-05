@@ -76,8 +76,8 @@ export default function CommunicationPage() {
   const [filterEntryType, setFilterEntryType] = useState<'ALL' | 'COMMUNICATION' | 'REMARK' | 'OPEN_BLOCKERS'>('ALL');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  // Requirement 6 View Tabs: Inbox, Sent, Requests, All Communications (RBAC gated)
-  const [activeViewTab, setActiveViewTab] = useState<'INBOX' | 'SENT' | 'REQUESTS' | 'ALL'>('INBOX');
+  // Requirement 6 View Tabs: All, Inbox, Sent, Requests
+  const [activeViewTab, setActiveViewTab] = useState<'ALL' | 'INBOX' | 'SENT' | 'REQUESTS'>('ALL');
 
   // Note Creation Modal State
   const [modalPriority, setModalPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'>('MEDIUM');
@@ -1098,18 +1098,30 @@ export default function CommunicationPage() {
         </div>
       </div>
 
-      {/* Requirement 6 Navigation View Tabs: Inbox, Sent, Requests, All Communications */}
+      {/* Navigation View Tabs: All, Inbox, Sent, Requests */}
       <div className="flex items-center gap-2 border-b border-border pb-3 overflow-x-auto">
         <button
-          onClick={() => setActiveViewTab('INBOX')}
+          onClick={() => setActiveViewTab('ALL')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
-            activeViewTab === 'INBOX'
+            activeViewTab === 'ALL'
               ? 'bg-blue-600/20 text-blue-300 border-blue-500/50 shadow-md'
               : 'bg-zinc-900/60 text-gray-400 hover:text-white border-zinc-800'
           }`}
         >
-          <Bell className="w-4 h-4 text-blue-400" />
-          <span>Inbox</span>
+          <Layers className="w-4 h-4 text-blue-400" />
+          <span>All Communications ({communications.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveViewTab('INBOX')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+            activeViewTab === 'INBOX'
+              ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/50 shadow-md'
+              : 'bg-zinc-900/60 text-gray-400 hover:text-white border-zinc-800'
+          }`}
+        >
+          <Bell className="w-4 h-4 text-emerald-400" />
+          <span>Inbox (Received)</span>
         </button>
 
         <button
@@ -1133,22 +1145,8 @@ export default function CommunicationPage() {
           }`}
         >
           <AlertCircle className="w-4 h-4 text-amber-400" />
-          <span>Requests (Approvals, Blockers &amp; Issues)</span>
+          <span>Requests &amp; Blockers</span>
         </button>
-
-        {(user?.role === 'MEDIA_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
-          <button
-            onClick={() => setActiveViewTab('ALL')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
-              activeViewTab === 'ALL'
-                ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/50 shadow-md'
-                : 'bg-zinc-900/60 text-gray-400 hover:text-white border-zinc-800'
-            }`}
-          >
-            <Layers className="w-4 h-4 text-emerald-400" />
-            <span>All Communication (Admin)</span>
-          </button>
-        )}
       </div>
 
       {/* MOMS 11-Parameter Filtration Control Panel */}
@@ -1489,9 +1487,15 @@ export default function CommunicationPage() {
                   const isNotSender = comm.senderId !== user?.id;
                   const hasExternalReply = comm.replies && comm.replies.some((r: any) => r.senderId !== user?.id);
                   const isAssigned = comm.assignedToId === user?.id;
-                  const isMentioned = user?.name && (
-                    (comm.recipients && comm.recipients.includes(user.name)) ||
-                    (comm.content && comm.content.includes(`@${user.name.split(' ')[0]}`))
+                  const cleanName = user?.name ? user.name.replace(/\s*\([^)]*\)/g, '').trim() : '';
+                  const firstName = cleanName.split(' ')[0] || '';
+                  const isMentioned = Boolean(
+                    (user?.name && comm.recipients?.includes(user.name)) ||
+                    (cleanName && comm.recipients?.includes(cleanName)) ||
+                    (firstName && comm.recipients?.includes(firstName)) ||
+                    (firstName && comm.content?.includes(`@${firstName}`)) ||
+                    (user?.role === 'MEDIA_MANAGER' && (comm.recipients?.includes('Media Manager') || comm.recipients?.includes('MEDIA_MANAGER'))) ||
+                    (user?.role === 'TECHNICAL_MANAGER' && (comm.recipients?.includes('Technical Manager') || comm.recipients?.includes('TECHNICAL_MANAGER')))
                   );
                   return isNotSender || hasExternalReply || isAssigned || isMentioned;
                 }
@@ -1589,7 +1593,28 @@ export default function CommunicationPage() {
           {(() => {
             const displayed = communications.filter((comm) => {
               if (activeViewTab === 'SENT') return comm.senderId === user?.id;
-              if (activeViewTab === 'INBOX') return comm.senderId !== user?.id || (comm.replies && comm.replies.some((r: any) => r.senderId !== user?.id));
+              if (activeViewTab === 'INBOX') {
+                const isNotSender = comm.senderId !== user?.id;
+                const hasExternalReply = comm.replies && comm.replies.some((r: any) => r.senderId !== user?.id);
+                const isAssigned = comm.assignedToId === user?.id;
+                const cleanName = user?.name ? user.name.replace(/\s*\([^)]*\)/g, '').trim() : '';
+                const firstName = cleanName.split(' ')[0] || '';
+                const isMentioned = Boolean(
+                  (user?.name && comm.recipients?.includes(user.name)) ||
+                  (cleanName && comm.recipients?.includes(cleanName)) ||
+                  (firstName && comm.recipients?.includes(firstName)) ||
+                  (firstName && comm.content?.includes(`@${firstName}`)) ||
+                  (user?.role === 'MEDIA_MANAGER' && (comm.recipients?.includes('Media Manager') || comm.recipients?.includes('MEDIA_MANAGER'))) ||
+                  (user?.role === 'TECHNICAL_MANAGER' && (comm.recipients?.includes('Technical Manager') || comm.recipients?.includes('TECHNICAL_MANAGER')))
+                );
+                return isNotSender || hasExternalReply || isAssigned || isMentioned;
+              }
+              if (activeViewTab === 'REQUESTS') {
+                return (
+                  ['APPROVAL_REQUEST', 'CLARIFICATION', 'REQUIREMENT', 'ISSUE_REPORT', 'BLOCKER'].includes(comm.type) ||
+                  Boolean(comm.isBlocker)
+                );
+              }
               return true;
             });
             const activeComm = communications.find((c) => c.id === selectedCommId) || displayed[0];

@@ -341,7 +341,46 @@ export class ApprovalsService {
         where: { OR: [{ id: targetId }, { projectId: targetId }, { graphicRequirementId: targetId }, { scriptId: targetId }] },
         data: { status: 'IN_PROGRESS', technicalReviewApproved: false },
       }).catch(() => null);
-    } else if (data.status === 'APPROVED') {
+    }
+
+    // Log timeline event to all affected tasks
+    try {
+      const reviewerUser = await this.prisma.user.findUnique({ where: { id: reviewerId }, select: { name: true } });
+      const reviewerName = reviewerUser?.name || 'Technical Manager';
+      const desc = data.status === 'APPROVED'
+        ? `Technical Review APPROVED by ${reviewerName}.${data.remarks ? ' Remarks: ' + data.remarks : ''}`
+        : `Technical Review REJECTED by ${reviewerName}. Reason: ${data.remarks || 'Changes requested'}`;
+
+      const affectedTaskIds: string[] = [];
+      if (task) affectedTaskIds.push(task.id);
+      if (script) {
+        const sTasks = await this.prisma.task.findMany({ where: { scriptId: script.id }, select: { id: true } });
+        affectedTaskIds.push(...sTasks.map((t) => t.id));
+      }
+      if (gReq) {
+        const gTasks = await this.prisma.task.findMany({ where: { graphicRequirementId: gReq.id }, select: { id: true } });
+        affectedTaskIds.push(...gTasks.map((t) => t.id));
+      }
+      if (project) {
+        const pTasks = await this.prisma.task.findMany({ where: { projectId: project.id }, select: { id: true } });
+        affectedTaskIds.push(...pTasks.map((t) => t.id));
+      }
+
+      for (const tId of [...new Set(affectedTaskIds)]) {
+        await this.prisma.taskTimeline.create({
+          data: {
+            taskId: tId,
+            userId: reviewerId,
+            event: data.status === 'APPROVED' ? 'STATUS_CHANGED' : 'REVISION_REQUESTED',
+            description: desc,
+          },
+        }).catch(() => null);
+      }
+    } catch (e) {
+      console.error('Failed to log technical review task timeline:', e);
+    }
+
+    if (data.status === 'APPROVED') {
       // Notify Media Managers that item passed Technical Review and is waiting for Media Manager Approval
       const mediaManagers = await this.prisma.user.findMany({
         where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
@@ -428,6 +467,39 @@ export class ApprovalsService {
           completionPercentage: data.status === 'APPROVED' ? 100 : task.completionPercentage,
         },
       });
+    }
+
+    // Log timeline event to all affected tasks
+    try {
+      const reviewerUser = await this.prisma.user.findUnique({ where: { id: reviewerId }, select: { name: true } });
+      const reviewerName = reviewerUser?.name || 'Media Manager';
+      const desc = data.status === 'APPROVED'
+        ? `Media Review APPROVED by ${reviewerName}.${data.remarks ? ' Remarks: ' + data.remarks : ''}`
+        : `Media Review REJECTED by ${reviewerName}. Reason: ${data.remarks || 'Creative revisions requested'}`;
+
+      const affectedTaskIds: string[] = [];
+      if (task) affectedTaskIds.push(task.id);
+      if (gReq) {
+        const gTasks = await this.prisma.task.findMany({ where: { graphicRequirementId: gReq.id }, select: { id: true } });
+        affectedTaskIds.push(...gTasks.map((t) => t.id));
+      }
+      if (project) {
+        const pTasks = await this.prisma.task.findMany({ where: { projectId: project.id }, select: { id: true } });
+        affectedTaskIds.push(...pTasks.map((t) => t.id));
+      }
+
+      for (const tId of [...new Set(affectedTaskIds)]) {
+        await this.prisma.taskTimeline.create({
+          data: {
+            taskId: tId,
+            userId: reviewerId,
+            event: data.status === 'APPROVED' ? (task?.id === tId ? 'COMPLETED' : 'STATUS_CHANGED') : 'REVISION_REQUESTED',
+            description: desc,
+          },
+        }).catch(() => null);
+      }
+    } catch (e) {
+      console.error('Failed to log media review task timeline:', e);
     }
 
     if (data.status === 'APPROVED') {

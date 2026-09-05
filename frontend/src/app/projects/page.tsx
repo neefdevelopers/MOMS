@@ -13,6 +13,7 @@ import {
   Truck,
   ShieldAlert,
   ArrowRight,
+  ShieldCheck,
   Users,
   Check,
   Camera,
@@ -381,43 +382,21 @@ export default function ProjectsPage() {
             )}
           </div>
 
-          {/* Quick Presets & Toggle Drawer Button */}
+          {/* Quick Controls & Toggle Drawer Button */}
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setSelectedType(selectedType === 'INDOOR' ? '' : 'INDOOR')}
-              className={`px-3 py-2 rounded-lg font-semibold flex items-center gap-1.5 transition-colors border ${
-                selectedType === 'INDOOR'
-                  ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30'
-                  : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-600'
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5" /> Indoor Studio
-            </button>
-
-            <button
-              onClick={() => setSelectedType(selectedType === 'OUTDOOR' ? '' : 'OUTDOOR')}
-              className={`px-3 py-2 rounded-lg font-semibold flex items-center gap-1.5 transition-colors border ${
-                selectedType === 'OUTDOOR'
-                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30'
-                  : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-600'
-              }`}
-            >
-              <Camera className="w-3.5 h-3.5" /> Outdoor Field
-            </button>
-
             <button
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
               className={`px-3.5 py-2 rounded-lg font-semibold flex items-center gap-1.5 transition-colors border ${
-                showAdvancedFilters || (selectedClient || selectedBrand || selectedProduct || selectedStatus || selectedPriority || selectedDate || selectedMediaManager || selectedTechManager || selectedEmployee || selectedLocation)
+                showAdvancedFilters || (selectedClient || selectedBrand || selectedProduct || selectedType || selectedStatus || selectedPriority || selectedDate || selectedMediaManager || selectedTechManager || selectedEmployee || selectedLocation)
                   ? 'bg-purple-600/20 text-purple-300 border-purple-500/50'
                   : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-600'
               }`}
             >
               <SlidersHorizontal className="w-3.5 h-3.5 text-purple-400" />
               <span>Advanced Filters</span>
-              {([selectedClient, selectedBrand, selectedProduct, selectedStatus, selectedPriority, selectedDate, selectedMediaManager, selectedTechManager, selectedEmployee, selectedLocation].filter(Boolean).length > 0) && (
+              {([selectedClient, selectedBrand, selectedProduct, selectedType, selectedStatus, selectedPriority, selectedDate, selectedMediaManager, selectedTechManager, selectedEmployee, selectedLocation].filter(Boolean).length > 0) && (
                 <span className="w-4 h-4 rounded-full bg-purple-500 text-white font-bold text-[10px] flex items-center justify-center">
-                  {[selectedClient, selectedBrand, selectedProduct, selectedStatus, selectedPriority, selectedDate, selectedMediaManager, selectedTechManager, selectedEmployee, selectedLocation].filter(Boolean).length}
+                  {[selectedClient, selectedBrand, selectedProduct, selectedType, selectedStatus, selectedPriority, selectedDate, selectedMediaManager, selectedTechManager, selectedEmployee, selectedLocation].filter(Boolean).length}
                 </span>
               )}
             </button>
@@ -459,6 +438,12 @@ export default function ProjectsPage() {
         {(selectedClient || selectedBrand || selectedProduct || selectedType || selectedStatus || selectedPriority || selectedDate || selectedMediaManager || selectedTechManager || selectedEmployee || selectedLocation) && (
           <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-gray-800">
             <span className="text-gray-500 text-[11px] font-semibold">Active Filters:</span>
+            {selectedType && (
+              <span className="px-2.5 py-1 bg-cyan-950 text-cyan-300 border border-cyan-800 rounded-full flex items-center gap-1 text-[11px] font-medium">
+                Type: {selectedType === 'GRAPHIC_REQ' ? '🎨 Graphic Requirement' : selectedType === 'SHOOT' ? '🎬 All Shoots' : selectedType === 'INDOOR' ? '🏢 Indoor Shoot' : '🌲 Outdoor Shoot'}
+                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedType('')} />
+              </span>
+            )}
             {selectedStatus && (
               <span className="px-2.5 py-1 bg-blue-950 text-blue-300 border border-blue-800 rounded-full flex items-center gap-1 text-[11px]">
                 Status: {selectedStatus}
@@ -508,12 +493,24 @@ export default function ProjectsPage() {
         {showAdvancedFilters && (
           <div className="pt-3 border-t border-gray-800 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Group 1: Commercial Context */}
+              {/* Group 1: Commercial Context & Project Type */}
               <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
                 <div className="font-bold text-purple-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-purple-400" /> Commercial Context
+                  <Building2 className="w-3.5 h-3.5 text-purple-400" /> Commercial &amp; Project Type
                 </div>
                 <div className="space-y-2">
+                  <select
+                    value={selectedType}
+                    onChange={(e) => setSelectedType(e.target.value)}
+                    className="w-full bg-gray-950 border border-purple-800/80 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 font-semibold text-xs"
+                  >
+                    <option value="">All Project Types (Shoot &amp; Graphic)</option>
+                    <option value="GRAPHIC_REQ">🎨 Graphic Requirement</option>
+                    <option value="SHOOT">🎬 All Shoots</option>
+                    <option value="INDOOR">🏢 Indoor Shoot</option>
+                    <option value="OUTDOOR">🌲 Outdoor Shoot</option>
+                  </select>
+
                   <select
                     value={selectedClient}
                     onChange={(e) => setSelectedClient(e.target.value)}
@@ -669,6 +666,28 @@ export default function ProjectsPage() {
       {/* Projects Grid */}
       {(() => {
         const filteredProjects = projects.filter((proj) => {
+          if (user?.role === 'TECHNICAL_MANAGER') {
+            const TECH_MANAGER_ALLOWED_PROJECT_STATUSES = [
+              'WAITING_FOR_TECHNICAL_REVIEW',
+              'TECHNICAL_REVIEW',
+              'WAITING_FOR_MEDIA_REVIEW',
+              'MEDIA_MANAGER_REVIEW',
+              'POST_PRODUCTION',
+              'WAITING_FOR_CLIENT_CONFIRMATION',
+              'COMPLETED',
+              'CLOSED',
+              'DELIVERED',
+            ];
+            const hasPendingTechApproval = Array.isArray(proj.approvals) && proj.approvals.some(
+              (a: any) => a.approvalType === 'TECHNICAL_REVIEW' || a.targetRole === 'TECHNICAL_MANAGER'
+            );
+            const isAllowedForTech =
+              TECH_MANAGER_ALLOWED_PROJECT_STATUSES.includes(proj.status) ||
+              Boolean(proj.technicalReviewApproved) ||
+              Boolean(hasPendingTechApproval);
+            if (!isAllowedForTech) return false;
+          }
+
           const UNAPPROVED_STATUSES = ['PENDING_MARKETING_APPROVAL', 'PENDING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'DRAFT', 'CHANGES_REQUESTED', 'REVISION_REQUESTED', 'PLANNED'];
           const isUnapproved = UNAPPROVED_STATUSES.includes(proj.status) || Boolean(proj.calendarEvent && UNAPPROVED_STATUSES.includes(proj.calendarEvent.status));
           const isCreator = Boolean(user?.id && (proj.createdById === user.id || proj.calendarEvent?.createdById === user.id));
@@ -705,8 +724,22 @@ export default function ProjectsPage() {
                 {/* Header Row */}
                 <div className="flex justify-between items-start">
                   <div>
-                    <span className="font-mono text-xs font-bold text-blue-400 block">{proj.projectId}</span>
-                    <h3 className="text-base font-bold text-white leading-snug">{proj.name}</h3>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-mono text-xs font-bold text-blue-400">{proj.projectId}</span>
+                      <span className={`text-[9px] font-bold font-mono px-1.5 py-0.2 rounded border ${
+                        proj.shootType === 'INDOOR'
+                          ? 'bg-blue-950/70 text-blue-300 border-blue-800'
+                          : 'bg-emerald-950/70 text-emerald-300 border-emerald-800'
+                      }`}>
+                        {proj.shootType === 'INDOOR' ? '🏢 INDOOR' : '🌲 OUTDOOR'}
+                      </span>
+                      {Boolean(proj._count?.graphicRequirements || proj.graphicRequirements?.length) && (
+                        <span className="text-[9px] font-bold font-mono px-1.5 py-0.2 rounded border bg-purple-950/70 text-purple-300 border-purple-800">
+                          🎨 {proj._count?.graphicRequirements || proj.graphicRequirements?.length} Graphic Req
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-base font-bold text-white leading-snug mt-0.5">{proj.name}</h3>
                   </div>
 
                   <div className="flex items-center gap-1.5">
@@ -828,12 +861,24 @@ export default function ProjectsPage() {
                   Revision Count: <strong className="text-amber-400">{proj.revisionCount || 0}</strong>
                 </div>
 
-                <Link
-                  href={`/projects/${proj.id}`}
-                  className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-                >
-                  Workspace <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
+                <div className="flex items-center gap-2">
+                  {user?.role === 'TECHNICAL_MANAGER' && (
+                    <Link
+                      href="/approvals"
+                      className="px-2.5 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold rounded-lg text-xs flex items-center gap-1 shadow-md shadow-cyan-500/20 transition-all border border-cyan-400/40"
+                      title="Go to Technical Manager Approval Session"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-cyan-200" />
+                      <span>Tech Approval Session</span>
+                    </Link>
+                  )}
+                  <Link
+                    href={`/projects/${proj.id}`}
+                    className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                  >
+                    Workspace <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
               </div>
             </div>
           ))}

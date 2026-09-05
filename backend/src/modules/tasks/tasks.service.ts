@@ -115,7 +115,64 @@ export class TasksService {
       orderBy: { dueDate: 'asc' },
     });
 
-    return this.syncTaskSourceTypes(tasks);
+    const syncedTasks = await this.syncTaskSourceTypes(tasks);
+
+    // Consolidated Task Deduplication: Ensure each entity (script, graphic req) has only 1 task row
+    // and redundant extra revision tasks are merged & removed.
+    const consolidatedTasks: any[] = [];
+    const seenEntities = new Map<string, any>();
+
+    for (const t of syncedTasks) {
+      const entityKey = t.scriptId
+        ? `SCRIPT_${t.scriptId}`
+        : t.graphicRequirementId
+        ? `GRAPHIC_${t.graphicRequirementId}`
+        : null;
+
+      if (!entityKey) {
+        consolidatedTasks.push(t);
+        continue;
+      }
+
+      if (!seenEntities.has(entityKey)) {
+        seenEntities.set(entityKey, t);
+        consolidatedTasks.push(t);
+      } else {
+        const existing = seenEntities.get(entityKey);
+        // Merge revisions into existing primary task
+        if (Array.isArray(t.revisions) && t.revisions.length > 0) {
+          const existingRevIds = new Set((existing.revisions || []).map((r: any) => r.id));
+          for (const r of t.revisions) {
+            if (!existingRevIds.has(r.id)) {
+              existing.revisions = [...(existing.revisions || []), r];
+              existingRevIds.add(r.id);
+            }
+          }
+        }
+        if (t.revisionCount && (!existing.revisionCount || t.revisionCount > existing.revisionCount)) {
+          existing.revisionCount = t.revisionCount;
+        }
+        // If this duplicate was an active revision task, reflect its active status on the primary task
+        if (t.status === TaskStatus.ASSIGNED || (t.status as any) === 'REVISION_REQUESTED') {
+          existing.status = t.status;
+          existing.completionPercentage = t.completionPercentage;
+        }
+
+        // Clean up redundant duplicate revision task from DB asynchronously
+        if (t.sourceType === 'REVISION' || t.taskType === 'REVISION' || t.title?.toLowerCase().includes('revision')) {
+          this.prisma.taskAssignment.deleteMany({ where: { taskId: t.id } })
+            .then(() => this.prisma.task.delete({ where: { id: t.id } }))
+            .catch(() => null);
+        }
+      }
+    }
+
+    if (params.userId && params.role) {
+      return consolidatedTasks.filter((t: any) =>
+        canUserViewTask({ id: params.userId, role: params.role }, t),
+      );
+    }
+    return consolidatedTasks;
   }
 
   private async syncTaskSourceTypes(tasks: any[]) {

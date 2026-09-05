@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useSearchParams } from 'next/navigation';
-import { FileText, UserPlus, X, MessageSquare, Send, Search, Filter, RotateCcw, SlidersHorizontal, Building2, Users, Layers, Check, Copy, Eye, ShieldCheck, Lock } from 'lucide-react';
+import Link from 'next/link';
+import { FileText, UserPlus, X, MessageSquare, Send, Search, Filter, RotateCcw, SlidersHorizontal, Building2, Users, Layers, Check, Copy, Eye, ShieldCheck, Lock, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
@@ -85,9 +86,11 @@ export default function ScriptsPage() {
   const [newDelivTitle, setNewDelivTitle] = useState('');
   const [newDelivDuration, setNewDelivDuration] = useState('');
 
-  // File Upload State
-  const [uploadingCategory, setUploadingCategory] = useState<string | null>(null);
+  // Attachment Link State (replaces file upload)
   const [selectedUploadCategory, setSelectedUploadCategory] = useState('SCRIPT_DOCUMENT');
+  const [newLinkName, setNewLinkName] = useState('');
+  const [newLinkUrl, setNewLinkUrl] = useState('');
+  const [addingLink, setAddingLink] = useState(false);
 
   // Create Script Modal State (All Fields)
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -222,35 +225,37 @@ export default function ScriptsPage() {
     }
   };
 
-  const handleFileUpload = async (file: File, category: string) => {
-    if (!selectedScript || !file) return;
-    setUploadingCategory(category);
+  const handleAddAttachmentLink = async () => {
+    if (!selectedScript || !newLinkName.trim() || !newLinkUrl.trim()) return;
+    setAddingLink(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('projectId', selectedScript.projectId);
-      formData.append('scriptId', selectedScript.id);
-      formData.append('attachmentCategory', category);
-
-      const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/files/upload', {
+      const updated = await fetchApi(`/scripts/${selectedScript.id}/attachment-links`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
+        body: JSON.stringify({
+          name: newLinkName.trim(),
+          url: newLinkUrl.trim(),
+          attachmentCategory: selectedUploadCategory,
+        }),
       });
+      setSelectedScript(updated);
+      setScripts((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      setNewLinkName('');
+      setNewLinkUrl('');
+    } catch (err: any) {
+      alert(err.message || 'Failed to add attachment link');
+    } finally {
+      setAddingLink(false);
+    }
+  };
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || 'File upload failed');
-      }
-
-      const updated = await fetchApi(`/scripts/${selectedScript.id}`);
+  const handleDeleteAttachmentLink = async (linkId: string) => {
+    if (!selectedScript) return;
+    try {
+      const updated = await fetchApi(`/scripts/attachment-links/${linkId}`, { method: 'DELETE' });
       setSelectedScript(updated);
       setScripts((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
     } catch (err: any) {
-      alert(err.message || 'Failed to upload/replace active version file');
-    } finally {
-      setUploadingCategory(null);
+      alert(err.message || 'Failed to remove attachment link');
     }
   };
 
@@ -484,7 +489,34 @@ export default function ScriptsPage() {
     };
   }, [selectedScript, showCreateModal, editDescription, editDuration, editRemarks, editStatus, editPriority, prodComp, techAppr, mediaAppr, clientConf]);
 
-  const filteredScripts = scripts.filter((s) => {
+  const visibleScripts = scripts.filter((s) => {
+    if (user?.role === 'TECHNICAL_MANAGER') {
+      const TECH_MANAGER_ALLOWED_SCRIPT_STATUSES = [
+        'WAITING_FOR_TECHNICAL_REVIEW',
+        'TECHNICAL_REVIEW',
+        'TECHNICAL_REVIEW_PENDING',
+        'SUBMITTED_FOR_REVIEW',
+        'WAITING_FOR_MEDIA_REVIEW',
+        'MEDIA_MANAGER_REVIEW',
+        'WAITING_FOR_MARKETING_APPROVAL',
+        'PENDING_MARKETING_APPROVAL',
+        'WAITING_FOR_CLIENT_CONFIRMATION',
+        'PENDING_CLIENT_APPROVAL',
+        'CLIENT_REVIEW',
+        'APPROVED',
+        'COMPLETED',
+        'CLOSED',
+      ];
+      return (
+        TECH_MANAGER_ALLOWED_SCRIPT_STATUSES.includes(s.status) ||
+        Boolean(s.technicalReviewApproved) ||
+        ['TECHNICAL_REVIEW_APPROVED', 'MEDIA_REVIEW_APPROVED', 'MARKETING_APPROVED', 'CLIENT_APPROVED', 'COMPLETED'].includes(s.approvalStatus)
+      );
+    }
+    return true;
+  });
+
+  const filteredScripts = visibleScripts.filter((s) => {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       const nameMatch = (s.name || '').toLowerCase().includes(q);
@@ -1265,6 +1297,17 @@ export default function ScriptsPage() {
                       <RotateCcw className="w-3 h-3" /> Request Revision
                     </button>
                   )}
+                  {user?.role === 'TECHNICAL_MANAGER' && (
+                    <Link
+                      href="/approvals"
+                      className="px-2.5 py-0.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold rounded text-[10px] flex items-center gap-1 shadow-md shadow-cyan-500/20 transition-all border border-cyan-400/40"
+                      title="Open Technical Manager Approval Session"
+                    >
+                      <ShieldCheck className="w-3 h-3 text-cyan-200" />
+                      <span>Go to Technical Manager Approval Session</span>
+                      <ArrowRight className="w-3 h-3 text-cyan-200" />
+                    </Link>
+                  )}
                 </div>
                 <h2 className="text-base font-bold text-white mt-1 font-mono">{selectedScript.name}</h2>
               <button
@@ -1787,20 +1830,20 @@ export default function ScriptsPage() {
                 )}
               </div>
 
-              {/* Linked Script Attachments Section (Select Category First -> Upload File) */}
+              {/* Linked Script Attachments Section (Link-based: Name + URL per Category) */}
               <div className="p-4 bg-gray-950 border border-gray-800 rounded-xl space-y-4 pt-3">
                 <div className="flex justify-between items-center border-b border-gray-800 pb-2">
                   <h4 className="font-bold text-white text-xs flex items-center gap-1.5">
                     <FileText className="w-4 h-4 text-purple-400" /> Linked Script Attachments &amp; Production Files
                   </h4>
                   <span className="text-[10px] text-purple-400 font-mono font-bold">
-                    ⚡ Select category type first, then choose file to upload
+                    🔗 Add links by name under each category
                   </span>
                 </div>
 
-                {/* Upload Control Card (Select Category Type -> Upload File Button) */}
+                {/* Add Link Control Card */}
                 <div className="p-3.5 bg-gray-900 border border-purple-900/60 rounded-xl space-y-2.5 shadow-md">
-                  <span className="text-purple-300 font-bold text-xs block">📤 Upload File Under Attachment Category:</span>
+                  <span className="text-purple-300 font-bold text-xs block">🔗 Add Deliverable Output Link:</span>
                   <div className="flex flex-wrap items-center gap-2.5">
                     <select
                       value={selectedUploadCategory}
@@ -1816,164 +1859,81 @@ export default function ScriptsPage() {
                       <option value="PRODUCT_INFORMATION">📦 6. Product Information</option>
                       <option value="SUPPORTING_DOCUMENT">📁 7. Supporting Documents</option>
                     </select>
-
-                    <label className={`px-4 py-2 font-bold rounded-lg text-xs flex items-center gap-1.5 shadow transition-all ${isEditingLocked ? 'bg-gray-800 text-gray-400 border border-gray-700 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 text-white cursor-pointer'}`}>
-                      <span>{isEditingLocked ? '🔒 Upload Locked During Review' : uploadingCategory ? 'Uploading File…' : '+ Choose File & Upload'}</span>
-                      <input
-                        type="file"
-                        disabled={isEditingLocked}
-                        className="hidden"
-                        onChange={(e) => {
-                          if (!isEditingLocked && e.target.files?.[0]) {
-                            handleFileUpload(e.target.files[0], selectedUploadCategory);
-                          }
-                        }}
-                      />
-                    </label>
+                    <input
+                      type="text"
+                      value={newLinkName}
+                      disabled={isEditingLocked}
+                      onChange={(e) => setNewLinkName(e.target.value)}
+                      placeholder="Link name (e.g. Final Script v3)"
+                      className="flex-1 min-w-[150px] bg-gray-950 border border-gray-700 text-white px-3 py-2 rounded-lg text-xs focus:border-purple-500 focus:outline-none placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    <input
+                      type="url"
+                      value={newLinkUrl}
+                      disabled={isEditingLocked}
+                      onChange={(e) => setNewLinkUrl(e.target.value)}
+                      placeholder="https://drive.google.com/..."
+                      className="flex-1 min-w-[180px] bg-gray-950 border border-gray-700 text-white px-3 py-2 rounded-lg text-xs focus:border-purple-500 focus:outline-none placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    <button
+                      disabled={isEditingLocked || addingLink || !newLinkName.trim() || !newLinkUrl.trim()}
+                      onClick={handleAddAttachmentLink}
+                      className="px-4 py-2 font-bold rounded-lg text-xs flex items-center gap-1.5 shadow transition-all bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {addingLink ? 'Adding…' : isEditingLocked ? '🔒 Locked' : '+ Add Link'}
+                    </button>
                   </div>
                 </div>
 
                 {/* All 7 Categories Display Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[11px]">
-                  {/* Category 1: Script Document */}
-                  <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-blue-300">📄 1. Script Document</span>
-                      <span className="text-[10px] text-gray-400">
-                        ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'SCRIPT_DOCUMENT' || f.fileName.endsWith('.pdf') || f.fileName.endsWith('.docx')).length || 0})
-                      </span>
-                    </div>
-                    {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'SCRIPT_DOCUMENT' || f.fileName.endsWith('.pdf') || f.fileName.endsWith('.docx')).length > 0 ? (
-                      selectedScript.files?.filter((f: any) => f.attachmentCategory === 'SCRIPT_DOCUMENT' || f.fileName.endsWith('.pdf') || f.fileName.endsWith('.docx')).map((f: any) => (
-                        <div key={f.id} className="flex items-center justify-between gap-1 bg-gray-950 p-1.5 rounded border border-gray-800">
-                          <span className="text-gray-200 font-mono text-[10px] truncate">{f.fileName}</span>
-                          <span className="text-[9px] text-emerald-400 bg-emerald-950 px-1.5 py-0.5 rounded font-bold border border-emerald-800 shrink-0">ACTIVE</span>
+                  {[
+                    { key: 'SCRIPT_DOCUMENT', label: '📄 1. Script Document', color: 'text-blue-300' },
+                    { key: 'REFERENCE_IMAGE', label: '🖼️ 2. Reference Images', color: 'text-purple-300' },
+                    { key: 'REFERENCE_VIDEO', label: '🎬 3. Reference Videos', color: 'text-emerald-300' },
+                    { key: 'AUDIO_REFERENCE', label: '🎵 4. Audio References', color: 'text-cyan-300' },
+                    { key: 'BRAND_GUIDELINES', label: '🎨 5. Brand Guidelines', color: 'text-amber-300' },
+                    { key: 'PRODUCT_INFORMATION', label: '📦 6. Product Information', color: 'text-indigo-300' },
+                    { key: 'SUPPORTING_DOCUMENT', label: '📁 7. Supporting Documents', color: 'text-gray-300' },
+                  ].map((cat) => {
+                    const catLinks = (selectedScript.attachmentLinks || []).filter(
+                      (l: any) => l.attachmentCategory === cat.key
+                    );
+                    return (
+                      <div key={cat.key} className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className={`font-bold ${cat.color}`}>{cat.label}</span>
+                          <span className="text-[10px] text-gray-400">({catLinks.length})</span>
                         </div>
-                      ))
-                    ) : (
-                      <span className="text-gray-500 italic text-[10px]">No script document attached</span>
-                    )}
-                  </div>
-
-                  {/* Category 2: Reference Images */}
-                  <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-purple-300">🖼️ 2. Reference Images</span>
-                      <span className="text-[10px] text-gray-400">
-                        ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'REFERENCE_IMAGE' || f.fileType?.startsWith('image/')).length || 0})
-                      </span>
-                    </div>
-                    {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'REFERENCE_IMAGE' || f.fileType?.startsWith('image/')).length > 0 ? (
-                      selectedScript.files?.filter((f: any) => f.attachmentCategory === 'REFERENCE_IMAGE' || f.fileType?.startsWith('image/')).map((f: any) => (
-                        <div key={f.id} className="flex items-center justify-between gap-1 bg-gray-950 p-1.5 rounded border border-gray-800">
-                          <span className="text-gray-200 font-mono text-[10px] truncate">{f.fileName}</span>
-                          <span className="text-[9px] text-emerald-400 bg-emerald-950 px-1.5 py-0.5 rounded font-bold border border-emerald-800 shrink-0">ACTIVE</span>
-                        </div>
-                      ))
-                    ) : (
-                      <span className="text-gray-500 italic text-[10px]">No reference images attached</span>
-                    )}
-                  </div>
-
-                  {/* Category 3: Reference Videos */}
-                  <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-emerald-300">🎬 3. Reference Videos</span>
-                      <span className="text-[10px] text-gray-400">
-                        ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'REFERENCE_VIDEO' || f.fileType?.startsWith('video/')).length || 0})
-                      </span>
-                    </div>
-                    {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'REFERENCE_VIDEO' || f.fileType?.startsWith('video/')).length > 0 ? (
-                      selectedScript.files?.filter((f: any) => f.attachmentCategory === 'REFERENCE_VIDEO' || f.fileType?.startsWith('video/')).map((f: any) => (
-                        <div key={f.id} className="flex items-center justify-between gap-1 bg-gray-950 p-1.5 rounded border border-gray-800">
-                          <span className="text-gray-200 font-mono text-[10px] truncate">{f.fileName}</span>
-                          <span className="text-[9px] text-emerald-400 bg-emerald-950 px-1.5 py-0.5 rounded font-bold border border-emerald-800 shrink-0">ACTIVE</span>
-                        </div>
-                      ))
-                    ) : (
-                      <span className="text-gray-500 italic text-[10px]">No reference videos attached</span>
-                    )}
-                  </div>
-
-                  {/* Category 4: Audio References */}
-                  <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-cyan-300">🎵 4. Audio References</span>
-                      <span className="text-[10px] text-gray-400">
-                        ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'AUDIO_REFERENCE' || f.fileType?.startsWith('audio/')).length || 0})
-                      </span>
-                    </div>
-                    {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'AUDIO_REFERENCE' || f.fileType?.startsWith('audio/')).length > 0 ? (
-                      selectedScript.files?.filter((f: any) => f.attachmentCategory === 'AUDIO_REFERENCE' || f.fileType?.startsWith('audio/')).map((f: any) => (
-                        <div key={f.id} className="flex items-center justify-between gap-1 bg-gray-950 p-1.5 rounded border border-gray-800">
-                          <span className="text-gray-200 font-mono text-[10px] truncate">{f.fileName}</span>
-                          <span className="text-[9px] text-emerald-400 bg-emerald-950 px-1.5 py-0.5 rounded font-bold border border-emerald-800 shrink-0">ACTIVE</span>
-                        </div>
-                      ))
-                    ) : (
-                      <span className="text-gray-500 italic text-[10px]">No audio references attached</span>
-                    )}
-                  </div>
-
-                  {/* Category 5: Brand Guidelines */}
-                  <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-amber-300">🎨 5. Brand Guidelines</span>
-                      <span className="text-[10px] text-gray-400">
-                        ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'BRAND_GUIDELINES').length || 0})
-                      </span>
-                    </div>
-                    {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'BRAND_GUIDELINES').length > 0 ? (
-                      selectedScript.files?.filter((f: any) => f.attachmentCategory === 'BRAND_GUIDELINES').map((f: any) => (
-                        <div key={f.id} className="flex items-center justify-between gap-1 bg-gray-950 p-1.5 rounded border border-gray-800">
-                          <span className="text-gray-200 font-mono text-[10px] truncate">{f.fileName}</span>
-                          <span className="text-[9px] text-emerald-400 bg-emerald-950 px-1.5 py-0.5 rounded font-bold border border-emerald-800 shrink-0">ACTIVE</span>
-                        </div>
-                      ))
-                    ) : (
-                      <span className="text-gray-500 italic text-[10px]">No brand guidelines attached</span>
-                    )}
-                  </div>
-
-                  {/* Category 6: Product Information */}
-                  <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-indigo-300">📦 6. Product Information</span>
-                      <span className="text-[10px] text-gray-400">
-                        ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'PRODUCT_INFORMATION').length || 0})
-                      </span>
-                    </div>
-                    {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'PRODUCT_INFORMATION').length > 0 ? (
-                      selectedScript.files?.filter((f: any) => f.attachmentCategory === 'PRODUCT_INFORMATION').map((f: any) => (
-                        <div key={f.id} className="flex items-center justify-between gap-1 bg-gray-950 p-1.5 rounded border border-gray-800">
-                          <span className="text-gray-200 font-mono text-[10px] truncate">{f.fileName}</span>
-                          <span className="text-[9px] text-emerald-400 bg-emerald-950 px-1.5 py-0.5 rounded font-bold border border-emerald-800 shrink-0">ACTIVE</span>
-                        </div>
-                      ))
-                    ) : (
-                      <span className="text-gray-500 italic text-[10px]">No product info attached</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Category 7: Supporting Documents */}
-                <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1.5">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-gray-300">📁 7. Supporting Documents</span>
-                    <span className="text-[10px] text-gray-400">
-                      ({selectedScript.files?.filter((f: any) => f.attachmentCategory === 'SUPPORTING_DOCUMENT').length || 0})
-                    </span>
-                  </div>
-                  {selectedScript.files?.filter((f: any) => f.attachmentCategory === 'SUPPORTING_DOCUMENT').length > 0 ? (
-                    selectedScript.files?.filter((f: any) => f.attachmentCategory === 'SUPPORTING_DOCUMENT').map((f: any) => (
-                      <div key={f.id} className="flex items-center justify-between gap-1 bg-gray-950 p-1.5 rounded border border-gray-800">
-                        <span className="text-gray-200 font-mono text-[10px] truncate">{f.fileName}</span>
-                        <span className="text-[9px] text-emerald-400 bg-emerald-950 px-1.5 py-0.5 rounded font-bold border border-emerald-800 shrink-0">ACTIVE</span>
+                        {catLinks.length > 0 ? (
+                          catLinks.map((l: any) => (
+                            <div key={l.id} className="flex items-center justify-between gap-1 bg-gray-950 p-1.5 rounded border border-gray-800 group">
+                              <a
+                                href={l.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-purple-300 hover:text-purple-100 font-mono text-[10px] truncate underline underline-offset-2 flex-1"
+                                title={l.url}
+                              >
+                                🔗 {l.name}
+                              </a>
+                              {!isEditingLocked && (
+                                <button
+                                  onClick={() => handleDeleteAttachmentLink(l.id)}
+                                  className="text-red-500 hover:text-red-300 text-[10px] font-bold ml-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                                  title="Remove link"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-gray-500 italic text-[10px]">No links added</span>
+                        )}
                       </div>
-                    ))
-                  ) : (
-                    <span className="text-gray-500 italic text-[10px]">No supporting documents attached</span>
-                  )}
+                    );
+                  })}
                 </div>
               </div>
 

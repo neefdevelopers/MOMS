@@ -76,6 +76,8 @@ model User {
   editHistoriesApproved       CalendarEditHistory[]   @relation("CalendarEditHistoryApprovedBy")
   createdScripts            Script[]                  @relation("ScriptCreator")
   approvedScripts           Script[]                  @relation("ScriptApprover")
+  createdScriptDeliverables   ScriptDeliverable[]       @relation("ScriptDeliverableCreatedBy")
+  assignedScriptDeliverables  ScriptDeliverable[]       @relation("ScriptDeliverableAssignedStaff")
   createdGraphicDeliverables  GraphicRequirementDeliverable[] @relation("GraphicDeliverableCreatedBy")
   assignedGraphicDeliverables GraphicRequirementDeliverable[] @relation("GraphicDeliverableAssignedStaff")
 }
@@ -426,6 +428,7 @@ model Script {
   timeline           ScriptTimeline[]
   scriptRemarks      ScriptRemark[]
   deliverables       ScriptDeliverable[]
+  attachmentLinks    ScriptAttachmentLink[]
   approvals          Approval[]   @relation("ScriptApprovals")
 }
 
@@ -463,16 +466,37 @@ model ScriptRemark {
 }
 
 model ScriptDeliverable {
-  id          String   @id @default(uuid())
-  scriptId    String
-  script      Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
-  type        String   // Reel, Advertisement Video, Long-form Video, Short-form Video, Story, Teaser, Custom
-  title       String?  // Optional custom title
-  description String?
-  duration    String?  // e.g. "30s", "1m", "3m"
-  status      String   @default("Pending") // Pending, In Progress, Done
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String    @id @default(uuid())
+  scriptId       String
+  script         Script    @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  name           String?
+  type           String?   // Reel, Advertisement Video, Long-form Video, Short-form Video, Story, Teaser, Custom
+  title          String?   // Optional custom title
+  description    String?
+  duration       String?   // e.g. "30s", "1m", "3m"
+  fileUrl        String?
+  fileName       String?
+  fileSize       Int?
+  status         String    @default("DRAFT") // DRAFT, IN_PROGRESS, COMPLETED, SUBMITTED
+  remarks        String?
+  submissionDate DateTime?
+  createdById    String?
+  createdBy      User?     @relation("ScriptDeliverableCreatedBy", fields: [createdById], references: [id])
+  assignedStaffId String?
+  assignedStaff  User?     @relation("ScriptDeliverableAssignedStaff", fields: [assignedStaffId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model ScriptAttachmentLink {
+  id                 String   @id @default(uuid())
+  scriptId           String
+  script             Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  name               String
+  url                String
+  attachmentCategory String   @default("SCRIPT_DOCUMENT") // SCRIPT_DOCUMENT, REFERENCE_IMAGE, REFERENCE_VIDEO, AUDIO_REFERENCE, BRAND_GUIDELINES, PRODUCT_INFORMATION, SUPPORTING_DOCUMENT
+  addedById          String?
+  createdAt          DateTime @default(now())
 }
 
 model GraphicRequirement {

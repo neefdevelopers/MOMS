@@ -62,7 +62,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       {
         name: 'Dashboard',
         staffName: 'My Dashboard',
-        techName: 'Technical Dashboard',
+        techName: 'Dashboard',
         smmName: 'Social Media Dashboard',
         clientName: 'Marketing Manager Portal',
         href: '/',
@@ -86,7 +86,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       {
         name: 'Media Calendar',
         staffName: 'My Calendar Work',
-        techName: 'Technical Calendar',
+        techName: 'Calendar',
         smmName: 'Media Calendar',
         clientName: 'Calendar Schedule',
         href: '/calendar',
@@ -101,7 +101,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       {
         name: 'Projects',
         staffName: 'Assigned Projects',
-        techName: 'Technical Projects',
+        techName: 'Projects',
         smmName: 'Production Projects',
         clientName: 'Projects Overview',
         href: '/projects',
@@ -119,7 +119,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       {
         name: 'Graphic Requirements',
         staffName: 'Assigned Graphic Reqs',
-        techName: 'Technical Graphic Reqs',
+        techName: 'Graphic Requirements',
         smmName: 'Graphic Requirements',
         clientName: 'Graphic Requirements',
         href: '/graphic-reqs',
@@ -129,7 +129,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       {
         name: 'Tasks',
         staffName: 'My Tasks',
-        techName: 'Technical Tasks',
+        techName: 'Tasks',
         smmName: 'My Tasks',
         clientName: 'Operational Tasks',
         href: '/tasks',
@@ -138,7 +138,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       },
       {
         name: 'Internal Communication',
-        techName: 'Technical Communication',
+        techName: 'Internal Communication',
         staffName: 'My Communication',
         smmName: 'My Communication',
         clientName: 'Client Communication',
@@ -148,7 +148,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       },
       {
         name: 'Technical Review',
-        techName: 'Technical Review',
+        techName: 'Review',
         href: '/approvals',
         icon: CheckCircle2,
         roles: ['TECHNICAL_MANAGER'],
@@ -264,7 +264,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       {
         name: 'Reports & Analytics',
         staffName: 'My Reports',
-        techName: 'Technical Reports',
+        techName: 'Reports & Analytics',
         clientName: 'Approval Reports',
         href: '/reports',
         icon: BarChart3,
@@ -374,7 +374,7 @@ export function Sidebar() {
                   (item.href === '/equipment' && activePath === '/equipment');
                 const isItemNavigating = isPending && optimisticPath === item.href;
 
-                const displayName =
+                let displayName =
                   userRole === 'MARKETING_MANAGER' && item.clientName
                     ? item.clientName
                     : userRole === 'MEDIA_MANAGER' && item.mediaName
@@ -386,6 +386,10 @@ export function Sidebar() {
                     : userRole === 'TECHNICAL_MANAGER' && item.techName
                     ? item.techName
                     : item.name;
+
+                if (userRole === 'TECHNICAL_MANAGER' && typeof displayName === 'string' && displayName.toLowerCase().startsWith('technical')) {
+                  displayName = displayName.replace(/^technical\s*:?\s*/i, '');
+                }
 
                 return (
                   <Link

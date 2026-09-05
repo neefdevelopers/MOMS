@@ -23,10 +23,28 @@ export class CalendarService {
 
     // Status filtering logic
     if (status) {
-      if (status === 'PENDING_CLIENT_APPROVAL' || status === 'PENDING_CLIENT_REVIEW' || status === 'PENDING') {
-        where.status = { in: ['PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'PENDING_MARKETING_APPROVAL', 'DRAFT', 'CHANGES_REQUESTED', 'REVISION_REQUESTED'] };
+      if (
+        status === 'PENDING_CLIENT_APPROVAL' ||
+        status === 'PENDING_CLIENT_REVIEW' ||
+        status === 'PENDING' ||
+        status === 'PENDING_APPROVAL' ||
+        status === 'PENDING_MARKETING_APPROVAL'
+      ) {
+        where.status = {
+          in: [
+            'PENDING_CLIENT_APPROVAL',
+            'PENDING_CLIENT_REVIEW',
+            'PENDING_MARKETING_APPROVAL',
+            'WAITING_FOR_MARKETING_APPROVAL',
+            'DRAFT',
+            'CHANGES_REQUESTED',
+            'REVISION_REQUESTED',
+          ],
+        };
       } else if (status === 'APPROVED' || status === 'CLIENT_APPROVED' || status === 'OPERATIONAL') {
-        where.status = { in: ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'] };
+        where.status = {
+          in: ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'],
+        };
       } else if (status !== 'ALL') {
         where.status = status;
       }
@@ -85,6 +103,20 @@ export class CalendarService {
         lastModifiedBy: { select: { id: true, name: true, role: true, email: true } },
         editRequestedBy: { select: { id: true, name: true, role: true, email: true } },
         editApprovedBy: { select: { id: true, name: true, role: true, email: true } },
+        editRequests: {
+          include: {
+            requestedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+            reviewedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        editHistories: {
+          include: {
+            requestedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+            approvedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
       orderBy: { shootDate: 'asc' },
     });
@@ -170,8 +202,16 @@ export class CalendarService {
   }
 
   async create(data: any, user?: any) {
-    if (user && user.role !== Role.MEDIA_MANAGER && user.role !== Role.MARKETING_MANAGER && user.role !== Role.ADMINISTRATOR && user.role !== 'ADMIN') {
-      throw new ForbiddenException('403 Forbidden: Only Media Managers and Marketing Managers can create calendar events.');
+    if (
+      user &&
+      user.role !== Role.MEDIA_MANAGER &&
+      user.role !== Role.MARKETING_MANAGER &&
+      user.role !== Role.ADMINISTRATOR &&
+      user.role !== 'ADMIN' &&
+      user.role !== Role.SOCIAL_MEDIA_MANAGER &&
+      user.role !== 'SOCIAL_MEDIA_MANAGER'
+    ) {
+      throw new ForbiddenException('403 Forbidden: Only Media Managers, Marketing Managers, and Social Media Managers can create calendar events.');
     }
 
     const eventSource = data.eventSource || 'SHOOT';
@@ -305,12 +345,16 @@ export class CalendarService {
     
     // WORKFLOW RULE:
     // Events scheduled by Marketing Manager are automatically approved (APPROVED) upon creation without needing client approval.
-    // Events scheduled by Media Manager or Social Media Manager default to PENDING_CLIENT_APPROVAL.
+    // Events scheduled by Social Media Manager require Marketing Manager approval (PENDING_MARKETING_APPROVAL).
+    // Events scheduled by Media Manager default to PENDING_CLIENT_APPROVAL.
     const isMarketingManager = user?.role === 'MARKETING_MANAGER';
+    const isSocialMediaManager = user?.role === 'SOCIAL_MEDIA_MANAGER';
     const initialStatus = data.saveAsDraft
       ? 'DRAFT'
       : isMarketingManager
       ? 'APPROVED'
+      : isSocialMediaManager
+      ? 'PENDING_MARKETING_APPROVAL'
       : 'PENDING_CLIENT_APPROVAL';
 
     // Execute atomic creation in transaction
@@ -495,6 +539,8 @@ export class CalendarService {
       const historyAction =
         initialStatus === 'APPROVED'
           ? 'AUTO_APPROVED_CLIENT'
+          : initialStatus === 'PENDING_MARKETING_APPROVAL'
+          ? 'SUBMITTED_MARKETING_APPROVAL'
           : initialStatus === 'PENDING_CLIENT_APPROVAL'
           ? 'SUBMITTED'
           : 'CREATED';
@@ -502,6 +548,8 @@ export class CalendarService {
       const historyComment =
         initialStatus === 'APPROVED'
           ? 'Created and automatically approved by Marketing Manager.'
+          : initialStatus === 'PENDING_MARKETING_APPROVAL'
+          ? 'Scheduled by Social Media Manager and submitted for Marketing Manager approval.'
           : initialStatus === 'PENDING_CLIENT_APPROVAL'
           ? `Created from ${eventSource === 'GRAPHIC_REQUIREMENT' ? 'Graphic Requirement' : 'Shoot'} and submitted for client review.`
           : 'Created event draft.';
@@ -541,7 +589,15 @@ export class CalendarService {
       return event;
     });
 
-    if (initialStatus === 'PENDING_CLIENT_APPROVAL') {
+    if (initialStatus === 'PENDING_MARKETING_APPROVAL') {
+      await this.sendNotification(
+        [],
+        'MARKETING_MANAGER',
+        'New Calendar Event Requires Marketing Approval',
+        `Social Media Manager (${user?.name || 'User'}) scheduled calendar event '${createdEvent.title}' which requires Marketing Manager review & sign-off.`,
+        createdEvent.id,
+      );
+    } else if (initialStatus === 'PENDING_CLIENT_APPROVAL') {
       await this.notifyClientReviewers(createdEvent.id, createdEvent.title, client.id, eventSource);
     }
 

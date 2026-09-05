@@ -5,7 +5,7 @@ import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Palette, Plus, Search, Layers, Calendar, Building2, Tag, CheckSquare, FileText, AlertCircle, ShieldAlert, SlidersHorizontal, RotateCcw, X, Flame, User, Clock } from 'lucide-react';
+import { Palette, Plus, Search, Layers, Calendar, Building2, Tag, CheckSquare, FileText, AlertCircle, ShieldAlert, SlidersHorizontal, RotateCcw, X, Flame, User, Clock, ShieldCheck, ArrowRight } from 'lucide-react';
 import { SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
@@ -616,7 +616,34 @@ export default function GraphicReqsPage() {
     }
   };
 
-  const filteredReqs = reqs.filter((g) => {
+  const visibleReqs = reqs.filter((g) => {
+    if (user?.role === 'TECHNICAL_MANAGER') {
+      const TECH_MANAGER_ALLOWED_STATUSES = [
+        'WAITING_FOR_TECHNICAL_REVIEW',
+        'TECHNICAL_REVIEW',
+        'WAITING_FOR_MEDIA_REVIEW',
+        'MEDIA_MANAGER_REVIEW',
+        'WAITING_FOR_CLIENT_CONFIRMATION',
+        'CLIENT_CONFIRMATION',
+        'CLIENT_REVISION_REQUESTED',
+        'COMPLETED',
+        'CLOSED',
+      ];
+      const isReqStatusAllowed = TECH_MANAGER_ALLOWED_STATUSES.includes(g.status) || Boolean(g.technicalReviewApproved);
+      const isProjectAllowed = Boolean(g.project && TECH_MANAGER_ALLOWED_STATUSES.includes(g.project.status));
+      const isTaskAllowed = Boolean(
+        Array.isArray(g.tasks) &&
+          g.tasks.some((t: any) => TECH_MANAGER_ALLOWED_STATUSES.includes(t.status) || t.technicalReviewApproved),
+      );
+      const isApprovalAllowed = Boolean(
+        Array.isArray(g.approvals) && g.approvals.some((a: any) => a.approvalType === 'TECHNICAL_REVIEW'),
+      );
+      return isReqStatusAllowed || isProjectAllowed || isTaskAllowed || isApprovalAllowed;
+    }
+    return true;
+  });
+
+  const filteredReqs = visibleReqs.filter((g) => {
     const assignedUserNames = (g.tasks || []).flatMap((t: any) => [
       ...(t.assignedEmployees || []).map((e: any) => e.user?.name || ''),
     ]);
@@ -632,12 +659,15 @@ export default function GraphicReqsPage() {
     );
 
     const linkedEvent = g.calendarEvent || g.project?.calendarEvent || (g.sourceForCalendarEvents && g.sourceForCalendarEvents[0]);
-    const UNAPPROVED_STATUSES = ['PENDING_MARKETING_APPROVAL', 'PENDING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'DRAFT', 'CHANGES_REQUESTED', 'REVISION_REQUESTED', 'WAITING_FOR_MEDIA_REVIEW'];
-    const isReqUnapproved = UNAPPROVED_STATUSES.includes(g.status) || Boolean(linkedEvent && UNAPPROVED_STATUSES.includes(linkedEvent.status));
-    const isCreator = Boolean(user?.id && (linkedEvent?.createdById === user.id || g.createdById === user.id));
 
-    if (isReqUnapproved && !isCreator && !isAssignedToUser && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'MEDIA_MANAGER' && user?.role !== 'SOCIAL_MEDIA_MANAGER' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN') {
-      return false;
+    if (user?.role !== 'TECHNICAL_MANAGER') {
+      const UNAPPROVED_STATUSES = ['PENDING_MARKETING_APPROVAL', 'PENDING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'DRAFT', 'CHANGES_REQUESTED', 'REVISION_REQUESTED'];
+      const isReqUnapproved = UNAPPROVED_STATUSES.includes(g.status) || Boolean(linkedEvent && UNAPPROVED_STATUSES.includes(linkedEvent.status));
+      const isCreator = Boolean(user?.id && (linkedEvent?.createdById === user.id || g.createdById === user.id));
+
+      if (isReqUnapproved && !isCreator && !isAssignedToUser && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'MEDIA_MANAGER' && user?.role !== 'SOCIAL_MEDIA_MANAGER' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN') {
+        return false;
+      }
     }
 
     const matchesSearch =
@@ -717,27 +747,35 @@ export default function GraphicReqsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-card border border-border p-4 rounded-xl space-y-1">
           <span className="text-[10px] text-gray-400 uppercase font-bold">Total Graphic Reqs</span>
-          <div className="text-2xl font-bold text-white font-mono">{reqs.length}</div>
+          <div className="text-2xl font-bold text-white font-mono">{visibleReqs.length}</div>
         </div>
 
         <div className="bg-card border border-border p-4 rounded-xl space-y-1">
-          <span className="text-[10px] text-yellow-400 uppercase font-bold">In Progress</span>
+          <span className="text-[10px] text-yellow-400 uppercase font-bold">
+            {user?.role === 'TECHNICAL_MANAGER' ? 'Waiting Tech Review' : 'In Progress'}
+          </span>
           <div className="text-2xl font-bold text-yellow-400 font-mono">
-            {reqs.filter((r) => r.status === 'IN_PROGRESS' || r.status === 'DRAFT').length}
+            {user?.role === 'TECHNICAL_MANAGER'
+              ? visibleReqs.filter((r) => r.status === 'WAITING_FOR_TECHNICAL_REVIEW' || r.status === 'TECHNICAL_REVIEW').length
+              : visibleReqs.filter((r) => r.status === 'IN_PROGRESS' || r.status === 'DRAFT').length}
           </div>
         </div>
 
         <div className="bg-card border border-border p-4 rounded-xl space-y-1">
-          <span className="text-[10px] text-cyan-400 uppercase font-bold">Ready / Approved</span>
+          <span className="text-[10px] text-cyan-400 uppercase font-bold">
+            {user?.role === 'TECHNICAL_MANAGER' ? 'Media Review / Approved' : 'Ready / Approved'}
+          </span>
           <div className="text-2xl font-bold text-cyan-400 font-mono">
-            {reqs.filter((r) => r.status === 'READY' || r.status === 'APPROVED').length}
+            {user?.role === 'TECHNICAL_MANAGER'
+              ? visibleReqs.filter((r) => ['WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(r.status)).length
+              : visibleReqs.filter((r) => r.status === 'READY' || r.status === 'APPROVED').length}
           </div>
         </div>
 
         <div className="bg-card border border-border p-4 rounded-xl space-y-1">
           <span className="text-[10px] text-purple-400 uppercase font-bold">Automated Tasks Generated</span>
           <div className="text-2xl font-bold text-purple-400 font-mono">
-            {reqs.reduce((acc, r) => acc + (r.tasks?.length || 0), 0)}
+            {visibleReqs.reduce((acc, r) => acc + (r.tasks?.length || 0), 0)}
           </div>
         </div>
       </div>
@@ -1623,12 +1661,25 @@ export default function GraphicReqsPage() {
                 </div>
                 <h3 className="text-lg font-bold text-white mt-1">{inspectedReq.name}</h3>
               </div>
-              <button
-                onClick={() => setInspectedReq(null)}
-                className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-bold text-xs"
-              >
-                ✕ Close
-              </button>
+              <div className="flex items-center gap-2">
+                {user?.role === 'TECHNICAL_MANAGER' && (
+                  <Link
+                    href="/approvals"
+                    className="px-2.5 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold rounded-lg text-[11px] flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition-all border border-cyan-400/40"
+                    title="Open Technical Manager Approval Session"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-cyan-200" />
+                    <span>Go to Technical Manager Approval Session</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-cyan-200" />
+                  </Link>
+                )}
+                <button
+                  onClick={() => setInspectedReq(null)}
+                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-bold text-xs"
+                >
+                  ✕ Close
+                </button>
+              </div>
             </div>
 
             {/* Production Workflow Pipeline Stepper (7 Video Production Stages) */}

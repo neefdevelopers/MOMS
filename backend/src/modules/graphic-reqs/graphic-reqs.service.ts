@@ -70,11 +70,10 @@ export class GraphicReqsService {
       if (p.dateTo) where.createdAt.lte = new Date(p.dateTo);
     }
 
-    // Role-based query filtering for STAFF: only assigned tasks or projects (unless all=true requested)
+    // Role-based query filtering for STAFF: only accepted assigned tasks or created projects (unless all=true requested)
     if (p.role === 'STAFF' && p.userId && p.all !== 'true' && p.all !== '1') {
       where.OR = [
-        { tasks: { some: { assignedEmployees: { some: { userId: p.userId } } } } },
-        { project: { assignedTeam: { some: { userId: p.userId } } } },
+        { tasks: { some: { assignedEmployees: { some: { userId: p.userId, acceptanceStatus: 'ACCEPTED' } } } } },
         { project: { createdById: p.userId } },
       ];
     }
@@ -101,9 +100,9 @@ export class GraphicReqsService {
       }
     }
 
-    // Execution roles (TECHNICAL_MANAGER, etc.) can ONLY view graphic requirements once approved by Marketing Manager (or if assigned/created by themselves).
+    // Execution roles (STAFF, etc.) can ONLY view graphic requirements once approved by Marketing Manager (or if assigned/created by themselves).
     const APPROVED_CALENDAR_STATUSES = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'];
-    const CREATOR_AND_APPROVER_ROLES = ['SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMIN', 'ADMINISTRATOR', 'STAFF'];
+    const CREATOR_AND_APPROVER_ROLES = ['SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER', 'MARKETING_MANAGER', 'TECHNICAL_MANAGER', 'ADMIN', 'ADMINISTRATOR', 'STAFF'];
 
     if (p.role && !CREATOR_AND_APPROVER_ROLES.includes(p.role) && p.userId) {
       const eventVisibilityFilter = {
@@ -170,6 +169,19 @@ export class GraphicReqsService {
   private async syncGraphicRequirementStatuses(items: any[]) {
     if (!items || !items.length) return items;
 
+    const REVIEW_AND_LOCKED_STATUSES = [
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+      'CLIENT_CONFIRMATION',
+      'CLIENT_REVISION_REQUESTED',
+      'COMPLETED',
+      'CLOSED',
+      'CANCELLED',
+    ];
+
     for (const item of items) {
       let computedStatus = item.status;
       const calStatus = item.calendarEvent?.status;
@@ -193,12 +205,14 @@ export class GraphicReqsService {
         } else {
           computedStatus = 'WAITING_FOR_TECHNICAL_REVIEW';
         }
-      } else if (isTaskInProgress) {
-        computedStatus = 'IN_PROGRESS';
-      } else if (isTaskAccepted || hasTasks) {
-        computedStatus = 'TASK_ASSIGNED';
-      } else if (isCalApproved && (item.status === 'PENDING_MARKETING_APPROVAL' || item.status === 'DRAFT' || item.status === 'READY')) {
-        computedStatus = 'APPROVED';
+      } else if (!REVIEW_AND_LOCKED_STATUSES.includes(item.status)) {
+        if (isTaskInProgress) {
+          computedStatus = 'IN_PROGRESS';
+        } else if (isTaskAccepted || hasTasks) {
+          computedStatus = 'TASK_ASSIGNED';
+        } else if (isCalApproved && (item.status === 'PENDING_MARKETING_APPROVAL' || item.status === 'DRAFT' || item.status === 'READY')) {
+          computedStatus = 'APPROVED';
+        }
       }
 
       // Calculate automatic progress percentage
@@ -280,14 +294,12 @@ export class GraphicReqsService {
       },
     });
     if (!req) throw new NotFoundException('Graphic Requirement not found');
-
+    const [synced] = await this.syncGraphicRequirementStatuses([req]);
     if (user && user.id && user.role) {
-      if (!canUserViewRequirement({ id: user.id, role: user.role }, req)) {
-        throw new ForbiddenException('Access Denied: Requirement waiting for Marketing Approval is hidden from Technical Manager.');
+      if (!canUserViewRequirement({ id: user.id, role: user.role }, synced)) {
+        throw new ForbiddenException('Access Denied: Requirement is not in Technical Review or later stage.');
       }
     }
-
-    const [synced] = await this.syncGraphicRequirementStatuses([req]);
     return synced;
   }
 

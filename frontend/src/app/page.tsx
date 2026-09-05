@@ -142,6 +142,16 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    const role = (user?.role || 'STAFF') as string;
+    if (
+      role === 'MARKETING_MANAGER' ||
+      role === 'SOCIAL_MEDIA_MANAGER' ||
+      role === 'STAFF'
+    ) {
+      setLoading(false);
+      return;
+    }
+
     async function loadDashboard() {
       try {
         const [dashRes, myDashRes, capRes, tasksRes, annRes, settingsRes, summariesRes, alertsRes, eqRes] = await Promise.all([
@@ -210,7 +220,7 @@ export default function DashboardPage() {
       }
     }
     loadCommWidgets();
-  }, []);
+  }, [user?.role]);
 
   const handlePublishAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();

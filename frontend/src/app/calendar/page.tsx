@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck, FileText, User, ChevronLeft, ChevronRight, ArrowUpDown, MapPin, Eye, Zap } from 'lucide-react';
 import Link from 'next/link';
 import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
+import { TimelineView, TimelineEntry } from '@/components/common/TimelineView';
 
 export default function CalendarPage() {
   const { user } = useAuth();
@@ -550,7 +551,7 @@ export default function CalendarPage() {
     );
   });
 
-  const canCreateEvents = ['MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'].includes(user?.role || '');
+  const canCreateEvents = ['MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN', 'SOCIAL_MEDIA_MANAGER'].includes(user?.role || '');
 
   // Helper to compute date range for Month, Week, or Day
   const getPeriodRange = (mode: 'month' | 'week' | 'day' | 'all', refDate: Date) => {
@@ -638,11 +639,37 @@ export default function CalendarPage() {
         if (!isApproved && !isMyCreatedEvent) {
           return false;
         }
-      } else if (statusFilter === 'PENDING_CLIENT_APPROVAL' || statusFilter === 'PENDING_CLIENT_REVIEW') {
-        if (
-          (evt.status !== 'PENDING_CLIENT_APPROVAL' && evt.status !== 'PENDING_CLIENT_REVIEW') ||
-          !canViewUnapproved
-        ) {
+      } else if (
+        statusFilter === 'PENDING_APPROVAL' ||
+        statusFilter === 'PENDING_CLIENT_APPROVAL' ||
+        statusFilter === 'PENDING_CLIENT_REVIEW' ||
+        statusFilter === 'PENDING_MARKETING_APPROVAL'
+      ) {
+        const isPending = [
+          'PENDING_MARKETING_APPROVAL',
+          'WAITING_FOR_MARKETING_APPROVAL',
+          'PENDING_CLIENT_APPROVAL',
+          'PENDING_CLIENT_REVIEW',
+          'PENDING_APPROVAL',
+          'DRAFT',
+          'CHANGES_REQUESTED',
+        ].includes(evt.status);
+
+        if (statusFilter === 'PENDING_MARKETING_APPROVAL') {
+          if (evt.status !== 'PENDING_MARKETING_APPROVAL' && evt.status !== 'WAITING_FOR_MARKETING_APPROVAL') return false;
+        } else if (statusFilter === 'PENDING_CLIENT_APPROVAL' || statusFilter === 'PENDING_CLIENT_REVIEW') {
+          if (
+            evt.status !== 'PENDING_CLIENT_APPROVAL' &&
+            evt.status !== 'PENDING_CLIENT_REVIEW' &&
+            evt.status !== 'PENDING_MARKETING_APPROVAL' &&
+            evt.status !== 'WAITING_FOR_MARKETING_APPROVAL'
+          )
+            return false;
+        } else if (!isPending) {
+          return false;
+        }
+
+        if (!canViewUnapproved) {
           return false;
         }
       } else if (statusFilter !== 'ALL' && statusFilter !== '' && evt.status !== statusFilter) {
@@ -798,14 +825,17 @@ export default function CalendarPage() {
 
           {canCreateEvents && (
             <button
-              onClick={() => setStatusFilter('PENDING_CLIENT_APPROVAL')}
+              onClick={() => setStatusFilter('PENDING_APPROVAL')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                statusFilter === 'PENDING_CLIENT_APPROVAL' || statusFilter === 'PENDING_CLIENT_REVIEW'
+                statusFilter === 'PENDING_APPROVAL' ||
+                statusFilter === 'PENDING_CLIENT_APPROVAL' ||
+                statusFilter === 'PENDING_MARKETING_APPROVAL' ||
+                statusFilter === 'PENDING_CLIENT_REVIEW'
                   ? 'bg-amber-500 text-slate-950 shadow'
                   : 'bg-gray-900 text-amber-400 hover:text-white border border-gray-800'
               }`}
             >
-              <Clock className="w-3.5 h-3.5" /> My Pending Creations
+              <Clock className="w-3.5 h-3.5" /> Pending Approvals
             </button>
           )}
 
@@ -1011,6 +1041,8 @@ export default function CalendarPage() {
                     className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 font-medium text-xs"
                   >
                     <option value="">Operational Calendar (Approved Only)</option>
+                    <option value="PENDING_APPROVAL">All Pending Approvals</option>
+                    <option value="PENDING_MARKETING_APPROVAL">Pending Marketing Approval</option>
                     <option value="PENDING_CLIENT_APPROVAL">Pending Client Sign-off</option>
                     <option value="CHANGES_REQUESTED">Changes Requested by Client</option>
                     <option value="DRAFT">Draft Events</option>
@@ -1447,7 +1479,7 @@ export default function CalendarPage() {
                   </Link>
                 ) : null}
 
-                {(user?.role === 'MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && eventItem.status !== 'CANCELLED' && (
+                {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && eventItem.status !== 'CANCELLED' && (
                   <div className="flex gap-1.5 flex-wrap items-center">
                     {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
                       ['APPROVED', 'READY', 'APPROVED_BY_MARKETING'].includes(eventItem.status) ||
@@ -1555,7 +1587,7 @@ export default function CalendarPage() {
             )}
 
             {/* Approved Event Edit Request Alert Banner */}
-            {editingEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+            {editingEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
               <div className="p-3.5 bg-amber-950/60 border border-amber-500/50 rounded-xl space-y-2 text-xs">
                 <div className="flex items-center gap-2 font-bold text-amber-300">
                   <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
@@ -2222,15 +2254,17 @@ export default function CalendarPage() {
               <button
                 type="submit"
                 className={`px-4 py-2 text-white rounded font-semibold transition-all ${
-                  editingEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN')
+                  editingEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN')
                     ? 'bg-amber-600 hover:bg-amber-500 shadow-lg shadow-amber-600/30 font-bold'
                     : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/30'
                 }`}
               >
                 {editingEvent
-                  ? ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN')
+                  ? ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN')
                     ? 'Submit Edit Request'
                     : 'Save Event'
+                  : user?.role === 'SOCIAL_MEDIA_MANAGER'
+                  ? 'Schedule Event (Requires Marketing Approval)'
                   : 'Schedule Event'}
               </button>
             </div>
@@ -2521,55 +2555,93 @@ export default function CalendarPage() {
               </div>
             )}
 
-            {/* PERMANENT EDIT HISTORY SECTION */}
-            {viewModalEvent.editHistories && viewModalEvent.editHistories.length > 0 && (
-              <div className="p-4 bg-gray-950 rounded-xl border border-gray-800 space-y-3 text-xs">
-                <div className="font-bold uppercase text-[10px] tracking-wider text-purple-400 border-b border-gray-900 pb-1 flex items-center justify-between">
-                  <span>📜 Approved Edit History ({viewModalEvent.editHistories.length})</span>
-                  {viewModalEvent.lastModifiedBy && (
-                    <span className="text-[9px] text-gray-400 normal-case">
-                      Last Edited By: <strong className="text-gray-200">{viewModalEvent.lastModifiedBy.name}</strong>
-                    </span>
-                  )}
-                </div>
-                <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                  {viewModalEvent.editHistories.map((hist: any, index: number) => {
-                    const changesObj = typeof hist.changes === 'string' ? JSON.parse(hist.changes || '{}') : (hist.changes || {});
-                    return (
-                      <div key={hist.id || index} className="p-3 bg-gray-900 border border-gray-800 rounded-lg space-y-2 text-xs">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="font-bold text-cyan-300">Edit #{viewModalEvent.editHistories.length - index}</span>
-                          <span className="text-gray-400 text-[10px]">{new Date(hist.approvedAt).toLocaleString()}</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-400 bg-gray-950 p-2 rounded">
-                          <div>Requested By: <strong className="text-white">{hist.requestedBy?.name || 'Media Manager'}</strong></div>
-                          <div>Approved By: <strong className="text-emerald-400">{hist.approvedBy?.name || 'Marketing Manager'}</strong></div>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase">Field Changes:</span>
-                          <div className="space-y-1 text-[11px]">
-                            {Object.keys(changesObj).length === 0 ? (
-                              <span className="text-gray-500 italic">No specific field changes recorded</span>
-                            ) : (
-                              Object.keys(changesObj).map((field) => (
-                                <div key={field} className="flex items-center justify-between bg-gray-950/60 px-2 py-1 rounded border border-gray-800">
-                                  <span className="font-mono text-gray-300 capitalize">{field}:</span>
-                                  <span className="font-mono text-gray-400">
-                                    <span className="line-through text-red-400">{String(changesObj[field]?.from ?? 'None')}</span>
-                                    {' → '}
-                                    <span className="text-emerald-400 font-bold">{String(changesObj[field]?.to ?? 'None')}</span>
-                                  </span>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            {/* PERMANENT EVENT TIMELINE & UPDATIONS HISTORY SECTION */}
+            {(() => {
+              const timelineEntries: TimelineEntry[] = [];
+
+              // 1. Creation event
+              if (viewModalEvent.createdAt || viewModalEvent.shootDate) {
+                timelineEntries.push({
+                  id: `created-${viewModalEvent.id}`,
+                  createdAt: viewModalEvent.createdAt || viewModalEvent.shootDate,
+                  action: 'EVENT_CREATED',
+                  user: viewModalEvent.createdBy || { name: viewModalEvent.createdByRole ? viewModalEvent.createdByRole.replace(/_/g, ' ') : 'Media Operations' },
+                  description: `Media calendar event "${viewModalEvent.title || viewModalEvent.name || viewModalEvent.eventId}" scheduled for ${viewModalEvent.shootDate ? new Date(viewModalEvent.shootDate).toLocaleDateString() : 'shoot'}. Initial Status: ${(viewModalEvent.status || 'DRAFT').replace(/_/g, ' ')}.`,
+                });
+              }
+
+              // 2. Approval History
+              if (Array.isArray(viewModalEvent.approvalHistory)) {
+                viewModalEvent.approvalHistory.forEach((ah: any, idx: number) => {
+                  timelineEntries.push({
+                    id: ah.id || `ah-${idx}`,
+                    createdAt: ah.timestamp || ah.createdAt,
+                    action: ah.action || 'APPROVAL_UPDATE',
+                    user: ah.user || { role: ah.role || 'MARKETING_MANAGER' },
+                    description: ah.comment || (ah.newStatus ? `Status transitioned from ${ah.previousStatus || 'NONE'} to ${ah.newStatus}` : 'Approval action recorded'),
+                    remarks: ah.comment,
+                  });
+                });
+              }
+
+              // 3. Edit Histories
+              if (Array.isArray(viewModalEvent.editHistories)) {
+                viewModalEvent.editHistories.forEach((eh: any, idx: number) => {
+                  const changesObj = typeof eh.changes === 'string' ? JSON.parse(eh.changes || '{}') : (eh.changes || {});
+                  timelineEntries.push({
+                    id: eh.id || `eh-${idx}`,
+                    createdAt: eh.approvedAt || eh.createdAt,
+                    action: 'EDIT_APPROVED_AND_APPLIED',
+                    user: eh.approvedBy || { name: 'Marketing Manager' },
+                    description: `Edit requested by ${eh.requestedBy?.name || 'Media Manager'} was approved and applied.`,
+                    changes: changesObj,
+                  });
+                });
+              }
+
+              // 4. Edit Requests
+              if (Array.isArray(viewModalEvent.editRequests)) {
+                viewModalEvent.editRequests.forEach((er: any, idx: number) => {
+                  if (er.status === 'PENDING_MARKETING_APPROVAL') {
+                    timelineEntries.push({
+                      id: er.id || `er-${idx}`,
+                      createdAt: er.createdAt,
+                      action: 'EDIT_REQUEST_SUBMITTED',
+                      user: er.requestedBy || { name: 'Media Manager' },
+                      description: `Edit request submitted: "${er.reason || 'Proposed updates awaiting review'}"`,
+                    });
+                  } else if (er.status === 'REJECTED') {
+                    timelineEntries.push({
+                      id: er.id || `er-${idx}`,
+                      createdAt: er.reviewedAt || er.updatedAt || er.createdAt,
+                      action: 'EDIT_REJECTED',
+                      user: er.reviewedBy || { name: 'Marketing Manager' },
+                      description: `Edit request rejected. Reason: "${er.rejectionReason || er.reason || 'Changes not approved'}"`,
+                    });
+                  }
+                });
+              }
+
+              // 5. Staff Assignment
+              if (viewModalEvent.assignedStaff && viewModalEvent.assignedStaff.name) {
+                timelineEntries.push({
+                  id: `assigned-${viewModalEvent.id}`,
+                  createdAt: viewModalEvent.createdAt || viewModalEvent.shootDate,
+                  action: 'STAFF_ASSIGNED',
+                  user: viewModalEvent.approvalAssignedTo || viewModalEvent.createdBy || { name: 'Management' },
+                  description: `Event assigned to staff member: ${viewModalEvent.assignedStaff.name} (${viewModalEvent.assignedStaff.role ? viewModalEvent.assignedStaff.role.replace(/_/g, ' ') : 'Staff'})`,
+                });
+              }
+
+              return (
+                <TimelineView
+                  entries={timelineEntries}
+                  title="Event Lifecycle & Timeline History"
+                  order="desc"
+                  emptyMessage="No event lifecycle history recorded yet."
+                />
+              );
+            })()}
 
             {/* Modal Actions Footer */}
             <div className="flex items-center justify-between border-t border-gray-800 pt-4">

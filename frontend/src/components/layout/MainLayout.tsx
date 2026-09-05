@@ -30,6 +30,23 @@ export function MainLayout({
 
   useEffect(() => {
     setMounted(true);
+
+    const handleGlobalDateInputClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        target.tagName === 'INPUT' &&
+        ((target as HTMLInputElement).type === 'date' || (target as HTMLInputElement).type === 'datetime-local')
+      ) {
+        try {
+          (target as HTMLInputElement).showPicker?.();
+        } catch (err) {}
+      }
+    };
+    document.addEventListener('click', handleGlobalDateInputClick, true);
+    return () => {
+      document.removeEventListener('click', handleGlobalDateInputClick, true);
+    };
   }, []);
 
   useEffect(() => {

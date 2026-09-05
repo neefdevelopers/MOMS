@@ -138,12 +138,26 @@ export class ReportsService {
             project: { select: { id: true, name: true, projectId: true } },
             script: { select: { id: true, name: true, scriptId: true } },
             graphicRequirement: { select: { id: true, name: true, requirementId: true } },
+            assignedEmployees: true,
           },
         },
       },
     });
 
-    const myTasks = assignedTaskRecords.map((at) => at.task).filter(Boolean);
+    const myTasks = assignedTaskRecords.map((at) => ({
+      ...at.task,
+      userAssignment: {
+        acceptanceStatus: at.acceptanceStatus,
+        acceptedAt: at.acceptedAt,
+      },
+      assignedEmployees: at.task?.assignedEmployees || [at],
+    })).filter((t) => Boolean(t.id));
+
+    // Tasks accepted by assigned person
+    const acceptedTasks = assignedTaskRecords
+      .filter((at) => at.acceptanceStatus === 'ACCEPTED')
+      .map((at) => at.task)
+      .filter(Boolean);
 
     // Today's Tasks
     const todaysTasks = myTasks.filter((t) => {
@@ -154,7 +168,8 @@ export class ReportsService {
     // Pending Tasks
     const pendingTasks = myTasks.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
 
-    // 2. Assigned Scripts
+    // 2. Assigned Scripts (Direct script assignment or Accepted task linkage)
+    const acceptedScriptIds = acceptedTasks.map((t) => t.scriptId).filter(Boolean) as string[];
     const scriptAssignments = await this.prisma.scriptAssignment.findMany({
       where: { userId },
       include: {
@@ -166,16 +181,29 @@ export class ReportsService {
         },
       },
     });
-    const myScripts = scriptAssignments.map((sa) => sa.script).filter(Boolean);
+    const directScripts = scriptAssignments.map((sa) => sa.script).filter(Boolean);
+    const taskScripts = acceptedScriptIds.length > 0
+      ? await this.prisma.script.findMany({
+          where: { id: { in: acceptedScriptIds } },
+          include: {
+            project: { select: { id: true, name: true, projectId: true } },
+            brand: { select: { name: true } },
+          },
+        })
+      : [];
+    const myScriptsMap = new Map();
+    [...directScripts, ...taskScripts].forEach((s) => {
+      if (s && s.id) myScriptsMap.set(s.id, s);
+    });
+    const myScripts = Array.from(myScriptsMap.values());
 
-    // 3. Assigned Graphic Requirements
-    const graphicReqIds = myTasks.map((t) => t.graphicRequirementId).filter(Boolean) as string[];
+    // 3. Assigned Graphic Requirements (ONLY after task is ACCEPTED by the assigned person)
+    const acceptedGraphicReqIds = acceptedTasks.map((t) => t.graphicRequirementId).filter(Boolean) as string[];
     const myGraphicRequirements = await this.prisma.graphicRequirement.findMany({
       where: {
         OR: [
-          { id: { in: graphicReqIds } },
-          { tasks: { some: { assignedEmployees: { some: { userId } } } } },
-          { project: { assignedTeam: { some: { userId } } } },
+          { id: { in: acceptedGraphicReqIds } },
+          { tasks: { some: { assignedEmployees: { some: { userId, acceptanceStatus: 'ACCEPTED' } } } } },
           { project: { createdById: userId } },
         ],
       },
@@ -185,14 +213,15 @@ export class ReportsService {
       },
     });
 
-    // 4. Current Projects
+    // 4. Current Projects (ONLY after task is ACCEPTED by the assigned person or created by user)
+    const acceptedProjectIdsFromTasks = acceptedTasks.map((t) => t.projectId).filter(Boolean) as string[];
     const myProjects = await this.prisma.shootProject.findMany({
       where: {
         status: { not: 'ARCHIVED' },
         OR: [
           { createdById: userId },
-          { assignedTeam: { some: { userId } } },
-          { tasks: { some: { assignedEmployees: { some: { userId } } } } },
+          { id: { in: acceptedProjectIdsFromTasks } },
+          { tasks: { some: { assignedEmployees: { some: { userId, acceptanceStatus: 'ACCEPTED' } } } } },
           { scripts: { some: { scriptAssignments: { some: { userId } } } } },
         ],
       },
@@ -562,6 +591,10 @@ export class ReportsService {
       notifications,
       recentActivity,
       equipmentAlerts,
+      approvedGraphics,
+      approvedScripts,
+      approvedTasks,
+      approvedProjects,
     ] = await Promise.all([
       // 1. Pending Technical Reviews / Approvals
       this.prisma.approval.findMany({
@@ -582,7 +615,7 @@ export class ReportsService {
       // 2. Scripts Awaiting Technical Review
       this.prisma.script.findMany({
         where: {
-          status: { in: ['WAITING_FOR_TECHNICAL_REVIEW', 'SUBMITTED_FOR_REVIEW', 'TECHNICAL_REVIEW_PENDING', 'PENDING'] },
+          status: { in: ['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'TECHNICAL_REVIEW_PENDING', 'SUBMITTED_FOR_REVIEW'] },
         },
         include: {
           project: { select: { id: true, projectId: true, name: true } },
@@ -593,7 +626,7 @@ export class ReportsService {
       // 3. Graphic Requirements Awaiting Technical Review
       this.prisma.graphicRequirement.findMany({
         where: {
-          status: { in: ['WAITING_FOR_TECHNICAL_REVIEW', 'PENDING_REVIEW', 'SUBMITTED_FOR_REVIEW', 'PENDING'] },
+          status: { in: ['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW'] },
         },
         include: {
           project: { select: { id: true, projectId: true, name: true } },
@@ -605,7 +638,10 @@ export class ReportsService {
       this.prisma.shootProject.findMany({
         where: {
           lifecycle: { not: 'ARCHIVED' },
-          status: { in: ['PLANNED', 'IN_PROGRESS', 'TECHNICAL_REVIEW', 'WAITING_FOR_TECHNICAL_REVIEW'] },
+          OR: [
+            { status: { in: ['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'POST_PRODUCTION', 'COMPLETED'] } },
+            { approvals: { some: { approvalType: 'TECHNICAL_REVIEW', status: 'PENDING' } } },
+          ],
         },
         include: {
           client: { select: { name: true } },
@@ -629,7 +665,7 @@ export class ReportsService {
       // 5. Technical-Related Tasks
       this.prisma.task.findMany({
         where: {
-          status: { notIn: ['COMPLETED', 'CANCELLED'] },
+          status: { in: ['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'WAITING_FOR_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'COMPLETED'] },
         },
         include: {
           assignedEmployees: {
@@ -672,7 +708,7 @@ export class ReportsService {
         take: 15,
       }),
 
-      // Equipment items needing technical service
+      // 8. Equipment items needing technical service
       this.prisma.equipment.findMany({
         where: {
           isArchived: false,
@@ -683,6 +719,88 @@ export class ReportsService {
           ],
         },
         select: { id: true, equipmentId: true, name: true, availability: true, maintenanceStatus: true },
+      }),
+
+      // 9. Approved Graphic Requirements (Post-Technical Approval with live downstream updates)
+      this.prisma.graphicRequirement.findMany({
+        where: {
+          OR: [
+            { technicalReviewApproved: true },
+            { status: { in: ['WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED', 'CLOSED'] } },
+          ],
+        },
+        include: {
+          project: { select: { id: true, projectId: true, name: true } },
+          tasks: { select: { id: true, title: true, status: true, completionPercentage: true } },
+          deliverables: { select: { id: true, name: true, status: true, fileUrl: true } },
+          remarksHistory: {
+            include: { user: { select: { id: true, name: true, role: true } } },
+            orderBy: { createdAt: 'desc' },
+            take: 2,
+          },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 25,
+      }),
+
+      // 10. Approved Scripts (Post-Technical Approval with live downstream updates)
+      this.prisma.script.findMany({
+        where: {
+          OR: [
+            { technicalReviewApproved: true },
+            { status: { in: ['WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'APPROVED', 'COMPLETED', 'CLOSED'] } },
+          ],
+        },
+        include: {
+          project: { select: { id: true, projectId: true, name: true } },
+          scriptRemarks: {
+            include: { user: { select: { id: true, name: true, role: true } } },
+            orderBy: { createdAt: 'desc' },
+            take: 2,
+          },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 25,
+      }),
+
+      // 11. Approved Tasks (Post-Technical Approval with live downstream updates)
+      this.prisma.task.findMany({
+        where: {
+          OR: [
+            { technicalReviewApproved: true },
+            { status: { in: ['WAITING_FOR_MEDIA_REVIEW', 'APPROVED', 'COMPLETED'] } },
+          ],
+        },
+        include: {
+          project: { select: { id: true, projectId: true, name: true } },
+          script: { select: { id: true, scriptId: true, name: true } },
+          graphicRequirement: { select: { id: true, requirementId: true, name: true } },
+          remarksHistory: {
+            include: { user: { select: { id: true, name: true, role: true } } },
+            orderBy: { createdAt: 'desc' },
+            take: 2,
+          },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 25,
+      }),
+
+      // 12. Approved Projects / Events (Post-Technical Approval with live downstream updates)
+      this.prisma.shootProject.findMany({
+        where: {
+          lifecycle: { not: 'ARCHIVED' },
+          OR: [
+            { status: { in: ['WAITING_FOR_MEDIA_REVIEW', 'POST_PRODUCTION', 'COMPLETED', 'CLOSED'] } },
+            { approvals: { some: { approvalType: 'TECHNICAL_REVIEW', status: 'APPROVED' } } },
+          ],
+        },
+        include: {
+          client: { select: { name: true } },
+          tasks: { select: { id: true, title: true, status: true } },
+          approvals: { select: { id: true, approvalType: true, status: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 20,
       }),
     ]);
 
@@ -753,6 +871,9 @@ export class ReportsService {
     const totalWaitingForTechnicalReviewCount =
       pendingApprovals.length + scriptsAwaiting.length + graphicReqsAwaiting.length;
 
+    const totalApprovedCount =
+      approvedGraphics.length + approvedScripts.length + approvedTasks.length + approvedProjects.length;
+
     return {
       status: 'SUCCESS',
       roleScope: 'TECHNICAL_MANAGER',
@@ -768,6 +889,7 @@ export class ReportsService {
         upcomingDeadlinesCount: upcomingTechnicalDeadlines.length,
         activeTechnicalTasksCount: technicalTasks.length,
         equipmentMaintenanceCount: equipmentAlerts.length,
+        totalApprovedCount,
       },
 
       // Section Data Arrays
@@ -786,6 +908,19 @@ export class ReportsService {
       relevantNotifications: notifications,
       recentTechnicalActivity: recentActivity,
       equipmentMaintenanceAlerts: equipmentAlerts,
+
+      // Approved Technical Work with Live Downstream Updates
+      approvedTechnicalItems: {
+        totalCount: totalApprovedCount,
+        graphics: approvedGraphics,
+        scripts: approvedScripts,
+        tasks: approvedTasks,
+        projects: approvedProjects,
+      },
+      approvedGraphics,
+      approvedScripts,
+      approvedTasks,
+      approvedProjects,
     };
   }
 

@@ -29,7 +29,27 @@ export class ProjectsService {
     if (params.clientId) where.clientId = params.clientId;
     if (params.brandId) where.brandId = params.brandId;
     if (params.productId) where.productId = params.productId;
-    if (params.shootType) where.shootType = params.shootType;
+    if (params.shootType) {
+      if (params.shootType === 'INDOOR') {
+        where.shootType = 'INDOOR';
+      } else if (params.shootType === 'OUTDOOR') {
+        where.shootType = 'OUTDOOR';
+      } else if (params.shootType === 'SHOOT') {
+        where.shootType = { in: ['INDOOR', 'OUTDOOR'] };
+      } else if (params.shootType === 'GRAPHIC_REQ' || params.shootType === 'GRAPHIC_REQUIREMENT') {
+        const graphicCondition = {
+          OR: [
+            { graphicRequirements: { some: {} } },
+            { calendarEvent: { eventSource: 'GRAPHIC_REQUIREMENT' } },
+          ],
+        };
+        if (where.AND) {
+          where.AND = Array.isArray(where.AND) ? [...where.AND, graphicCondition] : [where.AND, graphicCondition];
+        } else {
+          where.AND = [graphicCondition];
+        }
+      }
+    }
     if (params.priority) where.priority = params.priority;
 
     if (params.createdBy) {
@@ -100,12 +120,12 @@ export class ProjectsService {
       ];
     }
 
-    // Role filtering for STAFF: only projects they are assigned to
+    // Role filtering for STAFF: only projects they are assigned to (with accepted task)
     if (params.role === 'STAFF' && params.userId) {
       where.OR = [
         { createdById: params.userId },
         { assignedTeam: { some: { userId: params.userId } } },
-        { tasks: { some: { assignedEmployees: { some: { userId: params.userId } } } } },
+        { tasks: { some: { assignedEmployees: { some: { userId: params.userId, acceptanceStatus: 'ACCEPTED' } } } } },
         { scripts: { some: { scriptAssignments: { some: { userId: params.userId } } } } },
       ];
     }

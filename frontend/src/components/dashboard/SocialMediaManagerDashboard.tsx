@@ -45,7 +45,13 @@ export default function SocialMediaManagerDashboard() {
   }, []);
 
   const drafts = events.filter((e) => e.status === 'DRAFT');
-  const pendingClient = events.filter((e) => e.status === 'PENDING_CLIENT_APPROVAL' || e.status === 'PENDING_CLIENT_REVIEW');
+  const pendingClient = events.filter(
+    (e) =>
+      e.status === 'PENDING_CLIENT_APPROVAL' ||
+      e.status === 'PENDING_CLIENT_REVIEW' ||
+      e.status === 'PENDING_MARKETING_APPROVAL' ||
+      e.status === 'WAITING_FOR_MARKETING_APPROVAL',
+  );
   const changesRequested = events.filter((e) => e.status === 'CHANGES_REQUESTED');
   const clientApproved = events.filter((e) => e.status === 'APPROVED' || e.status === 'CLIENT_APPROVED' || e.status === 'SCHEDULED' || e.status === 'PUBLISHED');
 
