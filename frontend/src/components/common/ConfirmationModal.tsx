@@ -121,14 +121,14 @@ export function ConfirmationModal({
   const isWarning = details.variant === 'warning';
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-      <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl relative">
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl relative">
         {/* Close Button */}
         <button
           type="button"
           onClick={onClose}
           disabled={loading}
-          className="absolute right-4 top-4 text-gray-400 hover:text-white p-1 rounded-lg transition-colors"
+          className="absolute right-4 top-4 text-slate-400 hover:text-slate-700 p-1 rounded-lg transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -136,20 +136,20 @@ export function ConfirmationModal({
         {/* Modal Header */}
         <div className="flex items-start gap-3">
           <div
-            className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border shadow-md ${
+            className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border shadow-xs ${
               isDanger
-                ? 'bg-red-500/15 text-red-400 border-red-500/30'
+                ? 'bg-rose-50 text-rose-600 border-rose-200'
                 : isWarning
-                ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                : 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                ? 'bg-amber-50 text-amber-600 border-amber-200'
+                : 'bg-blue-50 text-blue-600 border-blue-200'
             }`}
           >
             <IconComponent className="w-6 h-6" />
           </div>
 
           <div className="space-y-1 min-w-0 pr-6">
-            <h3 className="text-base font-bold text-white leading-snug">{details.title}</h3>
-            <p className="text-xs text-gray-300 leading-relaxed">{details.description}</p>
+            <h3 className="text-base font-bold text-slate-900 leading-snug">{details.title}</h3>
+            <p className="text-xs text-slate-500 leading-relaxed">{details.description}</p>
           </div>
         </div>
 
@@ -157,22 +157,22 @@ export function ConfirmationModal({
         <div
           className={`p-3 rounded-xl border text-xs leading-relaxed ${
             isDanger
-              ? 'bg-red-950/40 border-red-800/60 text-red-300'
+              ? 'bg-rose-50/70 border-rose-200 text-rose-800'
               : isWarning
-              ? 'bg-amber-950/30 border-amber-800/50 text-amber-300'
-              : 'bg-blue-950/30 border-blue-800/50 text-blue-300'
+              ? 'bg-amber-50/70 border-amber-200 text-amber-800'
+              : 'bg-blue-50/70 border-blue-200 text-blue-800'
           }`}
         >
           <p className="font-medium">{details.consequences}</p>
         </div>
 
         {/* Modal Action Buttons */}
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
           >
             {cancelLabel}
           </button>
@@ -184,10 +184,10 @@ export function ConfirmationModal({
             disabled={loading}
             className={`px-4 py-2 text-white rounded-lg text-xs font-bold transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50 ${
               isDanger
-                ? 'bg-red-600 hover:bg-red-500 shadow-red-600/30'
+                ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/20'
                 : isWarning
-                ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/30'
-                : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/30'
+                ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20'
+                : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/20'
             }`}
           >
             {loading ? 'Processing...' : confirmLabel || details.confirmLabel}

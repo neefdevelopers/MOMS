@@ -2,7 +2,16 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface ToggleFavoriteDto {
-  entityType: 'PROJECT' | 'SCRIPT' | 'GRAPHIC_REQUIREMENT' | 'TASK' | 'REPORT';
+  entityType:
+    | 'PROJECT'
+    | 'SCRIPT'
+    | 'GRAPHIC_REQUIREMENT'
+    | 'TASK'
+    | 'CALENDAR_EVENT'
+    | 'CLIENT'
+    | 'BRAND'
+    | 'PRODUCT'
+    | 'REPORT';
   entityId: string;
   title: string;
   code?: string;

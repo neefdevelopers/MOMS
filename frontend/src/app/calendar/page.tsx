@@ -258,7 +258,7 @@ export default function CalendarPage() {
       (e) => e.graphicRequirementId === reqId && e.status !== 'CANCELLED' && e.status !== 'REJECTED',
     );
     if (existingEvent) {
-      alert(`⚠️ This Graphic Requirement already has a Media Calendar Event (ID: ${existingEvent.eventId || existingEvent.id}).`);
+      alert(`This Graphic Requirement already has a Media Calendar Event (ID: ${existingEvent.eventId || existingEvent.id}).`);
     }
 
     const deadlineStr = selectedGr.estimatedCompletion
@@ -296,7 +296,7 @@ export default function CalendarPage() {
       (e) => e.shootId === sId && e.status !== 'CANCELLED' && e.status !== 'REJECTED',
     );
     if (existingEvent) {
-      alert(`⚠️ This Shoot already has a Media Calendar Event (ID: ${existingEvent.eventId || existingEvent.id}).`);
+      alert(`This Shoot already has a Media Calendar Event (ID: ${existingEvent.eventId || existingEvent.id}).`);
     }
 
     const shootDateStr = selectedShoot.shootDate
@@ -383,7 +383,7 @@ export default function CalendarPage() {
               reason: editReason || 'Requested changes to approved calendar event',
             }),
           });
-          alert('✓ Edit Request Submitted!\n\nYour requested modifications have been sent to the Marketing Manager for approval. The original live event remains unchanged until approved.');
+          alert('Edit Request Submitted!\n\nYour requested modifications have been sent to the Marketing Manager for approval. The original live event remains unchanged until approved.');
         } else {
           await fetchApi(`/calendar/${editingEvent.id}`, {
             method: 'PUT',
@@ -716,37 +716,27 @@ export default function CalendarPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card border border-border p-6 rounded-xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 p-6 rounded-xl">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5 text-blue-400" /> Operational Media Shoot Calendar
+          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <CalendarIcon className="w-5 h-5 text-blue-600" /> Operational Media Shoot Calendar
           </h1>
-          <p className="text-xs text-gray-400 mt-1">
-            Centralized calendar for planning Indoor Studio shoots vs Outdoor Field shoots across active client accounts.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           {/* Period Navigation Controls */}
           {viewMode !== 'all' && (
-            <div className="flex items-center bg-gray-900 border border-gray-800 rounded-lg p-1 text-xs">
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg p-1 text-xs">
               <button
                 onClick={() => navigatePeriod(-1)}
-                className="p-1 text-gray-400 hover:text-white rounded hover:bg-gray-800 transition-colors"
+                className="p-1 text-slate-500 hover:text-slate-900 rounded hover:bg-slate-100 transition-colors"
                 title="Previous Period"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setCurrentDate(new Date())}
-                className="px-2.5 py-1 text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors"
-                title="Jump to Today"
-              >
-                Today
-              </button>
-              <button
                 onClick={() => navigatePeriod(1)}
-                className="p-1 text-gray-400 hover:text-white rounded hover:bg-gray-800 transition-colors"
+                className="p-1 text-slate-500 hover:text-slate-900 rounded hover:bg-slate-100 transition-colors"
                 title="Next Period"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -755,28 +745,28 @@ export default function CalendarPage() {
           )}
 
           {/* View Mode Toggle */}
-          <div className="flex bg-gray-900 border border-gray-800 p-1 rounded-lg text-xs font-semibold">
+          <div className="flex bg-slate-50 border border-slate-200 p-1 rounded-lg text-xs font-semibold">
             <button
               onClick={() => setViewMode('month')}
-              className={`px-3 py-1 rounded transition-colors ${viewMode === 'month' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`px-3 py-1 rounded transition-colors ${viewMode === 'month' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-900'}`}
             >
               Month
             </button>
             <button
               onClick={() => setViewMode('week')}
-              className={`px-3 py-1 rounded transition-colors ${viewMode === 'week' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`px-3 py-1 rounded transition-colors ${viewMode === 'week' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-900'}`}
             >
               Week
             </button>
             <button
               onClick={() => setViewMode('day')}
-              className={`px-3 py-1 rounded transition-colors ${viewMode === 'day' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`px-3 py-1 rounded transition-colors ${viewMode === 'day' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-900'}`}
             >
               Day
             </button>
             <button
               onClick={() => setViewMode('all')}
-              className={`px-3 py-1 rounded transition-colors ${viewMode === 'all' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`px-3 py-1 rounded transition-colors ${viewMode === 'all' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-900'}`}
             >
               All
             </button>
@@ -785,10 +775,10 @@ export default function CalendarPage() {
           {/* Sort Order Toggle */}
           <button
             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="px-3 py-1.5 bg-gray-900 border border-gray-800 hover:border-gray-700 text-gray-300 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            className="px-3 py-1.5 bg-slate-50 border border-slate-200 hover:border-slate-200 text-slate-700 hover:text-slate-900 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
             title="Toggle Date Sort Order"
           >
-            <ArrowUpDown className="w-3.5 h-3.5 text-blue-400" />
+            <ArrowUpDown className="w-3.5 h-3.5 text-blue-600" />
             <span>{sortOrder === 'asc' ? 'Earliest First' : 'Latest First'}</span>
           </button>
 
@@ -809,15 +799,15 @@ export default function CalendarPage() {
       </div>
 
       {/* User-Friendly Project-Style Filter Panel */}
-      <div className="bg-card border border-border p-5 rounded-xl space-y-4 text-xs shadow-md">
+      <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-4 text-xs shadow-md">
         {/* Quick View Tab Pills */}
-        <div className="flex items-center gap-2 pb-1 border-b border-gray-800 flex-wrap">
+        <div className="flex items-center gap-2 pb-1 border-b border-slate-200 flex-wrap">
           <button
             onClick={() => setStatusFilter('OPERATIONAL')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               statusFilter === 'OPERATIONAL' || !statusFilter
                 ? 'bg-blue-600 text-white shadow'
-                : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+                : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
             }`}
           >
             Operational Calendar (Approved)
@@ -832,7 +822,7 @@ export default function CalendarPage() {
                 statusFilter === 'PENDING_MARKETING_APPROVAL' ||
                 statusFilter === 'PENDING_CLIENT_REVIEW'
                   ? 'bg-amber-500 text-slate-950 shadow'
-                  : 'bg-gray-900 text-amber-400 hover:text-white border border-gray-800'
+                  : 'bg-slate-50 text-amber-600 hover:text-slate-900 border border-slate-200'
               }`}
             >
               <Clock className="w-3.5 h-3.5" /> Pending Approvals
@@ -844,7 +834,7 @@ export default function CalendarPage() {
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               statusFilter === 'ALL'
                 ? 'bg-purple-600 text-white shadow'
-                : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+                : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
             }`}
           >
             All Events
@@ -855,18 +845,18 @@ export default function CalendarPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Keyword Search Input */}
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
             <input
               type="text"
               placeholder="Search calendar events by Title, Client, Brand, Product, Talent, Notes..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 focus:border-blue-500 rounded-xl pl-9 pr-8 py-2.5 text-white font-medium focus:outline-none transition-all placeholder:text-gray-500"
+              className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl pl-9 pr-8 py-2.5 text-slate-800 font-medium focus:outline-none transition-all placeholder:text-slate-400"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-white"
+                className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-900"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -880,11 +870,11 @@ export default function CalendarPage() {
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
               className={`px-3.5 py-2 rounded-lg font-semibold flex items-center gap-1.5 transition-colors border ${
                 showAdvancedFilters || (clientIdFilter || brandIdFilter || shootTypeFilter || eventSourceFilter || statusFilter || priorityFilter || dateFilter)
-                  ? 'bg-purple-600/20 text-purple-300 border-purple-500/50'
-                  : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-600'
+                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
               }`}
             >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-purple-400" />
+              <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600" />
               <span>Advanced Filters</span>
               {([clientIdFilter, brandIdFilter, shootTypeFilter, eventSourceFilter, statusFilter, priorityFilter, dateFilter].filter(Boolean).length > 0) && (
                 <span className="w-4 h-4 rounded-full bg-purple-500 text-white font-bold text-[10px] flex items-center justify-center">
@@ -905,7 +895,7 @@ export default function CalendarPage() {
                   setPriorityFilter('');
                   setDateFilter('');
                 }}
-                className="px-3 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-800/40 text-red-300 rounded-lg font-semibold flex items-center gap-1.5 transition-colors"
+                className="px-3 py-2 bg-rose-50 hover:bg-red-900/60 border border-rose-200 text-rose-700 rounded-lg font-semibold flex items-center gap-1.5 transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Reset Filters
               </button>
@@ -915,48 +905,48 @@ export default function CalendarPage() {
 
         {/* Active Filter Chips / Pills */}
         {(clientIdFilter || brandIdFilter || shootTypeFilter || eventSourceFilter || statusFilter || priorityFilter || dateFilter) && (
-          <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-gray-800">
-            <span className="text-gray-500 text-[11px] font-semibold">Active Filters:</span>
+          <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-200">
+            <span className="text-slate-400 text-[11px] font-semibold">Active Filters:</span>
             {clientIdFilter && (
-              <span className="px-2.5 py-1 bg-purple-950 text-purple-300 border border-purple-800 rounded-full flex items-center gap-1 text-[11px]">
+              <span className="px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-full flex items-center gap-1 text-[11px]">
                 Client: {clients.find((c) => c.id === clientIdFilter)?.name}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setClientIdFilter('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setClientIdFilter('')} />
               </span>
             )}
             {brandIdFilter && (
-              <span className="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded-full flex items-center gap-1 text-[11px]">
+              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full flex items-center gap-1 text-[11px]">
                 Brand: [{brands.find((b) => b.id === brandIdFilter)?.shortCode}] {brands.find((b) => b.id === brandIdFilter)?.name}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setBrandIdFilter('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setBrandIdFilter('')} />
               </span>
             )}
             {shootTypeFilter && (
-              <span className="px-2.5 py-1 bg-blue-950 text-blue-300 border border-blue-800 rounded-full flex items-center gap-1 text-[11px]">
+              <span className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full flex items-center gap-1 text-[11px]">
                 Location: {shootTypeFilter === 'INDOOR' ? 'Indoor Studio' : 'Outdoor Field'}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setShootTypeFilter('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setShootTypeFilter('')} />
               </span>
             )}
             {eventSourceFilter && (
-              <span className="px-2.5 py-1 bg-indigo-950 text-indigo-300 border border-indigo-800 rounded-full flex items-center gap-1 text-[11px]">
+              <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full flex items-center gap-1 text-[11px]">
                 Requirement: {eventSourceFilter === 'GRAPHIC_REQUIREMENT' ? 'Graphic Requirement' : 'Shoot Project'}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setEventSourceFilter('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setEventSourceFilter('')} />
               </span>
             )}
             {statusFilter && (
-              <span className="px-2.5 py-1 bg-cyan-950 text-cyan-300 border border-cyan-800 rounded-full flex items-center gap-1 text-[11px]">
+              <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 border border-cyan-200 rounded-full flex items-center gap-1 text-[11px]">
                 Status: {statusFilter}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setStatusFilter('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setStatusFilter('')} />
               </span>
             )}
             {priorityFilter && (
-              <span className="px-2.5 py-1 bg-amber-950 text-amber-300 border border-amber-800 rounded-full flex items-center gap-1 text-[11px]">
+              <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full flex items-center gap-1 text-[11px]">
                 Priority: {priorityFilter}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setPriorityFilter('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setPriorityFilter('')} />
               </span>
             )}
             {dateFilter && (
-              <span className="px-2.5 py-1 bg-gray-800 text-gray-200 border border-gray-700 rounded-full flex items-center gap-1 text-[11px] font-mono">
+              <span className="px-2.5 py-1 bg-slate-100 text-slate-800 border border-slate-200 rounded-full flex items-center gap-1 text-[11px] font-mono">
                 Date: {dateFilter}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setDateFilter('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setDateFilter('')} />
               </span>
             )}
           </div>
@@ -964,12 +954,12 @@ export default function CalendarPage() {
 
         {/* Expandable Grouped Advanced Filters Drawer */}
         {showAdvancedFilters && (
-          <div className="pt-3 border-t border-gray-800 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="pt-3 border-t border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {/* Group 1: Commercial Context */}
-              <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
-                <div className="font-bold text-purple-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-purple-400" /> Commercial Context
+              <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                <div className="font-bold text-purple-700 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-purple-600" /> Commercial Context
                 </div>
                 <div className="space-y-2">
                   <select
@@ -978,7 +968,7 @@ export default function CalendarPage() {
                       setClientIdFilter(e.target.value);
                       setBrandIdFilter('');
                     }}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 focus:bg-white font-medium text-xs"
                   >
                     <option value="">All Clients</option>
                     {clients.map((c) => (
@@ -989,7 +979,7 @@ export default function CalendarPage() {
                   <select
                     value={brandIdFilter}
                     onChange={(e) => setBrandIdFilter(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 focus:bg-white font-medium text-xs"
                   >
                     <option value="">All Brands</option>
                     {brands
@@ -1002,15 +992,15 @@ export default function CalendarPage() {
               </div>
 
               {/* Group 2: Shoot Location & Requirements Source */}
-              <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
-                <div className="font-bold text-cyan-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-cyan-400" /> Shoot Location &amp; Requirements
+              <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                <div className="font-bold text-cyan-700 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-cyan-600" /> Shoot Location &amp; Requirements
                 </div>
                 <div className="space-y-2">
                   <select
                     value={shootTypeFilter}
                     onChange={(e) => setShootTypeFilter(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500 focus:bg-white font-medium text-xs"
                   >
                     <option value="">All Shoot Locations (Indoor &amp; Outdoor)</option>
                     <option value="INDOOR">Indoor Studio Shoot</option>
@@ -1020,7 +1010,7 @@ export default function CalendarPage() {
                   <select
                     value={eventSourceFilter}
                     onChange={(e) => setEventSourceFilter(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500 font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500 focus:bg-white font-medium text-xs"
                   >
                     <option value="">All Requirements &amp; Sources</option>
                     <option value="GRAPHIC_REQUIREMENT">Graphic Requirements Only</option>
@@ -1030,15 +1020,15 @@ export default function CalendarPage() {
               </div>
 
               {/* Group 3: Event Status */}
-              <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
-                <div className="font-bold text-blue-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Video className="w-3.5 h-3.5 text-blue-400" /> Event Status
+              <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                <div className="font-bold text-blue-700 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Video className="w-3.5 h-3.5 text-blue-600" /> Event Status
                 </div>
                 <div className="space-y-2">
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white font-medium text-xs"
                   >
                     <option value="">Operational Calendar (Approved Only)</option>
                     <option value="PENDING_APPROVAL">All Pending Approvals</option>
@@ -1053,15 +1043,15 @@ export default function CalendarPage() {
               </div>
 
               {/* Group 4: Priority & Date */}
-              <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
-                <div className="font-bold text-amber-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Flame className="w-3.5 h-3.5 text-amber-400" /> Priority &amp; Shoot Date
+              <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                <div className="font-bold text-amber-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Flame className="w-3.5 h-3.5 text-amber-600" /> Priority &amp; Shoot Date
                 </div>
                 <div className="space-y-2">
                   <select
                     value={priorityFilter}
                     onChange={(e) => setPriorityFilter(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 focus:bg-white font-medium text-xs"
                   >
                     <option value="">All Priorities</option>
                     <option value="LOW">LOW Priority</option>
@@ -1074,7 +1064,7 @@ export default function CalendarPage() {
                     type="date"
                     value={dateFilter}
                     onChange={(e) => setDateFilter(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white font-medium focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white font-medium focus:outline-none focus:border-amber-500 focus:bg-white"
                   />
                 </div>
               </div>
@@ -1086,28 +1076,28 @@ export default function CalendarPage() {
       {/* Events Stream / Cards Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
         <div className="flex items-center gap-2">
-          <CalendarIcon className="w-4 h-4 text-blue-400" />
-          <h2 className="text-sm font-bold text-white capitalize">
+          <CalendarIcon className="w-4 h-4 text-blue-600" />
+          <h2 className="text-sm font-bold text-slate-900 capitalize">
             {getPeriodTitle()}
           </h2>
-          <span className="px-2 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800 text-[10px] font-mono font-bold">
+          <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-mono font-bold">
             {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'}
           </span>
         </div>
-        <div className="text-[11px] text-gray-400">
+        <div className="text-[11px] text-slate-500">
           Sorted by Date ({sortOrder === 'asc' ? 'Earliest first' : 'Latest first'})
         </div>
       </div>
 
       {loading ? (
-        <div className="p-8 text-center text-gray-400">Loading Calendar Events...</div>
+        <div className="p-8 text-center text-slate-500">Loading Calendar Events...</div>
       ) : filteredEvents.length === 0 ? (
-        <div className="p-8 text-center bg-card border border-border rounded-xl text-gray-400 space-y-2">
-          <p>No calendar events scheduled for <strong className="text-white">{getPeriodTitle()}</strong>.</p>
+        <div className="p-8 text-center bg-white border border-slate-200 rounded-xl text-slate-500 space-y-2">
+          <p>No calendar events scheduled for <strong className="text-slate-900">{getPeriodTitle()}</strong>.</p>
           {viewMode !== 'all' && (
             <button
               onClick={() => setViewMode('all')}
-              className="text-xs text-blue-400 hover:underline font-semibold"
+              className="text-xs text-blue-600 hover:underline font-semibold"
             >
               View All Scheduled Events
             </button>
@@ -1115,9 +1105,9 @@ export default function CalendarPage() {
         </div>
       ) : viewMode === 'month' ? (
         /* INTERACTIVE MONTH CALENDAR GRID VIEW */
-        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-2xl space-y-0">
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xl space-y-0">
           {/* Month Header Days of Week */}
-          <div className="grid grid-cols-7 bg-gray-950 border-b border-gray-800 text-center text-xs font-bold text-gray-400 py-3 font-mono uppercase tracking-wider">
+          <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-200 text-center text-xs font-bold text-slate-500 py-3 font-mono uppercase tracking-wider">
             <div>Sun</div>
             <div>Mon</div>
             <div>Tue</div>
@@ -1159,12 +1149,12 @@ export default function CalendarPage() {
               cells.push(
                 <div
                   key={i}
-                  className={`min-h-[125px] p-2 border-r border-b border-gray-800/70 transition-colors flex flex-col justify-between ${
+                  className={`min-h-[125px] p-2 border-r border-b border-slate-200 transition-colors flex flex-col justify-between ${
                     !isCurrentMonth
-                      ? 'bg-gray-950/40 text-gray-700 pointer-events-none'
+                      ? 'bg-slate-50/40 text-gray-700 pointer-events-none'
                       : isToday
-                      ? 'bg-blue-950/30 border-blue-500/50'
-                      : 'bg-card hover:bg-gray-900/60'
+                      ? 'bg-blue-50 border-blue-200'
+                      : 'bg-white hover:bg-slate-50/60'
                   }`}
                 >
                   <div className="flex justify-between items-center mb-1.5">
@@ -1173,14 +1163,14 @@ export default function CalendarPage() {
                         isToday
                           ? 'bg-blue-600 text-white font-extrabold shadow-sm'
                           : isCurrentMonth
-                          ? 'text-gray-300'
+                          ? 'text-slate-700'
                           : 'text-gray-700'
                       }`}
                     >
                       {isCurrentMonth ? dayNum : ''}
                     </span>
                     {isCurrentMonth && dayEvents.length > 0 && (
-                      <span className="text-[10px] font-mono text-gray-400 font-bold">
+                      <span className="text-[10px] font-mono text-slate-500 font-bold">
                         {dayEvents.length} {dayEvents.length === 1 ? 'event' : 'events'}
                       </span>
                     )}
@@ -1194,17 +1184,17 @@ export default function CalendarPage() {
                         <div
                           key={evt.id}
                           onClick={() => setViewModalEvent(evt)}
-                          className={`p-1.5 rounded text-[10px] font-semibold border cursor-pointer truncate transition-all shadow-sm flex items-center justify-between gap-1 ${
+                          className={`p-1.5 rounded text-[10px] font-semibold border cursor-pointer truncate transition-all shadow-xs flex items-center justify-between gap-1 ${
                             hasPendingEdit
-                              ? 'bg-amber-950/90 text-amber-200 border-amber-500/80 animate-pulse'
+                              ? 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse'
                               : evt.shootType === 'INDOOR'
-                              ? 'bg-emerald-950/80 text-emerald-200 border-emerald-700/60 hover:bg-emerald-900/90'
-                              : 'bg-purple-950/80 text-purple-200 border-purple-700/60 hover:bg-purple-900/90'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                              : 'bg-purple-50 text-purple-800 border-purple-300 hover:bg-purple-100'
                           }`}
                           title={`${evt.title} (${evt.client?.name || ''})`}
                         >
                           <span className="truncate flex items-center gap-1 font-sans">
-                            {hasPendingEdit && <span title="Waiting for Edit Approval">⏳</span>}
+                            {hasPendingEdit && <span className="inline-block w-2 h-2 rounded-full bg-amber-500" title="Waiting for Edit Approval" />}
                             <span className="font-bold font-mono">[{evt.brand?.shortCode || 'EVT'}]</span> {evt.title}
                           </span>
                         </div>
@@ -1215,13 +1205,13 @@ export default function CalendarPage() {
               );
             }
 
-            return <div className="grid grid-cols-7 bg-card border-l border-t border-gray-800">{cells}</div>;
+            return <div className="grid grid-cols-7 bg-white border-l border-t border-slate-200">{cells}</div>;
           })()}
         </div>
       ) : viewMode === 'week' ? (
         /* INTERACTIVE WEEK CALENDAR GRID VIEW */
-        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-2xl space-y-0">
-          <div className="grid grid-cols-7 bg-card border-l border-t border-gray-800">
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xl space-y-0">
+          <div className="grid grid-cols-7 bg-white border-l border-t border-slate-200">
             {(() => {
               const { start } = getPeriodRange('week', currentDate);
               if (!start) return null;
@@ -1246,17 +1236,17 @@ export default function CalendarPage() {
                 weekDays.push(
                   <div
                     key={i}
-                    className={`min-h-[320px] p-3 border-r border-b border-gray-800/70 transition-colors flex flex-col justify-between ${
-                      isToday ? 'bg-blue-950/20 border-blue-500/50' : 'bg-card hover:bg-gray-900/40'
+                    className={`min-h-[320px] p-3 border-r border-b border-slate-200 transition-colors flex flex-col justify-between ${
+                      isToday ? 'bg-blue-50 border-blue-200' : 'bg-white hover:bg-slate-50/40'
                     }`}
                   >
-                    <div className="border-b border-gray-800 pb-2 mb-2 flex flex-col items-center">
-                      <span className="text-[11px] font-mono uppercase text-gray-400 font-bold">
+                    <div className="border-b border-slate-200 pb-2 mb-2 flex flex-col items-center">
+                      <span className="text-[11px] font-mono uppercase text-slate-500 font-bold">
                         {dayDate.toLocaleDateString('en-US', { weekday: 'short' })}
                       </span>
                       <span
                         className={`text-sm font-bold font-mono px-2 py-0.5 rounded-full mt-0.5 ${
-                          isToday ? 'bg-blue-600 text-white font-extrabold' : 'text-gray-200'
+                          isToday ? 'bg-blue-600 text-white font-extrabold' : 'text-slate-800'
                         }`}
                       >
                         {dayDate.getDate()}
@@ -1270,20 +1260,20 @@ export default function CalendarPage() {
                           <div
                             key={evt.id}
                             onClick={() => setViewModalEvent(evt)}
-                            className={`p-2 rounded-lg text-xs font-semibold border cursor-pointer space-y-1 transition-all shadow-sm ${
+                            className={`p-2 rounded-lg text-xs font-semibold border cursor-pointer space-y-1 transition-all shadow-xs ${
                               hasPendingEdit
-                                ? 'bg-amber-950/90 text-amber-200 border-amber-500/80 animate-pulse'
+                                ? 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse'
                                 : evt.shootType === 'INDOOR'
-                                ? 'bg-emerald-950/80 text-emerald-200 border-emerald-700/60 hover:bg-emerald-900/90'
-                                : 'bg-purple-950/80 text-purple-200 border-purple-700/60 hover:bg-purple-900/90'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                                : 'bg-purple-50 text-purple-800 border-purple-300 hover:bg-purple-100'
                             }`}
                           >
                             <div className="flex items-center justify-between text-[10px] font-mono">
                               <span className="font-bold">[{evt.brand?.shortCode || 'EVT'}]</span>
-                              {hasPendingEdit && <span title="Waiting for Edit Approval">⏳ PENDING</span>}
+                              {hasPendingEdit && <span className="text-amber-700 font-bold" title="Waiting for Edit Approval">PENDING</span>}
                             </div>
-                            <div className="font-bold text-white line-clamp-1">{evt.title}</div>
-                            <div className="text-[10px] text-gray-300 truncate">{evt.client?.name}</div>
+                            <div className="font-bold text-slate-900 line-clamp-1">{evt.title}</div>
+                            <div className="text-[10px] text-slate-700 truncate">{evt.client?.name}</div>
                           </div>
                         );
                       })}
@@ -1302,39 +1292,39 @@ export default function CalendarPage() {
           {filteredEvents.map((eventItem) => (
             <div
               key={eventItem.id}
-              className={`bg-card border p-5 rounded-xl space-y-3 relative transition-all ${
-                eventItem.shootType === 'INDOOR' ? 'border-emerald-500/30' : 'border-purple-500/30'
+              className={`bg-white border p-5 rounded-xl space-y-3 relative transition-all ${
+                eventItem.shootType === 'INDOOR' ? 'border-emerald-200' : 'border-purple-200'
               }`}
             >
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-2">
                   {eventItem.eventSource === 'GRAPHIC_REQUIREMENT' ? (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                      <FileText className="w-3 h-3 text-amber-400" /> GRAPHIC REQ
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                      <FileText className="w-3 h-3 text-amber-600" /> GRAPHIC REQ
                     </span>
                   ) : eventItem.shootType === 'INDOOR' ? (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center gap-1">
                       <Video className="w-3 h-3" /> INDOOR
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-600 border border-purple-200 flex items-center gap-1">
                       <Sun className="w-3 h-3" /> OUTDOOR
                     </span>
                   )}
-                  <span className="text-[10px] font-bold text-gray-400 uppercase font-mono">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase font-mono">
                     {new Date(eventItem.shootDate).toLocaleDateString()}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-1">
                   {eventItem.editRequests && eventItem.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL') ? (
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-500/60 uppercase flex items-center gap-1 animate-pulse">
-                      <AlertTriangle className="w-3 h-3 text-amber-400" /> WAITING FOR EDITING APPROVAL
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 uppercase flex items-center gap-1 animate-pulse">
+                      <AlertTriangle className="w-3 h-3 text-amber-600" /> WAITING FOR EDITING APPROVAL
                     </span>
                   ) : (
                     <span
                       className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${
-                        eventItem.status === 'CANCELLED' ? 'bg-red-500/20 text-red-400' : 'bg-gray-800 text-gray-300'
+                        eventItem.status === 'CANCELLED' ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-700'
                       }`}
                     >
                       {eventItem.status}
@@ -1346,13 +1336,13 @@ export default function CalendarPage() {
               <div>
                 <h3 
                   onClick={() => setViewModalEvent(eventItem)}
-                  className="text-sm font-bold text-white line-clamp-1 hover:text-blue-400 cursor-pointer transition-colors"
+                  className="text-sm font-bold text-white line-clamp-1 hover:text-blue-600 cursor-pointer transition-colors"
                   title="Click to view full Event Details"
                 >
                   {eventItem.title}
                 </h3>
-                <p className="text-[11px] text-gray-400">
-                  {eventItem.client?.name} • <span className="text-blue-400 font-bold">[{eventItem.brand?.shortCode}]</span> {eventItem.brand?.name}
+                <p className="text-[11px] text-slate-500">
+                  {eventItem.client?.name} • <span className="text-blue-600 font-bold">[{eventItem.brand?.shortCode}]</span> {eventItem.brand?.name}
                 </p>
               </div>
 
@@ -1360,14 +1350,14 @@ export default function CalendarPage() {
               {eventItem.editRequests && eventItem.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL') && (
                 <div 
                   onClick={() => setViewModalEvent(eventItem)}
-                  className="p-2.5 bg-gradient-to-r from-amber-950/90 via-amber-900/60 to-gray-950 border border-amber-500/60 rounded-xl flex items-center justify-between text-amber-200 text-[11px] font-bold cursor-pointer shadow-md hover:border-amber-400 transition-all animate-pulse"
+                  className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between text-amber-900 text-[11px] font-bold cursor-pointer shadow-xs hover:border-amber-400 transition-all animate-pulse"
                   title="Click to view details of pending edit request"
                 >
                   <span className="flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>⏳ Waiting for Edit Approval</span>
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>Waiting for Edit Approval</span>
                   </span>
-                  <span className="text-[9px] font-mono bg-amber-500/20 px-1.5 py-0.5 rounded text-amber-300 border border-amber-500/40">
+                  <span className="text-[9px] font-mono bg-amber-100 px-1.5 py-0.5 rounded text-amber-800 border border-amber-200">
                     Pending Review
                   </span>
                 </div>
@@ -1376,38 +1366,38 @@ export default function CalendarPage() {
               {/* Sleek Minimalist Creator & Editor Audit Strip */}
               <div 
                 onClick={() => setViewModalEvent(eventItem)}
-                className="text-[11px] bg-gray-950/50 p-2.5 rounded-lg border border-gray-800/60 space-y-1 cursor-pointer hover:border-blue-500/40 transition-colors font-sans"
+                className="text-[11px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-200 space-y-1 cursor-pointer hover:border-blue-200 transition-colors font-sans"
                 title="Click to view full Event Details"
               >
-                <div className="flex items-center justify-between text-gray-400">
+                <div className="flex items-center justify-between text-slate-500">
                   <span className="flex items-center gap-1.5 truncate">
-                    <User className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <User className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                     <span>Created by:</span>
-                    <strong className="text-gray-200 font-semibold">
+                    <strong className="text-slate-800 font-semibold">
                       {eventItem.createdBy?.name || (eventItem.createdByRole ? eventItem.createdByRole.replace(/_/g, ' ') : 'Media Team')}
                     </strong>
-                    <span className="text-gray-500 text-[10px]">
+                    <span className="text-slate-400 text-[10px]">
                       ({eventItem.createdBy?.role ? eventItem.createdBy.role.replace(/_/g, ' ') : eventItem.createdByRole ? eventItem.createdByRole.replace(/_/g, ' ') : 'Creator'})
                     </span>
                   </span>
                 </div>
 
                 {(eventItem.lastModifiedBy || eventItem.lastModifiedAt) && (
-                  <div className="flex items-center justify-between text-purple-300/90 pt-1 border-t border-gray-800/40">
+                  <div className="flex items-center justify-between text-purple-700/90 pt-1 border-t border-slate-200">
                     <span className="flex items-center gap-1.5 truncate">
-                      <Edit className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <Edit className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                       <span>Edited by:</span>
-                      <strong className="text-purple-200 font-semibold">
+                      <strong className="text-purple-900 font-semibold">
                         {eventItem.lastModifiedBy?.name || 'Authorized Editor'}
                       </strong>
                       {eventItem.lastModifiedBy?.role && (
-                        <span className="text-purple-400/70 text-[10px]">
+                        <span className="text-purple-600/70 text-[10px]">
                           ({eventItem.lastModifiedBy.role.replace(/_/g, ' ')})
                         </span>
                       )}
                     </span>
                     {eventItem.lastModifiedAt && (
-                      <span className="text-[10px] text-gray-500 font-mono shrink-0 ml-1">
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-1">
                         {new Date(eventItem.lastModifiedAt).toLocaleDateString()}
                       </span>
                     )}
@@ -1417,29 +1407,29 @@ export default function CalendarPage() {
 
               {/* Event Source Info */}
               {eventItem.eventSource && (
-                <div className="text-[10px] bg-gray-950/80 p-2 rounded-lg border border-gray-800 flex items-center justify-between text-gray-400 font-mono">
+                <div className="text-[10px] bg-slate-50/80 p-2 rounded-lg border border-slate-200 flex items-center justify-between text-slate-500 font-mono">
                   <span>Source: {eventItem.eventSource.replace('_', ' ')}</span>
-                  <span className="text-amber-400 font-bold">
+                  <span className="text-amber-600 font-bold">
                     {eventItem.graphicRequirement?.requirementId || eventItem.shoot?.projectId || 'Custom'}
                   </span>
                 </div>
               )}
 
               {eventItem.influencerTalent && (
-                <div className="text-[11px] text-gray-300 bg-gray-900 p-2 rounded border border-gray-800">
-                  Talent/Model: <strong className="text-white">{eventItem.influencerTalent}</strong>
+                <div className="text-[11px] text-slate-700 bg-slate-50 p-2 rounded border border-slate-200">
+                  Talent/Model: <strong className="text-slate-900">{eventItem.influencerTalent}</strong>
                 </div>
               )}
 
               {/* Outdoor Logistics Info (when present) */}
               {eventItem.shootProjects?.[0]?.outdoorDetails && (
-                <div className="text-[10px] bg-purple-950/40 p-2.5 rounded-lg border border-purple-800/60 space-y-1 text-purple-200">
-                  <div className="font-bold text-purple-300 uppercase flex items-center gap-1">
-                    <MapPin className="w-3 h-3 text-purple-400" /> Outdoor Shoot Details
+                <div className="text-[10px] bg-purple-50 p-2.5 rounded-lg border border-purple-200 space-y-1 text-purple-900">
+                  <div className="font-bold text-purple-700 uppercase flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-purple-600" /> Outdoor Shoot Details
                   </div>
                   <div><strong>Address:</strong> {eventItem.shootProjects[0].outdoorDetails.exactLocationAddress || eventItem.shootProjects[0].outdoorDetails.locationAddress}</div>
                   <div><strong>Access:</strong> {eventItem.shootProjects[0].outdoorDetails.locationAccessDetails || 'Standard'}</div>
-                  <div className="flex justify-between pt-0.5 border-t border-purple-800/40 text-[9px]">
+                  <div className="flex justify-between pt-0.5 border-t border-purple-200 text-[9px]">
                     <span>Permit: {eventItem.shootProjects[0].outdoorDetails.permitRequired === 'YES' ? `YES (${eventItem.shootProjects[0].outdoorDetails.permitStatus || 'Pending'})` : 'NO'}</span>
                     <span className="font-mono">Call: {eventItem.shootProjects[0].outdoorDetails.callTime} • Wrap: {eventItem.shootProjects[0].outdoorDetails.expectedWrapTime}</span>
                   </div>
@@ -1448,32 +1438,32 @@ export default function CalendarPage() {
 
               {/* Integrated Equipment Reservations (Business Rule 10) */}
               {eventItem.shootProjects?.[0]?.equipmentReservations?.length > 0 && (
-                <div className="p-2 bg-purple-950/30 border border-purple-800/40 rounded text-[11px] text-purple-300 space-y-1">
-                  <div className="font-bold text-purple-400 flex items-center gap-1 text-[10px] uppercase">
-                    <Camera className="w-3 h-3 text-purple-400" /> Reserved Equipment
+                <div className="p-2 bg-purple-50 border border-purple-200 rounded text-[11px] text-purple-700 space-y-1">
+                  <div className="font-bold text-purple-600 flex items-center gap-1 text-[10px] uppercase">
+                    <Camera className="w-3 h-3 text-purple-600" /> Reserved Equipment
                   </div>
                   {eventItem.shootProjects[0].equipmentReservations.map((res: any) => (
-                    <div key={res.id} className="flex justify-between items-center text-[10px] text-gray-300">
-                      <span>📷 {res.equipment?.name || 'Equipment'}</span>
-                      <span className="text-purple-400 font-mono">({res.status})</span>
+                    <div key={res.id} className="flex justify-between items-center text-[10px] text-slate-700">
+                      <span>{res.equipment?.name || 'Equipment'}</span>
+                      <span className="text-purple-600 font-mono">({res.status})</span>
                     </div>
                   ))}
                 </div>
               )}
 
               {/* Action buttons */}
-              <div className="flex items-center justify-between pt-3 border-t border-border text-xs">
+              <div className="flex items-center justify-between pt-3 border-t border-slate-200 text-xs">
                 {eventItem.shootProjects?.length > 0 ? (
                   <Link
                     href={`/projects/${eventItem.shootProjects[0].id}`}
-                    className="text-emerald-400 hover:underline font-bold text-[11px] flex items-center gap-1"
+                    className="text-emerald-600 hover:underline font-bold text-[11px] flex items-center gap-1"
                   >
                     View Project <ArrowRight className="w-3 h-3" />
                   </Link>
                 ) : eventItem.graphicRequirement?.id ? (
                   <Link
                     href={`/graphic-reqs?reqId=${eventItem.graphicRequirement.id}`}
-                    className="text-amber-400 hover:underline font-bold text-[11px] flex items-center gap-1"
+                    className="text-amber-600 hover:underline font-bold text-[11px] flex items-center gap-1"
                   >
                     View Requirement <ArrowRight className="w-3 h-3" />
                   </Link>
@@ -1491,7 +1481,7 @@ export default function CalendarPage() {
                         className="px-2 py-0.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow-sm"
                         title="Convert approved event to task with staff assignment"
                       >
-                        ⚡ Convert to Task ➔
+                        Convert to Task
                       </button>
                     )}
                     {(eventItem.status === 'DRAFT' || eventItem.status === 'CHANGES_REQUESTED') && (
@@ -1504,13 +1494,13 @@ export default function CalendarPage() {
                     )}
                     <button
                       onClick={() => setViewModalEvent(eventItem)}
-                      className="px-2 py-0.5 bg-blue-950/80 hover:bg-blue-900 border border-blue-800/60 text-blue-300 rounded font-semibold text-[10px] flex items-center gap-1"
+                      className="px-2 py-0.5 bg-blue-50 hover:bg-blue-900 border border-blue-200 text-blue-700 rounded font-semibold text-[10px] flex items-center gap-1"
                     >
                       <Eye className="w-3 h-3" /> Details
                     </button>
                     <button
                       onClick={() => openEdit(eventItem)}
-                      className="px-2 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded font-semibold text-[10px] flex items-center gap-1"
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[10px] flex items-center gap-1"
                     >
                       <Edit className="w-3 h-3" /> Edit
                     </button>
@@ -1523,20 +1513,20 @@ export default function CalendarPage() {
                       <>
                         <button
                           onClick={() => openClientEdit(eventItem)}
-                          className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded font-bold text-[10px] flex items-center gap-1 shadow-sm"
+                          className="px-2.5 py-1 bg-amber-50 hover:bg-amber-500/30 text-amber-800 border border-amber-200 rounded font-bold text-[10px] flex items-center gap-1 shadow-sm"
                         >
                           <Clock className="w-3 h-3" /> Edit Deadline &amp; Priority
                         </button>
                         <Link
                           href="/client-review"
-                          className="px-2.5 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded font-bold text-[10px] flex items-center gap-1"
+                          className="px-2.5 py-1 bg-purple-50 hover:bg-purple-600/30 text-purple-700 border border-purple-200 rounded font-bold text-[10px] flex items-center gap-1"
                         >
                           <ShieldCheck className="w-3 h-3" /> Review Portal
                         </Link>
                       </>
                     ) : (
-                      <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/80 px-2.5 py-1 rounded-lg flex items-center gap-1">
-                        ✓ Approved &amp; Handed Over to Media Operations
+                      <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg flex items-center gap-1">
+                        Approved & Handed Over to Media Operations
                       </span>
                     )}
                   </div>
@@ -1549,15 +1539,15 @@ export default function CalendarPage() {
 
       {/* Add / Edit Event Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <form onSubmit={handleSave} className="bg-card border border-border rounded-xl w-full max-w-2xl p-6 space-y-5 text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-border pb-3">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <form onSubmit={handleSave} className="bg-white border border-slate-200 rounded-xl w-full max-w-2xl p-6 space-y-5 text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
               <div>
-                <h2 className="text-base font-bold text-white flex items-center gap-2">
-                  <CalendarIcon className="w-5 h-5 text-blue-400" />
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <CalendarIcon className="w-5 h-5 text-blue-600" />
                   {editingEvent ? 'Edit Shoot Calendar Event' : 'Schedule New Shoot Event'}
                 </h2>
-                <p className="text-[11px] text-gray-400">All required production scheduling fields and team/equipment reservations</p>
+                <p className="text-[11px] text-slate-500">All required production scheduling fields and team/equipment reservations</p>
               </div>
               <button
                 type="button"
@@ -1565,7 +1555,7 @@ export default function CalendarPage() {
                   setShowAddModal(false);
                   setEditingEvent(null);
                 }}
-                className="text-gray-400 hover:text-white p-1"
+                className="text-slate-500 hover:text-slate-900 p-1"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1573,13 +1563,13 @@ export default function CalendarPage() {
 
             {/* Creator Metadata Banner when editing an existing event */}
             {editingEvent && (
-              <div className="flex items-center justify-between p-3 bg-blue-950/40 border border-blue-800/60 rounded-xl text-xs">
-                <div className="flex items-center gap-2 text-blue-200 font-medium">
-                  <User className="w-4 h-4 text-blue-400 shrink-0" />
-                  <span>Event Created By: <strong className="text-white font-bold">{editingEvent.createdBy?.name || 'Social Media Manager'}</strong></span>
+              <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs">
+                <div className="flex items-center gap-2 text-blue-800 font-medium">
+                  <User className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>Event Created By: <strong className="text-blue-900 font-bold">{editingEvent.createdBy?.name || 'Social Media Manager'}</strong></span>
                 </div>
                 {editingEvent.createdBy?.role && (
-                  <span className="px-2 py-0.5 bg-blue-900/70 border border-blue-700/60 text-blue-300 rounded font-mono text-[10px] font-bold uppercase">
+                  <span className="px-2 py-0.5 bg-blue-100 border border-blue-200 text-blue-800 rounded font-mono text-[10px] font-bold uppercase">
                     {editingEvent.createdBy.role.replace(/_/g, ' ')}
                   </span>
                 )}
@@ -1588,37 +1578,37 @@ export default function CalendarPage() {
 
             {/* Approved Event Edit Request Alert Banner */}
             {editingEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
-              <div className="p-3.5 bg-amber-950/60 border border-amber-500/50 rounded-xl space-y-2 text-xs">
-                <div className="flex items-center gap-2 font-bold text-amber-300">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-xs">
+                <div className="flex items-center gap-2 font-bold text-amber-800">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>Approved Event — Modification Requires Marketing Approval</span>
                 </div>
-                <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                <p className="text-[11px] text-amber-900 leading-relaxed">
                   This event is approved. Submitting modifications creates an <strong>Edit Request</strong> for Marketing Manager approval. The live event data will remain unchanged until approved.
                 </p>
                 <div className="pt-1">
-                  <label className="text-amber-200 font-bold block mb-1 text-[11px]">Reason for Edit Request (Optional):</label>
+                  <label className="text-amber-900 font-bold block mb-1 text-[11px]">Reason for Edit Request (Optional):</label>
                   <input
                     type="text"
                     value={editReason}
                     onChange={(e) => setEditReason(e.target.value)}
                     placeholder="e.g. Production deadline change / client priority escalation..."
-                    className="w-full bg-gray-900 border border-amber-700/60 rounded p-2 text-white text-xs placeholder-gray-500"
+                    className="w-full bg-slate-50 border border-amber-300 rounded p-2 text-slate-900 text-xs placeholder-slate-400"
                   />
                 </div>
               </div>
             )}
 
             {/* SECTION 1: EVENT TYPE & BASIC DETAILS */}
-            <div className="space-y-4 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
-              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+            <div className="space-y-4 bg-slate-50/50 p-4 rounded-xl border border-slate-200">
+              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">
                 Section 1 • Event Type &amp; Basic Details *
               </span>
 
               {/* Event Type Selection Radio Cards */}
               <div className="space-y-2">
-                <label className="text-gray-200 font-bold text-xs block">
-                  EVENT TYPE <span className="text-red-400">*</span>
+                <label className="text-slate-800 font-bold text-xs block">
+                  EVENT TYPE <span className="text-rose-600">*</span>
                 </label>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1629,13 +1619,13 @@ export default function CalendarPage() {
                     }}
                     className={`p-3.5 rounded-xl border cursor-pointer transition-all space-y-1 ${
                       formData.eventSource === 'GRAPHIC_REQUIREMENT'
-                        ? 'bg-amber-950/40 border-amber-500 ring-1 ring-amber-500/40 text-amber-300'
-                        : 'bg-gray-900/60 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200'
+                        ? 'bg-amber-50 border-amber-500 ring-1 ring-amber-500/40 text-amber-800'
+                        : 'bg-slate-50/60 border-slate-200 text-slate-500 hover:border-slate-200 hover:text-slate-800'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-black text-xs flex items-center gap-1.5 text-white">
-                        <FileText className="w-4 h-4 text-amber-400" />
+                      <span className="font-black text-xs flex items-center gap-1.5 text-slate-900">
+                        <FileText className="w-4 h-4 text-amber-600" />
                         Graphic Requirement
                       </span>
                       <input
@@ -1646,7 +1636,7 @@ export default function CalendarPage() {
                         className="accent-amber-500 cursor-pointer"
                       />
                     </div>
-                    <p className="text-[10px] text-gray-400 leading-tight">
+                    <p className="text-[10px] text-slate-500 leading-tight">
                       Create a complete Graphic Requirement brief &amp; schedule for client approval.
                     </p>
                   </div>
@@ -1655,13 +1645,13 @@ export default function CalendarPage() {
                     onClick={() => setFormData((prev) => ({ ...prev, eventSource: 'SHOOT', graphicRequirementId: '' }))}
                     className={`p-3.5 rounded-xl border cursor-pointer transition-all space-y-1 ${
                       formData.eventSource === 'SHOOT'
-                        ? 'bg-blue-950/40 border-blue-500 ring-1 ring-blue-500/40 text-blue-300'
-                        : 'bg-gray-900/60 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200'
+                        ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500/40 text-blue-700'
+                        : 'bg-slate-50/60 border-slate-200 text-slate-500 hover:border-slate-200 hover:text-slate-800'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-black text-xs flex items-center gap-1.5 text-white">
-                        <Video className="w-4 h-4 text-blue-400" />
+                      <span className="font-black text-xs flex items-center gap-1.5 text-slate-900">
+                        <Video className="w-4 h-4 text-blue-600" />
                         Project Shoot
                       </span>
                       <input
@@ -1672,7 +1662,7 @@ export default function CalendarPage() {
                         className="accent-blue-500 cursor-pointer"
                       />
                     </div>
-                    <p className="text-[10px] text-gray-400 leading-tight">
+                    <p className="text-[10px] text-slate-500 leading-tight">
                       Create a complete Indoor/Outdoor Project Shoot schedule &amp; logistics.
                     </p>
                   </div>
@@ -1680,18 +1670,18 @@ export default function CalendarPage() {
               </div>
 
               {/* Base Project Fields */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-gray-800/80">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
                 {formData.eventSource === 'SHOOT' && (
-                  <div className="col-span-2 flex items-center justify-between bg-blue-950/30 p-2.5 rounded-xl border border-blue-500/30">
-                    <span className="text-blue-300 font-bold text-xs">Project ID (Auto-Generated)</span>
-                    <span className="font-mono font-black text-xs text-blue-400 bg-blue-500/20 px-2.5 py-1 rounded border border-blue-500/40">
+                  <div className="col-span-2 flex items-center justify-between bg-blue-50 p-2.5 rounded-xl border border-blue-200">
+                    <span className="text-blue-700 font-bold text-xs">Project ID (Auto-Generated)</span>
+                    <span className="font-mono font-black text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded border border-blue-200">
                       SHOOT-AUTO
                     </span>
                   </div>
                 )}
 
                 <div className="col-span-2">
-                  <label className="text-gray-300 block mb-1 font-semibold">
+                  <label className="text-slate-700 block mb-1 font-semibold">
                     {formData.eventSource === 'SHOOT' ? 'Project Name *' : 'Requirement Name *'}
                   </label>
                   <input
@@ -1700,17 +1690,17 @@ export default function CalendarPage() {
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     placeholder={formData.eventSource === 'SHOOT' ? 'e.g. Summer Collection Outdoor Shoot' : 'e.g. Product Banner Graphic'}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Client *</label>
+                  <label className="text-slate-700 block mb-1 font-semibold">Client *</label>
                   <select
                     required
                     value={formData.clientId}
                     onChange={(e) => handleClientChange(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
                   >
                     <option value="">Select Active Client</option>
                     {activeClients.map((c) => (
@@ -1720,12 +1710,12 @@ export default function CalendarPage() {
                 </div>
 
                 <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Brand *</label>
+                  <label className="text-slate-700 block mb-1 font-semibold">Brand *</label>
                   <select
                     required
                     value={formData.brandId}
                     onChange={(e) => handleBrandChange(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
                   >
                     <option value="">Select Active Brand</option>
                     {filteredBrands.map((b) => (
@@ -1735,11 +1725,11 @@ export default function CalendarPage() {
                 </div>
 
                 <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Product (Optional)</label>
+                  <label className="text-slate-700 block mb-1 font-semibold">Product (Optional)</label>
                   <select
                     value={formData.productId}
                     onChange={(e) => setFormData({ ...formData, productId: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
                   >
                     <option value="">None / General Shoot</option>
                     {filteredProducts.map((p) => (
@@ -1749,23 +1739,23 @@ export default function CalendarPage() {
                 </div>
 
                 <div>
-                  <label className="text-gray-300 block mb-1 font-semibold">Campaign (Optional)</label>
+                  <label className="text-slate-700 block mb-1 font-semibold">Campaign (Optional)</label>
                   <input
                     type="text"
                     value={formData.campaign}
                     onChange={(e) => setFormData({ ...formData, campaign: e.target.value })}
                     placeholder="e.g. Q3 Launch Campaign"
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
                   />
                 </div>
 
                 {formData.eventSource === 'GRAPHIC_REQUIREMENT' && (
                   <div className="col-span-1 sm:col-span-2">
-                    <label className="text-gray-300 block mb-1 font-semibold">Parent Shoot Project (Optional)</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Parent Shoot Project (Optional)</label>
                     <select
                       value={formData.projectId}
                       onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-                      className="w-full bg-gray-900 border border-purple-500/50 rounded p-2 text-white font-medium"
+                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-white font-medium"
                     >
                       <option value="">-- Independent Graphic Requirement (No Parent Project) --</option>
                       {shootProjectsList.map((p) => (
@@ -1781,24 +1771,24 @@ export default function CalendarPage() {
 
             {/* SECTION 2: GRAPHIC REQUIREMENT DETAILS */}
             {formData.eventSource === 'GRAPHIC_REQUIREMENT' && (
-              <div className="space-y-4 bg-amber-950/20 p-4 rounded-xl border border-amber-500/40 text-xs">
+              <div className="space-y-4 bg-amber-50 p-4 rounded-xl border border-amber-200 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block flex items-center gap-1.5">
-                    <FileText className="w-4 h-4 text-amber-400" /> Section 2 • Graphic Requirement Details *
+                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-amber-600" /> Section 2 • Graphic Requirement Details *
                   </span>
-                  <span className="font-mono text-[10px] bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40 text-amber-300 font-bold">
+                  <span className="font-mono text-[10px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-amber-800 font-bold">
                     ID: GR-AUTO
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="text-gray-200 font-bold block mb-1">Requirement Type *</label>
+                    <label className="text-slate-800 font-bold block mb-1">Requirement Type *</label>
                     <select
                       required
                       value={formData.contentType}
                       onChange={(e) => setFormData({ ...formData, contentType: e.target.value })}
-                      className="w-full bg-gray-900 border border-amber-500/60 rounded p-2 text-white font-bold"
+                      className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-white font-bold"
                     >
                       <option value="Poster">Poster</option>
                       <option value="Carousel">Carousel Post</option>
@@ -1814,12 +1804,12 @@ export default function CalendarPage() {
                   </div>
 
                   <div>
-                    <label className="text-gray-200 font-bold block mb-1">Target Platform *</label>
+                    <label className="text-slate-800 font-bold block mb-1">Target Platform *</label>
                     <select
                       required
                       value={formData.platform}
                       onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
-                      className="w-full bg-gray-900 border border-amber-500/60 rounded p-2 text-white font-bold"
+                      className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-white font-bold"
                     >
                       <option value="Instagram">Instagram</option>
                       <option value="Facebook">Facebook</option>
@@ -1833,12 +1823,12 @@ export default function CalendarPage() {
                   </div>
 
                   <div>
-                    <label className="text-gray-200 font-bold block mb-1">Priority *</label>
+                    <label className="text-slate-800 font-bold block mb-1">Priority *</label>
                     <select
                       required
                       value={formData.priority}
                       onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
                     >
                       <option value="LOW">Low</option>
                       <option value="MEDIUM">Medium</option>
@@ -1848,68 +1838,68 @@ export default function CalendarPage() {
                   </div>
 
                   <div>
-                    <label className="text-gray-200 font-bold block mb-1">Target Completion Date *</label>
+                    <label className="text-slate-800 font-bold block mb-1">Target Completion Date *</label>
                     <input
                       type="date"
                       required
                       value={formData.clientApprovalDeadline}
                       onChange={(e) => setFormData({ ...formData, clientApprovalDeadline: e.target.value, deadline: e.target.value, shootDate: e.target.value })}
-                      className="w-full bg-gray-900 border border-amber-500/60 rounded p-2 text-white font-bold"
+                      className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-white font-bold"
                     />
                   </div>
 
                   <div className="col-span-2">
-                    <label className="text-gray-200 font-bold block mb-1">Objective / Design Brief *</label>
+                    <label className="text-slate-800 font-bold block mb-1">Objective / Design Brief *</label>
                     <input
                       type="text"
                       required
                       value={formData.caption}
                       onChange={(e) => setFormData({ ...formData, caption: e.target.value })}
                       placeholder="e.g. Promote summer sale discount with vibrant product showcase"
-                      className="w-full bg-gray-900 border border-amber-500/60 rounded p-2 text-white font-medium"
+                      className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-white font-medium"
                     />
                   </div>
 
                   <div className="col-span-3">
-                    <label className="text-gray-300 font-semibold block mb-1">Detailed Specifications &amp; Copy (Optional)</label>
+                    <label className="text-slate-700 font-semibold block mb-1">Detailed Specifications &amp; Copy (Optional)</label>
                     <textarea
                       rows={2}
                       value={formData.productionNotes}
                       onChange={(e) => setFormData({ ...formData, productionNotes: e.target.value })}
                       placeholder="Specify dimensions (e.g. 1080x1350px), exact headline copy, color palette, brand guidelines..."
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
                     ></textarea>
                   </div>
 
                   <div className="col-span-3">
-                    <label className="text-gray-300 font-semibold block mb-1">Remarks &amp; Special Instructions (Optional)</label>
+                    <label className="text-slate-700 font-semibold block mb-1">Remarks &amp; Special Instructions (Optional)</label>
                     <textarea
                       rows={2}
                       value={formData.remarks}
                       onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
                       placeholder="Enter any permanent remarks, references, or special instructions..."
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
                     ></textarea>
                   </div>
                 </div>
 
                 {/* Produced Deliverables Formats Selection */}
-                <div className="p-3 bg-gray-900/80 border border-gray-800 rounded-xl space-y-2">
-                  <label className="text-gray-200 font-bold block text-xs">
+                <div className="p-3 bg-slate-50/80 border border-slate-200 rounded-xl space-y-2">
+                  <label className="text-slate-800 font-bold block text-xs">
                     Produced Deliverables (Click to select/deselect deliverable formats to generate) *
                   </label>
                   <div className="flex flex-wrap gap-1.5">
                     {[
-                      { name: 'Poster', icon: '🖼️' },
-                      { name: 'Story', icon: '📱' },
-                      { name: 'Carousel', icon: '🎠' },
-                      { name: 'Thumbnail', icon: '🎬' },
-                      { name: 'Banner', icon: '🚩' },
-                      { name: 'Motion Graphic', icon: '🎥' },
-                      { name: 'Social Media Post', icon: '📲' },
-                      { name: 'Advertisement', icon: '📣' },
-                      { name: 'Packaging Design', icon: '📦' },
-                      { name: 'Website Creative', icon: '🌐' },
+                      { name: 'Poster' },
+                      { name: 'Story' },
+                      { name: 'Carousel' },
+                      { name: 'Thumbnail' },
+                      { name: 'Banner' },
+                      { name: 'Motion Graphic' },
+                      { name: 'Social Media Post' },
+                      { name: 'Advertisement' },
+                      { name: 'Packaging Design' },
+                      { name: 'Website Creative' },
                     ].map((del) => {
                       const isSelected = (formData.selectedDeliverables || ['Poster', 'Story']).includes(del.name);
                       return (
@@ -1926,10 +1916,9 @@ export default function CalendarPage() {
                           className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 ${
                             isSelected
                               ? 'bg-amber-500 text-gray-950 border-amber-400 font-bold shadow-md scale-[1.02]'
-                              : 'bg-gray-950 text-gray-400 border-gray-800 hover:border-gray-700'
+                              : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-200'
                           }`}
                         >
-                          <span>{del.icon}</span>
                           <span>{del.name}</span>
                         </button>
                       );
@@ -1937,9 +1926,9 @@ export default function CalendarPage() {
                   </div>
                 </div>
 
-                <div className="p-3 bg-amber-950/40 border border-amber-500/30 rounded-xl flex items-center justify-between text-amber-300 text-xs">
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-amber-800 text-xs">
                   <span>Initial Status (Awaiting Marketing Manager Approval):</span>
-                  <span className="font-mono font-bold bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40 text-[10px]">
+                  <span className="font-mono font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px]">
                     PENDING_MARKETING_APPROVAL
                   </span>
                 </div>
@@ -1948,19 +1937,19 @@ export default function CalendarPage() {
 
             {/* SECTION 2: SHOOT SPECIFICS & SCHEDULE */}
             {formData.eventSource === 'SHOOT' ? (
-              <div className="space-y-4 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
-                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
+              <div className="space-y-4 bg-slate-50/50 p-4 rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">
                   Section 2 • Project Shoot Base Details *
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="text-gray-300 block mb-1 font-semibold">Shoot Type *</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Shoot Type *</label>
                     <select
                       required
                       value={formData.shootType}
                       onChange={(e) => setFormData({ ...formData, shootType: e.target.value })}
-                      className="w-full bg-gray-900 border border-blue-500/60 rounded p-2 text-white font-bold"
+                      className="w-full bg-slate-50 border border-blue-200 rounded p-2 text-white font-bold"
                     >
                       <option value="INDOOR">Indoor Shoot</option>
                       <option value="OUTDOOR">Outdoor Shoot</option>
@@ -1968,45 +1957,45 @@ export default function CalendarPage() {
                   </div>
 
                   <div>
-                    <label className="text-gray-300 block mb-1 font-semibold">Shoot Date *</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Shoot Date *</label>
                     <input
                       type="date"
                       required
                       value={formData.shootDate}
                       onChange={(e) => setFormData({ ...formData, shootDate: e.target.value })}
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
                     />
                   </div>
 
                   <div>
-                    <label className="text-gray-300 block mb-1 font-semibold">Estimated Completion Date *</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Estimated Completion Date *</label>
                     <input
                       type="date"
                       required
                       value={formData.deadline}
                       onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
                     />
                   </div>
 
                   <div className="col-span-2 sm:col-span-1">
-                    <label className="text-gray-300 block mb-1 font-semibold">Shoot Location *</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Shoot Location *</label>
                     <input
                       type="text"
                       required
                       value={formData.location}
                       onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                       placeholder="e.g. Main Studio Floor or Kozhikode Beach"
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
                     />
                   </div>
 
                   <div>
-                    <label className="text-gray-300 block mb-1 font-semibold">Location Category *</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Location Category *</label>
                     <select
                       value={formData.locationCategory}
                       onChange={(e) => setFormData({ ...formData, locationCategory: e.target.value })}
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
                     >
                       <option value="Studio Bay">Studio Bay</option>
                       <option value="Main Studio Floor">Main Studio Floor</option>
@@ -2017,47 +2006,47 @@ export default function CalendarPage() {
                   </div>
 
                   <div>
-                    <label className="text-gray-300 block mb-1 font-semibold">Reporting Time (Call Time) *</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Reporting Time (Call Time) *</label>
                     <input
                       type="text"
                       required
                       value={formData.callTime || formData.startTime}
                       onChange={(e) => setFormData({ ...formData, callTime: e.target.value, startTime: e.target.value })}
                       placeholder="09:00 AM"
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-mono"
                     />
                   </div>
 
                   <div>
-                    <label className="text-gray-300 block mb-1 font-semibold">Expected Wrap-up Time *</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Expected Wrap-up Time *</label>
                     <input
                       type="text"
                       required
                       value={formData.expectedWrapTime || formData.endTime}
                       onChange={(e) => setFormData({ ...formData, expectedWrapTime: e.target.value, endTime: e.target.value })}
                       placeholder="06:00 PM"
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-mono"
                     />
                   </div>
 
                   <div className="col-span-2 sm:col-span-1">
-                    <label className="text-gray-300 block mb-1 font-semibold">Influencer / Talent *</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Influencer / Talent *</label>
                     <input
                       type="text"
                       required
                       value={formData.influencerTalent}
                       onChange={(e) => setFormData({ ...formData, influencerTalent: e.target.value })}
                       placeholder="e.g. Model Name / Talent Contact"
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
                     />
                   </div>
 
                   <div>
-                    <label className="text-gray-300 block mb-1 font-semibold">Project Priority *</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Project Priority *</label>
                     <select
                       value={formData.priority}
                       onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
                     >
                       <option value="LOW">Low</option>
                       <option value="MEDIUM">Medium</option>
@@ -2067,20 +2056,20 @@ export default function CalendarPage() {
                   </div>
 
                   <div className="col-span-1 sm:col-span-3">
-                    <label className="text-gray-300 block mb-1 font-semibold">Notes / Production Brief (Optional)</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Notes / Production Brief (Optional)</label>
                     <textarea
                       rows={2}
                       value={formData.productionNotes}
                       onChange={(e) => setFormData({ ...formData, productionNotes: e.target.value })}
                       placeholder="Enter production brief, shot list notes, client instructions..."
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-medium"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-medium"
                     ></textarea>
                   </div>
                 </div>
 
-                <div className="p-3 bg-amber-950/30 border border-amber-500/30 rounded-xl flex items-center justify-between text-amber-300 text-xs">
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-amber-800 text-xs">
                   <span>Current Status (Initial Approval State):</span>
-                  <span className="font-mono font-bold bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40 text-[10px]">
+                  <span className="font-mono font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px]">
                     PENDING_MARKETING_APPROVAL
                   </span>
                 </div>
@@ -2089,54 +2078,54 @@ export default function CalendarPage() {
 
             {/* DYNAMIC SECTION: OUTDOOR SHOOT DETAILS */}
             {formData.eventSource === 'SHOOT' && (formData.shootType === 'OUTDOOR' || formData.shootType === 'Outdoor Shoot') && (
-              <div className="space-y-4 bg-purple-950/30 p-4 rounded-xl border border-purple-800/60 text-xs">
-                <span className="text-[11px] font-black text-purple-300 uppercase tracking-wider block flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-purple-400" /> --- OUTDOOR SHOOT DETAILS ---
+              <div className="space-y-4 bg-purple-50 p-4 rounded-xl border border-purple-200 text-xs">
+                <span className="text-[11px] font-black text-purple-700 uppercase tracking-wider block flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-purple-600" /> --- OUTDOOR SHOOT DETAILS ---
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="col-span-2">
-                    <label className="text-gray-200 font-bold block mb-1">Exact Location / Address *</label>
+                    <label className="text-slate-800 font-bold block mb-1">Exact Location / Address *</label>
                     <input
                       type="text"
                       required
                       value={formData.exactLocationAddress}
                       onChange={(e) => setFormData({ ...formData, exactLocationAddress: e.target.value })}
                       placeholder="e.g. Kozhikode Beach, Kozhikode, Kerala"
-                      className="w-full bg-gray-900 border border-purple-500/50 rounded p-2 text-white font-medium"
+                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-white font-medium"
                     />
                   </div>
 
                   <div className="col-span-2">
-                    <label className="text-gray-200 font-bold block mb-1">Location Access Details *</label>
+                    <label className="text-slate-800 font-bold block mb-1">Location Access Details *</label>
                     <textarea
                       rows={2}
                       required
                       value={formData.locationAccessDetails}
                       onChange={(e) => setFormData({ ...formData, locationAccessDetails: e.target.value })}
                       placeholder="e.g. Parking availability, entry point, road access, restricted access notes..."
-                      className="w-full bg-gray-900 border border-purple-500/50 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-white"
                     ></textarea>
                   </div>
 
                   <div>
-                    <label className="text-gray-300 block mb-1 font-semibold">Location Contact</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Location Contact</label>
                     <input
                       type="text"
                       value={formData.locationContact}
                       onChange={(e) => setFormData({ ...formData, locationContact: e.target.value })}
                       placeholder="Contact Name / Phone / Manager"
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
                     />
                   </div>
 
                   <div>
-                    <label className="text-gray-200 font-bold block mb-1">Permit Required *</label>
+                    <label className="text-slate-800 font-bold block mb-1">Permit Required *</label>
                     <select
                       required
                       value={formData.permitRequired}
                       onChange={(e) => setFormData({ ...formData, permitRequired: e.target.value })}
-                      className="w-full bg-gray-900 border border-purple-500/50 rounded p-2 text-white font-bold"
+                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-white font-bold"
                     >
                       <option value="NO">NO</option>
                       <option value="YES">YES</option>
@@ -2145,12 +2134,12 @@ export default function CalendarPage() {
 
                   {formData.permitRequired === 'YES' && (
                     <div>
-                      <label className="text-amber-300 font-bold block mb-1">Permit Status *</label>
+                      <label className="text-amber-800 font-bold block mb-1">Permit Status *</label>
                       <select
                         required
                         value={formData.permitStatus}
                         onChange={(e) => setFormData({ ...formData, permitStatus: e.target.value })}
-                        className="w-full bg-gray-900 border border-amber-500/60 rounded p-2 text-white font-bold"
+                        className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-white font-bold"
                       >
                         <option value="Not Applied">Not Applied</option>
                         <option value="Applied">Applied</option>
@@ -2162,11 +2151,11 @@ export default function CalendarPage() {
                   )}
 
                   <div>
-                    <label className="text-gray-300 block mb-1 font-semibold">Expected Weather Conditions</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Expected Weather Conditions</label>
                     <select
                       value={formData.expectedWeatherConditions}
                       onChange={(e) => setFormData({ ...formData, expectedWeatherConditions: e.target.value })}
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
                     >
                       <option value="Sunny">Sunny</option>
                       <option value="Cloudy">Cloudy</option>
@@ -2177,48 +2166,48 @@ export default function CalendarPage() {
                   </div>
 
                   <div>
-                    <label className="text-gray-300 block mb-1 font-semibold">Backup Location</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Backup Location</label>
                     <input
                       type="text"
                       value={formData.backupLocation}
                       onChange={(e) => setFormData({ ...formData, backupLocation: e.target.value })}
                       placeholder="e.g. Indoor Studio 4"
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
                     />
                   </div>
 
                   <div>
-                    <label className="text-gray-200 font-bold block mb-1">Call Time *</label>
+                    <label className="text-slate-800 font-bold block mb-1">Call Time *</label>
                     <input
                       type="text"
                       required
                       value={formData.callTime}
                       onChange={(e) => setFormData({ ...formData, callTime: e.target.value })}
                       placeholder="07:00 AM"
-                      className="w-full bg-gray-900 border border-purple-500/50 rounded p-2 text-white font-mono"
+                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-white font-mono"
                     />
                   </div>
 
                   <div>
-                    <label className="text-gray-200 font-bold block mb-1">Expected Wrap Time *</label>
+                    <label className="text-slate-800 font-bold block mb-1">Expected Wrap Time *</label>
                     <input
                       type="text"
                       required
                       value={formData.expectedWrapTime}
                       onChange={(e) => setFormData({ ...formData, expectedWrapTime: e.target.value })}
                       placeholder="05:00 PM"
-                      className="w-full bg-gray-900 border border-purple-500/50 rounded p-2 text-white font-mono"
+                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-white font-mono"
                     />
                   </div>
 
                   <div className="col-span-2">
-                    <label className="text-gray-300 block mb-1 font-semibold">Special Outdoor Requirements</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Special Outdoor Requirements</label>
                     <textarea
                       rows={2}
                       value={formData.specialOutdoorRequirements}
                       onChange={(e) => setFormData({ ...formData, specialOutdoorRequirements: e.target.value })}
                       placeholder="Power, tents, transport, safety gear, drone permissions..."
-                      className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
                     ></textarea>
                   </div>
                 </div>
@@ -2228,18 +2217,18 @@ export default function CalendarPage() {
 
 
             {/* NOTES */}
-            <div className="space-y-2 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
-              <label className="text-gray-300 block mb-1 font-semibold">Notes (Optional)</label>
+            <div className="space-y-2 bg-slate-50/50 p-4 rounded-xl border border-slate-200">
+              <label className="text-slate-700 block mb-1 font-semibold">Notes (Optional)</label>
               <textarea
                 rows={2}
                 value={formData.productionNotes}
                 onChange={(e) => setFormData({ ...formData, productionNotes: e.target.value })}
                 placeholder="Additional information or instructions for the project shoot..."
-                className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white"
+                className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
               ></textarea>
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-border">
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => {
@@ -2247,7 +2236,7 @@ export default function CalendarPage() {
                   setEditingEvent(null);
                   setEditReason('');
                 }}
-                className="px-4 py-2 bg-gray-800 text-gray-300 rounded font-semibold"
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded font-semibold"
               >
                 Cancel
               </button>
@@ -2274,12 +2263,12 @@ export default function CalendarPage() {
 
       {/* Marketing Manager Client Edit Modal (Deadline & Priority) */}
       {showClientEditModal && clientEditEvent && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <form onSubmit={handleSaveClientSettings} className="bg-card border border-border rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex justify-between items-center border-b border-border pb-3">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <form onSubmit={handleSaveClientSettings} className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-amber-400" />
-                <h3 className="font-extrabold text-base text-white">Client Review Settings</h3>
+                <ShieldCheck className="w-5 h-5 text-amber-600" />
+                <h3 className="font-extrabold text-base text-slate-900">Client Review Settings</h3>
               </div>
               <button
                 type="button"
@@ -2287,47 +2276,47 @@ export default function CalendarPage() {
                   setShowClientEditModal(false);
                   setClientEditEvent(null);
                 }}
-                className="text-gray-400 hover:text-white"
+                className="text-slate-500 hover:text-slate-900"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-3 rounded-xl bg-gray-900 border border-gray-800 text-xs text-gray-300 space-y-1">
-              <p className="font-bold text-white line-clamp-1">{clientEditEvent.title}</p>
-              <p className="text-gray-400 font-mono text-[10px]">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1">
+              <p className="font-bold text-slate-900 line-clamp-1">{clientEditEvent.title}</p>
+              <p className="text-slate-500 font-mono text-[10px]">
                 Event ID: {clientEditEvent.eventId || clientEditEvent.id} • Client: {clientEditEvent.client?.name}
               </p>
-              <div className="text-gray-400 text-[11px] flex items-center gap-1 pt-1 border-t border-gray-800/80">
-                <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span>Created by: <strong className="text-gray-200">{clientEditEvent.createdBy?.name || 'Social Media Manager'}</strong></span>
+              <div className="text-slate-500 text-[11px] flex items-center gap-1 pt-1 border-t border-slate-200">
+                <User className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>Created by: <strong className="text-slate-800">{clientEditEvent.createdBy?.name || 'Social Media Manager'}</strong></span>
                 {clientEditEvent.createdBy?.role && (
-                  <span className="text-[9px] font-mono text-gray-400">({clientEditEvent.createdBy.role.replace(/_/g, ' ')})</span>
+                  <span className="text-[9px] font-mono text-slate-500">({clientEditEvent.createdBy.role.replace(/_/g, ' ')})</span>
                 )}
               </div>
             </div>
 
             <div className="space-y-3 text-xs">
               <div className="space-y-1">
-                <label className="text-gray-300 font-bold uppercase text-[10px] flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" /> Client Approval Deadline
+                <label className="text-slate-700 font-bold uppercase text-[10px] flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" /> Client Approval Deadline
                 </label>
                 <input
                   type="date"
                   value={clientDeadline}
                   onChange={(e) => setClientDeadline(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white font-semibold focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-white font-semibold focus:outline-none focus:border-amber-500 focus:bg-white"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-gray-300 font-bold uppercase text-[10px] flex items-center gap-1">
-                  <Flame className="w-3.5 h-3.5 text-amber-400" /> Client Event Priority
+                <label className="text-slate-700 font-bold uppercase text-[10px] flex items-center gap-1">
+                  <Flame className="w-3.5 h-3.5 text-amber-600" /> Client Event Priority
                 </label>
                 <select
                   value={clientPriority}
                   onChange={(e) => setClientPriority(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white font-bold focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-white font-bold focus:outline-none focus:border-amber-500 focus:bg-white"
                 >
                   <option value="LOW">LOW Priority</option>
                   <option value="MEDIUM">MEDIUM Priority</option>
@@ -2337,25 +2326,25 @@ export default function CalendarPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-gray-300 font-semibold text-[11px]">Audit Reason / Note (Optional)</label>
+                <label className="text-slate-700 font-semibold text-[11px]">Audit Reason / Note (Optional)</label>
                 <input
                   type="text"
                   placeholder="e.g. Accelerated launch timeline requested by client..."
                   value={clientReason}
                   onChange={(e) => setClientReason(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white placeholder-gray-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-white placeholder-slate-400"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-border">
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => {
                   setShowClientEditModal(false);
                   setClientEditEvent(null);
                 }}
-                className="px-4 py-2 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 text-xs font-bold"
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold"
               >
                 Cancel
               </button>
@@ -2401,63 +2390,63 @@ export default function CalendarPage() {
 
       {/* Event Details View Modal */}
       {viewModalEvent && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-gray-800 pb-4">
+            <div className="flex items-start justify-between border-b border-slate-200 pb-4">
               <div>
                 <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800 uppercase font-bold">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 uppercase font-bold">
                     {viewModalEvent.eventId || `EVT-${viewModalEvent.id.substring(0, 6).toUpperCase()}`}
                   </span>
                   {viewModalEvent.editRequests && viewModalEvent.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL') ? (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-500/60 uppercase flex items-center gap-1 animate-pulse">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> ⏳ WAITING FOR EDITING APPROVAL
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 uppercase flex items-center gap-1 animate-pulse">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> WAITING FOR EDITING APPROVAL
                     </span>
                   ) : (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 uppercase">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
                       {viewModalEvent.status}
                     </span>
                   )}
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 uppercase">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 uppercase">
                     {viewModalEvent.priority || 'MEDIUM'} PRIORITY
                   </span>
                 </div>
-                <h2 className="text-xl font-bold text-white">{viewModalEvent.title}</h2>
-                <p className="text-xs text-gray-400 mt-1">
-                  Client: <strong className="text-gray-200">{viewModalEvent.client?.name}</strong> • Brand: <strong className="text-blue-400">[{viewModalEvent.brand?.shortCode}] {viewModalEvent.brand?.name}</strong>
+                <h2 className="text-xl font-bold text-slate-900">{viewModalEvent.title}</h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Client: <strong className="text-slate-800">{viewModalEvent.client?.name}</strong> • Brand: <strong className="text-blue-600">[{viewModalEvent.brand?.shortCode}] {viewModalEvent.brand?.name}</strong>
                 </p>
               </div>
               <button
                 onClick={() => setViewModalEvent(null)}
-                className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+                className="text-slate-500 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* CREATOR INFORMATION HIGHLIGHT BOX */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-blue-950/70 via-indigo-950/50 to-gray-950 border border-blue-500/30 flex items-center justify-between shadow-lg">
+            <div className="p-4 rounded-xl bg-gradient-to-r from-blue-950/70 via-indigo-950/50 to-gray-950 border border-blue-200 flex items-center justify-between shadow-lg">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 shrink-0">
+                <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
                   <User className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-blue-400 block">Created By (Event Owner)</span>
-                  <span className="text-sm font-bold text-white">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-blue-600 block">Created By (Event Owner)</span>
+                  <span className="text-sm font-bold text-slate-900">
                     {viewModalEvent.createdBy?.name || (viewModalEvent.createdByRole ? viewModalEvent.createdByRole.replace(/_/g, ' ') : 'Media Operations Team')}
                   </span>
                   {viewModalEvent.createdBy?.email && (
-                    <span className="text-xs text-gray-400 block">{viewModalEvent.createdBy.email}</span>
+                    <span className="text-xs text-slate-500 block">{viewModalEvent.createdBy.email}</span>
                   )}
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-[9px] font-mono px-2.5 py-1 rounded-full bg-blue-900/80 text-blue-200 border border-blue-700/60 uppercase font-bold block mb-1">
+                <span className="text-[9px] font-mono px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200 uppercase font-bold block mb-1">
                   {viewModalEvent.createdBy?.role ? viewModalEvent.createdBy.role.replace(/_/g, ' ') : viewModalEvent.createdByRole ? viewModalEvent.createdByRole.replace(/_/g, ' ') : 'CREATOR'}
                 </span>
                 {viewModalEvent.createdAt && (
-                  <span className="text-[10px] text-gray-400 font-mono">
+                  <span className="text-[10px] text-slate-500 font-mono">
                     Created: {new Date(viewModalEvent.createdAt).toLocaleDateString()}
                   </span>
                 )}
@@ -2466,18 +2455,18 @@ export default function CalendarPage() {
 
             {/* LAST EDITED BY & MODIFIED TIMESTAMP HIGHLIGHT BOX */}
             {(viewModalEvent.lastModifiedBy || viewModalEvent.lastModifiedAt) && (
-              <div className="p-3.5 rounded-xl bg-gradient-to-r from-purple-950/60 via-purple-950/40 to-gray-950 border border-purple-500/40 flex items-center justify-between shadow-md text-xs">
+              <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-between shadow-xs text-xs">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-300 shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-white border border-purple-200 flex items-center justify-center text-purple-700 shrink-0">
                     <Edit className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-purple-300 block">Last Edited By</span>
-                    <span className="text-sm font-bold text-white">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-purple-700 block">Last Edited By</span>
+                    <span className="text-sm font-bold text-slate-900">
                       {viewModalEvent.lastModifiedBy?.name || 'Authorized Editor'}
                     </span>
                     {viewModalEvent.lastModifiedBy?.role && (
-                      <span className="text-[10px] text-purple-300/80 block font-mono">
+                      <span className="text-[10px] text-purple-800 block font-mono">
                         Role: {viewModalEvent.lastModifiedBy.role.replace(/_/g, ' ')}
                       </span>
                     )}
@@ -2485,11 +2474,11 @@ export default function CalendarPage() {
                 </div>
                 {viewModalEvent.lastModifiedAt && (
                   <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400 block mb-0.5">Edited On</span>
-                    <span className="text-xs text-purple-200 font-bold font-mono block">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block mb-0.5">Edited On</span>
+                    <span className="text-xs text-purple-900 font-bold font-mono block">
                       {new Date(viewModalEvent.lastModifiedAt).toLocaleDateString()}
                     </span>
-                    <span className="text-[10px] text-gray-400 font-mono">
+                    <span className="text-[10px] text-slate-500 font-mono">
                       {new Date(viewModalEvent.lastModifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
@@ -2499,48 +2488,48 @@ export default function CalendarPage() {
 
             {/* Details Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              <div className="p-4 bg-gray-950 rounded-xl border border-gray-800 space-y-2.5">
-                <div className="font-bold uppercase text-[10px] tracking-wider text-blue-400 border-b border-gray-900 pb-1">Schedule & Workflow</div>
-                <div><span className="text-gray-500">Shoot Date:</span> <strong className="text-white ml-1">{new Date(viewModalEvent.shootDate).toLocaleDateString()}</strong></div>
-                <div><span className="text-gray-500">Approval Deadline:</span> <strong className="text-amber-400 ml-1">{viewModalEvent.clientApprovalDeadline ? new Date(viewModalEvent.clientApprovalDeadline).toLocaleDateString() : 'N/A'}</strong></div>
-                <div><span className="text-gray-500">Shoot Type:</span> <strong className="text-white ml-1">{viewModalEvent.shootType}</strong></div>
-                <div><span className="text-gray-500">Platform:</span> <strong className="text-white ml-1">{viewModalEvent.platform || 'Instagram'}</strong></div>
-                <div><span className="text-gray-500">Content Format:</span> <strong className="text-white ml-1">{viewModalEvent.contentType || 'Post'}</strong></div>
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+                <div className="font-bold uppercase text-[10px] tracking-wider text-blue-600 border-b border-slate-200 pb-1">Schedule & Workflow</div>
+                <div><span className="text-slate-500">Shoot Date:</span> <strong className="text-slate-900 ml-1">{new Date(viewModalEvent.shootDate).toLocaleDateString()}</strong></div>
+                <div><span className="text-slate-500">Approval Deadline:</span> <strong className="text-amber-600 ml-1">{viewModalEvent.clientApprovalDeadline ? new Date(viewModalEvent.clientApprovalDeadline).toLocaleDateString() : 'N/A'}</strong></div>
+                <div><span className="text-slate-500">Shoot Type:</span> <strong className="text-slate-900 ml-1">{viewModalEvent.shootType}</strong></div>
+                <div><span className="text-slate-500">Platform:</span> <strong className="text-slate-900 ml-1">{viewModalEvent.platform || 'Instagram'}</strong></div>
+                <div><span className="text-slate-500">Content Format:</span> <strong className="text-slate-900 ml-1">{viewModalEvent.contentType || 'Post'}</strong></div>
               </div>
 
-              <div className="p-4 bg-gray-950 rounded-xl border border-gray-800 space-y-2.5">
-                <div className="font-bold uppercase text-[10px] tracking-wider text-emerald-400 border-b border-gray-900 pb-1">Governance & Responsibilities</div>
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+                <div className="font-bold uppercase text-[10px] tracking-wider text-emerald-600 border-b border-slate-200 pb-1">Governance & Responsibilities</div>
                 <div>
-                  <span className="text-gray-500">Event Creator:</span>{' '}
-                  <strong className="text-white ml-1">
+                  <span className="text-slate-500">Event Creator:</span>{' '}
+                  <strong className="text-slate-900 ml-1">
                     {viewModalEvent.createdBy?.name || (viewModalEvent.createdByRole ? viewModalEvent.createdByRole.replace(/_/g, ' ') : 'Media Operations Team')}
                   </strong>
                 </div>
                 <div>
-                  <span className="text-gray-500">Responsible Approver:</span>{' '}
-                  <strong className="text-white ml-1">{viewModalEvent.approvalAssignedTo?.name || 'Marketing Manager'}</strong>
+                  <span className="text-slate-500">Responsible Approver:</span>{' '}
+                  <strong className="text-slate-900 ml-1">{viewModalEvent.approvalAssignedTo?.name || 'Marketing Manager'}</strong>
                 </div>
                 <div>
-                  <span className="text-gray-500">Assigned Staff:</span>{' '}
-                  <strong className="text-white ml-1">{viewModalEvent.assignedStaff?.name || 'Unassigned'}</strong>
+                  <span className="text-slate-500">Assigned Staff:</span>{' '}
+                  <strong className="text-slate-900 ml-1">{viewModalEvent.assignedStaff?.name || 'Unassigned'}</strong>
                 </div>
               </div>
             </div>
 
             {/* Pending Edit Request Alert Banner in Details Modal */}
             {viewModalEvent.editRequests && viewModalEvent.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL') && (
-              <div className="p-4 bg-amber-950/60 border border-amber-500/50 rounded-xl space-y-2 text-amber-200">
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900">
                 <div className="flex items-center gap-2 font-bold text-xs">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>Pending Edit Request Awaiting Marketing Manager Review</span>
                 </div>
                 {(() => {
                   const pendingReq = viewModalEvent.editRequests.find((r: any) => r.status === 'PENDING_MARKETING_APPROVAL');
                   return (
-                    <div className="text-[11px] space-y-1 bg-amber-950/40 p-2.5 rounded-lg border border-amber-800/40 font-mono">
-                      <div>Requested By: <strong className="text-white">{pendingReq.requestedBy?.name || 'Media Manager'}</strong></div>
-                      <div>Submitted On: <span className="text-amber-300">{new Date(pendingReq.createdAt).toLocaleString()}</span></div>
-                      {pendingReq.reason && <div>Reason: <span className="italic text-gray-300">"{pendingReq.reason}"</span></div>}
+                    <div className="text-[11px] space-y-1 bg-amber-50 p-2.5 rounded-lg border border-amber-200 font-mono">
+                      <div>Requested By: <strong className="text-slate-900">{pendingReq.requestedBy?.name || 'Media Manager'}</strong></div>
+                      <div>Submitted On: <span className="text-amber-800">{new Date(pendingReq.createdAt).toLocaleString()}</span></div>
+                      {pendingReq.reason && <div>Reason: <span className="italic text-slate-700">"{pendingReq.reason}"</span></div>}
                     </div>
                   );
                 })()}
@@ -2549,9 +2538,9 @@ export default function CalendarPage() {
 
             {/* Production Notes */}
             {viewModalEvent.productionNotes && (
-              <div className="p-4 bg-gray-950 rounded-xl border border-gray-800 space-y-1.5 text-xs">
-                <div className="font-bold text-gray-400 uppercase text-[10px] tracking-wider">Production Notes & Requirements</div>
-                <p className="text-gray-200 leading-relaxed whitespace-pre-wrap">{viewModalEvent.productionNotes}</p>
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                <div className="font-bold text-slate-500 uppercase text-[10px] tracking-wider">Production Notes & Requirements</div>
+                <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{viewModalEvent.productionNotes}</p>
               </div>
             )}
 
@@ -2644,17 +2633,17 @@ export default function CalendarPage() {
             })()}
 
             {/* Modal Actions Footer */}
-            <div className="flex items-center justify-between border-t border-gray-800 pt-4">
+            <div className="flex items-center justify-between border-t border-slate-200 pt-4">
               <button
                 onClick={() => { setViewModalEvent(null); setConvertModalEvent(viewModalEvent); }}
-                className="px-3.5 py-2 bg-purple-950/60 hover:bg-purple-900/80 border border-purple-800/60 text-purple-300 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                className="px-3.5 py-2 bg-purple-50 hover:bg-purple-900/80 border border-purple-200 text-purple-700 rounded-xl text-xs font-bold flex items-center gap-1.5"
               >
-                <Zap className="w-3.5 h-3.5 text-purple-400" /> Convert to Task
+                <Zap className="w-3.5 h-3.5 text-purple-600" /> Convert to Task
               </button>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => { setViewModalEvent(null); openEdit(viewModalEvent); }}
-                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-white rounded-xl text-xs font-bold flex items-center gap-1.5"
                 >
                   <Edit className="w-3.5 h-3.5" /> Edit Event
                 </button>
@@ -2672,34 +2661,34 @@ export default function CalendarPage() {
 
       {/* Custom Pending Edit Request Warning Modal Popup */}
       {pendingEditNoticeEvent && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-amber-500/50 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 relative">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-slate-50 border border-amber-200 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 relative">
             <button
               onClick={() => setPendingEditNoticeEvent(null)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+              className="absolute top-4 right-4 text-slate-500 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/10">
+              <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0 shadow-lg shadow-amber-500/10">
                 <AlertTriangle className="w-6 h-6 animate-pulse" />
               </div>
               <div className="space-y-1">
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 uppercase tracking-wider">
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 uppercase tracking-wider">
                   Edit Request Pending
                 </span>
-                <h3 className="text-lg font-bold text-white leading-snug">
+                <h3 className="text-lg font-bold text-slate-900 leading-snug">
                   Already Waiting for Approval
                 </h3>
               </div>
             </div>
 
-            <div className="p-4 bg-amber-950/40 border border-amber-800/50 rounded-xl space-y-2 text-xs text-amber-200">
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-xs text-amber-900">
               <p className="leading-relaxed">
-                An edit request for <strong className="text-white">"{pendingEditNoticeEvent.title}"</strong> has already been submitted and is currently pending Marketing Manager review.
+                An edit request for <strong className="text-slate-900">"{pendingEditNoticeEvent.title}"</strong> has already been submitted and is currently pending Marketing Manager review.
               </p>
-              <p className="text-gray-300">
+              <p className="text-slate-700">
                 Please wait for the Marketing Manager to review the current request before submitting additional changes.
               </p>
             </div>

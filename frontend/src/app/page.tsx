@@ -272,7 +272,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="p-8 text-center text-gray-400">
+      <div className="p-8 text-center text-slate-500">
         <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
         Loading Operational Project Dashboard...
       </div>
@@ -302,69 +302,69 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Media Manager Quick Actions Bar */}
       {(role === 'MEDIA_MANAGER' || (role as string) === 'ADMIN') && (
-        <div className="bg-card border border-border p-4 rounded-xl space-y-2 shadow-md">
-          <div className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-blue-400">
-              <Sparkles className="w-4 h-4 text-blue-400" /> Media Manager Quick Operational Actions
+        <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-2 shadow-md">
+          <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-blue-600">
+              <Sparkles className="w-4 h-4 text-blue-600" /> Media Manager Quick Operational Actions
             </span>
-            <span className="text-[10px] text-gray-500 font-mono">1-Click Direct Workflows</span>
+            <span className="text-[10px] text-slate-400 font-mono">1-Click Direct Workflows</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
             <Link
               href="/calendar"
-              className="p-2.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-500/40 rounded-lg text-center transition-all group"
+              className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-blue-200 rounded-lg text-center transition-all group"
             >
-              <Calendar className="w-4 h-4 text-blue-400 mx-auto mb-1 group-hover:scale-110 transition-transform" />
-              <span className="text-[11px] font-semibold text-gray-200 block truncate">Create Event</span>
+              <Calendar className="w-4 h-4 text-blue-600 mx-auto mb-1 group-hover:scale-110 transition-transform" />
+              <span className="text-[11px] font-semibold text-slate-800 block truncate">Create Event</span>
             </Link>
 
             <Link
               href="/projects"
-              className="p-2.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-500/40 rounded-lg text-center transition-all group"
+              className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-blue-200 rounded-lg text-center transition-all group"
             >
-              <Film className="w-4 h-4 text-emerald-400 mx-auto mb-1 group-hover:scale-110 transition-transform" />
-              <span className="text-[11px] font-semibold text-gray-200 block truncate">Create Project</span>
+              <Film className="w-4 h-4 text-emerald-600 mx-auto mb-1 group-hover:scale-110 transition-transform" />
+              <span className="text-[11px] font-semibold text-slate-800 block truncate">Create Project</span>
             </Link>
 
             <Link
               href="/tasks"
-              className="p-2.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-500/40 rounded-lg text-center transition-all group"
+              className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-blue-200 rounded-lg text-center transition-all group"
             >
-              <CheckSquare className="w-4 h-4 text-amber-400 mx-auto mb-1 group-hover:scale-110 transition-transform" />
-              <span className="text-[11px] font-semibold text-gray-200 block truncate">Assign Task</span>
+              <CheckSquare className="w-4 h-4 text-amber-600 mx-auto mb-1 group-hover:scale-110 transition-transform" />
+              <span className="text-[11px] font-semibold text-slate-800 block truncate">Assign Task</span>
             </Link>
 
             <Link
               href="/staff"
-              className="p-2.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-500/40 rounded-lg text-center transition-all group"
+              className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-blue-200 rounded-lg text-center transition-all group"
             >
-              <Users className="w-4 h-4 text-purple-400 mx-auto mb-1 group-hover:scale-110 transition-transform" />
-              <span className="text-[11px] font-semibold text-gray-200 block truncate">Add Employee</span>
+              <Users className="w-4 h-4 text-purple-600 mx-auto mb-1 group-hover:scale-110 transition-transform" />
+              <span className="text-[11px] font-semibold text-slate-800 block truncate">Add Employee</span>
             </Link>
 
             <Link
               href="/clients"
-              className="p-2.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-500/40 rounded-lg text-center transition-all group"
+              className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-blue-200 rounded-lg text-center transition-all group"
             >
-              <Building className="w-4 h-4 text-cyan-400 mx-auto mb-1 group-hover:scale-110 transition-transform" />
-              <span className="text-[11px] font-semibold text-gray-200 block truncate">Add Client</span>
+              <Building className="w-4 h-4 text-cyan-600 mx-auto mb-1 group-hover:scale-110 transition-transform" />
+              <span className="text-[11px] font-semibold text-slate-800 block truncate">Add Client</span>
             </Link>
 
             <Link
               href="/reports"
-              className="p-2.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-500/40 rounded-lg text-center transition-all group"
+              className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-blue-200 rounded-lg text-center transition-all group"
             >
               <TrendingUp className="w-4 h-4 text-pink-400 mx-auto mb-1 group-hover:scale-110 transition-transform" />
-              <span className="text-[11px] font-semibold text-gray-200 block truncate">Generate Report</span>
+              <span className="text-[11px] font-semibold text-slate-800 block truncate">Generate Report</span>
             </Link>
 
             <Link
               href="/attendance"
-              className="p-2.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-500/40 rounded-lg text-center transition-all group"
+              className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-blue-200 rounded-lg text-center transition-all group"
             >
               <Clock className="w-4 h-4 text-indigo-400 mx-auto mb-1 group-hover:scale-110 transition-transform" />
-              <span className="text-[11px] font-semibold text-gray-200 block truncate">Attendance</span>
+              <span className="text-[11px] font-semibold text-slate-800 block truncate">Attendance</span>
             </Link>
           </div>
         </div>
@@ -372,51 +372,51 @@ export default function DashboardPage() {
 
       {/* Technical Manager Quick Actions Bar */}
       {(role as string) === 'TECHNICAL_MANAGER' && (
-        <div className="bg-card border border-cyan-900/40 p-4 rounded-xl space-y-2 shadow-md">
-          <div className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-cyan-400">
-              <Camera className="w-4 h-4 text-cyan-400" /> Technical Manager Operations & Maintenance Workflows
+        <div className="bg-white border border-cyan-200 p-4 rounded-xl space-y-2 shadow-md">
+          <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-cyan-600">
+              <Camera className="w-4 h-4 text-cyan-600" /> Technical Manager Operations & Maintenance Workflows
             </span>
-            <span className="text-[10px] text-gray-500 font-mono">1-Click Technical Actions</span>
+            <span className="text-[10px] text-slate-400 font-mono">1-Click Technical Actions</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Link
               href="/approvals"
-              className="p-3 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-cyan-500/40 rounded-lg transition-all group flex items-center gap-3"
+              className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-cyan-200 rounded-lg transition-all group flex items-center gap-3"
             >
-              <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-600 shrink-0">
                 <CheckCircle2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </div>
               <div className="min-w-0">
-                <span className="text-xs font-bold text-white block truncate">Review Deliverable</span>
-                <span className="text-[10px] text-gray-400 block truncate">Technical review & sign-off</span>
+                <span className="text-xs font-bold text-slate-900 block truncate">Review Deliverable</span>
+                <span className="text-[10px] text-slate-500 block truncate">Technical review & sign-off</span>
               </div>
             </Link>
 
             <Link
               href="/equipment"
-              className="p-3 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-cyan-500/40 rounded-lg transition-all group flex items-center gap-3"
+              className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-cyan-200 rounded-lg transition-all group flex items-center gap-3"
             >
-              <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
                 <Camera className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </div>
               <div className="min-w-0">
-                <span className="text-xs font-bold text-white block truncate">Update Equipment Status</span>
-                <span className="text-[10px] text-gray-400 block truncate">Issue, return & status audit</span>
+                <span className="text-xs font-bold text-slate-900 block truncate">Update Equipment Status</span>
+                <span className="text-[10px] text-slate-500 block truncate">Issue, return & status audit</span>
               </div>
             </Link>
 
             <Link
               href="/equipment"
-              className="p-3 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-cyan-500/40 rounded-lg transition-all group flex items-center gap-3"
+              className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-cyan-200 rounded-lg transition-all group flex items-center gap-3"
             >
-              <div className="w-9 h-9 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
                 <ShieldAlert className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </div>
               <div className="min-w-0">
-                <span className="text-xs font-bold text-white block truncate">Record Maintenance</span>
-                <span className="text-[10px] text-gray-400 block truncate">Log damage & repair status</span>
+                <span className="text-xs font-bold text-slate-900 block truncate">Record Maintenance</span>
+                <span className="text-[10px] text-slate-500 block truncate">Log damage & repair status</span>
               </div>
             </Link>
           </div>
@@ -425,64 +425,64 @@ export default function DashboardPage() {
 
       {/* Staff Quick Actions Bar */}
       {role === 'STAFF' && (
-        <div className="bg-card border border-emerald-900/40 p-4 rounded-xl space-y-2 shadow-md">
-          <div className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-emerald-400">
-              <CheckSquare className="w-4 h-4 text-emerald-400" /> Staff Personalized Execution Workflows
+        <div className="bg-white border border-emerald-200 p-4 rounded-xl space-y-2 shadow-md">
+          <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-emerald-600">
+              <CheckSquare className="w-4 h-4 text-emerald-600" /> Staff Personalized Execution Workflows
             </span>
-            <span className="text-[10px] text-gray-500 font-mono">1-Click Staff Actions</span>
+            <span className="text-[10px] text-slate-400 font-mono">1-Click Staff Actions</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Link
               href="/tasks"
-              className="p-3 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-emerald-500/40 rounded-lg transition-all group flex items-center gap-2.5"
+              className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-emerald-200 rounded-lg transition-all group flex items-center gap-2.5"
             >
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
                 <CheckSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </div>
               <div className="min-w-0">
-                <span className="text-xs font-bold text-white block truncate">Update Task</span>
-                <span className="text-[10px] text-gray-400 block truncate">Update task status</span>
+                <span className="text-xs font-bold text-slate-900 block truncate">Update Task</span>
+                <span className="text-[10px] text-slate-500 block truncate">Update task status</span>
               </div>
             </Link>
 
             <Link
               href="/tasks"
-              className="p-3 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-emerald-500/40 rounded-lg transition-all group flex items-center gap-2.5"
+              className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-emerald-200 rounded-lg transition-all group flex items-center gap-2.5"
             >
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
                 <Paperclip className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </div>
               <div className="min-w-0">
-                <span className="text-xs font-bold text-white block truncate">Upload Deliverable</span>
-                <span className="text-[10px] text-gray-400 block truncate">Submit media files</span>
+                <span className="text-xs font-bold text-slate-900 block truncate">Upload Deliverable</span>
+                <span className="text-[10px] text-slate-500 block truncate">Submit media files</span>
               </div>
             </Link>
 
             <Link
               href="/tasks"
-              className="p-3 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-emerald-500/40 rounded-lg transition-all group flex items-center gap-2.5"
+              className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-emerald-200 rounded-lg transition-all group flex items-center gap-2.5"
             >
-              <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600 shrink-0">
                 <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </div>
               <div className="min-w-0">
-                <span className="text-xs font-bold text-white block truncate">Add Remark</span>
-                <span className="text-[10px] text-gray-400 block truncate">Post progress note</span>
+                <span className="text-xs font-bold text-slate-900 block truncate">Add Remark</span>
+                <span className="text-[10px] text-slate-500 block truncate">Post progress note</span>
               </div>
             </Link>
 
             <Link
               href="/communication"
-              className="p-3 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-red-500/40 rounded-lg transition-all group flex items-center gap-2.5"
+              className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-rose-200 rounded-lg transition-all group flex items-center gap-2.5"
             >
-              <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
                 <AlertTriangle className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </div>
               <div className="min-w-0">
-                <span className="text-xs font-bold text-white block truncate">Report Blocker</span>
-                <span className="text-[10px] text-red-300 block truncate">Escalate blocker issue</span>
+                <span className="text-xs font-bold text-slate-900 block truncate">Report Blocker</span>
+                <span className="text-[10px] text-rose-700 block truncate">Escalate blocker issue</span>
               </div>
             </Link>
           </div>
@@ -490,11 +490,11 @@ export default function DashboardPage() {
       )}
 
       {/* Dashboard View Switcher */}
-      <div className="flex items-center justify-between bg-card border border-border p-2 rounded-xl">
+      <div className="flex items-center justify-between bg-white border border-slate-200 p-2 rounded-xl">
         <div className="flex items-center gap-2">
           {role === 'STAFF' ? (
-            <div className="px-3.5 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center gap-2">
-              <Users className="w-4 h-4 text-emerald-400" />
+            <div className="px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs flex items-center gap-2">
+              <Users className="w-4 h-4 text-emerald-600" />
               <span>Personalized Assignment Dashboard</span>
             </div>
           ) : (role as string) === 'TECHNICAL_MANAGER' ? (
@@ -504,20 +504,20 @@ export default function DashboardPage() {
                 className={`px-4 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-2 ${
                   activeTab === 'TECHNICAL'
                     ? 'bg-cyan-600 text-white shadow-md'
-                    : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+                    : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                 }`}
               >
-                <Camera className="w-4 h-4 text-cyan-300" /> Technical Operations & Equipment Dashboard
+                <Camera className="w-4 h-4 text-cyan-700" /> Technical Operations & Equipment Dashboard
               </button>
               <button
                 onClick={() => setActiveTab('PERSONAL')}
                 className={`px-4 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-2 ${
                   activeTab === 'PERSONAL'
                     ? 'bg-cyan-600 text-white shadow-md'
-                    : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+                    : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                 }`}
               >
-                <Users className="w-4 h-4 text-cyan-300" /> My Technical Tasks & Assignments
+                <Users className="w-4 h-4 text-cyan-700" /> My Technical Tasks & Assignments
               </button>
             </>
           ) : (
@@ -527,26 +527,26 @@ export default function DashboardPage() {
                 className={`px-4 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-2 ${
                   activeTab === 'PERSONAL'
                     ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+                    : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                 }`}
               >
-                <Users className="w-4 h-4 text-blue-300" /> My Personalized Assignment Dashboard
+                <Users className="w-4 h-4 text-blue-700" /> My Personalized Assignment Dashboard
               </button>
               <button
                 onClick={() => setActiveTab('SYSTEM')}
                 className={`px-4 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-2 ${
                   activeTab === 'SYSTEM'
                     ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+                    : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                 }`}
               >
-                <TrendingUp className="w-4 h-4 text-emerald-300" /> System Operations Overview
+                <TrendingUp className="w-4 h-4 text-emerald-700" /> System Operations Overview
               </button>
             </>
           )}
         </div>
 
-        <div className="text-[11px] text-gray-400 font-mono hidden md:block">
+        <div className="text-[11px] text-slate-500 font-mono hidden md:block">
           {role === 'STAFF'
             ? `Staff Scope: Strictly scoped to your assignments (${user?.name})`
             : `Active Profile: ${user?.name}`}
@@ -558,8 +558,8 @@ export default function DashboardPage() {
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-red-400 animate-pulse" /> Exceptional Operational Conditions (
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-rose-600 animate-pulse" /> Exceptional Operational Conditions (
                 {systemAlerts?.totalActiveAlerts || 0}) — Requires Administrative Attention
               </h3>
             </div>
@@ -575,7 +575,7 @@ export default function DashboardPage() {
               <button
                 onClick={handleScanSystemAlerts}
                 disabled={scanningAlerts}
-                className="text-[11px] text-red-300 hover:text-red-200 bg-red-950/40 hover:bg-red-900/50 border border-red-800/60 px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-bold transition-all disabled:opacity-50"
+                className="text-[11px] text-rose-700 hover:text-red-200 bg-rose-50 hover:bg-red-900/50 border border-rose-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-bold transition-all disabled:opacity-50"
               >
                 <RotateCcw className={`w-3 h-3 ${scanningAlerts ? 'animate-spin' : ''}`} />
                 {scanningAlerts ? 'Diagnosing Operations...' : 'Diagnostic Scan'}
@@ -595,10 +595,10 @@ export default function DashboardPage() {
                     key={alertItem.id}
                     className={`p-4 rounded-xl border space-y-2.5 transition-all ${
                       isResolved
-                        ? 'bg-zinc-900/40 border-zinc-800 opacity-65'
+                        ? 'bg-slate-50/40 border-slate-200 opacity-65'
                         : isCrit
-                        ? 'bg-gradient-to-br from-red-950/50 via-zinc-900 to-zinc-950 border-red-600/80 shadow-lg shadow-red-950/40 ring-1 ring-red-500/40'
-                        : 'bg-gradient-to-br from-amber-950/40 via-zinc-900 to-zinc-950 border-amber-500/60 shadow-md shadow-amber-950/30 ring-1 ring-amber-500/30'
+                        ? 'bg-rose-50/60 border-red-600/80 shadow-lg shadow-red-950/40 ring-1 ring-red-500/40'
+                        : 'bg-amber-50/60 border-amber-200 shadow-md shadow-amber-950/30 ring-1 ring-amber-500/30'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -607,61 +607,61 @@ export default function DashboardPage() {
                           className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded font-black border ${
                             isCrit
                               ? 'bg-red-600 text-white border-red-500 animate-pulse'
-                              : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              : 'bg-amber-50 text-amber-800 border-amber-200'
                           }`}
                         >
-                          {isCrit ? '🚨 CRITICAL ALERT' : '⚡ HIGH ALERT'}
+                          {isCrit ? 'CRITICAL ALERT' : 'HIGH ALERT'}
                         </span>
                         {alertItem.entityCode && (
-                          <span className="text-[9px] font-mono font-bold bg-zinc-800 text-zinc-300 border border-zinc-700 px-1.5 py-0.5 rounded">
+                          <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 px-1.5 py-0.5 rounded">
                             {alertItem.entityCode}
                           </span>
                         )}
                       </div>
-                      <span className="text-[9px] font-mono bg-red-900/40 text-red-300 border border-red-800 px-1.5 py-0.5 rounded font-bold uppercase">
+                      <span className="text-[9px] font-mono bg-red-900/40 text-rose-700 border border-rose-200 px-1.5 py-0.5 rounded font-bold uppercase">
                         {isResolved ? 'Resolved' : isAck ? 'Acknowledged' : 'Admin Action Required'}
                       </span>
                     </div>
 
-                    <h4 className="font-bold text-white text-xs leading-snug">{alertItem.title}</h4>
-                    <p className="text-[11px] text-zinc-300 leading-relaxed">{alertItem.description}</p>
+                    <h4 className="font-bold text-slate-900 text-xs leading-snug">{alertItem.title}</h4>
+                    <p className="text-[11px] text-slate-700 leading-relaxed">{alertItem.description}</p>
 
                     {/* Quick Metrics preview */}
                     {alertItem.metrics && (
-                      <div className="p-2 bg-zinc-950 border border-zinc-800/80 rounded-lg text-[10px] font-mono text-zinc-400">
+                      <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-mono text-slate-500">
                         {alertItem.category === 'STAFF_CAPACITY' && (
-                          <span>Active Tasks: <strong className="text-amber-300">{alertItem.metrics.activeTaskCount}</strong> (Limit: 5)</span>
+                          <span>Active Tasks: <strong className="text-amber-800">{alertItem.metrics.activeTaskCount}</strong> (Limit: 5)</span>
                         )}
                         {alertItem.category === 'EQUIPMENT_CONFLICT' && (
-                          <span>Gear: <strong className="text-red-300">{alertItem.metrics.equipmentName}</strong></span>
+                          <span>Gear: <strong className="text-rose-700">{alertItem.metrics.equipmentName}</strong></span>
                         )}
                         {alertItem.category === 'CALENDAR_CONFLICT' && (
-                          <span>Location: <strong className="text-amber-300">{alertItem.metrics.location}</strong></span>
+                          <span>Location: <strong className="text-amber-800">{alertItem.metrics.location}</strong></span>
                         )}
                         {alertItem.category === 'STORAGE_WARNING' && (
-                          <span>Space: <strong className="text-amber-300">{alertItem.metrics.totalGB} GB / {alertItem.metrics.quotaGB} GB</strong> ({alertItem.metrics.usagePercentage}%)</span>
+                          <span>Space: <strong className="text-amber-800">{alertItem.metrics.totalGB} GB / {alertItem.metrics.quotaGB} GB</strong> ({alertItem.metrics.usagePercentage}%)</span>
                         )}
                         {alertItem.category === 'BACKUP_FAILURE' && (
-                          <span className="text-red-400 font-bold">Status: {alertItem.metrics.status}</span>
+                          <span className="text-rose-600 font-bold">Status: {alertItem.metrics.status}</span>
                         )}
                         {alertItem.category === 'CONNECTIVITY_ISSUE' && (
-                          <span className="text-red-400 font-bold">Latency: {alertItem.metrics.latencyMs} ms</span>
+                          <span className="text-rose-600 font-bold">Latency: {alertItem.metrics.latencyMs} ms</span>
                         )}
                       </div>
                     )}
 
-                    <div className="pt-1.5 border-t border-white/10 flex items-center justify-between">
+                    <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between">
                       <button
                         onClick={() => setShowOperationalConditionsModal(true)}
-                        className="text-[10px] font-bold text-zinc-400 hover:text-white flex items-center gap-1"
+                        className="text-[10px] font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1"
                       >
-                        <ShieldAlert className="w-3 h-3 text-red-400" /> Admin Command Center →
+                        <ShieldAlert className="w-3 h-3 text-rose-600" /> Admin Command Center
                       </button>
 
                       {alertItem.actionUrl && (
                         <Link
                           href={alertItem.actionUrl}
-                          className="inline-flex items-center gap-1 text-[10px] font-bold text-red-300 hover:text-white bg-red-600/30 hover:bg-red-600/50 border border-red-500/50 px-2 py-0.5 rounded transition-all group"
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 hover:text-slate-900 bg-red-600/30 hover:bg-red-600/50 border border-rose-200 px-2 py-0.5 rounded transition-all group"
                         >
                           <span>{alertItem.actionLabel || 'Resolve Condition'}</span>
                           <ExternalLink className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
@@ -673,16 +673,16 @@ export default function DashboardPage() {
               })}
             </div>
           ) : (
-            <div className="p-3.5 bg-emerald-950/20 border border-emerald-800/40 rounded-xl text-emerald-300 text-xs flex items-center justify-between">
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-xs flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>
                   All operational subsystems healthy. No active exceptional conditions (capacity, gear conflicts, studio conflicts, storage, backups, or connectivity) detected.
                 </span>
               </div>
               <button
                 onClick={() => setShowOperationalConditionsModal(true)}
-                className="text-[11px] font-bold text-emerald-300 hover:text-white bg-emerald-900/40 border border-emerald-700/60 px-2.5 py-1 rounded-lg whitespace-nowrap ml-2"
+                className="text-[11px] font-bold text-emerald-700 hover:text-slate-900 bg-emerald-900/40 border border-emerald-300 px-2.5 py-1 rounded-lg whitespace-nowrap ml-2"
               >
                 Inspect Command Center
               </button>
@@ -695,11 +695,11 @@ export default function DashboardPage() {
       {announcements.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <Megaphone className="w-4 h-4 text-purple-400" /> Organization Announcements ({announcements.length})
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <Megaphone className="w-4 h-4 text-purple-600" /> Organization Announcements ({announcements.length})
             </h3>
-            <Link href="/communication" className="text-[11px] text-purple-400 hover:text-purple-300 font-medium">
-              View Repository Feed →
+            <Link href="/communication" className="text-[11px] text-purple-600 hover:text-purple-700 font-medium">
+              View Repository Feed
             </Link>
           </div>
 
@@ -722,52 +722,52 @@ export default function DashboardPage() {
                   key={ann.id}
                   className={`relative overflow-hidden rounded-xl border p-4.5 space-y-2.5 transition-all ${
                     isCritical
-                      ? 'bg-gradient-to-r from-red-950/80 via-amber-950/60 to-red-950/80 border-red-500/80 shadow-xl shadow-red-950/40 ring-1 ring-red-500/30'
+                      ? 'bg-rose-50 border-rose-200 shadow-xl shadow-red-950/40 ring-1 ring-red-500/30'
                       : isHigh
-                      ? 'bg-gradient-to-r from-amber-950/60 via-zinc-900 to-zinc-900 border-amber-500/60'
+                      ? 'bg-amber-50 border-amber-200'
                       : isLow
-                      ? 'bg-zinc-950/80 border-zinc-800'
-                      : 'bg-gradient-to-r from-purple-950/40 via-zinc-900 to-zinc-900 border-purple-800/60'
+                      ? 'bg-slate-50/80 border-slate-200'
+                      : 'bg-purple-50 border-purple-200'
                   }`}
                 >
                   {/* Top Bar: Priority, Title, Metadata */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       {isCritical ? (
                         <span className="text-[10px] px-2.5 py-0.5 rounded font-bold bg-red-600 text-white border border-red-400 flex items-center gap-1.5 font-mono uppercase animate-pulse shadow-md">
                           <AlertTriangle className="w-3.5 h-3.5" /> CRITICAL ANNOUNCEMENT
                         </span>
                       ) : isHigh ? (
-                        <span className="text-[10px] px-2.5 py-0.5 rounded font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 font-mono uppercase">
+                        <span className="text-[10px] px-2.5 py-0.5 rounded font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1 font-mono uppercase">
                           <AlertTriangle className="w-3.5 h-3.5" /> HIGH PRIORITY
                         </span>
                       ) : isLow ? (
-                        <span className="text-[10px] px-2.5 py-0.5 rounded font-normal bg-zinc-800 text-zinc-400 border border-zinc-700 flex items-center gap-1 font-mono uppercase">
+                        <span className="text-[10px] px-2.5 py-0.5 rounded font-normal bg-slate-100 text-slate-500 border border-slate-200 flex items-center gap-1 font-mono uppercase">
                           LOW PRIORITY
                         </span>
                       ) : (
-                        <span className="text-[10px] px-2.5 py-0.5 rounded font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 font-mono uppercase">
-                          <Megaphone className="w-3.5 h-3.5 text-purple-400" /> ANNOUNCEMENT
+                        <span className="text-[10px] px-2.5 py-0.5 rounded font-semibold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1 font-mono uppercase">
+                          <Megaphone className="w-3.5 h-3.5 text-purple-600" /> ANNOUNCEMENT
                         </span>
                       )}
-                      <h4 className="font-bold text-white text-sm">{ann.subject}</h4>
+                      <h4 className="font-bold text-slate-900 text-sm">{ann.subject}</h4>
                     </div>
 
-                    <div className="flex items-center gap-3 text-[10px] font-mono text-zinc-400 flex-wrap">
-                      <span>Published by: <strong className="text-white">{ann.sender?.name || 'Media Manager'}</strong> ({ann.sender?.role?.replace('_', ' ') || 'Media Manager'})</span>
+                    <div className="flex items-center gap-3 text-[10px] font-mono text-slate-500 flex-wrap">
+                      <span>Published by: <strong className="text-slate-900">{ann.sender?.name || 'Media Manager'}</strong> ({ann.sender?.role?.replace('_', ' ') || 'Media Manager'})</span>
                       <span>•</span>
                       <span>Published: {pubDateStr} {pubTimeStr}</span>
                       {expDateStr && (
                         <>
                           <span>•</span>
-                          <span className="text-amber-400 font-semibold">Expires: {expDateStr}</span>
+                          <span className="text-amber-600 font-semibold">Expires: {expDateStr}</span>
                         </>
                       )}
                     </div>
                   </div>
 
                   {/* Body Content */}
-                  <p className="text-zinc-200 text-xs leading-relaxed whitespace-pre-wrap pl-0.5">
+                  <p className="text-slate-800 text-xs leading-relaxed whitespace-pre-wrap pl-0.5">
                     {ann.content}
                   </p>
                 </div>
@@ -790,13 +790,13 @@ export default function DashboardPage() {
 
       {/* Publish Announcement Modal (Media Manager Only) */}
       {showAnnouncementModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-bold text-white text-base flex items-center gap-2">
-                <Megaphone className="w-5 h-5 text-purple-400" /> Publish Organization-Wide Announcement
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-purple-600" /> Publish Organization-Wide Announcement
               </h3>
-              <button onClick={() => setShowAnnouncementModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowAnnouncementModal(false)} className="text-slate-500 hover:text-slate-900">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -804,7 +804,7 @@ export default function DashboardPage() {
             <form onSubmit={handlePublishAnnouncement} className="space-y-4">
               {/* Priority Selector */}
               <div className="space-y-1.5">
-                <label className="text-[11px] text-gray-300 font-semibold uppercase tracking-wider">Announcement Priority:</label>
+                <label className="text-[11px] text-slate-700 font-semibold uppercase tracking-wider">Announcement Priority:</label>
                 <div className="grid grid-cols-4 gap-2">
                   {(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const).map((p) => {
                     const active = pubPriority === p;
@@ -821,11 +821,11 @@ export default function DashboardPage() {
                             : active && p === 'MEDIUM'
                             ? 'bg-blue-600 text-white border-blue-500 shadow-md'
                             : active && p === 'LOW'
-                            ? 'bg-zinc-700 text-white border-zinc-500'
-                            : 'bg-zinc-900 text-gray-400 border-zinc-800 hover:text-zinc-200'
+                            ? 'bg-slate-200 text-white border-zinc-500'
+                            : 'bg-slate-50 text-slate-500 border-slate-200 hover:text-slate-800'
                         }`}
                       >
-                        {p === 'CRITICAL' ? '🚨 Critical' : p === 'HIGH' ? '⚡ High' : p === 'MEDIUM' ? '🔷 Medium' : '⚪ Low'}
+                        {p === 'CRITICAL' ? 'Critical' : p === 'HIGH' ? 'High' : p === 'MEDIUM' ? 'Medium' : 'Low'}
                       </button>
                     );
                   })}
@@ -834,63 +834,63 @@ export default function DashboardPage() {
 
               {/* Title */}
               <div className="space-y-1">
-                <label className="text-[11px] text-gray-300 font-semibold">Title:</label>
+                <label className="text-[11px] text-slate-700 font-semibold">Title:</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Scheduled Studio Maintenance, Office Holiday, Q3 Production Briefing..."
                   value={pubTitle}
                   onChange={(e) => setPubTitle(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-zinc-200 text-xs focus:outline-none focus:border-purple-500 placeholder-zinc-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-purple-500 focus:bg-white placeholder-slate-400"
                 />
               </div>
 
               {/* Description */}
               <div className="space-y-1">
-                <label className="text-[11px] text-gray-300 font-semibold">Description:</label>
+                <label className="text-[11px] text-slate-700 font-semibold">Description:</label>
                 <textarea
                   rows={4}
                   required
                   placeholder="Provide comprehensive details for all company employees..."
                   value={pubDescription}
                   onChange={(e) => setPubDescription(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-zinc-200 text-xs focus:outline-none focus:border-purple-500 placeholder-zinc-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-purple-500 focus:bg-white placeholder-slate-400"
                 />
               </div>
 
               {/* Publish Date & Expiry Date (Optional) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[11px] text-gray-300 font-semibold">Publish Date:</label>
+                  <label className="text-[11px] text-slate-700 font-semibold">Publish Date:</label>
                   <input
                     type="date"
                     required
                     value={pubPublishDate}
                     onChange={(e) => setPubPublishDate(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-zinc-200 text-xs focus:outline-none focus:border-purple-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-purple-500 focus:bg-white"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] text-gray-300 font-semibold flex items-center justify-between">
+                  <label className="text-[11px] text-slate-700 font-semibold flex items-center justify-between">
                     <span>Expiry Date:</span>
-                    <span className="text-[10px] text-gray-400 font-normal">(Optional)</span>
+                    <span className="text-[10px] text-slate-500 font-normal">(Optional)</span>
                   </label>
                   <input
                     type="date"
                     value={pubExpiryDate}
                     onChange={(e) => setPubExpiryDate(e.target.value)}
                     min={pubPublishDate}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-zinc-200 text-xs focus:outline-none focus:border-purple-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-purple-500 focus:bg-white"
                   />
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setShowAnnouncementModal(false)}
-                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-medium transition-colors"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors"
                 >
                   Cancel
                 </button>
@@ -912,13 +912,13 @@ export default function DashboardPage() {
       {activeTab === 'TECHNICAL' && (
         <div className="space-y-6">
           {/* Equipment & Technical Asset Health Overview */}
-          <div className="bg-card border border-cyan-900/40 p-5 rounded-xl space-y-4 shadow-lg">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-3">
+          <div className="bg-white border border-cyan-200 p-5 rounded-xl space-y-4 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
-                  <Camera className="w-5 h-5 text-cyan-400" /> Equipment Fleet & Operational Asset Health
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-cyan-600" /> Equipment Fleet & Operational Asset Health
                 </h3>
-                <p className="text-xs text-gray-400">Real-time status of cameras, audio, lighting, bays, and technical inventory</p>
+                <p className="text-xs text-slate-500">Real-time status of cameras, audio, lighting, bays, and technical inventory</p>
               </div>
               <Link
                 href="/equipment"
@@ -931,69 +931,69 @@ export default function DashboardPage() {
 
             {/* Technical Metrics Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              <div className="p-3.5 bg-gray-900/90 border border-gray-800 rounded-xl space-y-1">
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Equipment</div>
-                <div className="text-2xl font-black font-mono text-white">{equipmentStats?.total || 0}</div>
-                <div className="text-[10px] text-gray-500 font-medium">Registered items</div>
+              <div className="p-3.5 bg-slate-50/90 border border-slate-200 rounded-xl space-y-1">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Equipment</div>
+                <div className="text-2xl font-black font-mono text-slate-900">{equipmentStats?.total || 0}</div>
+                <div className="text-[10px] text-slate-400 font-medium">Registered items</div>
               </div>
 
-              <div className="p-3.5 bg-gray-900/90 border border-emerald-900/40 rounded-xl space-y-1">
-                <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Available Gear</div>
-                <div className="text-2xl font-black font-mono text-emerald-300">{equipmentStats?.available || 0}</div>
-                <div className="text-[10px] text-emerald-400/80 font-medium">Ready for issue</div>
+              <div className="p-3.5 bg-slate-50/90 border border-emerald-200 rounded-xl space-y-1">
+                <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Available Gear</div>
+                <div className="text-2xl font-black font-mono text-emerald-700">{equipmentStats?.available || 0}</div>
+                <div className="text-[10px] text-emerald-600/80 font-medium">Ready for issue</div>
               </div>
 
-              <div className="p-3.5 bg-gray-900/90 border border-blue-900/40 rounded-xl space-y-1">
-                <div className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Checked Out / In Use</div>
-                <div className="text-2xl font-black font-mono text-blue-300">{equipmentStats?.checkedOut || 0}</div>
-                <div className="text-[10px] text-blue-400/80 font-medium">Issued on shoots</div>
+              <div className="p-3.5 bg-slate-50/90 border border-blue-200 rounded-xl space-y-1">
+                <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Checked Out / In Use</div>
+                <div className="text-2xl font-black font-mono text-blue-700">{equipmentStats?.checkedOut || 0}</div>
+                <div className="text-[10px] text-blue-600/80 font-medium">Issued on shoots</div>
               </div>
 
-              <div className="p-3.5 bg-gray-900/90 border border-amber-900/40 rounded-xl space-y-1">
-                <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Under Maintenance</div>
-                <div className="text-2xl font-black font-mono text-amber-300">{equipmentStats?.underMaintenance || 0}</div>
-                <div className="text-[10px] text-amber-400/80 font-medium">In service / repair</div>
+              <div className="p-3.5 bg-slate-50/90 border border-amber-200 rounded-xl space-y-1">
+                <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Under Maintenance</div>
+                <div className="text-2xl font-black font-mono text-amber-800">{equipmentStats?.underMaintenance || 0}</div>
+                <div className="text-[10px] text-amber-600/80 font-medium">In service / repair</div>
               </div>
 
-              <div className="p-3.5 bg-gray-900/90 border border-red-900/40 rounded-xl space-y-1">
-                <div className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Damaged / Flagged</div>
-                <div className="text-2xl font-black font-mono text-red-400">{equipmentStats?.damaged || 0}</div>
-                <div className="text-[10px] text-red-400/80 font-medium">Needs technical fix</div>
+              <div className="p-3.5 bg-slate-50/90 border border-rose-200 rounded-xl space-y-1">
+                <div className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Damaged / Flagged</div>
+                <div className="text-2xl font-black font-mono text-rose-600">{equipmentStats?.damaged || 0}</div>
+                <div className="text-[10px] text-rose-600/80 font-medium">Needs technical fix</div>
               </div>
 
-              <div className="p-3.5 bg-gray-900/90 border border-purple-900/40 rounded-xl space-y-1">
-                <div className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Recently Returned</div>
-                <div className="text-2xl font-black font-mono text-purple-300">{equipmentStats?.recentlyReturned || 0}</div>
-                <div className="text-[10px] text-purple-400/80 font-medium">Last 7 days</div>
+              <div className="p-3.5 bg-slate-50/90 border border-purple-200 rounded-xl space-y-1">
+                <div className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Recently Returned</div>
+                <div className="text-2xl font-black font-mono text-purple-700">{equipmentStats?.recentlyReturned || 0}</div>
+                <div className="text-[10px] text-purple-600/80 font-medium">Last 7 days</div>
               </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Pending Technical Review Sign-Offs */}
-            <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400" /> Pending Technical Deliverable Sign-Offs ({pendingApprovals.length})
+            <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-cyan-600" /> Pending Technical Deliverable Sign-Offs ({pendingApprovals.length})
                 </h3>
-                <Link href="/approvals" className="text-xs text-cyan-400 hover:text-cyan-300 font-bold">
-                  View All Approvals →
+                <Link href="/approvals" className="text-xs text-cyan-600 hover:text-cyan-700 font-bold">
+                  View All Approvals
                 </Link>
               </div>
 
               <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                 {pendingApprovals.length > 0 ? (
                   pendingApprovals.map((app: any) => (
-                    <div key={app.id} className="p-3 bg-gray-900 rounded-lg border border-gray-800 space-y-2">
+                    <div key={app.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-white text-xs">{app.title || app.entityName || 'Deliverable Sign-Off'}</span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold">
+                        <span className="font-bold text-slate-900 text-xs">{app.title || app.entityName || 'Deliverable Sign-Off'}</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-50 text-cyan-700 border border-cyan-200 font-bold">
                           {app.type || 'TECHNICAL_REVIEW'}
                         </span>
                       </div>
-                      <p className="text-[11px] text-gray-400 line-clamp-2">{app.description || app.notes || 'Awaiting technical manager review and sign-off.'}</p>
-                      <div className="pt-2 border-t border-gray-800 flex items-center justify-between">
-                        <span className="text-[10px] text-gray-500 font-mono">Submitted: {new Date(app.createdAt).toLocaleDateString()}</span>
+                      <p className="text-[11px] text-slate-500 line-clamp-2">{app.description || app.notes || 'Awaiting technical manager review and sign-off.'}</p>
+                      <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-400 font-mono">Submitted: {new Date(app.createdAt).toLocaleDateString()}</span>
                         <Link
                           href="/approvals"
                           className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[10px] rounded transition-colors"
@@ -1004,7 +1004,7 @@ export default function DashboardPage() {
                     </div>
                   ))
                 ) : (
-                  <div className="p-6 text-center text-gray-500 text-xs italic">
+                  <div className="p-6 text-center text-slate-400 text-xs italic">
                     No pending technical deliverable reviews in your queue
                   </div>
                 )}
@@ -1012,29 +1012,29 @@ export default function DashboardPage() {
             </div>
 
             {/* Active Technical Blockers & Issues */}
-            <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-red-400" /> Active Technical Blockers & Issues ({assignedBlockers.length})
+            <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-rose-600" /> Active Technical Blockers & Issues ({assignedBlockers.length})
                 </h3>
-                <Link href="/communication" className="text-xs text-red-400 hover:text-red-300 font-bold">
-                  View Blockers Feed →
+                <Link href="/communication" className="text-xs text-rose-600 hover:text-rose-700 font-bold">
+                  View Blockers Feed
                 </Link>
               </div>
 
               <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                 {assignedBlockers.length > 0 ? (
                   assignedBlockers.map((b: any) => (
-                    <div key={b.id} className="p-3 bg-gray-900 rounded-lg border border-red-900/30 space-y-2">
+                    <div key={b.id} className="p-3 bg-slate-50 rounded-lg border border-rose-200 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-white text-xs">{b.title || 'Technical Blocker'}</span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-red-950 text-red-300 border border-red-800 font-bold">
+                        <span className="font-bold text-slate-900 text-xs">{b.title || 'Technical Blocker'}</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold">
                           {b.blockerPriority || 'HIGH'}
                         </span>
                       </div>
-                      <p className="text-[11px] text-gray-300 line-clamp-2">{b.content}</p>
-                      <div className="pt-2 border-t border-gray-800 flex items-center justify-between">
-                        <span className="text-[10px] text-gray-500 font-mono">Logged by: {b.sender?.name || 'Staff'}</span>
+                      <p className="text-[11px] text-slate-700 line-clamp-2">{b.content}</p>
+                      <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-400 font-mono">Logged by: {b.sender?.name || 'Staff'}</span>
                         <Link
                           href="/communication"
                           className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] rounded transition-colors"
@@ -1045,7 +1045,7 @@ export default function DashboardPage() {
                     </div>
                   ))
                 ) : (
-                  <div className="p-6 text-center text-gray-500 text-xs italic">
+                  <div className="p-6 text-center text-slate-400 text-xs italic">
                     No active technical blockers reported
                   </div>
                 )}
@@ -1060,31 +1060,31 @@ export default function DashboardPage() {
         <div className="space-y-6">
           {/* Workload Metric Header */}
           {myDashboard?.currentWorkload && (
-            <div className="bg-gray-900 border border-blue-900/40 p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
+            <div className="bg-slate-50 border border-blue-200 p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
               <div className="space-y-1">
-                <div className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-blue-400" /> Current Workload & Daily Capacity Engine
+                <div className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-blue-600" /> Current Workload & Daily Capacity Engine
                 </div>
-                <div className="text-xl font-extrabold text-white">
+                <div className="text-xl font-extrabold text-slate-900">
                   {myDashboard.currentWorkload.workloadPercentage}% Workload Allocated
                 </div>
-                <p className="text-xs text-gray-400">
-                  Daily Working Capacity: <strong className="text-gray-200">{myDashboard.currentWorkload.dailyCapacityHours} Hours/day</strong> | Remaining Capacity: <strong className="text-emerald-400">{myDashboard.currentWorkload.remainingCapacityHours} Hours</strong>
+                <p className="text-xs text-slate-500">
+                  Daily Working Capacity: <strong className="text-slate-800">{myDashboard.currentWorkload.dailyCapacityHours} Hours/day</strong> | Remaining Capacity: <strong className="text-emerald-600">{myDashboard.currentWorkload.remainingCapacityHours} Hours</strong>
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
                 <span className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase border ${
                   myDashboard.currentWorkload.workloadStatus === 'Overloaded'
-                    ? 'bg-red-500/20 text-red-400 border-red-500/40'
+                    ? 'bg-rose-50 text-rose-600 border-rose-200'
                     : myDashboard.currentWorkload.workloadStatus === 'Available'
-                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                    : 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                    : 'bg-blue-50 text-blue-600 border-blue-200'
                 }`}>
                   {myDashboard.currentWorkload.workloadStatus} Status
                 </span>
                 <Link href="/tasks" className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition-colors">
-                  Manage My Tasks →
+                  Manage My Tasks
                 </Link>
               </div>
             </div>
@@ -1092,136 +1092,136 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* 1. Today's Tasks */}
-            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
-                <span className="flex items-center gap-1.5 text-emerald-400"><CheckSquare className="w-4 h-4" /> 1. Today's Tasks</span>
-                <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="flex items-center gap-1.5 text-emerald-600"><CheckSquare className="w-4 h-4" /> 1. Today's Tasks</span>
+                <span className="bg-emerald-50 text-emerald-600 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
                   {myDashboard?.todaysTasks?.length || 0}
                 </span>
               </h3>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {myDashboard?.todaysTasks?.length > 0 ? (
                   myDashboard.todaysTasks.map((t: any) => (
-                    <div key={t.id} className="p-2.5 bg-gray-900 rounded-lg border border-gray-800 space-y-1">
-                      <div className="font-bold text-white text-xs">{t.title}</div>
-                      <div className="text-[10px] text-gray-400 flex items-center justify-between font-mono">
+                    <div key={t.id} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                      <div className="font-bold text-slate-900 text-xs">{t.title}</div>
+                      <div className="text-[10px] text-slate-500 flex items-center justify-between font-mono">
                         <span>Code: {t.taskId}</span>
-                        <span className="text-amber-400 font-bold">{t.priority}</span>
+                        <span className="text-amber-600 font-bold">{t.priority}</span>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="p-4 text-center text-gray-500 text-xs italic">No tasks scheduled for today</div>
+                  <div className="p-4 text-center text-slate-400 text-xs italic">No tasks scheduled for today</div>
                 )}
               </div>
             </div>
 
             {/* 2. Pending Tasks */}
-            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
-                <span className="flex items-center gap-1.5 text-amber-400"><Clock className="w-4 h-4" /> 2. Pending Tasks</span>
-                <span className="bg-amber-500/20 text-amber-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="flex items-center gap-1.5 text-amber-600"><Clock className="w-4 h-4" /> 2. Pending Tasks</span>
+                <span className="bg-amber-50 text-amber-600 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
                   {myDashboard?.pendingTasks?.length || 0}
                 </span>
               </h3>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {myDashboard?.pendingTasks?.length > 0 ? (
                   myDashboard.pendingTasks.map((t: any) => (
-                    <div key={t.id} className="p-2.5 bg-gray-900 rounded-lg border border-gray-800 space-y-1">
-                      <div className="font-bold text-white text-xs">{t.title}</div>
-                      <div className="text-[10px] text-gray-400 flex items-center justify-between">
-                        <span className="text-purple-300 font-mono">{t.status}</span>
-                        <span className="text-gray-500">{new Date(t.dueDate).toLocaleDateString()}</span>
+                    <div key={t.id} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                      <div className="font-bold text-slate-900 text-xs">{t.title}</div>
+                      <div className="text-[10px] text-slate-500 flex items-center justify-between">
+                        <span className="text-purple-700 font-mono">{t.status}</span>
+                        <span className="text-slate-400">{new Date(t.dueDate).toLocaleDateString()}</span>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="p-4 text-center text-gray-500 text-xs italic">No active pending tasks</div>
+                  <div className="p-4 text-center text-slate-400 text-xs italic">No active pending tasks</div>
                 )}
               </div>
             </div>
 
             {/* 3. Upcoming Deadlines */}
-            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
-                <span className="flex items-center gap-1.5 text-red-400"><AlertTriangle className="w-4 h-4" /> 3. Upcoming Deadlines</span>
-                <span className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="flex items-center gap-1.5 text-rose-600"><AlertTriangle className="w-4 h-4" /> 3. Upcoming Deadlines</span>
+                <span className="bg-rose-50 text-rose-600 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
                   {myDashboard?.upcomingDeadlines?.length || 0}
                 </span>
               </h3>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {myDashboard?.upcomingDeadlines?.length > 0 ? (
                   myDashboard.upcomingDeadlines.map((d: any) => (
-                    <div key={d.id} className="p-2.5 bg-gray-900 rounded-lg border border-gray-800 space-y-1">
-                      <div className="font-bold text-white text-xs flex items-center justify-between">
+                    <div key={d.id} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                      <div className="font-bold text-slate-900 text-xs flex items-center justify-between">
                         <span>{d.title}</span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-950 text-red-300 border border-red-800 font-mono">{d.type}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-mono">{d.type}</span>
                       </div>
-                      <div className="text-[10px] text-gray-400 flex items-center justify-between font-mono">
+                      <div className="text-[10px] text-slate-500 flex items-center justify-between font-mono">
                         <span>Due: {new Date(d.dueDate).toLocaleDateString()}</span>
-                        <span className="text-red-400 font-bold">{d.priority}</span>
+                        <span className="text-rose-600 font-bold">{d.priority}</span>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="p-4 text-center text-gray-500 text-xs italic">No upcoming deadlines (7 days)</div>
+                  <div className="p-4 text-center text-slate-400 text-xs italic">No upcoming deadlines (7 days)</div>
                 )}
               </div>
             </div>
 
             {/* 4. Current Projects */}
-            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
-                <span className="flex items-center gap-1.5 text-blue-400"><Film className="w-4 h-4" /> 4. Current Projects</span>
-                <span className="bg-blue-500/20 text-blue-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="flex items-center gap-1.5 text-blue-600"><Film className="w-4 h-4" /> 4. Current Projects</span>
+                <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
                   {myDashboard?.currentProjects?.length || 0}
                 </span>
               </h3>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {myDashboard?.currentProjects?.length > 0 ? (
                   myDashboard.currentProjects.map((p: any) => (
-                    <Link key={p.id} href={`/projects/${p.id}`} className="block p-2.5 bg-gray-900 hover:bg-gray-800 rounded-lg border border-gray-800 transition-colors">
-                      <div className="font-bold text-white text-xs">{p.name}</div>
-                      <div className="text-[10px] text-gray-400 flex items-center justify-between font-mono mt-1">
+                    <Link key={p.id} href={`/projects/${p.id}`} className="block p-2.5 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors">
+                      <div className="font-bold text-slate-900 text-xs">{p.name}</div>
+                      <div className="text-[10px] text-slate-500 flex items-center justify-between font-mono mt-1">
                         <span>ID: {p.projectId}</span>
-                        <span className="text-blue-400 font-bold">{p.status}</span>
+                        <span className="text-blue-600 font-bold">{p.status}</span>
                       </div>
                     </Link>
                   ))
                 ) : (
-                  <div className="p-4 text-center text-gray-500 text-xs italic">No current project assignments</div>
+                  <div className="p-4 text-center text-slate-400 text-xs italic">No current project assignments</div>
                 )}
               </div>
             </div>
 
             {/* 5. Assigned Scripts */}
-            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
-                <span className="flex items-center gap-1.5 text-purple-400"><FileText className="w-4 h-4" /> 5. Assigned Scripts</span>
-                <span className="bg-purple-500/20 text-purple-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="flex items-center gap-1.5 text-purple-600"><FileText className="w-4 h-4" /> 5. Assigned Scripts</span>
+                <span className="bg-purple-50 text-purple-600 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
                   {myDashboard?.assignedScripts?.length || 0}
                 </span>
               </h3>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {myDashboard?.assignedScripts?.length > 0 ? (
                   myDashboard.assignedScripts.map((s: any) => (
-                    <Link key={s.id} href="/scripts" className="block p-2.5 bg-gray-900 hover:bg-gray-800 rounded-lg border border-gray-800 transition-colors">
-                      <div className="font-bold text-white text-xs">{s.name}</div>
-                      <div className="text-[10px] text-gray-400 flex items-center justify-between font-mono mt-1">
+                    <Link key={s.id} href="/scripts" className="block p-2.5 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors">
+                      <div className="font-bold text-slate-900 text-xs">{s.name}</div>
+                      <div className="text-[10px] text-slate-500 flex items-center justify-between font-mono mt-1">
                         <span>ID: {s.scriptId}</span>
-                        <span className="text-purple-300 font-semibold">{s.status}</span>
+                        <span className="text-purple-700 font-semibold">{s.status}</span>
                       </div>
                     </Link>
                   ))
                 ) : (
-                  <div className="p-4 text-center text-gray-500 text-xs italic">No script assignments</div>
+                  <div className="p-4 text-center text-slate-400 text-xs italic">No script assignments</div>
                 )}
               </div>
             </div>
 
             {/* 6. Assigned Graphic Requirements */}
-            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center justify-between border-b border-slate-200 pb-2">
                 <span className="flex items-center gap-1.5 text-pink-400"><Palette className="w-4 h-4" /> 6. Graphic Requirements</span>
                 <span className="bg-pink-500/20 text-pink-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
                   {myDashboard?.assignedGraphicRequirements?.length || 0}
@@ -1230,87 +1230,87 @@ export default function DashboardPage() {
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {myDashboard?.assignedGraphicRequirements?.length > 0 ? (
                   myDashboard.assignedGraphicRequirements.map((g: any) => (
-                    <Link key={g.id} href="/graphic-reqs" className="block p-2.5 bg-gray-900 hover:bg-gray-800 rounded-lg border border-gray-800 transition-colors">
-                      <div className="font-bold text-white text-xs">{g.name}</div>
-                      <div className="text-[10px] text-gray-400 flex items-center justify-between font-mono mt-1">
+                    <Link key={g.id} href="/graphic-reqs" className="block p-2.5 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors">
+                      <div className="font-bold text-slate-900 text-xs">{g.name}</div>
+                      <div className="text-[10px] text-slate-500 flex items-center justify-between font-mono mt-1">
                         <span>Type: {g.requirementType}</span>
                         <span className="text-pink-300 font-semibold">{g.status}</span>
                       </div>
                     </Link>
                   ))
                 ) : (
-                  <div className="p-4 text-center text-gray-500 text-xs italic">No graphic requirement assignments</div>
+                  <div className="p-4 text-center text-slate-400 text-xs italic">No graphic requirement assignments</div>
                 )}
               </div>
             </div>
 
             {/* 7. Recent Communications */}
-            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
-                <span className="flex items-center gap-1.5 text-cyan-400"><MessageSquare className="w-4 h-4" /> 7. Recent Communications</span>
-                <span className="bg-cyan-500/20 text-cyan-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-md">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="flex items-center gap-1.5 text-cyan-600"><MessageSquare className="w-4 h-4" /> 7. Recent Communications</span>
+                <span className="bg-cyan-50 text-cyan-600 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
                   {myDashboard?.recentCommunications?.length || 0}
                 </span>
               </h3>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {myDashboard?.recentCommunications?.length > 0 ? (
                   myDashboard.recentCommunications.map((c: any) => (
-                    <div key={c.id} className="p-2.5 bg-gray-900 rounded-lg border border-gray-800 space-y-1">
-                      <div className="font-bold text-white text-xs flex items-center justify-between">
+                    <div key={c.id} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                      <div className="font-bold text-slate-900 text-xs flex items-center justify-between">
                         <span>{c.sender?.name || 'System'}</span>
-                        <span className="text-[9px] text-gray-500">{new Date(c.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="text-[9px] text-slate-400">{new Date(c.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
-                      <p className="text-[11px] text-gray-300 truncate">{c.content}</p>
+                      <p className="text-[11px] text-slate-700 truncate">{c.content}</p>
                     </div>
                   ))
                 ) : (
-                  <div className="p-4 text-center text-gray-500 text-xs italic">No recent messages</div>
+                  <div className="p-4 text-center text-slate-400 text-xs italic">No recent messages</div>
                 )}
               </div>
             </div>
 
             {/* 8. Notifications & Operational Summaries */}
-            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md lg:col-span-2">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
-                <span className="flex items-center gap-1.5 text-yellow-400"><Bell className="w-4 h-4" /> 8. Notifications & Operational Summaries</span>
-                <span className="bg-yellow-500/20 text-yellow-400 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-md lg:col-span-2">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="flex items-center gap-1.5 text-amber-600"><Bell className="w-4 h-4" /> 8. Notifications & Operational Summaries</span>
+                <span className="bg-yellow-500/20 text-amber-600 text-[10px] px-2 py-0.5 rounded font-mono font-bold">
                   {notifSummaries?.totalUnread ?? (myDashboard?.notifications?.length || 0)} Unread
                 </span>
               </h3>
 
               {/* 7 Notification Summary Badges */}
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 pb-1">
-                <div className="p-2 bg-cyan-950/30 border border-cyan-800/40 rounded-lg text-center">
-                  <div className="text-[10px] text-cyan-300 font-bold">New Tasks</div>
-                  <div className="text-sm font-black text-white">{notifSummaries?.newTasks?.count || 0}</div>
+                <div className="p-2 bg-cyan-50 border border-cyan-200 rounded-lg text-center">
+                  <div className="text-[10px] text-cyan-700 font-bold">New Tasks</div>
+                  <div className="text-sm font-black text-slate-900">{notifSummaries?.newTasks?.count || 0}</div>
                 </div>
-                <div className="p-2 bg-purple-950/30 border border-purple-800/40 rounded-lg text-center">
-                  <div className="text-[10px] text-purple-300 font-bold">Reviews</div>
-                  <div className="text-sm font-black text-white">{notifSummaries?.pendingReviews?.count || 0}</div>
+                <div className="p-2 bg-purple-50 border border-purple-200 rounded-lg text-center">
+                  <div className="text-[10px] text-purple-700 font-bold">Reviews</div>
+                  <div className="text-sm font-black text-slate-900">{notifSummaries?.pendingReviews?.count || 0}</div>
                 </div>
                 <div className={`p-2 rounded-lg text-center border ${
                   (notifSummaries?.overdueWork?.count || 0) > 0
-                    ? 'bg-red-950/50 border-red-600/80 animate-pulse'
-                    : 'bg-red-950/20 border-red-900/40'
+                    ? 'bg-rose-50 border-red-600/80 animate-pulse'
+                    : 'bg-rose-50 border-rose-200'
                 }`}>
-                  <div className="text-[10px] text-red-300 font-bold">Overdue</div>
+                  <div className="text-[10px] text-rose-700 font-bold">Overdue</div>
                   <div className="text-sm font-black text-red-100">{notifSummaries?.overdueWork?.count || 0}</div>
                 </div>
-                <div className="p-2 bg-amber-950/30 border border-amber-800/40 rounded-lg text-center">
-                  <div className="text-[10px] text-amber-300 font-bold">Deadlines</div>
-                  <div className="text-sm font-black text-white">{notifSummaries?.upcomingDeadlines?.count || 0}</div>
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-center">
+                  <div className="text-[10px] text-amber-800 font-bold">Deadlines</div>
+                  <div className="text-sm font-black text-slate-900">{notifSummaries?.upcomingDeadlines?.count || 0}</div>
                 </div>
-                <div className="p-2 bg-teal-950/30 border border-teal-800/40 rounded-lg text-center">
-                  <div className="text-[10px] text-teal-300 font-bold">Equipment</div>
-                  <div className="text-sm font-black text-white">{notifSummaries?.equipmentAlerts?.count || 0}</div>
+                <div className="p-2 bg-teal-50 border border-teal-200 rounded-lg text-center">
+                  <div className="text-[10px] text-teal-700 font-bold">Equipment</div>
+                  <div className="text-sm font-black text-slate-900">{notifSummaries?.equipmentAlerts?.count || 0}</div>
                 </div>
-                <div className="p-2 bg-blue-950/30 border border-blue-800/40 rounded-lg text-center">
-                  <div className="text-[10px] text-blue-300 font-bold">Messages</div>
-                  <div className="text-sm font-black text-white">{notifSummaries?.unreadCommunications?.count || 0}</div>
+                <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                  <div className="text-[10px] text-blue-700 font-bold">Messages</div>
+                  <div className="text-sm font-black text-slate-900">{notifSummaries?.unreadCommunications?.count || 0}</div>
                 </div>
-                <div className="p-2 bg-purple-950/30 border border-purple-800/40 rounded-lg text-center">
-                  <div className="text-[10px] text-purple-300 font-bold">Announce</div>
-                  <div className="text-sm font-black text-white">{notifSummaries?.newAnnouncements?.count || 0}</div>
+                <div className="p-2 bg-purple-50 border border-purple-200 rounded-lg text-center">
+                  <div className="text-[10px] text-purple-700 font-bold">Announce</div>
+                  <div className="text-sm font-black text-slate-900">{notifSummaries?.newAnnouncements?.count || 0}</div>
                 </div>
               </div>
 
@@ -1331,10 +1331,10 @@ export default function DashboardPage() {
                         key={n.id}
                         className={`p-2.5 rounded-xl border space-y-1.5 block transition-all ${
                           isCritical
-                            ? 'bg-red-950/30 border-red-600/70 hover:border-red-500 shadow-md shadow-red-950/30 ring-1 ring-red-500/30'
+                            ? 'bg-rose-50 border-red-600/70 hover:border-red-500 shadow-md shadow-red-950/30 ring-1 ring-red-500/30'
                             : isHigh
-                            ? 'bg-amber-950/20 border-amber-500/40 hover:border-amber-400 text-gray-200'
-                            : 'bg-gray-900 hover:bg-gray-850 border-gray-800 hover:border-yellow-500/40'
+                            ? 'bg-amber-50 border-amber-200 hover:border-amber-400 text-slate-800'
+                            : 'bg-slate-50 hover:bg-gray-850 border-slate-200 hover:border-yellow-500/40'
                         }`}
                       >
                         <div className="flex items-center justify-between gap-1.5 flex-wrap">
@@ -1350,20 +1350,20 @@ export default function DashboardPage() {
                           <div className="flex items-center gap-1 shrink-0">
                             {/* Priority Badge */}
                             <span className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border ${prioMeta.badgeClass}`}>
-                              {isCritical && '🚨 '}{isHigh && '⚡ '}{prioMeta.label}
+                              {prioMeta.label}
                             </span>
                             {/* Category Badge */}
                             <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${catMeta.badgeClass}`}>
                               {catMeta.label}
                             </span>
                             {n.entityCode && (
-                              <span className="text-[9px] font-mono font-bold bg-gray-800 text-gray-300 border border-gray-700 px-1.5 py-0.5 rounded">
+                              <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 px-1.5 py-0.5 rounded">
                                 {n.entityCode}
                               </span>
                             )}
                           </div>
                         </div>
-                        <div className={`text-[11px] line-clamp-2 ${isCritical ? 'text-red-100 font-medium' : isHigh ? 'text-amber-100/90' : 'text-gray-400'}`}>
+                        <div className={`text-[11px] line-clamp-2 ${isCritical ? 'text-red-100 font-medium' : isHigh ? 'text-amber-100/90' : 'text-slate-500'}`}>
                           {n.message}
                         </div>
                         
@@ -1371,14 +1371,14 @@ export default function DashboardPage() {
                         <div className="pt-0.5">
                           <Link
                             href={getNotificationNavigationUrl(n.linkUrl, n.entityType, n.entityId)}
-                            className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 px-2 py-0.5 rounded transition-colors group"
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-50 border border-blue-200 px-2 py-0.5 rounded transition-colors group"
                           >
                             <span>{getNotificationActionLabel(n.entityType, n.eventType, n.category)}</span>
                             <ExternalLink className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
                           </Link>
                         </div>
 
-                        <div className="flex items-center justify-between text-[9px] text-gray-500 pt-1 border-t border-gray-800/60">
+                        <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1 border-t border-slate-200">
                           <span>Delivered: {new Date(n.deliveredAt || n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           <span className="capitalize">{n.eventType ? n.eventType.toLowerCase().replace(/_/g, ' ') : 'Operational Event'}</span>
                         </div>
@@ -1386,32 +1386,32 @@ export default function DashboardPage() {
                     );
                   })
                 ) : (
-                  <div className="p-4 text-center text-gray-500 text-xs italic">No unread notifications</div>
+                  <div className="p-4 text-center text-slate-400 text-xs italic">No unread notifications</div>
                 )}
               </div>
             </div>
 
             {/* 9. Personal Calendar */}
-            <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-md lg:col-span-3">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-border pb-2">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-md lg:col-span-3">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center justify-between border-b border-slate-200 pb-2">
                 <span className="flex items-center gap-1.5 text-indigo-400"><Calendar className="w-4 h-4" /> 9. Personal Calendar & Shoot Schedules</span>
                 <Link href="/calendar" className="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold">
-                  Open Full Calendar →
+                  Open Full Calendar
                 </Link>
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
                 {myDashboard?.personalCalendar?.length > 0 ? (
                   myDashboard.personalCalendar.map((ev: any) => (
-                    <div key={ev.id} className="p-3 bg-gray-900 rounded-lg border border-gray-800 space-y-1">
-                      <div className="font-bold text-white text-xs">{ev.title}</div>
+                    <div key={ev.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                      <div className="font-bold text-slate-900 text-xs">{ev.title}</div>
                       <div className="text-[10px] text-indigo-300 font-mono font-semibold">
                         {new Date(ev.startDate).toLocaleDateString()}
                       </div>
-                      <div className="text-[10px] text-gray-400">{ev.description || ev.eventType}</div>
+                      <div className="text-[10px] text-slate-500">{ev.description || ev.eventType}</div>
                     </div>
                   ))
                 ) : (
-                  <div className="col-span-full p-4 text-center text-gray-500 text-xs italic">No personal calendar events scheduled</div>
+                  <div className="col-span-full p-4 text-center text-slate-400 text-xs italic">No personal calendar events scheduled</div>
                 )}
               </div>
             </div>
@@ -1424,36 +1424,36 @@ export default function DashboardPage() {
         <div className="space-y-6">
           <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-blue-400" /> Operational Communication Command Center
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-blue-600" /> Operational Communication Command Center
             </h2>
-            <Link href="/communication" className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold">View Full Hub →</Link>
+            <Link href="/communication" className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold">View Full Hub</Link>
           </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 
           {/* 1. Unread Communications */}
-          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+          <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <Eye className="w-3.5 h-3.5 text-blue-400" /> Unread Communications
+              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <Eye className="w-3.5 h-3.5 text-blue-600" /> Unread Communications
               </span>
               {unreadComms.length > 0 && (
-                <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-bold">
+                <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold">
                   {unreadComms.length} Unread
                 </span>
               )}
             </div>
             {unreadComms.length === 0 ? (
-              <p className="text-[11px] text-zinc-500 italic">All communications read. ✓</p>
+              <p className="text-[11px] text-slate-400 italic">All communications read.</p>
             ) : (
               <div className="space-y-1.5">
                 {unreadComms.map((c) => (
-                  <Link href="/communication" key={c.id} className="flex items-start gap-2 p-1.5 bg-zinc-950/60 rounded border border-zinc-800/60 hover:border-blue-500/40 transition-colors">
-                    <MessageSquare className="w-3 h-3 text-blue-400 shrink-0 mt-0.5" />
+                  <Link href="/communication" key={c.id} className="flex items-start gap-2 p-1.5 bg-slate-50/60 rounded border border-slate-200 hover:border-blue-200 transition-colors">
+                    <MessageSquare className="w-3 h-3 text-blue-600 shrink-0 mt-0.5" />
                     <div className="min-w-0">
-                      <p className="text-[11px] font-semibold text-white truncate">{c.subject || 'Operational Note'}</p>
-                      <p className="text-[10px] text-zinc-400 truncate">{c.sender?.name} • {c.entityType}</p>
+                      <p className="text-[11px] font-semibold text-slate-800 truncate">{c.subject || 'Operational Note'}</p>
+                      <p className="text-[10px] text-slate-500 truncate">{c.sender?.name} • {c.entityType}</p>
                     </div>
                   </Link>
                 ))}
@@ -1462,27 +1462,27 @@ export default function DashboardPage() {
           </div>
 
           {/* 2. Pending Approval Requests */}
-          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+          <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Pending Approvals
+              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Pending Approvals
               </span>
               {pendingApprovals.length > 0 && (
-                <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full font-bold">
                   {pendingApprovals.length} Pending
                 </span>
               )}
             </div>
             {pendingApprovals.length === 0 ? (
-              <p className="text-[11px] text-zinc-500 italic">No pending approvals. ✓</p>
+              <p className="text-[11px] text-slate-400 italic">No pending approvals.</p>
             ) : (
               <div className="space-y-1.5">
                 {pendingApprovals.map((a) => (
-                  <Link href="/approvals" key={a.id} className="flex items-start gap-2 p-1.5 bg-zinc-950/60 rounded border border-zinc-800/60 hover:border-emerald-500/40 transition-colors">
-                    <CheckSquare className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+                  <Link href="/approvals" key={a.id} className="flex items-start gap-2 p-1.5 bg-slate-50/60 rounded border border-slate-200 hover:border-emerald-200 transition-colors">
+                    <CheckSquare className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />
                     <div className="min-w-0">
-                      <p className="text-[11px] font-semibold text-white truncate">{a.remarks?.substring(0, 50) || 'Approval Request'}</p>
-                      <p className="text-[10px] text-zinc-400 truncate">Target: {a.targetRole?.replace('_', ' ')} • {a.approvalType?.replace('_', ' ')}</p>
+                      <p className="text-[11px] font-semibold text-slate-800 truncate">{a.remarks?.substring(0, 50) || 'Approval Request'}</p>
+                      <p className="text-[10px] text-slate-500 truncate">Target: {a.targetRole?.replace('_', ' ')} • {a.approvalType?.replace('_', ' ')}</p>
                     </div>
                   </Link>
                 ))}
@@ -1491,27 +1491,27 @@ export default function DashboardPage() {
           </div>
 
           {/* 3. Assigned Blockers */}
-          <div className="bg-zinc-900/80 border border-red-900/40 rounded-xl p-4 space-y-3">
+          <div className="bg-slate-50/80 border border-rose-200 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400" /> Assigned Blockers
+              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" /> Assigned Blockers
               </span>
               {assignedBlockers.length > 0 && (
-                <span className="text-[10px] bg-red-500/20 text-red-300 border border-red-500/30 px-2 py-0.5 rounded-full font-bold animate-pulse">
+                <span className="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full font-bold animate-pulse">
                   {assignedBlockers.length} Open
                 </span>
               )}
             </div>
             {assignedBlockers.length === 0 ? (
-              <p className="text-[11px] text-zinc-500 italic">No open blockers assigned. ✓</p>
+              <p className="text-[11px] text-slate-400 italic">No open blockers assigned.</p>
             ) : (
               <div className="space-y-1.5">
                 {assignedBlockers.map((b) => (
-                  <Link href="/communication" key={b.id} className="flex items-start gap-2 p-1.5 bg-red-950/30 rounded border border-red-800/40 hover:border-red-500/60 transition-colors">
-                    <AlertTriangle className="w-3 h-3 text-red-400 shrink-0 mt-0.5" />
+                  <Link href="/communication" key={b.id} className="flex items-start gap-2 p-1.5 bg-rose-50 rounded border border-rose-200 hover:border-rose-200 transition-colors">
+                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0 mt-0.5" />
                     <div className="min-w-0">
-                      <p className="text-[11px] font-semibold text-white truncate">{b.subject || 'Operational Blocker'}</p>
-                      <p className="text-[10px] text-red-300 truncate">{b.blockerReason?.replace(/_/g, ' ')} • By {b.sender?.name}</p>
+                      <p className="text-[11px] font-semibold text-slate-800 truncate">{b.subject || 'Operational Blocker'}</p>
+                      <p className="text-[10px] text-rose-700 truncate">{b.blockerReason?.replace(/_/g, ' ')} • By {b.sender?.name}</p>
                     </div>
                   </Link>
                 ))}
@@ -1520,27 +1520,27 @@ export default function DashboardPage() {
           </div>
 
           {/* 4. Mentions */}
-          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+          <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <AtSign className="w-3.5 h-3.5 text-cyan-400" /> Mentions
+              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <AtSign className="w-3.5 h-3.5 text-cyan-600" /> Mentions
               </span>
               {mentions.length > 0 && (
-                <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded-full font-bold">
+                <span className="text-[10px] bg-cyan-50 text-cyan-700 border border-cyan-200 px-2 py-0.5 rounded-full font-bold">
                   {mentions.length} Tags
                 </span>
               )}
             </div>
             {mentions.length === 0 ? (
-              <p className="text-[11px] text-zinc-500 italic">No active @mentions.</p>
+              <p className="text-[11px] text-slate-400 italic">No active @mentions.</p>
             ) : (
               <div className="space-y-1.5">
                 {mentions.map((m) => (
-                  <Link href="/communication" key={m.id} className="flex items-start gap-2 p-1.5 bg-zinc-950/60 rounded border border-zinc-800/60 hover:border-cyan-500/40 transition-colors">
-                    <AtSign className="w-3 h-3 text-cyan-400 shrink-0 mt-0.5" />
+                  <Link href="/communication" key={m.id} className="flex items-start gap-2 p-1.5 bg-slate-50/60 rounded border border-slate-200 hover:border-cyan-200 transition-colors">
+                    <AtSign className="w-3 h-3 text-cyan-600 shrink-0 mt-0.5" />
                     <div className="min-w-0">
-                      <p className="text-[11px] font-semibold text-white truncate">{m.subject || 'Mention Note'}</p>
-                      <p className="text-[10px] text-zinc-400 truncate">{m.content?.substring(0, 60)}</p>
+                      <p className="text-[11px] font-semibold text-slate-800 truncate">{m.subject || 'Mention Note'}</p>
+                      <p className="text-[10px] text-slate-500 truncate">{m.content?.substring(0, 60)}</p>
                     </div>
                   </Link>
                 ))}
@@ -1549,31 +1549,31 @@ export default function DashboardPage() {
           </div>
 
           {/* 5. Announcements (already shown above, compact summary here) */}
-          <div className="bg-zinc-900/80 border border-purple-900/40 rounded-xl p-4 space-y-3">
+          <div className="bg-slate-50/80 border border-purple-200 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <Megaphone className="w-3.5 h-3.5 text-purple-400" /> Company Announcements
+              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <Megaphone className="w-3.5 h-3.5 text-purple-600" /> Company Announcements
               </span>
               {announcements.length > 0 && (
-                <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
+                <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full font-bold">
                   {announcements.length} Active
                 </span>
               )}
             </div>
             {announcements.length === 0 ? (
-              <p className="text-[11px] text-zinc-500 italic">No active company announcements.</p>
+              <p className="text-[11px] text-slate-400 italic">No active company announcements.</p>
             ) : (
               <div className="space-y-1.5">
                 {announcements.slice(0, 4).map((a) => {
                   const isHigh = a.priority === 'HIGH_PRIORITY';
                   return (
                     <div key={a.id} className={`flex items-start gap-2 p-1.5 rounded border transition-colors ${
-                      isHigh ? 'bg-red-950/40 border-red-800/50' : 'bg-zinc-950/60 border-zinc-800/60'
+                      isHigh ? 'bg-rose-50 border-rose-200' : 'bg-slate-50/60 border-slate-200'
                     }`}>
-                      {isHigh ? <AlertTriangle className="w-3 h-3 text-red-400 shrink-0 mt-0.5" /> : <Megaphone className="w-3 h-3 text-purple-400 shrink-0 mt-0.5" />}
+                      {isHigh ? <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0 mt-0.5" /> : <Megaphone className="w-3 h-3 text-purple-600 shrink-0 mt-0.5" />}
                       <div className="min-w-0">
-                        <p className={`text-[11px] font-semibold truncate ${isHigh ? 'text-red-200' : 'text-white'}`}>{a.subject}</p>
-                        <p className="text-[10px] text-zinc-400 truncate">{a.sender?.name} • {isHigh ? '🚨 HIGH PRIORITY' : 'Normal'}</p>
+                        <p className={`text-[11px] font-semibold truncate ${isHigh ? 'text-rose-700' : 'text-slate-800'}`}>{a.subject}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{a.sender?.name} • {isHigh ? 'HIGH PRIORITY' : 'Normal'}</p>
                       </div>
                     </div>
                   );
@@ -1583,23 +1583,23 @@ export default function DashboardPage() {
           </div>
 
           {/* 6. Recent Discussions */}
-          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+          <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <CornerDownRight className="w-3.5 h-3.5 text-amber-400" /> Recent Discussions
+              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <CornerDownRight className="w-3.5 h-3.5 text-amber-600" /> Recent Discussions
               </span>
-              <Link href="/communication" className="text-[10px] text-blue-400 hover:text-blue-300 font-medium">View All →</Link>
+              <Link href="/communication" className="text-[10px] text-blue-600 hover:text-blue-700 font-medium">View All</Link>
             </div>
             {recentDiscussions.length === 0 ? (
-              <p className="text-[11px] text-zinc-500 italic">No recent discussion threads.</p>
+              <p className="text-[11px] text-slate-400 italic">No recent discussion threads.</p>
             ) : (
               <div className="space-y-1.5">
                 {recentDiscussions.map((d) => (
-                  <Link href="/communication" key={d.id} className="flex items-start gap-2 p-1.5 bg-zinc-950/60 rounded border border-zinc-800/60 hover:border-amber-500/40 transition-colors">
-                    <MessageSquare className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+                  <Link href="/communication" key={d.id} className="flex items-start gap-2 p-1.5 bg-slate-50/60 rounded border border-slate-200 hover:border-amber-200 transition-colors">
+                    <MessageSquare className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />
                     <div className="min-w-0">
-                      <p className="text-[11px] font-semibold text-white truncate">{d.subject || 'Operational Note'}</p>
-                      <p className="text-[10px] text-zinc-400 truncate">{d.sender?.name} • {d.entityType?.replace('_', ' ')} • {new Date(d.createdAt).toLocaleDateString()}</p>
+                      <p className="text-[11px] font-semibold text-slate-800 truncate">{d.subject || 'Operational Note'}</p>
+                      <p className="text-[10px] text-slate-500 truncate">{d.sender?.name} • {d.entityType?.replace('_', ' ')} • {new Date(d.createdAt).toLocaleDateString()}</p>
                     </div>
                   </Link>
                 ))}
@@ -1611,18 +1611,15 @@ export default function DashboardPage() {
       {/* ===== EXECUTIVE DASHBOARD WITH CONFIGURABLE WIDGETS ===== */}
       <div className="space-y-6">
         {/* Operations Dashboard Header & Config Bar */}
-        <div className="bg-gradient-to-r from-blue-950/60 via-purple-950/40 to-gray-900 border border-blue-900/40 p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
-          <div className="space-y-1">
-            <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
-              <Building className="w-5 h-5 text-blue-400" /> Executive Operations Dashboard
+        <div className="bg-white border border-slate-200 p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+          <div>
+            <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+              <Building className="w-5 h-5 text-blue-600" /> Executive Operations Dashboard
             </h2>
-            <p className="text-xs text-gray-400">
-              Real-time operational overview across approvals, attendance, productivity, projects, calendar, equipment, capacity, and activities.
-            </p>
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="px-3 py-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold font-mono">
-              ⚡ {widgetsConfig.filter((w) => w.enabled).length} of {widgetsConfig.length} Widgets Active
+            <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold font-mono">
+              {widgetsConfig.filter((w) => w.enabled).length} of {widgetsConfig.length} Widgets Active
             </span>
             {(role === 'MEDIA_MANAGER' || (role as string) === 'ADMIN') && (
               <button
@@ -1637,10 +1634,10 @@ export default function DashboardPage() {
 
         {/* Dynamic Configurable Widgets Grid */}
         {widgetsConfig.filter((w) => w.enabled).length === 0 ? (
-          <div className="bg-card border border-dashed border-gray-700 p-8 rounded-xl text-center space-y-3">
-            <Sliders className="w-8 h-8 text-gray-500 mx-auto" />
-            <h3 className="text-sm font-bold text-white">All Dashboard Widgets Are Hidden</h3>
-            <p className="text-xs text-gray-400 max-w-md mx-auto">
+          <div className="bg-white border border-dashed border-slate-200 p-8 rounded-xl text-center space-y-3">
+            <Sliders className="w-8 h-8 text-slate-400 mx-auto" />
+            <h3 className="text-sm font-bold text-slate-900">All Dashboard Widgets Are Hidden</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
               You have disabled all widgets in your dashboard configuration. Click below to enable and customize your preferred widgets.
             </p>
             <button
@@ -1664,61 +1661,61 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={widget.id}
-                        className={`bg-card border border-border p-5 rounded-xl space-y-4 shadow-md ${
+                        className={`bg-white border border-slate-200 p-5 rounded-xl space-y-4 shadow-md ${
                           isFull ? 'lg:col-span-2' : ''
                         }`}
                       >
-                        <div className="flex items-center justify-between border-b border-border pb-3">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                           <div className="flex items-center gap-2">
-                            <Film className="w-4 h-4 text-blue-400" />
-                            <h3 className="font-bold text-white text-sm">Active Projects</h3>
-                            <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-bold">
+                            <Film className="w-4 h-4 text-blue-600" />
+                            <h3 className="font-bold text-slate-900 text-sm">Active Projects</h3>
+                            <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold">
                               {data?.totalActiveProjects || 0} In Pipeline
                             </span>
                           </div>
                           <Link
                             href="/projects"
-                            className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1"
+                            className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
                           >
                             All Projects <ArrowUpRight className="w-3.5 h-3.5" />
                           </Link>
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                          <div className="bg-gray-900/80 border border-gray-800 p-3 rounded-lg">
-                            <span className="text-[10px] text-blue-300 font-bold uppercase block">Total Active Projects</span>
-                            <div className="text-2xl font-extrabold text-blue-400 font-mono mt-1">
+                          <div className="bg-slate-50/80 border border-slate-200 p-3 rounded-lg">
+                            <span className="text-[10px] text-blue-700 font-bold uppercase block">Total Active Projects</span>
+                            <div className="text-2xl font-extrabold text-blue-600 font-mono mt-1">
                               {data?.totalActiveProjects || 0}
                             </div>
-                            <p className="text-[10px] text-blue-400/80 mt-0.5">Active pipeline</p>
+                            <p className="text-[10px] text-blue-600/80 mt-0.5">Active pipeline</p>
                           </div>
 
-                          <div className="bg-gray-900/80 border border-gray-800 p-3 rounded-lg">
-                            <span className="text-[10px] text-emerald-300 font-bold uppercase block">Projects In Progress</span>
-                            <div className="text-2xl font-extrabold text-emerald-400 font-mono mt-1">
+                          <div className="bg-slate-50/80 border border-slate-200 p-3 rounded-lg">
+                            <span className="text-[10px] text-emerald-700 font-bold uppercase block">Projects In Progress</span>
+                            <div className="text-2xl font-extrabold text-emerald-600 font-mono mt-1">
                               {data?.inProgressProjects || 0}
                             </div>
-                            <p className="text-[10px] text-emerald-400/80 mt-0.5">Currently shooting/editing</p>
+                            <p className="text-[10px] text-emerald-600/80 mt-0.5">Currently shooting/editing</p>
                           </div>
 
-                          <div className="bg-gray-900/80 border border-gray-800 p-3 rounded-lg">
-                            <span className="text-[10px] text-purple-300 font-bold uppercase block">Upcoming Projects</span>
-                            <div className="text-2xl font-extrabold text-purple-400 font-mono mt-1">
+                          <div className="bg-slate-50/80 border border-slate-200 p-3 rounded-lg">
+                            <span className="text-[10px] text-purple-700 font-bold uppercase block">Upcoming Projects</span>
+                            <div className="text-2xl font-extrabold text-purple-600 font-mono mt-1">
                               {data?.upcomingProjects || 0}
                             </div>
-                            <p className="text-[10px] text-purple-400/80 mt-0.5">Planned / Scheduled</p>
+                            <p className="text-[10px] text-purple-600/80 mt-0.5">Planned / Scheduled</p>
                           </div>
 
                           <div className={`p-3 rounded-lg border ${
                             (data?.overdueProjectsCount || 0) + (data?.overdueTasksCount || 0) > 0
-                              ? 'bg-red-950/40 border-red-600/80 shadow-md shadow-red-950/40 ring-1 ring-red-500/40 animate-pulse'
-                              : 'bg-gray-900/80 border-gray-800'
+                              ? 'bg-rose-50 border-red-600/80 shadow-md shadow-red-950/40 ring-1 ring-red-500/40 animate-pulse'
+                              : 'bg-slate-50/80 border-slate-200'
                           }`}>
-                            <span className="text-[10px] text-red-300 font-bold uppercase block">Overdue Projects/Tasks</span>
-                            <div className="text-2xl font-extrabold text-red-400 font-mono mt-1">
+                            <span className="text-[10px] text-rose-700 font-bold uppercase block">Overdue Projects/Tasks</span>
+                            <div className="text-2xl font-extrabold text-rose-600 font-mono mt-1">
                               {(data?.overdueProjectsCount || 0) + (data?.overdueTasksCount || 0)}
                             </div>
-                            <p className="text-[10px] text-red-300/80 mt-0.5">Requires immediate action</p>
+                            <p className="text-[10px] text-rose-700/80 mt-0.5">Requires immediate action</p>
                           </div>
                         </div>
                       </div>
@@ -1729,64 +1726,64 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={widget.id}
-                        className={`bg-card border border-border p-5 rounded-xl space-y-4 shadow-md ${
+                        className={`bg-white border border-slate-200 p-5 rounded-xl space-y-4 shadow-md ${
                           isFull ? 'lg:col-span-2' : ''
                         }`}
                       >
-                        <div className="flex items-center justify-between border-b border-border pb-3">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                           <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-purple-400" />
-                            <h3 className="font-bold text-white text-sm">Pending Approvals</h3>
-                            <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
+                            <Clock className="w-4 h-4 text-purple-600" />
+                            <h3 className="font-bold text-slate-900 text-sm">Pending Approvals</h3>
+                            <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full font-bold">
                               {data?.pendingApprovals || pendingApprovals.length || 0} Pending
                             </span>
                           </div>
                           <Link
                             href="/approvals"
-                            className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1"
+                            className="text-[11px] text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-1"
                           >
                             Approval Queue <ArrowUpRight className="w-3.5 h-3.5" />
                           </Link>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 text-xs">
-                          <div className="bg-gray-900/80 border border-gray-800 p-3 rounded-lg">
-                            <span className="text-[10px] text-purple-300 font-bold uppercase block">Review Queue</span>
-                            <div className="text-2xl font-extrabold text-purple-400 font-mono mt-1">
+                          <div className="bg-slate-50/80 border border-slate-200 p-3 rounded-lg">
+                            <span className="text-[10px] text-purple-700 font-bold uppercase block">Review Queue</span>
+                            <div className="text-2xl font-extrabold text-purple-600 font-mono mt-1">
                               {data?.pendingApprovals || 0}
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-0.5">Scripts & reqs sign-off</p>
+                            <p className="text-[10px] text-slate-500 mt-0.5">Scripts & reqs sign-off</p>
                           </div>
-                          <div className="bg-gray-900/80 border border-gray-800 p-3 rounded-lg">
-                            <span className="text-[10px] text-amber-300 font-bold uppercase block">Client Confirmations</span>
-                            <div className="text-2xl font-extrabold text-amber-400 font-mono mt-1">
+                          <div className="bg-slate-50/80 border border-slate-200 p-3 rounded-lg">
+                            <span className="text-[10px] text-amber-800 font-bold uppercase block">Client Confirmations</span>
+                            <div className="text-2xl font-extrabold text-amber-600 font-mono mt-1">
                               {data?.pendingClientConfirmations || 0}
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-0.5">Awaiting feedback</p>
+                            <p className="text-[10px] text-slate-500 mt-0.5">Awaiting feedback</p>
                           </div>
                         </div>
 
                         {pendingApprovals.length > 0 && (
                           <div className="space-y-1.5 pt-1">
-                            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
                               Top Review Requests
                             </span>
                             {pendingApprovals.slice(0, widget.itemLimit || 3).map((a: any) => (
                               <Link
                                 href="/approvals"
                                 key={a.id}
-                                className="flex items-center justify-between p-2 bg-gray-900/90 rounded-lg border border-gray-800 hover:border-purple-500/40 transition-colors"
+                                className="flex items-center justify-between p-2 bg-slate-50/90 rounded-lg border border-slate-200 hover:border-purple-200 transition-colors"
                               >
                                 <div className="min-w-0 pr-2">
-                                  <p className="text-[11px] font-semibold text-white truncate">
+                                  <p className="text-[11px] font-semibold text-slate-800 truncate">
                                     {a.remarks?.substring(0, 45) || 'Pending Approval Request'}
                                   </p>
-                                  <p className="text-[10px] text-gray-400 truncate">
+                                  <p className="text-[10px] text-slate-500 truncate">
                                     Target: {a.targetRole?.replace('_', ' ')} • {a.approvalType?.replace('_', ' ')}
                                   </p>
                                 </div>
-                                <span className="text-[9px] px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded font-bold shrink-0">
-                                  Review →
+                                <span className="text-[9px] px-2 py-0.5 bg-amber-50 text-amber-800 rounded font-bold shrink-0">
+                                  Review
                                 </span>
                               </Link>
                             ))}
@@ -1800,21 +1797,21 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={widget.id}
-                        className={`bg-card border border-border p-5 rounded-xl space-y-4 shadow-md ${
+                        className={`bg-white border border-slate-200 p-5 rounded-xl space-y-4 shadow-md ${
                           isFull ? 'lg:col-span-2' : ''
                         }`}
                       >
-                        <div className="flex items-center justify-between border-b border-border pb-3">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                           <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-amber-400" />
-                            <h3 className="font-bold text-white text-sm">Upcoming Deadlines &amp; Projects Due</h3>
-                            <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                            <Clock className="w-4 h-4 text-amber-600" />
+                            <h3 className="font-bold text-slate-900 text-sm">Upcoming Deadlines &amp; Projects Due</h3>
+                            <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full font-bold">
                               {data?.upcomingDeadlines?.length || 0} Due Soon
                             </span>
                           </div>
                           <Link
                             href="/projects"
-                            className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1"
+                            className="text-[11px] text-amber-600 hover:text-amber-800 font-semibold flex items-center gap-1"
                           >
                             Projects Directory <ArrowUpRight className="w-3.5 h-3.5" />
                           </Link>
@@ -1822,32 +1819,32 @@ export default function DashboardPage() {
 
                         <div className="space-y-2">
                           {!data?.upcomingDeadlines || data.upcomingDeadlines.length === 0 ? (
-                            <p className="text-gray-500 italic text-[11px] p-3 text-center bg-gray-950 rounded-lg border border-gray-800">
-                              No project or task deadlines due within the next 7 days. ✓
+                            <p className="text-slate-400 italic text-[11px] p-3 text-center bg-slate-50 rounded-lg border border-slate-200">
+                              No project or task deadlines due within the next 7 days.
                             </p>
                           ) : (
                             data.upcomingDeadlines.slice(0, widget.itemLimit || 5).map((item: any) => (
                               <Link
                                 key={item.id}
                                 href="/projects"
-                                className="flex items-center justify-between p-2.5 bg-gray-900/90 rounded-lg border border-gray-800 hover:border-amber-500/40 transition-colors"
+                                className="flex items-center justify-between p-2.5 bg-slate-50/90 rounded-lg border border-slate-200 hover:border-amber-200 transition-colors"
                               >
                                 <div className="min-w-0 pr-2">
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">
+                                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
                                       {item.code || item.type}
                                     </span>
-                                    <h4 className="text-xs font-bold text-white truncate">{item.title}</h4>
+                                    <h4 className="text-xs font-bold text-slate-900 truncate">{item.title}</h4>
                                   </div>
-                                  <p className="text-[10px] text-gray-400 mt-0.5 truncate">
+                                  <p className="text-[10px] text-slate-500 mt-0.5 truncate">
                                     {item.clientName ? `Client: ${item.clientName} • ` : ''}Status: {item.status || 'Active'}
                                   </p>
                                 </div>
                                 <div className="text-right shrink-0">
-                                  <span className="text-[10px] font-mono font-bold text-amber-400 block">
+                                  <span className="text-[10px] font-mono font-bold text-amber-600 block">
                                     {new Date(item.dueDate).toLocaleDateString()}
                                   </span>
-                                  <span className="text-[9px] text-gray-500 block">Target Due</span>
+                                  <span className="text-[9px] text-slate-400 block">Target Due</span>
                                 </div>
                               </Link>
                             ))
@@ -1861,53 +1858,53 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={widget.id}
-                        className={`bg-card border border-border p-5 rounded-xl space-y-4 shadow-md ${
+                        className={`bg-white border border-slate-200 p-5 rounded-xl space-y-4 shadow-md ${
                           isFull ? 'lg:col-span-2' : ''
                         }`}
                       >
-                        <div className="flex items-center justify-between border-b border-border pb-3">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                           <div className="flex items-center gap-2">
-                            <TrendingUp className="w-4 h-4 text-emerald-400" />
-                            <h3 className="font-bold text-white text-sm">Productivity</h3>
-                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                            <TrendingUp className="w-4 h-4 text-emerald-600" />
+                            <h3 className="font-bold text-slate-900 text-sm">Productivity</h3>
+                            <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">
                               {data?.overallProductivity || 0}% Score
                             </span>
                           </div>
                           <Link
                             href="/reports"
-                            className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1"
+                            className="text-[11px] text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1"
                           >
                             Reports Engine <ArrowUpRight className="w-3.5 h-3.5" />
                           </Link>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 text-xs">
-                          <div className="bg-gray-900/80 border border-gray-800 p-3 rounded-lg">
-                            <span className="text-[10px] text-emerald-300 font-bold uppercase block">Overall Efficiency</span>
-                            <div className="text-2xl font-extrabold text-emerald-400 font-mono mt-1">
+                          <div className="bg-slate-50/80 border border-slate-200 p-3 rounded-lg">
+                            <span className="text-[10px] text-emerald-700 font-bold uppercase block">Overall Efficiency</span>
+                            <div className="text-2xl font-extrabold text-emerald-600 font-mono mt-1">
                               {data?.overallProductivity || 0}%
                             </div>
-                            <p className="text-[10px] text-emerald-400/80 mt-0.5">Production score</p>
+                            <p className="text-[10px] text-emerald-600/80 mt-0.5">Production score</p>
                           </div>
-                          <div className="bg-gray-900/80 border border-gray-800 p-3 rounded-lg">
-                            <span className="text-[10px] text-cyan-300 font-bold uppercase block">Today's Output</span>
-                            <div className="text-xl font-extrabold text-cyan-400 font-mono mt-1">
+                          <div className="bg-slate-50/80 border border-slate-200 p-3 rounded-lg">
+                            <span className="text-[10px] text-cyan-700 font-bold uppercase block">Today's Output</span>
+                            <div className="text-xl font-extrabold text-cyan-600 font-mono mt-1">
                               {data?.todaysProduction?.actualOutput || 0} / {data?.todaysProduction?.targetOutput || 0}
                             </div>
-                            <p className="text-[10px] text-cyan-400/80 mt-0.5">
+                            <p className="text-[10px] text-cyan-600/80 mt-0.5">
                               {data?.todaysProduction?.achievementPercentage || 0}% Target Rate
                             </p>
                           </div>
                         </div>
 
-                        <div className="space-y-1.5 bg-gray-950 p-2.5 rounded-lg border border-gray-800">
+                        <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                           <div className="flex justify-between text-[10px]">
-                            <span className="text-gray-400">Daily Target Achievement</span>
-                            <span className="font-mono font-bold text-emerald-400">
+                            <span className="text-slate-500">Daily Target Achievement</span>
+                            <span className="font-mono font-bold text-emerald-600">
                               {data?.todaysProduction?.achievementPercentage || 0}%
                             </span>
                           </div>
-                          <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                             <div
                               className="h-full bg-emerald-500 rounded-full transition-all"
                               style={{ width: `${Math.min(data?.todaysProduction?.achievementPercentage || 0, 100)}%` }}
@@ -1922,14 +1919,14 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={widget.id}
-                        className={`bg-card border border-border p-5 rounded-xl space-y-4 shadow-md ${
+                        className={`bg-white border border-slate-200 p-5 rounded-xl space-y-4 shadow-md ${
                           isFull ? 'lg:col-span-2' : ''
                         }`}
                       >
-                        <div className="flex items-center justify-between border-b border-border pb-3">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                           <div className="flex items-center gap-2">
                             <Users className="w-4 h-4 text-pink-400" />
-                            <h3 className="font-bold text-white text-sm">Attendance</h3>
+                            <h3 className="font-bold text-slate-900 text-sm">Attendance</h3>
                             <span className="text-[10px] bg-pink-500/20 text-pink-300 border border-pink-500/30 px-2 py-0.5 rounded-full font-bold">
                               {data?.employeeAttendance?.attendancePercentage || 0}% Present
                             </span>
@@ -1943,19 +1940,19 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                          <div className="bg-gray-900/80 border border-gray-800 p-2.5 rounded-lg">
-                            <span className="text-[10px] text-emerald-300 font-bold uppercase block">Present</span>
-                            <div className="text-xl font-extrabold text-emerald-400 font-mono mt-1">
+                          <div className="bg-slate-50/80 border border-slate-200 p-2.5 rounded-lg">
+                            <span className="text-[10px] text-emerald-700 font-bold uppercase block">Present</span>
+                            <div className="text-xl font-extrabold text-emerald-600 font-mono mt-1">
                               {data?.employeeAttendance?.presentCount || 0}
                             </div>
                           </div>
-                          <div className="bg-gray-900/80 border border-gray-800 p-2.5 rounded-lg">
-                            <span className="text-[10px] text-red-300 font-bold uppercase block">Absent</span>
-                            <div className="text-xl font-extrabold text-red-400 font-mono mt-1">
+                          <div className="bg-slate-50/80 border border-slate-200 p-2.5 rounded-lg">
+                            <span className="text-[10px] text-rose-700 font-bold uppercase block">Absent</span>
+                            <div className="text-xl font-extrabold text-rose-600 font-mono mt-1">
                               {data?.employeeAttendance?.absentCount || 0}
                             </div>
                           </div>
-                          <div className="bg-gray-900/80 border border-gray-800 p-2.5 rounded-lg">
+                          <div className="bg-slate-50/80 border border-slate-200 p-2.5 rounded-lg">
                             <span className="text-[10px] text-pink-300 font-bold uppercase block">Rate</span>
                             <div className="text-xl font-extrabold text-pink-400 font-mono mt-1">
                               {data?.employeeAttendance?.attendancePercentage || 0}%
@@ -1963,9 +1960,9 @@ export default function DashboardPage() {
                           </div>
                         </div>
 
-                        <div className="p-2.5 bg-gray-950 rounded-lg border border-gray-800 flex items-center justify-between text-[11px]">
-                          <span className="text-gray-400">Total Tracked Staff:</span>
-                          <span className="font-mono font-bold text-white">
+                        <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500">Total Tracked Staff:</span>
+                          <span className="font-mono font-bold text-slate-900">
                             {(data?.employeeAttendance?.presentCount || 0) + (data?.employeeAttendance?.absentCount || 0)} Employees
                           </span>
                         </div>
@@ -1977,48 +1974,48 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={widget.id}
-                        className={`bg-card border border-border p-5 rounded-xl space-y-4 shadow-md ${
+                        className={`bg-white border border-slate-200 p-5 rounded-xl space-y-4 shadow-md ${
                           isFull ? 'lg:col-span-2' : ''
                         }`}
                       >
-                        <div className="flex items-center justify-between border-b border-border pb-3">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                           <div className="flex items-center gap-2">
-                            <Camera className="w-4 h-4 text-cyan-400" />
-                            <h3 className="font-bold text-white text-sm">Equipment Status</h3>
-                            <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded-full font-bold">
+                            <Camera className="w-4 h-4 text-cyan-600" />
+                            <h3 className="font-bold text-slate-900 text-sm">Equipment Status</h3>
+                            <span className="text-[10px] bg-cyan-50 text-cyan-700 border border-cyan-200 px-2 py-0.5 rounded-full font-bold">
                               {data?.equipmentAvailability?.availabilityPercentage || 0}% Available
                             </span>
                           </div>
                           <Link
                             href="/equipment"
-                            className="text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1"
+                            className="text-[11px] text-cyan-600 hover:text-cyan-700 font-semibold flex items-center gap-1"
                           >
                             Inventory <ArrowUpRight className="w-3.5 h-3.5" />
                           </Link>
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center text-xs">
-                          <div className="p-2.5 bg-gray-900/80 border border-gray-800 rounded-lg">
-                            <div className="text-gray-400 text-[10px] uppercase font-semibold">Available</div>
-                            <div className="text-lg font-bold text-emerald-400 font-mono mt-1">
+                          <div className="p-2.5 bg-slate-50/80 border border-slate-200 rounded-lg">
+                            <div className="text-slate-500 text-[10px] uppercase font-semibold">Available</div>
+                            <div className="text-lg font-bold text-emerald-600 font-mono mt-1">
                               {data?.equipmentStatus?.available || 0}
                             </div>
                           </div>
-                          <div className="p-2.5 bg-gray-900/80 border border-gray-800 rounded-lg">
-                            <div className="text-gray-400 text-[10px] uppercase font-semibold">Reserved</div>
-                            <div className="text-lg font-bold text-purple-400 font-mono mt-1">
+                          <div className="p-2.5 bg-slate-50/80 border border-slate-200 rounded-lg">
+                            <div className="text-slate-500 text-[10px] uppercase font-semibold">Reserved</div>
+                            <div className="text-lg font-bold text-purple-600 font-mono mt-1">
                               {data?.equipmentStatus?.reserved || 0}
                             </div>
                           </div>
-                          <div className="p-2.5 bg-gray-900/80 border border-gray-800 rounded-lg">
-                            <div className="text-gray-400 text-[10px] uppercase font-semibold">In Field</div>
-                            <div className="text-lg font-bold text-blue-400 font-mono mt-1">
+                          <div className="p-2.5 bg-slate-50/80 border border-slate-200 rounded-lg">
+                            <div className="text-slate-500 text-[10px] uppercase font-semibold">In Field</div>
+                            <div className="text-lg font-bold text-blue-600 font-mono mt-1">
                               {data?.equipmentStatus?.issued || 0}
                             </div>
                           </div>
-                          <div className="p-2.5 bg-gray-900/80 border border-gray-800 rounded-lg">
-                            <div className="text-gray-400 text-[10px] uppercase font-semibold">Maintenance</div>
-                            <div className="text-lg font-bold text-amber-400 font-mono mt-1">
+                          <div className="p-2.5 bg-slate-50/80 border border-slate-200 rounded-lg">
+                            <div className="text-slate-500 text-[10px] uppercase font-semibold">Maintenance</div>
+                            <div className="text-lg font-bold text-amber-600 font-mono mt-1">
                               {data?.equipmentStatus?.maintenance || 0}
                             </div>
                           </div>
@@ -2032,38 +2029,38 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={widget.id}
-                        className={`bg-card border border-border p-5 rounded-xl space-y-4 shadow-md ${
+                        className={`bg-white border border-slate-200 p-5 rounded-xl space-y-4 shadow-md ${
                           isFull ? 'lg:col-span-2' : ''
                         }`}
                       >
                         {/* Widget Header */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
                           <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-blue-400" />
-                            <h3 className="font-bold text-white text-sm">Upcoming Operational Events</h3>
-                            <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-bold">
+                            <Calendar className="w-4 h-4 text-blue-600" />
+                            <h3 className="font-bold text-slate-900 text-sm">Upcoming Operational Events</h3>
+                            <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold">
                               {(data?.todayIndoorShootsCount || 0) + (data?.todayOutdoorShootsCount || 0)} Today • {data?.upcomingProjects || 0} Upcoming
                             </span>
                           </div>
                           <Link
                             href="/calendar"
-                            className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 self-start sm:self-auto"
+                            className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 self-start sm:self-auto"
                           >
                             Full Operational Calendar <ArrowUpRight className="w-3.5 h-3.5" />
                           </Link>
                         </div>
 
                         {/* 5 Operational Tabs */}
-                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-border">
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-200">
                           <button
                             onClick={() => setActiveOperationalTab('TODAY')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${
                               activeOperationalTab === 'TODAY'
                                 ? 'bg-blue-600 text-white border-blue-500 shadow-md'
-                                : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:text-slate-900'
                             }`}
                           >
-                            <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                            <Calendar className="w-3.5 h-3.5 text-blue-600" />
                             <span>1. Today's Events ({(data?.todayIndoorShootsCount || 0) + (data?.todayOutdoorShootsCount || 0)})</span>
                           </button>
 
@@ -2072,10 +2069,10 @@ export default function DashboardPage() {
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${
                               activeOperationalTab === 'SHOOTS'
                                 ? 'bg-purple-600 text-white border-purple-500 shadow-md'
-                                : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:text-slate-900'
                             }`}
                           >
-                            <Camera className="w-3.5 h-3.5 text-purple-400" />
+                            <Camera className="w-3.5 h-3.5 text-purple-600" />
                             <span>2. Upcoming Shoots ({data?.upcomingProjects || 0})</span>
                           </button>
 
@@ -2084,10 +2081,10 @@ export default function DashboardPage() {
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${
                               activeOperationalTab === 'DEADLINES'
                                 ? 'bg-amber-600 text-white border-amber-500 shadow-md'
-                                : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:text-slate-900'
                             }`}
                           >
-                            <Clock className="w-3.5 h-3.5 text-amber-400" />
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
                             <span>3. Upcoming Deadlines ({data?.upcomingDeadlines?.length || 0})</span>
                           </button>
 
@@ -2096,10 +2093,10 @@ export default function DashboardPage() {
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${
                               activeOperationalTab === 'RISKS'
                                 ? 'bg-red-600 text-white border-red-500 shadow-md'
-                                : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:text-slate-900'
                             }`}
                           >
-                            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
                             <span>4. Calendar Conflicts &amp; Risks ({(data?.outdoorAwaitingPermission || 0) + (data?.outdoorAffectedByWeather || 0)})</span>
                           </button>
 
@@ -2108,10 +2105,10 @@ export default function DashboardPage() {
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${
                               activeOperationalTab === 'PROJECTS'
                                 ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
-                                : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:text-slate-900'
                             }`}
                           >
-                            <Film className="w-3.5 h-3.5 text-emerald-400" />
+                            <Film className="w-3.5 h-3.5 text-emerald-600" />
                             <span>5. Related Projects ({data?.totalActiveProjects || 0})</span>
                           </button>
                         </div>
@@ -2122,8 +2119,8 @@ export default function DashboardPage() {
                           {activeOperationalTab === 'TODAY' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-150">
                               {/* Indoor Shoots */}
-                              <div className="p-4 bg-blue-950/20 border border-blue-800/40 rounded-xl space-y-2.5">
-                                <div className="flex justify-between items-center font-bold text-blue-300 text-xs">
+                              <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-2.5">
+                                <div className="flex justify-between items-center font-bold text-blue-700 text-xs">
                                   <span className="flex items-center gap-1.5">
                                     <Building className="w-3.5 h-3.5" /> Today's Indoor Studio Shoots
                                   </span>
@@ -2134,32 +2131,32 @@ export default function DashboardPage() {
                                 {data?.todayIndoorShoots?.length > 0 ? (
                                   <div className="space-y-2">
                                     {data.todayIndoorShoots.slice(0, widget.itemLimit || 4).map((proj: any) => (
-                                      <div key={proj.id} className="p-2.5 bg-gray-900/90 rounded-lg border border-gray-800 space-y-1">
+                                      <div key={proj.id} className="p-2.5 bg-slate-50/90 rounded-lg border border-slate-200 space-y-1">
                                         <div className="flex items-center justify-between">
-                                          <Link href="/projects" className="font-bold text-white text-xs hover:text-blue-400 truncate">
+                                          <Link href="/projects" className="font-bold text-white text-xs hover:text-blue-600 truncate">
                                             {proj.name}
                                           </Link>
-                                          <span className="px-1.5 py-0.2 bg-blue-950 text-blue-300 border border-blue-800 font-mono text-[9px] rounded">
+                                          <span className="px-1.5 py-0.2 bg-blue-50 text-blue-700 border border-blue-200 font-mono text-[9px] rounded">
                                             {proj.projectId}
                                           </span>
                                         </div>
-                                        <div className="text-[10px] text-gray-400 font-mono flex items-center justify-between pt-0.5">
+                                        <div className="text-[10px] text-slate-500 font-mono flex items-center justify-between pt-0.5">
                                           <span>Studio: {proj.indoorDetails?.studioName || proj.shootLocation || 'Main Studio'}</span>
-                                          {proj.brand?.name && <span className="text-gray-500">{proj.brand.name}</span>}
+                                          {proj.brand?.name && <span className="text-slate-400">{proj.brand.name}</span>}
                                         </div>
                                       </div>
                                     ))}
                                   </div>
                                 ) : (
-                                  <p className="text-gray-500 italic text-[11px]">No indoor shoots scheduled for today.</p>
+                                  <p className="text-slate-400 italic text-[11px]">No indoor shoots scheduled for today.</p>
                                 )}
                               </div>
 
                               {/* Outdoor Shoots */}
-                              <div className="p-4 bg-emerald-950/20 border border-emerald-800/40 rounded-xl space-y-2.5">
-                                <div className="flex justify-between items-center font-bold text-emerald-300 text-xs">
+                              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2.5">
+                                <div className="flex justify-between items-center font-bold text-emerald-700 text-xs">
                                   <span className="flex items-center gap-1.5">
-                                    <Camera className="w-3.5 h-3.5 text-emerald-400" /> Today's Outdoor Field Shoots
+                                    <Camera className="w-3.5 h-3.5 text-emerald-600" /> Today's Outdoor Field Shoots
                                   </span>
                                   <span className="font-mono bg-emerald-900/50 px-2 py-0.5 rounded text-[10px]">
                                     {data?.todayOutdoorShootsCount || 0}
@@ -2168,24 +2165,24 @@ export default function DashboardPage() {
                                 {data?.todayOutdoorShoots?.length > 0 ? (
                                   <div className="space-y-2">
                                     {data.todayOutdoorShoots.slice(0, widget.itemLimit || 4).map((proj: any) => (
-                                      <div key={proj.id} className="p-2.5 bg-gray-900/90 rounded-lg border border-gray-800 space-y-1">
+                                      <div key={proj.id} className="p-2.5 bg-slate-50/90 rounded-lg border border-slate-200 space-y-1">
                                         <div className="flex items-center justify-between">
-                                          <Link href="/projects" className="font-bold text-white text-xs hover:text-emerald-400 truncate">
+                                          <Link href="/projects" className="font-bold text-white text-xs hover:text-emerald-600 truncate">
                                             {proj.name}
                                           </Link>
-                                          <span className="px-1.5 py-0.2 bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono text-[9px] rounded">
+                                          <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono text-[9px] rounded">
                                             {proj.projectId}
                                           </span>
                                         </div>
-                                        <div className="text-[10px] text-gray-400 font-mono flex items-center justify-between pt-0.5">
+                                        <div className="text-[10px] text-slate-500 font-mono flex items-center justify-between pt-0.5">
                                           <span>Site: {proj.outdoorDetails?.outdoorLocation || proj.shootLocation || 'Field Location'}</span>
-                                          {proj.brand?.name && <span className="text-gray-500">{proj.brand.name}</span>}
+                                          {proj.brand?.name && <span className="text-slate-400">{proj.brand.name}</span>}
                                         </div>
                                       </div>
                                     ))}
                                   </div>
                                 ) : (
-                                  <p className="text-gray-500 italic text-[11px]">No outdoor shoots scheduled for today.</p>
+                                  <p className="text-slate-400 italic text-[11px]">No outdoor shoots scheduled for today.</p>
                                 )}
                               </div>
                             </div>
@@ -2194,32 +2191,32 @@ export default function DashboardPage() {
                           {/* TAB 2: UPCOMING SHOOTS */}
                           {activeOperationalTab === 'SHOOTS' && (
                             <div className="space-y-3 animate-in fade-in duration-150">
-                              <div className="flex justify-between items-center text-xs text-gray-400 font-mono border-b border-gray-800/80 pb-2">
-                                <span className="font-bold text-purple-300">Upcoming Production Shoots Pipeline</span>
+                              <div className="flex justify-between items-center text-xs text-slate-500 font-mono border-b border-slate-200 pb-2">
+                                <span className="font-bold text-purple-700">Upcoming Production Shoots Pipeline</span>
                                 <span>Showing scheduled shoots</span>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                                 {((data?.activeProjectsList || data?.todayIndoorShoots || []) as any[]).length === 0 ? (
-                                  <p className="text-gray-500 italic text-xs col-span-full p-4 text-center">No upcoming shoots scheduled in calendar.</p>
+                                  <p className="text-slate-400 italic text-xs col-span-full p-4 text-center">No upcoming shoots scheduled in calendar.</p>
                                 ) : (
                                   ((data?.activeProjectsList || data?.todayIndoorShoots || []) as any[]).slice(0, widget.itemLimit || 6).map((proj: any) => (
-                                    <div key={proj.id} className="p-3.5 bg-gray-900/90 border border-purple-900/40 hover:border-purple-500/50 rounded-xl space-y-2 transition-colors">
+                                    <div key={proj.id} className="p-3.5 bg-slate-50/90 border border-purple-200 hover:border-purple-200 rounded-xl space-y-2 transition-colors">
                                       <div className="flex items-center justify-between">
-                                        <span className="px-2 py-0.5 bg-purple-950 text-purple-300 border border-purple-800 font-mono text-[9px] rounded font-bold">
+                                        <span className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 font-mono text-[9px] rounded font-bold">
                                           {proj.shootType || 'INDOOR'}
                                         </span>
-                                        <span className="text-[10px] text-gray-400 font-mono">
+                                        <span className="text-[10px] text-slate-500 font-mono">
                                           {proj.shootDate ? new Date(proj.shootDate).toLocaleDateString() : 'Upcoming'}
                                         </span>
                                       </div>
-                                      <h4 className="font-bold text-white text-xs truncate">{proj.name}</h4>
-                                      <div className="text-[10px] text-gray-400 font-mono space-y-0.5 pt-1 border-t border-gray-800">
-                                        <div>Location: <strong className="text-gray-200">{proj.shootLocation || 'Studio Location'}</strong></div>
-                                        <div>Client/Brand: <strong className="text-purple-300">{proj.client?.name || proj.brand?.name || 'General Brand'}</strong></div>
+                                      <h4 className="font-bold text-slate-900 text-xs truncate">{proj.name}</h4>
+                                      <div className="text-[10px] text-slate-500 font-mono space-y-0.5 pt-1 border-t border-slate-200">
+                                        <div>Location: <strong className="text-slate-800">{proj.shootLocation || 'Studio Location'}</strong></div>
+                                        <div>Client/Brand: <strong className="text-purple-700">{proj.client?.name || proj.brand?.name || 'General Brand'}</strong></div>
                                       </div>
                                       <div className="pt-1 flex justify-end">
-                                        <Link href="/projects" className="text-[10px] text-purple-400 hover:text-purple-300 font-bold flex items-center gap-1">
-                                          View Project Details →
+                                        <Link href="/projects" className="text-[10px] text-purple-600 hover:text-purple-700 font-bold flex items-center gap-1">
+                                          View Project Details
                                         </Link>
                                       </div>
                                     </div>
@@ -2232,30 +2229,30 @@ export default function DashboardPage() {
                           {/* TAB 3: UPCOMING DEADLINES */}
                           {activeOperationalTab === 'DEADLINES' && (
                             <div className="space-y-3 animate-in fade-in duration-150">
-                              <div className="flex justify-between items-center text-xs text-gray-400 font-mono border-b border-gray-800/80 pb-2">
-                                <span className="font-bold text-amber-300">Deliverable Due Dates &amp; Task Target Deadlines</span>
+                              <div className="flex justify-between items-center text-xs text-slate-500 font-mono border-b border-slate-200 pb-2">
+                                <span className="font-bold text-amber-800">Deliverable Due Dates &amp; Task Target Deadlines</span>
                                 <span>Next 7 Days</span>
                               </div>
                               <div className="space-y-2 text-xs">
                                 {!data?.upcomingDeadlines || data.upcomingDeadlines.length === 0 ? (
-                                  <p className="text-gray-500 italic text-xs p-4 text-center">No upcoming deadlines due in the next 7 days.</p>
+                                  <p className="text-slate-400 italic text-xs p-4 text-center">No upcoming deadlines due in the next 7 days.</p>
                                 ) : (
                                   data.upcomingDeadlines.slice(0, widget.itemLimit || 5).map((item: any) => (
-                                    <div key={item.id} className="p-3 bg-gray-900/90 border border-gray-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between gap-3 transition-colors">
+                                    <div key={item.id} className="p-3 bg-slate-50/90 border border-slate-200 hover:border-amber-200 rounded-xl flex items-center justify-between gap-3 transition-colors">
                                       <div className="space-y-0.5 min-w-0 flex-1">
                                         <div className="flex items-center gap-2">
-                                          <span className="font-mono text-[9px] text-amber-400 font-bold bg-amber-950/40 border border-amber-900/40 px-1.5 py-0.5 rounded">
+                                          <span className="font-mono text-[9px] text-amber-600 font-bold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
                                             {item.code || 'DEADLINE'}
                                           </span>
-                                          <h5 className="font-bold text-white text-xs truncate">{item.title}</h5>
+                                          <h5 className="font-bold text-slate-900 text-xs truncate">{item.title}</h5>
                                         </div>
-                                        <div className="text-[10px] text-gray-400 font-mono">
-                                          Client: <strong className="text-gray-300">{item.clientName || 'General Client'}</strong> • Status: <strong className="text-amber-300">{item.status}</strong>
+                                        <div className="text-[10px] text-slate-500 font-mono">
+                                          Client: <strong className="text-slate-700">{item.clientName || 'General Client'}</strong> • Status: <strong className="text-amber-800">{item.status}</strong>
                                         </div>
                                       </div>
                                       <div className="text-right shrink-0">
-                                        <span className="px-2.5 py-1 bg-amber-950 text-amber-300 border border-amber-800 rounded font-mono text-[10px] font-bold block">
-                                          📅 {new Date(item.dueDate).toLocaleDateString()}
+                                        <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded font-mono text-[10px] font-bold block">
+                                          {new Date(item.dueDate).toLocaleDateString()}
                                         </span>
                                       </div>
                                     </div>
@@ -2268,57 +2265,57 @@ export default function DashboardPage() {
                           {/* TAB 4: CALENDAR CONFLICTS & RISKS */}
                           {activeOperationalTab === 'RISKS' && (
                             <div className="space-y-3 animate-in fade-in duration-150">
-                              <div className="flex justify-between items-center text-xs text-gray-400 font-mono border-b border-gray-800/80 pb-2">
-                                <span className="font-bold text-red-400">Operational Scheduling Conflicts &amp; Advisory Risks</span>
+                              <div className="flex justify-between items-center text-xs text-slate-500 font-mono border-b border-slate-200 pb-2">
+                                <span className="font-bold text-rose-600">Operational Scheduling Conflicts &amp; Advisory Risks</span>
                                 <span>Conflict Prevention Engine</span>
                               </div>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                                <div className="p-3 bg-red-950/20 border border-red-800/50 rounded-xl space-y-1.5">
-                                  <span className="text-[11px] text-red-300 font-bold flex items-center gap-1.5">
-                                    <ShieldAlert className="w-4 h-4 text-red-400" /> Outdoor Permit Approvals Pending
+                                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1.5">
+                                  <span className="text-[11px] text-rose-700 font-bold flex items-center gap-1.5">
+                                    <ShieldAlert className="w-4 h-4 text-rose-600" /> Outdoor Permit Approvals Pending
                                   </span>
                                   <div className="flex items-center justify-between font-mono pt-1">
-                                    <span className="text-gray-400">Pending Site Clearances:</span>
-                                    <strong className="text-red-400 text-sm font-bold">{data?.outdoorAwaitingPermission || 0} Locations</strong>
+                                    <span className="text-slate-500">Pending Site Clearances:</span>
+                                    <strong className="text-rose-600 text-sm font-bold">{data?.outdoorAwaitingPermission || 0} Locations</strong>
                                   </div>
-                                  <p className="text-[10px] text-gray-400">Shoots cannot proceed until outdoor permits are approved by authorities.</p>
+                                  <p className="text-[10px] text-slate-500">Shoots cannot proceed until outdoor permits are approved by authorities.</p>
                                 </div>
 
-                                <div className="p-3 bg-cyan-950/20 border border-cyan-800/50 rounded-xl space-y-1.5">
-                                  <span className="text-[11px] text-cyan-300 font-bold flex items-center gap-1.5">
-                                    <CloudRain className="w-4 h-4 text-cyan-400" /> Outdoor Weather Risk Advisories
+                                <div className="p-3 bg-cyan-50 border border-cyan-200 rounded-xl space-y-1.5">
+                                  <span className="text-[11px] text-cyan-700 font-bold flex items-center gap-1.5">
+                                    <CloudRain className="w-4 h-4 text-cyan-600" /> Outdoor Weather Risk Advisories
                                   </span>
                                   <div className="flex items-center justify-between font-mono pt-1">
-                                    <span className="text-gray-400">Advisory Sites:</span>
-                                    <strong className="text-cyan-400 text-sm font-bold">{data?.outdoorAffectedByWeather || 0} Sites</strong>
+                                    <span className="text-slate-500">Advisory Sites:</span>
+                                    <strong className="text-cyan-600 text-sm font-bold">{data?.outdoorAffectedByWeather || 0} Sites</strong>
                                   </div>
-                                  <p className="text-[10px] text-gray-400">Risk of rain or extreme heat flagged for scheduled outdoor locations.</p>
+                                  <p className="text-[10px] text-slate-500">Risk of rain or extreme heat flagged for scheduled outdoor locations.</p>
                                 </div>
 
-                                <div className="p-3 bg-amber-950/20 border border-amber-800/50 rounded-xl space-y-1.5">
-                                  <span className="text-[11px] text-amber-300 font-bold flex items-center gap-1.5">
-                                    <Camera className="w-4 h-4 text-amber-400" /> Equipment Availability &amp; Repairs
+                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1.5">
+                                  <span className="text-[11px] text-amber-800 font-bold flex items-center gap-1.5">
+                                    <Camera className="w-4 h-4 text-amber-600" /> Equipment Availability &amp; Repairs
                                   </span>
                                   <div className="flex items-center justify-between font-mono pt-1">
-                                    <span className="text-gray-400">Under Repair / Maintenance:</span>
-                                    <strong className="text-amber-300 text-sm font-bold">
+                                    <span className="text-slate-500">Under Repair / Maintenance:</span>
+                                    <strong className="text-amber-800 text-sm font-bold">
                                       {(equipmentStats?.underMaintenance || 0) + (equipmentStats?.damaged || 0)} Assets
                                     </strong>
                                   </div>
-                                  <p className="text-[10px] text-gray-400">Asset double-booking prevention and repair dispatch active.</p>
+                                  <p className="text-[10px] text-slate-500">Asset double-booking prevention and repair dispatch active.</p>
                                 </div>
 
-                                <div className="p-3 bg-purple-950/20 border border-purple-800/50 rounded-xl space-y-1.5">
-                                  <span className="text-[11px] text-purple-300 font-bold flex items-center gap-1.5">
-                                    <Users className="w-4 h-4 text-purple-400" /> Staff Workload Over-Allocations
+                                <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl space-y-1.5">
+                                  <span className="text-[11px] text-purple-700 font-bold flex items-center gap-1.5">
+                                    <Users className="w-4 h-4 text-purple-600" /> Staff Workload Over-Allocations
                                   </span>
                                   <div className="flex items-center justify-between font-mono pt-1">
-                                    <span className="text-gray-400">Overloaded Team Members:</span>
-                                    <strong className="text-purple-300 text-sm font-bold">
+                                    <span className="text-slate-500">Overloaded Team Members:</span>
+                                    <strong className="text-purple-700 text-sm font-bold">
                                       {safeCapacity.filter((e) => e.status === 'Overloaded' || e.isOverloaded).length} Staff
                                     </strong>
                                   </div>
-                                  <p className="text-[10px] text-gray-400">Use Smart Recommendations to reassign tasks to available staff.</p>
+                                  <p className="text-[10px] text-slate-500">Use Smart Recommendations to reassign tasks to available staff.</p>
                                 </div>
                               </div>
                             </div>
@@ -2327,36 +2324,36 @@ export default function DashboardPage() {
                           {/* TAB 5: RELATED PROJECTS & PIPELINE */}
                           {activeOperationalTab === 'PROJECTS' && (
                             <div className="space-y-3 animate-in fade-in duration-150">
-                              <div className="flex justify-between items-center text-xs text-gray-400 font-mono border-b border-gray-800/80 pb-2">
-                                <span className="font-bold text-emerald-300">Operational Shoot Projects &amp; Related Entity Links</span>
-                                <Link href="/projects" className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1">
-                                  Go to Projects Directory →
+                              <div className="flex justify-between items-center text-xs text-slate-500 font-mono border-b border-slate-200 pb-2">
+                                <span className="font-bold text-emerald-700">Operational Shoot Projects &amp; Related Entity Links</span>
+                                <Link href="/projects" className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1">
+                                  Go to Projects Directory
                                 </Link>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                                 {((data?.activeProjectsList || data?.todayIndoorShoots || []) as any[]).length === 0 ? (
-                                  <p className="text-gray-500 italic text-xs col-span-full p-4 text-center">No related operational projects found.</p>
+                                  <p className="text-slate-400 italic text-xs col-span-full p-4 text-center">No related operational projects found.</p>
                                 ) : (
                                   ((data?.activeProjectsList || data?.todayIndoorShoots || []) as any[]).slice(0, widget.itemLimit || 6).map((proj: any) => (
-                                    <div key={proj.id} className="p-3 bg-gray-900/90 border border-gray-800 hover:border-emerald-500/40 rounded-xl space-y-2 transition-colors">
+                                    <div key={proj.id} className="p-3 bg-slate-50/90 border border-slate-200 hover:border-emerald-200 rounded-xl space-y-2 transition-colors">
                                       <div className="flex items-center justify-between">
-                                        <span className="px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono text-[9px] font-bold rounded">
+                                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono text-[9px] font-bold rounded">
                                           {proj.projectId || 'PRJ-001'}
                                         </span>
-                                        <span className="px-2 py-0.5 rounded-full font-mono text-[9px] font-bold bg-blue-950 text-blue-300 border border-blue-800 uppercase">
+                                        <span className="px-2 py-0.5 rounded-full font-mono text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200 uppercase">
                                           {proj.status?.replace(/_/g, ' ')}
                                         </span>
                                       </div>
-                                      <h4 className="font-bold text-white text-xs truncate">{proj.name}</h4>
+                                      <h4 className="font-bold text-slate-900 text-xs truncate">{proj.name}</h4>
                                       <div className="flex flex-wrap gap-1.5 text-[10px] font-mono">
                                         {proj.client?.name && (
-                                          <span className="bg-gray-950 px-2 py-0.5 rounded text-gray-300 border border-gray-800">
-                                            🏢 {proj.client.name}
+                                          <span className="bg-slate-50 px-2 py-0.5 rounded text-slate-700 border border-slate-200">
+                                            {proj.client.name}
                                           </span>
                                         )}
                                         {proj.brand?.name && (
-                                          <span className="bg-gray-950 px-2 py-0.5 rounded text-purple-300 border border-gray-800">
-                                            🏷️ {proj.brand.name}
+                                          <span className="bg-slate-50 px-2 py-0.5 rounded text-purple-700 border border-slate-200">
+                                            {proj.brand.name}
                                           </span>
                                         )}
                                       </div>
@@ -2375,21 +2372,21 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={widget.id}
-                        className={`bg-card border border-border p-5 rounded-xl space-y-4 shadow-md ${
+                        className={`bg-white border border-slate-200 p-5 rounded-xl space-y-4 shadow-md ${
                           isFull ? 'lg:col-span-2' : ''
                         }`}
                       >
-                        <div className="flex items-center justify-between border-b border-border pb-3">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                           <div className="flex items-center gap-2">
-                            <Sliders className="w-4 h-4 text-purple-400" />
-                            <h3 className="font-bold text-white text-sm">Employee Capacity & Workload</h3>
-                            <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
+                            <Sliders className="w-4 h-4 text-purple-600" />
+                            <h3 className="font-bold text-slate-900 text-sm">Employee Capacity & Workload</h3>
+                            <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full font-bold">
                               {safeCapacity.length} Active Staff ({data?.capacityUtilization?.utilizationPercentage || 0}% Utilized)
                             </span>
                           </div>
                           <Link
                             href="/tasks"
-                            className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1"
+                            className="text-[11px] text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-1"
                           >
                             Reassign & Manage <ArrowUpRight className="w-3.5 h-3.5" />
                           </Link>
@@ -2397,15 +2394,15 @@ export default function DashboardPage() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
                           {safeCapacity.length === 0 ? (
-                            <p className="text-xs text-gray-400 col-span-full">No capacity workload metrics available.</p>
+                            <p className="text-xs text-slate-500 col-span-full">No capacity workload metrics available.</p>
                           ) : (
                             safeCapacity.slice(0, widget.itemLimit || 6).map((emp) => (
                               <div
                                 key={emp.userId}
                                 className={`p-3.5 rounded-xl border transition-colors ${
                                   emp.status === 'Overloaded'
-                                    ? 'bg-red-950/20 border-red-800/40'
-                                    : 'bg-gray-900/60 border-gray-800'
+                                    ? 'bg-rose-50 border-rose-200'
+                                    : 'bg-slate-50/60 border-slate-200'
                                 }`}
                               >
                                 <div className="flex items-center justify-between mb-2">
@@ -2413,19 +2410,19 @@ export default function DashboardPage() {
                                     <img
                                       src={emp.avatarUrl || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150'}
                                       alt={emp.name}
-                                      className="w-7 h-7 rounded-full object-cover border border-gray-700"
+                                      className="w-7 h-7 rounded-full object-cover border border-slate-200"
                                     />
                                     <div className="min-w-0">
-                                      <h4 className="text-xs font-bold text-white truncate">{emp.name}</h4>
-                                      <p className="text-[9px] text-gray-400 truncate">{emp.designation}</p>
+                                      <h4 className="text-xs font-bold text-slate-900 truncate">{emp.name}</h4>
+                                      <p className="text-[9px] text-slate-500 truncate">{emp.designation}</p>
                                     </div>
                                   </div>
 
                                   <span
                                     className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
                                       emp.status === 'Overloaded'
-                                        ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                                        : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                        ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                                        : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
                                     }`}
                                   >
                                     {emp.status}
@@ -2434,16 +2431,16 @@ export default function DashboardPage() {
 
                                 <div className="space-y-1 mt-2">
                                   <div className="flex justify-between text-[10px]">
-                                    <span className="text-gray-400">
+                                    <span className="text-slate-500">
                                       {emp.assignedHours}h / {emp.capacityHours}h
                                     </span>
                                     <span
-                                      className={emp.workloadPercentage > 100 ? 'text-red-400 font-bold' : 'text-gray-300'}
+                                      className={emp.workloadPercentage > 100 ? 'text-rose-600 font-bold' : 'text-slate-700'}
                                     >
                                       {emp.workloadPercentage}%
                                     </span>
                                   </div>
-                                  <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                     <div
                                       className={`h-full rounded-full ${
                                         emp.workloadPercentage > 100 ? 'bg-red-500' : 'bg-blue-500'
@@ -2454,18 +2451,18 @@ export default function DashboardPage() {
                                   <div className="flex items-center gap-1.5 mt-2.5">
                                     <Link
                                       href={`/tasks?employeeId=${emp.userId}`}
-                                      className="flex-1 px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded text-[10px] font-bold flex items-center justify-center gap-1 transition-colors"
+                                      className="flex-1 px-2 py-1 bg-blue-50 hover:bg-blue-600/30 text-blue-700 border border-blue-200 rounded text-[10px] font-bold flex items-center justify-center gap-1 transition-colors"
                                     >
-                                      <Search className="w-3 h-3 text-blue-400" />
+                                      <Search className="w-3 h-3 text-blue-600" />
                                       <span>View Work Details</span>
                                     </Link>
 
                                     {(emp.status === 'Overloaded' || emp.workloadPercentage > 100) && (role === 'MEDIA_MANAGER' || (role as string) === 'ADMIN') && (
                                       <button
                                         onClick={() => setSelectedOverloadedUserId(emp.userId)}
-                                        className="flex-1 px-2 py-1 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 rounded text-[10px] font-bold flex items-center justify-center gap-1 transition-colors"
+                                        className="flex-1 px-2 py-1 bg-amber-50 hover:bg-amber-600/30 text-amber-800 border border-amber-200 rounded text-[10px] font-bold flex items-center justify-center gap-1 transition-colors"
                                       >
-                                        <Sparkles className="w-3 h-3 text-amber-400" />
+                                        <Sparkles className="w-3 h-3 text-amber-600" />
                                         <span>Reassign</span>
                                       </button>
                                     )}
@@ -2483,21 +2480,21 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={widget.id}
-                        className={`bg-card border border-border p-5 rounded-xl space-y-4 shadow-md ${
+                        className={`bg-white border border-slate-200 p-5 rounded-xl space-y-4 shadow-md ${
                           isFull ? 'lg:col-span-2' : ''
                         }`}
                       >
-                        <div className="flex items-center justify-between border-b border-border pb-3">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                           <div className="flex items-center gap-2">
-                            <Radio className="w-4 h-4 text-rose-400 animate-pulse" />
-                            <h3 className="font-bold text-white text-sm">Recent Activities & Audit Trail</h3>
-                            <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-full font-bold">
+                            <Radio className="w-4 h-4 text-rose-600 animate-pulse" />
+                            <h3 className="font-bold text-slate-900 text-sm">Recent Activities & Audit Trail</h3>
+                            <span className="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full font-bold">
                               {data?.recentActivity?.length || 0} Events
                             </span>
                           </div>
                           <Link
                             href="/activity"
-                            className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold flex items-center gap-1"
+                            className="text-[11px] text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1"
                           >
                             Full Audit Log <ArrowUpRight className="w-3.5 h-3.5" />
                           </Link>
@@ -2505,26 +2502,26 @@ export default function DashboardPage() {
 
                         <div className="space-y-2">
                           {!data?.recentActivity || data.recentActivity.length === 0 ? (
-                            <p className="text-gray-500 italic text-[11px] p-3 text-center">
+                            <p className="text-slate-400 italic text-[11px] p-3 text-center">
                               No recent activity logs recorded.
                             </p>
                           ) : (
                             data.recentActivity.slice(0, widget.itemLimit || 6).map((log: any) => (
                               <div
                                 key={log.id}
-                                className="p-2.5 bg-gray-900/60 border border-gray-800 rounded-lg flex items-start gap-3"
+                                className="p-2.5 bg-slate-50/60 border border-slate-200 rounded-lg flex items-start gap-3"
                               >
-                                <div className="w-6 h-6 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                                <div className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
                                   {log.user?.name ? log.user.name.charAt(0) : 'S'}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-gray-200">{log.user?.name}</span>
-                                    <span className="text-[10px] text-gray-500 font-mono">
+                                    <span className="text-xs font-bold text-slate-800">{log.user?.name}</span>
+                                    <span className="text-[10px] text-slate-400 font-mono">
                                       {new Date(log.timestamp).toLocaleTimeString()}
                                     </span>
                                   </div>
-                                  <p className="text-[11px] text-gray-300 mt-0.5 leading-snug">{log.description}</p>
+                                  <p className="text-[11px] text-slate-700 mt-0.5 leading-snug">{log.description}</p>
                                 </div>
                               </div>
                             ))
@@ -2541,43 +2538,43 @@ export default function DashboardPage() {
         )}
 
         {/* Quick Operations shortcuts */}
-        <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-          <div className="flex items-center justify-between border-b border-border pb-2.5">
-            <h3 className="text-sm font-bold text-white">Quick Operations Shortcuts</h3>
-            <span className="text-[10px] text-gray-500">Fast access to key media workflows</span>
+        <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+            <h3 className="text-sm font-bold text-slate-900">Quick Operations Shortcuts</h3>
+            <span className="text-[10px] text-slate-400">Fast access to key media workflows</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Link
               href="/calendar"
-              className="p-3 bg-gray-900 border border-gray-800 hover:border-blue-500 rounded-lg flex items-center justify-between text-xs font-semibold text-gray-200 transition-colors"
+              className="p-3 bg-slate-50 border border-slate-200 hover:border-blue-500 rounded-lg flex items-center justify-between text-xs font-semibold text-slate-800 transition-colors"
             >
               <div className="flex items-center gap-2.5">
-                <Calendar className="w-4 h-4 text-blue-400" />
+                <Calendar className="w-4 h-4 text-blue-600" />
                 <span>Schedule Shoot</span>
               </div>
-              <ArrowUpRight className="w-3.5 h-3.5 text-gray-500" />
+              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
             </Link>
 
             <Link
               href="/approvals"
-              className="p-3 bg-gray-900 border border-gray-800 hover:border-purple-500 rounded-lg flex items-center justify-between text-xs font-semibold text-gray-200 transition-colors"
+              className="p-3 bg-slate-50 border border-slate-200 hover:border-purple-500 rounded-lg flex items-center justify-between text-xs font-semibold text-slate-800 transition-colors"
             >
               <div className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-purple-400" />
+                <CheckCircle2 className="w-4 h-4 text-purple-600" />
                 <span>Approval Queue ({data?.pendingApprovals || 0})</span>
               </div>
-              <ArrowUpRight className="w-3.5 h-3.5 text-gray-500" />
+              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
             </Link>
 
             <Link
               href="/equipment"
-              className="p-3 bg-gray-900 border border-gray-800 hover:border-cyan-500 rounded-lg flex items-center justify-between text-xs font-semibold text-gray-200 transition-colors"
+              className="p-3 bg-slate-50 border border-slate-200 hover:border-cyan-500 rounded-lg flex items-center justify-between text-xs font-semibold text-slate-800 transition-colors"
             >
               <div className="flex items-center gap-2.5">
-                <Camera className="w-4 h-4 text-cyan-400" />
+                <Camera className="w-4 h-4 text-cyan-600" />
                 <span>Reserve Equipment</span>
               </div>
-              <ArrowUpRight className="w-3.5 h-3.5 text-gray-500" />
+              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
             </Link>
           </div>
         </div>

@@ -77,41 +77,27 @@ export default function CreateEquipmentPage() {
     <RoleGuard>
       <div className="p-6 max-w-4xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border pb-5">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-5">
           <div className="flex items-center gap-3">
             <Link
               href="/equipment"
-              className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-                  Technical Manager Exclusive
-                </span>
-              </div>
-              <h1 className="text-xl font-extrabold text-white tracking-tight mt-1 flex items-center gap-2">
-                <PlusCircle className="w-6 h-6 text-blue-400" />
+              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                <PlusCircle className="w-6 h-6 text-blue-600" />
                 Add New Master Equipment Record
               </h1>
-            </div>
           </div>
         </div>
 
         {/* Creation Form Card */}
-        <form onSubmit={handleSubmit} className="bg-card p-6 rounded-2xl border border-border space-y-6">
-          <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex items-center gap-3">
-            <ShieldCheck className="w-5 h-5 text-blue-400 shrink-0" />
-            <p className="text-xs text-blue-300">
-              New equipment records belong strictly to the <strong>COMPANY</strong> and are permanent. Equipment IDs are permanent unique asset identifiers.
-            </p>
-          </div>
-
+        <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-slate-200 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Equipment ID */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Equipment ID (Permanent Code) *
               </label>
               <input
@@ -119,15 +105,15 @@ export default function CreateEquipmentPage() {
                 required
                 value={form.equipmentId || nextEqId}
                 onChange={(e) => setForm({ ...form, equipmentId: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs font-mono font-bold text-cyan-300 focus:outline-none focus:border-cyan-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-cyan-700 focus:outline-none focus:border-cyan-500 focus:bg-white"
                 placeholder="EQ-000001"
               />
-              <p className="text-[10px] text-gray-400 mt-1">Unique permanent code (e.g. EQ-000001). Never changed after creation.</p>
+              <p className="text-[10px] text-slate-500 mt-1">Unique permanent code (e.g. EQ-000001). Never changed after creation.</p>
             </div>
 
             {/* Equipment Name */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Equipment Name *
               </label>
               <input
@@ -135,14 +121,14 @@ export default function CreateEquipmentPage() {
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. Sony A7 IV Cinema Body"
               />
             </div>
 
             {/* Category */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Category *
               </label>
               <input
@@ -151,7 +137,7 @@ export default function CreateEquipmentPage() {
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 list="category-options"
-                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. Camera Body, Lens, Lighting, Audio, Drone"
               />
               <datalist id="category-options">
@@ -169,7 +155,7 @@ export default function CreateEquipmentPage() {
 
             {/* Brand */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Brand *
               </label>
               <input
@@ -177,14 +163,14 @@ export default function CreateEquipmentPage() {
                 required
                 value={form.brand}
                 onChange={(e) => setForm({ ...form, brand: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. Sony, Canon, RED, Aputure, DJI"
               />
             </div>
 
             {/* Model */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Model *
               </label>
               <input
@@ -192,14 +178,14 @@ export default function CreateEquipmentPage() {
                 required
                 value={form.model}
                 onChange={(e) => setForm({ ...form, model: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. Alpha 7 IV, 24-70mm f/2.8 GM II"
               />
             </div>
 
             {/* Serial Number */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Serial Number *
               </label>
               <input
@@ -207,27 +193,27 @@ export default function CreateEquipmentPage() {
                 required
                 value={form.serialNumber}
                 onChange={(e) => setForm({ ...form, serialNumber: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. SN-89240189"
               />
             </div>
 
             {/* Purchase Date */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Purchase Date
               </label>
               <input
                 type="date"
                 value={form.purchaseDate}
                 onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
               />
             </div>
 
             {/* Purchase Cost (Optional) */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Purchase Cost (Optional)
               </label>
               <input
@@ -235,20 +221,20 @@ export default function CreateEquipmentPage() {
                 step="0.01"
                 value={form.purchaseCost}
                 onChange={(e) => setForm({ ...form, purchaseCost: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. 2499.00"
               />
             </div>
 
             {/* Current Status */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Current Status *
               </label>
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-blue-500 focus:bg-white"
               >
                 <option value="AVAILABLE">AVAILABLE</option>
                 <option value="RESERVED">RESERVED</option>
@@ -263,7 +249,7 @@ export default function CreateEquipmentPage() {
 
             {/* Storage Location */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Storage Location *
               </label>
               <input
@@ -271,7 +257,7 @@ export default function CreateEquipmentPage() {
                 required
                 value={form.storageLocation}
                 onChange={(e) => setForm({ ...form, storageLocation: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. Studio A - Shelf 2B"
               />
             </div>
@@ -279,23 +265,23 @@ export default function CreateEquipmentPage() {
 
           {/* Internal Notes */}
           <div>
-            <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
               Internal Technical Notes
             </label>
             <textarea
               rows={3}
               value={form.internalNotes}
               onChange={(e) => setForm({ ...form, internalNotes: e.target.value })}
-              className="w-full px-3.5 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
               placeholder="e.g. Includes original Sony FE 24-70mm lens, 2x NP-FZ100 batteries, dual charger, and Pelican case."
             />
           </div>
 
           {/* Submit Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
             <Link
               href="/equipment"
-              className="px-5 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-xs font-bold text-gray-300 transition-colors"
+              className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition-colors"
             >
               Cancel
             </Link>

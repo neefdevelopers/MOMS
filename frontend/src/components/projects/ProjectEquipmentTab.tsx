@@ -155,32 +155,32 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
     <div className="space-y-6 text-xs">
 
       {/* Requirement Toggle Banner */}
-      <div className="bg-card border border-border p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-md">
+      <div className="bg-white border border-slate-200 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
         <div>
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <Camera className="w-5 h-5 text-cyan-400" />
+          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <Camera className="w-5 h-5 text-cyan-600" />
             Shoot Project Equipment & Asset Requirements
           </h3>
-          <p className="text-gray-400 text-xs mt-1">
+          <p className="text-slate-500 text-xs mt-1">
             Specify if physical shoot production equipment is required for this project lifecycle.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="font-bold text-gray-300">Requires Equipment?</span>
-          <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 p-1 rounded-lg">
+          <span className="font-semibold text-slate-700">Requires Equipment?</span>
+          <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 p-1 rounded-xl">
             <button
               onClick={() => setRequiresEquipment(true)}
-              className={`px-3 py-1.5 rounded font-bold transition-colors ${
-                requiresEquipment ? 'bg-cyan-600 text-white shadow' : 'text-gray-400 hover:text-white'
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                requiresEquipment ? 'bg-cyan-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               YES — Physical Shoot
             </button>
             <button
               onClick={() => setRequiresEquipment(false)}
-              className={`px-3 py-1.5 rounded font-bold transition-colors ${
-                !requiresEquipment ? 'bg-zinc-800 text-zinc-300 border border-zinc-700' : 'text-gray-400 hover:text-white'
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                !requiresEquipment ? 'bg-white text-slate-800 border border-slate-200 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               NO — Editing / Graphics Only
@@ -190,10 +190,10 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
       </div>
 
       {!requiresEquipment ? (
-        <div className="p-8 text-center bg-card border border-border rounded-xl text-gray-400 space-y-2">
-          <BadgeCheck className="w-8 h-8 text-emerald-400 mx-auto" />
-          <h4 className="font-bold text-white text-sm">No Physical Equipment Checkout Required</h4>
-          <p className="max-w-md mx-auto text-xs text-gray-500">
+        <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl text-slate-500 space-y-2 shadow-xs">
+          <BadgeCheck className="w-8 h-8 text-emerald-600 mx-auto" />
+          <h4 className="font-bold text-slate-900 text-sm">No Physical Equipment Checkout Required</h4>
+          <p className="max-w-md mx-auto text-xs text-slate-500">
             This production activity is configured as a non-physical task (Editing, Motion Graphics, Writing). Physical equipment checkout is bypassed.
           </p>
         </div>
@@ -201,14 +201,14 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
         <div className="space-y-6">
 
           {/* Action Toolbar */}
-          <div className="flex items-center justify-between gap-3 flex-wrap bg-card border border-border p-4 rounded-xl">
+          <div className="flex items-center justify-between gap-3 flex-wrap bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
             <div className="flex items-center gap-2">
               <button
                 onClick={handleCheckProjectAvailability}
                 disabled={checkingAvailability}
-                className="px-3.5 py-2 bg-purple-600/20 border border-purple-500/40 text-purple-300 hover:bg-purple-600/30 font-bold rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                className="px-3.5 py-2 bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 font-semibold rounded-xl flex items-center gap-1.5 transition-colors disabled:opacity-50 shadow-xs"
               >
-                <ShieldCheck className="w-4 h-4 text-purple-400" />
+                <ShieldCheck className="w-4 h-4 text-purple-600" />
                 {checkingAvailability ? 'Validating Conflicts...' : 'Check Availability & Conflicts'}
               </button>
             </div>
@@ -217,14 +217,14 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowAllocateModal(true)}
-                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow"
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
                 >
                   <ArrowRightLeft className="w-4 h-4" /> Allocate / Issue Equipment
                 </button>
 
                 <button
                   onClick={() => setShowReserveModal(true)}
-                  className="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow"
+                  className="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
                 >
                   <Calendar className="w-4 h-4" /> Create Reservation
                 </button>
@@ -234,23 +234,23 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
 
           {/* Availability Check Result Banner */}
           {availabilityResult && (
-            <div className={`p-4 rounded-xl border space-y-2 ${
-              availabilityResult.isAvailable ? 'bg-emerald-950/30 border-emerald-800 text-emerald-300' : 'bg-red-950/30 border-red-800 text-red-300'
+            <div className={`p-4 rounded-2xl border space-y-2 shadow-xs ${
+              availabilityResult.isAvailable ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'
             }`}>
               <div className="flex items-center justify-between font-bold text-sm">
                 <span className="flex items-center gap-2">
-                  {availabilityResult.isAvailable ? <CheckCircle className="w-5 h-5 text-emerald-400" /> : <AlertTriangle className="w-5 h-5 text-red-400" />}
+                  {availabilityResult.isAvailable ? <CheckCircle className="w-5 h-5 text-emerald-600" /> : <AlertTriangle className="w-5 h-5 text-rose-600" />}
                   {availabilityResult.isAvailable ? 'All Reserved Equipment Available' : `${availabilityResult.conflictCount} Equipment Conflict(s) Detected`}
                 </span>
-                <button onClick={() => setAvailabilityResult(null)} className="text-gray-400 hover:text-white">✕</button>
+                <button onClick={() => setAvailabilityResult(null)} className="text-slate-400 hover:text-slate-700 font-bold text-xs">Close</button>
               </div>
 
               {availabilityResult.conflicts?.length > 0 && (
-                <div className="space-y-1.5 pt-2 border-t border-red-900/60 text-xs">
+                <div className="space-y-1.5 pt-2 border-t border-rose-200 text-xs">
                   {availabilityResult.conflicts.map((c: any, idx: number) => (
-                    <div key={idx} className="flex items-center justify-between bg-red-950/60 p-2 rounded border border-red-900">
-                      <strong>{c.equipmentName || c.equipmentId}:</strong>
-                      <span>{c.reason}</span>
+                    <div key={idx} className="flex items-center justify-between bg-white p-2 rounded-lg border border-rose-200 shadow-xs">
+                      <strong className="text-slate-900">{c.equipmentName || c.equipmentId}:</strong>
+                      <span className="text-rose-700">{c.reason}</span>
                     </div>
                   ))}
                 </div>
@@ -259,20 +259,20 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
           )}
 
           {/* Current Reservations Section */}
-          <div className="bg-card border border-border p-5 rounded-xl space-y-4">
-            <h4 className="font-bold text-white text-sm flex items-center justify-between">
+          <div className="bg-white border border-slate-200 p-5 rounded-2xl space-y-4 shadow-xs">
+            <h4 className="font-bold text-slate-900 text-sm flex items-center justify-between">
               <span>Project Equipment Allocations & Reservations ({(project.equipmentReservations || []).length})</span>
-              <span className="text-xs text-gray-400 font-normal">Planned & Allocated for Shoot</span>
+              <span className="text-xs text-slate-500 font-normal">Planned & Allocated for Shoot</span>
             </h4>
 
             {(!project.equipmentReservations || project.equipmentReservations.length === 0) ? (
-              <div className="p-6 text-center bg-gray-900/50 border border-gray-800 rounded-xl space-y-3">
-                <FileText className="w-8 h-8 text-gray-500 mx-auto" />
-                <p className="text-gray-300 font-medium text-xs">No equipment assigned or allocated to this project yet.</p>
+              <div className="p-6 text-center bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <FileText className="w-8 h-8 text-slate-400 mx-auto" />
+                <p className="text-slate-700 font-medium text-xs">No equipment assigned or allocated to this project yet.</p>
                 {canManage && (
                   <button
                     onClick={() => setShowAllocateModal(true)}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg inline-flex items-center gap-1.5 transition-colors shadow text-xs"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl inline-flex items-center gap-1.5 transition-colors shadow-xs text-xs"
                   >
                     <ArrowRightLeft className="w-4 h-4" /> Allocate Equipment
                   </button>
@@ -283,34 +283,34 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
                 {project.equipmentReservations.map((res: any) => {
                   const eq = res.equipment;
                   return (
-                    <div key={res.id} className="bg-gray-900/80 border border-gray-800 p-3.5 rounded-xl space-y-2">
+                    <div key={res.id} className="bg-slate-50/70 border border-slate-200 p-3.5 rounded-xl space-y-2 shadow-xs">
                       <div className="flex items-start justify-between">
                         <div>
-                          <strong className="text-white font-bold text-sm block">{eq?.name || 'Equipment'}</strong>
-                          <span className="font-mono text-[10px] text-cyan-400 font-bold px-1.5 py-0.5 bg-cyan-500/10 border border-cyan-500/30 rounded">
+                          <strong className="text-slate-900 font-bold text-sm block">{eq?.name || 'Equipment'}</strong>
+                          <span className="font-mono text-[10px] text-cyan-700 font-bold px-1.5 py-0.5 bg-cyan-50 border border-cyan-200 rounded">
                             {eq?.equipmentId}
                           </span>
                         </div>
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase border ${
-                          eq?.availability === 'AVAILABLE' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                          eq?.availability === 'CHECKED_OUT' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
-                          'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                          eq?.availability === 'AVAILABLE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          eq?.availability === 'CHECKED_OUT' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                          'bg-purple-50 text-purple-700 border-purple-200'
                         }`}>
                           {eq?.availability || 'ALLOCATED'}
                         </span>
                       </div>
 
-                      <div className="text-[11px] text-gray-400 space-y-1 pt-1 border-t border-gray-800">
+                      <div className="text-[11px] text-slate-500 space-y-1 pt-1 border-t border-slate-200">
                         <div className="flex items-center justify-between">
-                          <span>Category:</span> <strong className="text-gray-200">{eq?.category}</strong>
+                          <span>Category:</span> <strong className="text-slate-800">{eq?.category}</strong>
                         </div>
                         {eq?.currentHolder && (
                           <div className="flex items-center justify-between">
-                            <span>Holder:</span> <strong className="text-cyan-300">{eq.currentHolder}</strong>
+                            <span>Holder:</span> <strong className="text-cyan-700">{eq.currentHolder}</strong>
                           </div>
                         )}
                         <div className="flex items-center justify-between">
-                          <span>Schedule:</span> <span className="font-mono text-gray-300">{new Date(res.startDate).toLocaleDateString()} – {new Date(res.endDate).toLocaleDateString()}</span>
+                          <span>Schedule:</span> <span className="font-mono text-slate-700">{new Date(res.startDate).toLocaleDateString()} – {new Date(res.endDate).toLocaleDateString()}</span>
                         </div>
                       </div>
                     </div>
@@ -324,20 +324,20 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
 
       {/* Direct Allocation Modal */}
       {showAllocateModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full space-y-4">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <ArrowRightLeft className="w-5 h-5 text-emerald-400" />
+        <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-xl">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <ArrowRightLeft className="w-5 h-5 text-emerald-600" />
               Direct Equipment Allocation
             </h3>
             <form onSubmit={handleDirectAllocation} className="space-y-3">
               <div>
-                <label className="text-gray-400 block mb-1 font-semibold">Select Equipment Item *</label>
+                <label className="text-slate-700 block mb-1 font-semibold">Select Equipment Item *</label>
                 <select
                   required
                   value={allocateEqId}
                   onChange={(e) => setAllocateEqId(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white"
                 >
                   <option value="">Select Equipment...</option>
                   {allEquipment.map((eq) => (
@@ -349,12 +349,12 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
               </div>
 
               <div>
-                <label className="text-gray-400 block mb-1 font-semibold">Employee Recipient *</label>
+                <label className="text-slate-700 block mb-1 font-semibold">Employee Recipient *</label>
                 <select
                   required
                   value={allocateForm.employeeId}
                   onChange={(e) => setAllocateForm({ ...allocateForm, employeeId: e.target.value })}
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white"
                 >
                   <option value="">Select Employee...</option>
                   {allUsers.map((u) => (
@@ -367,34 +367,34 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-gray-400 block mb-1 font-semibold">Allocation Date *</label>
+                  <label className="text-slate-700 block mb-1 font-semibold">Allocation Date *</label>
                   <input
                     type="date"
                     required
                     value={allocateForm.startDate}
                     onChange={(e) => setAllocateForm({ ...allocateForm, startDate: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 font-mono text-xs focus:outline-none focus:border-cyan-500 focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="text-gray-400 block mb-1 font-semibold">Expected Return *</label>
+                  <label className="text-slate-700 block mb-1 font-semibold">Expected Return *</label>
                   <input
                     type="date"
                     required
                     value={allocateForm.expectedReturnDate}
                     onChange={(e) => setAllocateForm({ ...allocateForm, expectedReturnDate: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 font-mono text-xs focus:outline-none focus:border-cyan-500 focus:bg-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-gray-400 block mb-1 font-semibold">Purpose & Remarks</label>
+                <label className="text-slate-700 block mb-1 font-semibold">Purpose & Remarks</label>
                 <input
                   type="text"
                   value={allocateForm.purpose}
                   onChange={(e) => setAllocateForm({ ...allocateForm, purpose: e.target.value })}
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white"
                   placeholder="e.g. Primary camera body for studio shoot"
                 />
               </div>
@@ -403,14 +403,14 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
                 <button
                   type="button"
                   onClick={() => setShowAllocateModal(false)}
-                  className="px-3 py-1.5 bg-gray-800 text-gray-300 rounded font-semibold hover:bg-gray-700"
+                  className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl font-semibold hover:bg-slate-200"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingAllocate}
-                  className="px-4 py-1.5 bg-emerald-600 text-white rounded font-bold hover:bg-emerald-500 disabled:opacity-50 shadow"
+                  className="px-4 py-1.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-50 shadow-xs"
                 >
                   {submittingAllocate ? 'Allocating...' : 'Confirm Allocation & Handover'}
                 </button>
@@ -422,17 +422,17 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
 
       {/* Reserve Equipment Modal */}
       {showReserveModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full space-y-4">
-            <h3 className="text-base font-bold text-white">Create Equipment Reservation</h3>
+        <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-xl">
+            <h3 className="text-base font-bold text-slate-900">Create Equipment Reservation</h3>
             <form onSubmit={handleCreateReservation} className="space-y-3">
               <div>
-                <label className="text-gray-400 block mb-1 font-semibold">Select Equipment *</label>
+                <label className="text-slate-700 block mb-1 font-semibold">Select Equipment *</label>
                 <select
                   required
                   value={selectedEqId}
                   onChange={(e) => setSelectedEqId(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white"
                 >
                   <option value="">Select Equipment Item...</option>
                   {allEquipment.map((eq) => (
@@ -445,23 +445,23 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-gray-400 block mb-1 font-semibold">Start Date *</label>
+                  <label className="text-slate-700 block mb-1 font-semibold">Start Date *</label>
                   <input
                     type="date"
                     required
                     value={reserveDates.startDate}
                     onChange={(e) => setReserveDates({ ...reserveDates, startDate: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 font-mono text-xs focus:outline-none focus:border-cyan-500 focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="text-gray-400 block mb-1 font-semibold">End Date *</label>
+                  <label className="text-slate-700 block mb-1 font-semibold">End Date *</label>
                   <input
                     type="date"
                     required
                     value={reserveDates.endDate}
                     onChange={(e) => setReserveDates({ ...reserveDates, endDate: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 font-mono text-xs focus:outline-none focus:border-cyan-500 focus:bg-white"
                   />
                 </div>
               </div>
@@ -470,14 +470,14 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
                 <button
                   type="button"
                   onClick={() => setShowReserveModal(false)}
-                  className="px-3 py-1.5 bg-gray-800 text-gray-300 rounded font-semibold hover:bg-gray-700"
+                  className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl font-semibold hover:bg-slate-200"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingReserve}
-                  className="px-4 py-1.5 bg-cyan-600 text-white rounded font-bold hover:bg-cyan-500 disabled:opacity-50"
+                  className="px-4 py-1.5 bg-cyan-600 text-white rounded-xl font-bold hover:bg-cyan-700 disabled:opacity-50 shadow-xs"
                 >
                   {submittingReserve ? 'Reserving...' : 'Confirm Reservation'}
                 </button>

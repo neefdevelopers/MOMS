@@ -597,26 +597,26 @@ export default function ReportsPage() {
   if (user?.role && !isReportTabAllowed(activeTab)) {
     return (
       <div className="space-y-6 text-xs p-6">
-        <div className="bg-card border border-rose-900/50 p-8 rounded-xl text-center space-y-4 max-w-lg mx-auto shadow-2xl">
-          <div className="w-16 h-16 bg-rose-950/60 border border-rose-800 text-rose-400 rounded-full flex items-center justify-center mx-auto">
+        <div className="bg-white border border-rose-200 p-8 rounded-xl text-center space-y-4 max-w-lg mx-auto shadow-2xl">
+          <div className="w-16 h-16 bg-rose-50 border border-rose-200 text-rose-600 rounded-full flex items-center justify-center mx-auto">
             <ShieldCheck className="w-8 h-8" />
           </div>
-          <h2 className="text-lg font-bold text-white">403 — Report Access Restricted</h2>
-          <p className="text-xs text-gray-400 leading-relaxed">
-            Your current role (<strong className="text-rose-300">{user?.role}</strong>) does not have permission to view the requested report tab (<strong>{activeTab}</strong>). Access is strictly enforced under the MOMS Role-Based Access Control policy.
+          <h2 className="text-lg font-bold text-slate-900">403 — Report Access Restricted</h2>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Your current role (<strong className="text-rose-700">{user?.role}</strong>) does not have permission to view the requested report tab (<strong>{activeTab}</strong>). Access is strictly enforced under the MOMS Role-Based Access Control policy.
           </p>
           <button
             onClick={() => setActiveTab(getAllowedReportTabs(user?.role)[0])}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition-colors"
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-slate-900 font-bold rounded-lg text-xs transition-colors"
           >
-            ← Return to Allowed Reports
+            Return to Allowed Reports
           </button>
         </div>
       </div>
     );
   }
 
-  if (loading && !data) return <div className="p-8 text-center text-gray-400 font-mono">Loading Operational Reports...</div>;
+  if (loading && !data) return <div className="p-8 text-center text-slate-500 font-mono">Loading Operational Reports...</div>;
 
   const gr = graphicAnalytics;
   const app = approvalReports;
@@ -633,10 +633,10 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6 text-xs">
       {/* Compact Controls Bar */}
-      <div className="bg-card border border-border rounded-xl px-4 py-3 flex flex-wrap items-center gap-2">
+      <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2">
         {/* Period */}
         <select
-          className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs focus:border-indigo-500 focus:outline-none"
+          className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-800 text-xs focus:border-indigo-500 focus:outline-none"
           value={globalPeriod}
           onChange={(e) => handlePeriodChange(e.target.value as any)}
         >
@@ -649,28 +649,28 @@ export default function ReportsPage() {
           <option value="custom">Custom Range</option>
         </select>
         {globalPeriod === 'custom' && (
-          <div className="flex items-center gap-1.5 bg-gray-900/90 border border-gray-700 px-2 py-1 rounded-lg">
+          <div className="flex items-center gap-1.5 bg-slate-50/90 border border-slate-200 px-2 py-1 rounded-lg">
             <input
               type="date"
               value={startDateInput}
               onChange={e => setStartDateInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleApplyCustomDates(); }}
-              className="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-white text-xs focus:border-indigo-500 focus:outline-none"
+              className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-800 text-xs focus:border-indigo-500 focus:outline-none"
               title="Start Date"
             />
-            <span className="text-gray-500 text-xs">→</span>
+            <span className="text-slate-400 text-xs">&rarr;</span>
             <input
               type="date"
               value={endDateInput}
               onChange={e => setEndDateInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleApplyCustomDates(); }}
-              className="bg-gray-950 border border-gray-700 rounded px-2 py-1 text-white text-xs focus:border-indigo-500 focus:outline-none"
+              className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-800 text-xs focus:border-indigo-500 focus:outline-none"
               title="End Date"
             />
             <button
               type="button"
               onClick={handleApplyCustomDates}
-              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold rounded text-xs transition-all shadow-sm flex items-center gap-1"
+              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-slate-900 font-bold rounded text-xs transition-all shadow-sm flex items-center gap-1"
             >
               Apply
             </button>
@@ -683,16 +683,16 @@ export default function ReportsPage() {
                   setAppliedStartDate('');
                   setAppliedEndDate('');
                 }}
-                className="px-1.5 py-1 text-gray-400 hover:text-white text-xs"
+                className="px-1.5 py-1 text-slate-500 hover:text-slate-900 text-xs"
                 title="Clear dates"
               >
-                ✕
+                Clear
               </button>
             )}
           </div>
         )}
 
-        <div className="w-px h-5 bg-gray-700 mx-1" />
+        <div className="w-px h-5 bg-slate-200 mx-1" />
 
         {/* Filters Dropdown */}
         <div className="relative">
@@ -700,8 +700,8 @@ export default function ReportsPage() {
             onClick={() => setFilterMenuOpen(o => !o)}
             className={`flex items-center gap-1.5 text-xs px-3 py-1.5 border rounded-lg font-medium transition-colors ${
               (clientId || brandId || departmentId || employeeId || status || searchQuery)
-                ? 'bg-indigo-900/50 border-indigo-600 text-indigo-300'
-                : 'bg-gray-800 hover:bg-gray-700 border-gray-600 text-white'
+                ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
             }`}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 010 2H4a1 1 0 01-1-1zM6 10h12M9 16h6" /></svg>
@@ -711,31 +711,31 @@ export default function ReportsPage() {
                 {[clientId, brandId, departmentId, employeeId, status].filter(Boolean).length}
               </span>
             )}
-            <span className="text-gray-400 ml-0.5">▾</span>
+            <span className="text-slate-500 ml-0.5">▾</span>
           </button>
           {filterMenuOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setFilterMenuOpen(false)} />
-              <div className="absolute left-0 top-full mt-1.5 z-20 bg-gray-900 border border-gray-700 rounded-xl shadow-xl p-4 min-w-[280px] space-y-3">
-                <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Filter Reports</p>
+              <div className="absolute left-0 top-full mt-1.5 z-20 bg-slate-50 border border-slate-200 rounded-xl shadow-xl p-4 min-w-[280px] space-y-3">
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Filter Reports</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <select className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 text-xs" value={clientId} onChange={e => setClientId(e.target.value)}>
+                  <select className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 text-xs" value={clientId} onChange={e => setClientId(e.target.value)}>
                     <option value="">All Clients</option>
                     {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                  <select className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 text-xs" value={brandId} onChange={e => setBrandId(e.target.value)}>
+                  <select className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 text-xs" value={brandId} onChange={e => setBrandId(e.target.value)}>
                     <option value="">All Brands</option>
                     {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
-                  <select className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 text-xs" value={departmentId} onChange={e => setDepartmentId(e.target.value)}>
+                  <select className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 text-xs" value={departmentId} onChange={e => setDepartmentId(e.target.value)}>
                     <option value="">All Depts</option>
                     {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
-                  <select className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 text-xs" value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
+                  <select className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 text-xs" value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
                     <option value="">All Employees</option>
                     {employees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
-                  <select className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 text-xs col-span-2" value={status} onChange={e => setStatus(e.target.value)}>
+                  <select className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 text-xs col-span-2" value={status} onChange={e => setStatus(e.target.value)}>
                     <option value="">All Statuses</option>
                     <option value="ACTIVE">Active</option>
                     <option value="COMPLETED">Completed</option>
@@ -758,8 +758,8 @@ export default function ReportsPage() {
                       setAppliedStartDate('');
                       setAppliedEndDate('');
                     }}
-                    className="w-full text-xs text-rose-400 hover:text-rose-300 py-1 border border-rose-900/50 rounded-lg hover:bg-rose-950/30 transition-colors"
-                  >✕ Clear All Filters</button>
+                    className="w-full text-xs text-rose-600 hover:text-rose-700 py-1 border border-rose-200 rounded-lg hover:bg-rose-50 transition-colors"
+                  >Clear All Filters</button>
                 )}
               </div>
             </>
@@ -768,54 +768,54 @@ export default function ReportsPage() {
 
         {/* Search Bar - always visible */}
         <div className="relative flex items-center">
-          <svg className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" /></svg>
+          <svg className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" /></svg>
           <input
             type="text"
             placeholder="Search reports..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="bg-gray-900 border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-gray-300 placeholder-gray-600 text-xs w-44 focus:outline-none focus:border-gray-500"
+            className="bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-slate-700 placeholder-slate-400 text-xs w-44 focus:outline-none focus:border-gray-500"
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="absolute right-2 text-gray-500 hover:text-gray-300 text-xs">✕</button>
+            <button onClick={() => setSearchQuery('')} className="absolute right-2 text-slate-400 hover:text-slate-700 text-xs">Clear</button>
           )}
         </div>
 
         <div className="flex-1" />
 
         {/* Export Dropdown */}
-        <div className="relative border-l border-gray-700 pl-3">
+        <div className="relative border-l border-slate-200 pl-3">
           <button
             onClick={() => setExportMenuOpen(o => !o)}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg text-white font-medium transition-colors"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg text-slate-800 font-medium transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
             Export
-            <span className="text-gray-400 ml-0.5">▾</span>
+            <span className="text-slate-500 ml-0.5">▾</span>
           </button>
           {exportMenuOpen && (
             <>
               {/* Backdrop */}
               <div className="fixed inset-0 z-10" onClick={() => setExportMenuOpen(false)} />
               {/* Menu */}
-              <div className="absolute right-0 top-full mt-1.5 z-20 bg-gray-900 border border-gray-700 rounded-xl shadow-xl min-w-[140px] overflow-hidden">
+              <div className="absolute right-0 top-full mt-1.5 z-20 bg-slate-50 border border-slate-200 rounded-xl shadow-xl min-w-[140px] overflow-hidden">
                 <button
                   onClick={() => { handleExport('csv'); setExportMenuOpen(false); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
                 >
-                  <span className="text-gray-400">📄</span> CSV
+                  CSV
                 </button>
                 <button
                   onClick={() => { handleExport('xlsx'); setExportMenuOpen(false); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-emerald-400 hover:bg-gray-800 hover:text-emerald-300 transition-colors"
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-emerald-600 hover:bg-slate-100 hover:text-emerald-700 transition-colors"
                 >
-                  <span>📊</span> Excel
+                  Excel
                 </button>
                 <button
                   onClick={() => { handleExport('pdf'); setExportMenuOpen(false); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-rose-400 hover:bg-gray-800 hover:text-rose-300 transition-colors"
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-rose-600 hover:bg-slate-100 hover:text-rose-700 transition-colors"
                 >
-                  <span>📑</span> PDF
+                   PDF
                 </button>
               </div>
             </>
@@ -824,9 +824,9 @@ export default function ReportsPage() {
       </div>
 
       {/* Header */}
-      <div className="bg-card border border-border p-6 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 p-6 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <FavoriteButton
               entityType="REPORT"
               entityId="operational-reports"
@@ -835,39 +835,34 @@ export default function ReportsPage() {
               url="/reports"
               size="md"
             />
-            <BarChart3 className="w-5 h-5 text-blue-400" />
+            <BarChart3 className="w-5 h-5 text-blue-600" />
             {isMediaManager && 'Organization-Wide Operational & Performance Reports'}
             {isTechnicalManager && 'Technical Quality & Equipment Reports'}
             {isStaff && 'My Personal Work Reports & Performance'}
           </h1>
-          <p className="text-xs text-gray-400 mt-1">
-            {isMediaManager && 'Full operational authority: status history, approval logs, employee productivity, equipment, business analytics, and audit logs.'}
-            {isTechnicalManager && 'Technical operations: technical review queue, export settings, quality compliance, equipment condition, downtime, and maintenance timeline.'}
-            {isStaff && 'Personal workspace reports: strictly scoped to your assigned tasks, assigned projects, deliverables, equipment usage, and attendance.'}
-          </p>
         </div>
         <div className="flex gap-3 flex-wrap">
-          <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-center">
-            <div className="text-[10px] text-gray-500 uppercase font-bold">Projects Logged</div>
-            <div className="text-lg font-mono font-bold text-blue-400">{time?.totalProjectsLogged || 0}</div>
+          <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-center">
+            <div className="text-[10px] text-slate-400 uppercase font-bold">Projects Logged</div>
+            <div className="text-lg font-mono font-bold text-blue-600">{time?.totalProjectsLogged || 0}</div>
           </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-center">
-            <div className="text-[10px] text-gray-500 uppercase font-bold">Status Changes</div>
-            <div className="text-lg font-mono font-bold text-purple-400">{time?.totalStatusChangesLogged || 0}</div>
+          <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-center">
+            <div className="text-[10px] text-slate-400 uppercase font-bold">Status Changes</div>
+            <div className="text-lg font-mono font-bold text-purple-600">{time?.totalStatusChangesLogged || 0}</div>
           </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-center">
-            <div className="text-[10px] text-gray-500 uppercase font-bold">Approvals Logged</div>
-            <div className="text-lg font-mono font-bold text-amber-400">{time?.totalApprovalsLogged || 0}</div>
+          <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-center">
+            <div className="text-[10px] text-slate-400 uppercase font-bold">Approvals Logged</div>
+            <div className="text-lg font-mono font-bold text-amber-600">{time?.totalApprovalsLogged || 0}</div>
           </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-center">
-            <div className="text-[10px] text-gray-500 uppercase font-bold">Activities Logged</div>
-            <div className="text-lg font-mono font-bold text-emerald-400">{time?.totalActivitiesLogged || 0}</div>
+          <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-center">
+            <div className="text-[10px] text-slate-400 uppercase font-bold">Activities Logged</div>
+            <div className="text-lg font-mono font-bold text-emerald-600">{time?.totalActivitiesLogged || 0}</div>
           </div>
         </div>
       </div>
 
       {/* Report Selector */}
-      <div className="bg-card border border-border rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-1 gap-y-2">
+      <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-1 gap-y-2">
         {/* Group: Operations */}
         <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Operations</span>
         {([
@@ -884,7 +879,7 @@ export default function ReportsPage() {
             className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
               activeTab === t.id
                 ? `bg-${t.color}-600/20 text-${t.color}-300 border border-${t.color}-600/50`
-                : 'text-gray-500 hover:text-gray-300 border border-transparent'
+                : 'text-slate-400 hover:text-slate-700 border border-transparent'
             }`}
           >{t.label}</button>
         ))}
@@ -898,7 +893,7 @@ export default function ReportsPage() {
           { id: 'products', label: 'Products', color: 'rose' },
         ] as const).filter(t => isReportTabAllowed(t.id)).length > 0 && (
           <>
-            <div className="w-px h-4 bg-gray-700 mx-2" />
+            <div className="w-px h-4 bg-slate-200 mx-2" />
             <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Business</span>
             {([
               { id: 'projects', label: 'Projects', color: 'blue' },
@@ -913,7 +908,7 @@ export default function ReportsPage() {
                 className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                   activeTab === t.id
                     ? `bg-${t.color}-600/20 text-${t.color}-300 border border-${t.color}-600/50`
-                    : 'text-gray-500 hover:text-gray-300 border border-transparent'
+                    : 'text-slate-400 hover:text-slate-700 border border-transparent'
                 }`}
               >{t.label}</button>
             ))}
@@ -927,7 +922,7 @@ export default function ReportsPage() {
           { id: 'graphics', label: 'Graphics', color: 'amber' },
         ] as const).filter(t => isReportTabAllowed(t.id)).length > 0 && (
           <>
-            <div className="w-px h-4 bg-gray-700 mx-2" />
+            <div className="w-px h-4 bg-slate-200 mx-2" />
             <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Performance</span>
             {([
               { id: 'employee', label: 'Employees', color: 'purple' },
@@ -940,7 +935,7 @@ export default function ReportsPage() {
                 className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                   activeTab === t.id
                     ? `bg-${t.color}-600/20 text-${t.color}-300 border border-${t.color}-600/50`
-                    : 'text-gray-500 hover:text-gray-300 border border-transparent'
+                    : 'text-slate-400 hover:text-slate-700 border border-transparent'
                 }`}
               >{t.label}</button>
             ))}
@@ -950,7 +945,7 @@ export default function ReportsPage() {
         {/* Group: My Work Reports (Staff) */}
         {user?.role === 'STAFF' && (
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] text-emerald-400 uppercase font-bold tracking-wider pr-1">My Work Reports</span>
+            <span className="text-[10px] text-emerald-600 uppercase font-bold tracking-wider pr-1">My Work Reports</span>
             {[
               { id: 'my_tasks', label: 'My Tasks & Progress' },
               { id: 'my_projects', label: 'My Assigned Projects' },
@@ -963,8 +958,8 @@ export default function ReportsPage() {
                 onClick={() => setActiveTab(t.id as any)}
                 className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                   activeTab === t.id
-                    ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-600/50 font-bold'
-                    : 'text-gray-400 hover:text-gray-200 border border-transparent'
+                    ? 'bg-emerald-600/20 text-emerald-700 border border-emerald-600/50 font-bold'
+                    : 'text-slate-500 hover:text-slate-800 border border-transparent'
                 }`}
               >
                 {t.label}
@@ -976,41 +971,41 @@ export default function ReportsPage() {
 
       {/* STAFF PERSONAL REPORTS - MY TASKS */}
       {activeTab === 'my_tasks' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-5 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> My Assigned Tasks &amp; Personal Progress Report
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> My Assigned Tasks &amp; Personal Progress Report
             </h2>
-            <span className="text-[11px] text-emerald-300 font-mono font-bold">
+            <span className="text-[11px] text-emerald-700 font-mono font-bold">
               Scoped to User ID: {user?.id}
             </span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-            <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg">
-              <span className="text-gray-400 text-[10px] uppercase font-bold block">Assigned Tasks</span>
-              <strong className="text-xl font-mono text-white">{(data?.pendingTasks?.length || 0) + (data?.todaysTasks?.length || 0)}</strong>
+            <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg">
+              <span className="text-slate-500 text-[10px] uppercase font-bold block">Assigned Tasks</span>
+              <strong className="text-xl font-mono text-slate-900">{(data?.pendingTasks?.length || 0) + (data?.todaysTasks?.length || 0)}</strong>
             </div>
-            <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg">
-              <span className="text-gray-400 text-[10px] uppercase font-bold block">Today's Tasks</span>
-              <strong className="text-xl font-mono text-blue-400">{data?.todaysTasks?.length || 0}</strong>
+            <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg">
+              <span className="text-slate-500 text-[10px] uppercase font-bold block">Today's Tasks</span>
+              <strong className="text-xl font-mono text-blue-600">{data?.todaysTasks?.length || 0}</strong>
             </div>
-            <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg">
-              <span className="text-gray-400 text-[10px] uppercase font-bold block">Pending Review</span>
-              <strong className="text-xl font-mono text-amber-400">
+            <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg">
+              <span className="text-slate-500 text-[10px] uppercase font-bold block">Pending Review</span>
+              <strong className="text-xl font-mono text-amber-600">
                 {(data?.pendingTasks || []).filter((t: any) => t.status === 'WAITING_FOR_TECHNICAL_REVIEW' || t.status === 'WAITING_FOR_MEDIA_REVIEW').length}
               </strong>
             </div>
-            <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg">
-              <span className="text-gray-400 text-[10px] uppercase font-bold block">Workload Status</span>
-              <strong className="text-xl font-mono text-emerald-400">{data?.currentWorkload?.workloadStatus || 'Normal'}</strong>
+            <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg">
+              <span className="text-slate-500 text-[10px] uppercase font-bold block">Workload Status</span>
+              <strong className="text-xl font-mono text-emerald-600">{data?.currentWorkload?.workloadStatus || 'Normal'}</strong>
             </div>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-gray-800 text-gray-400 uppercase text-[10px] font-bold">
+                <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold">
                   <th className="p-2.5">Task ID</th>
                   <th className="p-2.5">Title</th>
                   <th className="p-2.5">Priority</th>
@@ -1020,35 +1015,35 @@ export default function ReportsPage() {
                   <th className="p-2.5">Deadline</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800/60 text-gray-300">
+              <tbody className="divide-y divide-gray-800/60 text-slate-700">
                 {[...(data?.todaysTasks || []), ...(data?.pendingTasks || [])].length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-4 text-center text-gray-500 italic">No assigned tasks found.</td>
+                    <td colSpan={7} className="p-4 text-center text-slate-400 italic">No assigned tasks found.</td>
                   </tr>
                 ) : (
                   [...(data?.todaysTasks || []), ...(data?.pendingTasks || [])].map((t: any) => (
-                    <tr key={t.id} className="hover:bg-gray-900/50">
-                      <td className="p-2.5 font-mono text-emerald-400 font-bold">{t.taskId || t.id}</td>
-                      <td className="p-2.5 text-white font-medium">{t.title}</td>
+                    <tr key={t.id} className="hover:bg-slate-50/50">
+                      <td className="p-2.5 font-mono text-emerald-600 font-bold">{t.taskId || t.id}</td>
+                      <td className="p-2.5 text-slate-800 font-medium">{t.title}</td>
                       <td className="p-2.5">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          t.priority === 'CRITICAL' ? 'bg-red-950/80 text-red-400 border border-red-800' :
-                          t.priority === 'HIGH' ? 'bg-amber-950/80 text-amber-400 border border-amber-800' :
-                          'bg-blue-950/80 text-blue-400 border border-blue-800'
+                          t.priority === 'CRITICAL' ? 'bg-rose-50 text-rose-600 border border-rose-200' :
+                          t.priority === 'HIGH' ? 'bg-amber-50 text-amber-600 border border-amber-200' :
+                          'bg-blue-50 text-blue-600 border border-blue-200'
                         }`}>{t.priority || 'MEDIUM'}</span>
                       </td>
-                      <td className="p-2.5 font-mono text-gray-300">{t.estimatedHours || 2.0} hrs</td>
+                      <td className="p-2.5 font-mono text-slate-700">{t.estimatedHours || 2.0} hrs</td>
                       <td className="p-2.5">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-300 border border-gray-700">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                           {t.status}
                         </span>
                       </td>
                       <td className="p-2.5">
-                        <div className="w-24 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                        <div className="w-24 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                           <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${t.completionPercentage || 0}%` }} />
                         </div>
                       </td>
-                      <td className="p-2.5 text-gray-400 text-[10px]">{t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'N/A'}</td>
+                      <td className="p-2.5 text-slate-500 text-[10px]">{t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'N/A'}</td>
                     </tr>
                   ))
                 )}
@@ -1060,12 +1055,12 @@ export default function ReportsPage() {
 
       {/* STAFF PERSONAL REPORTS - MY PROJECTS */}
       {activeTab === 'my_projects' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-5 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <Film className="w-4 h-4 text-blue-400" /> My Assigned Projects Report
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Film className="w-4 h-4 text-blue-600" /> My Assigned Projects Report
             </h2>
-            <span className="text-[11px] text-blue-300 font-mono font-bold">
+            <span className="text-[11px] text-blue-700 font-mono font-bold">
               Total Assigned Projects: {data?.currentProjects?.length || 0}
             </span>
           </div>
@@ -1073,7 +1068,7 @@ export default function ReportsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-gray-800 text-gray-400 uppercase text-[10px] font-bold">
+                <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold">
                   <th className="p-2.5">Project ID</th>
                   <th className="p-2.5">Project Name</th>
                   <th className="p-2.5">Client</th>
@@ -1083,29 +1078,29 @@ export default function ReportsPage() {
                   <th className="p-2.5">Shoot Location</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800/60 text-gray-300">
+              <tbody className="divide-y divide-gray-800/60 text-slate-700">
                 {(data?.currentProjects || []).length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-4 text-center text-gray-500 italic">No assigned projects found.</td>
+                    <td colSpan={7} className="p-4 text-center text-slate-400 italic">No assigned projects found.</td>
                   </tr>
                 ) : (
                   (data?.currentProjects || []).map((p: any) => (
-                    <tr key={p.id} className="hover:bg-gray-900/50">
-                      <td className="p-2.5 font-mono text-blue-400 font-bold">{p.projectId || p.id}</td>
-                      <td className="p-2.5 text-white font-medium">{p.name}</td>
-                      <td className="p-2.5 text-emerald-400">{p.client?.name || p.clientName || 'N/A'}</td>
-                      <td className="p-2.5 text-cyan-400">{p.brand?.name || p.brandName || 'N/A'}</td>
+                    <tr key={p.id} className="hover:bg-slate-50/50">
+                      <td className="p-2.5 font-mono text-blue-600 font-bold">{p.projectId || p.id}</td>
+                      <td className="p-2.5 text-slate-800 font-medium">{p.name}</td>
+                      <td className="p-2.5 text-emerald-600">{p.client?.name || p.clientName || 'N/A'}</td>
+                      <td className="p-2.5 text-cyan-600">{p.brand?.name || p.brandName || 'N/A'}</td>
                       <td className="p-2.5">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-950 text-blue-300 border border-blue-800">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
                           {p.status}
                         </span>
                       </td>
                       <td className="p-2.5">
-                        <div className="w-24 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                        <div className="w-24 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                           <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${p.progressPercentage || 0}%` }} />
                         </div>
                       </td>
-                      <td className="p-2.5 text-gray-400">{p.shootLocation || 'N/A'}</td>
+                      <td className="p-2.5 text-slate-500">{p.shootLocation || 'N/A'}</td>
                     </tr>
                   ))
                 )}
@@ -1117,54 +1112,54 @@ export default function ReportsPage() {
 
       {/* STAFF PERSONAL REPORTS - MY DELIVERABLES */}
       {activeTab === 'my_deliverables' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-5 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <Palette className="w-4 h-4 text-purple-400" /> My Output Deliverables (Scripts &amp; Graphics)
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Palette className="w-4 h-4 text-purple-600" /> My Output Deliverables (Scripts &amp; Graphics)
             </h2>
-            <span className="text-[11px] text-purple-300 font-mono font-bold">
+            <span className="text-[11px] text-purple-700 font-mono font-bold">
               Scripts: {data?.assignedScripts?.length || 0} | Graphics: {data?.assignedGraphicRequirements?.length || 0}
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Scripts */}
-            <div className="bg-gray-900/60 border border-gray-800 p-4 rounded-xl space-y-3">
-              <h3 className="text-xs font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-2">
-                <FileText className="w-3.5 h-3.5 text-blue-400" /> Assigned Scripts ({data?.assignedScripts?.length || 0})
+            <div className="bg-slate-50/60 border border-slate-200 p-4 rounded-xl space-y-3">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
+                <FileText className="w-3.5 h-3.5 text-blue-600" /> Assigned Scripts ({data?.assignedScripts?.length || 0})
               </h3>
               {(data?.assignedScripts || []).length === 0 ? (
-                <p className="text-gray-500 italic text-[10px]">No assigned scripts found.</p>
+                <p className="text-slate-400 italic text-[10px]">No assigned scripts found.</p>
               ) : (
                 (data?.assignedScripts || []).map((s: any) => (
-                  <div key={s.id} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg text-xs space-y-1">
+                  <div key={s.id} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-xs space-y-1">
                     <div className="flex justify-between items-center">
-                      <span className="text-white font-bold">{s.name}</span>
-                      <span className="text-blue-400 font-mono text-[10px]">{s.scriptId}</span>
+                      <span className="text-slate-900 font-bold">{s.name}</span>
+                      <span className="text-blue-600 font-mono text-[10px]">{s.scriptId}</span>
                     </div>
-                    <div className="text-[10px] text-gray-400">Project: <span className="text-blue-300">{s.project?.name || 'N/A'}</span> | Brand: <span className="text-cyan-300">{s.brand?.name || 'N/A'}</span></div>
-                    <div className="text-[10px] text-gray-400">Status: <span className="text-amber-300">{s.status}</span></div>
+                    <div className="text-[10px] text-slate-500">Project: <span className="text-blue-700">{s.project?.name || 'N/A'}</span> | Brand: <span className="text-cyan-700">{s.brand?.name || 'N/A'}</span></div>
+                    <div className="text-[10px] text-slate-500">Status: <span className="text-amber-800">{s.status}</span></div>
                   </div>
                 ))
               )}
             </div>
 
             {/* Graphics */}
-            <div className="bg-gray-900/60 border border-gray-800 p-4 rounded-xl space-y-3">
-              <h3 className="text-xs font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-2">
-                <Palette className="w-3.5 h-3.5 text-purple-400" /> Graphic Requirements ({data?.assignedGraphicRequirements?.length || 0})
+            <div className="bg-slate-50/60 border border-slate-200 p-4 rounded-xl space-y-3">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
+                <Palette className="w-3.5 h-3.5 text-purple-600" /> Graphic Requirements ({data?.assignedGraphicRequirements?.length || 0})
               </h3>
               {(data?.assignedGraphicRequirements || []).length === 0 ? (
-                <p className="text-gray-500 italic text-[10px]">No assigned graphic requirements found.</p>
+                <p className="text-slate-400 italic text-[10px]">No assigned graphic requirements found.</p>
               ) : (
                 (data?.assignedGraphicRequirements || []).map((g: any) => (
-                  <div key={g.id} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg text-xs space-y-1">
+                  <div key={g.id} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-xs space-y-1">
                     <div className="flex justify-between items-center">
-                      <span className="text-white font-bold">{g.name}</span>
-                      <span className="text-purple-400 font-mono text-[10px]">{g.requirementId}</span>
+                      <span className="text-slate-900 font-bold">{g.name}</span>
+                      <span className="text-purple-600 font-mono text-[10px]">{g.requirementId}</span>
                     </div>
-                    <div className="text-[10px] text-gray-400">Project: <span className="text-blue-300">{g.project?.name || 'N/A'}</span> | Brand: <span className="text-cyan-300">{g.brand?.name || 'N/A'}</span></div>
-                    <div className="text-[10px] text-gray-400">Status: <span className="text-amber-300">{g.status}</span></div>
+                    <div className="text-[10px] text-slate-500">Project: <span className="text-blue-700">{g.project?.name || 'N/A'}</span> | Brand: <span className="text-cyan-700">{g.brand?.name || 'N/A'}</span></div>
+                    <div className="text-[10px] text-slate-500">Status: <span className="text-amber-800">{g.status}</span></div>
                   </div>
                 ))
               )}
@@ -1175,12 +1170,12 @@ export default function ReportsPage() {
 
       {/* STAFF PERSONAL REPORTS - MY EQUIPMENT */}
       {activeTab === 'my_equipment' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-5 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <Package className="w-4 h-4 text-cyan-400" /> My Assigned Equipment &amp; Asset Usage
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Package className="w-4 h-4 text-cyan-600" /> My Assigned Equipment &amp; Asset Usage
             </h2>
-            <span className="text-[11px] text-cyan-300 font-mono font-bold">
+            <span className="text-[11px] text-cyan-700 font-mono font-bold">
               Equipment Items: {equipmentReports?.length || 0}
             </span>
           </div>
@@ -1188,7 +1183,7 @@ export default function ReportsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-gray-800 text-gray-400 uppercase text-[10px] font-bold">
+                <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold">
                   <th className="p-2.5">Equipment Name</th>
                   <th className="p-2.5">ID / Serial</th>
                   <th className="p-2.5">Category</th>
@@ -1196,23 +1191,23 @@ export default function ReportsPage() {
                   <th className="p-2.5">Condition</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800/60 text-gray-300">
+              <tbody className="divide-y divide-gray-800/60 text-slate-700">
                 {(equipmentReports || []).length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-4 text-center text-gray-500 italic">No assigned equipment found.</td>
+                    <td colSpan={5} className="p-4 text-center text-slate-400 italic">No assigned equipment found.</td>
                   </tr>
                 ) : (
                   (equipmentReports || []).map((e: any) => (
-                    <tr key={e.id} className="hover:bg-gray-900/50">
-                      <td className="p-2.5 text-white font-medium">{e.name}</td>
-                      <td className="p-2.5 font-mono text-cyan-400">{e.equipmentId || e.serialNumber || 'N/A'}</td>
-                      <td className="p-2.5 text-gray-400">{e.category || 'N/A'}</td>
+                    <tr key={e.id} className="hover:bg-slate-50/50">
+                      <td className="p-2.5 text-slate-800 font-medium">{e.name}</td>
+                      <td className="p-2.5 font-mono text-cyan-600">{e.equipmentId || e.serialNumber || 'N/A'}</td>
+                      <td className="p-2.5 text-slate-500">{e.category || 'N/A'}</td>
                       <td className="p-2.5">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
                           {e.status || 'CHECKED_OUT'}
                         </span>
                       </td>
-                      <td className="p-2.5 text-emerald-400 font-bold">{e.condition || 'GOOD'}</td>
+                      <td className="p-2.5 text-emerald-600 font-bold">{e.condition || 'GOOD'}</td>
                     </tr>
                   ))
                 )}
@@ -1224,32 +1219,32 @@ export default function ReportsPage() {
 
       {/* STAFF PERSONAL REPORTS - MY ATTENDANCE */}
       {activeTab === 'my_attendance' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-5 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-amber-400" /> My Attendance Log &amp; Workload Capacity Report
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-amber-600" /> My Attendance Log &amp; Workload Capacity Report
             </h2>
-            <span className="text-[11px] text-amber-300 font-mono font-bold">
+            <span className="text-[11px] text-amber-800 font-mono font-bold">
               Daily Capacity: {data?.currentWorkload?.dailyCapacityHours || 8.0} Hours
             </span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl">
-              <span className="text-gray-400 text-[10px] uppercase font-bold block">Raw Workload Hours</span>
-              <strong className="text-2xl font-mono text-white">{data?.currentWorkload?.rawWorkloadHours || 0} hrs</strong>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+              <span className="text-slate-500 text-[10px] uppercase font-bold block">Raw Workload Hours</span>
+              <strong className="text-2xl font-mono text-slate-900">{data?.currentWorkload?.rawWorkloadHours || 0} hrs</strong>
             </div>
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl">
-              <span className="text-gray-400 text-[10px] uppercase font-bold block">Weighted Workload</span>
-              <strong className="text-2xl font-mono text-amber-400">{data?.currentWorkload?.weightedWorkloadHours || 0} hrs</strong>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+              <span className="text-slate-500 text-[10px] uppercase font-bold block">Weighted Workload</span>
+              <strong className="text-2xl font-mono text-amber-600">{data?.currentWorkload?.weightedWorkloadHours || 0} hrs</strong>
             </div>
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl">
-              <span className="text-gray-400 text-[10px] uppercase font-bold block">Capacity Utilization</span>
-              <strong className="text-2xl font-mono text-emerald-400">{data?.currentWorkload?.workloadPercentage || 0}%</strong>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+              <span className="text-slate-500 text-[10px] uppercase font-bold block">Capacity Utilization</span>
+              <strong className="text-2xl font-mono text-emerald-600">{data?.currentWorkload?.workloadPercentage || 0}%</strong>
             </div>
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl">
-              <span className="text-gray-400 text-[10px] uppercase font-bold block">Remaining Hours</span>
-              <strong className="text-2xl font-mono text-blue-400">{data?.currentWorkload?.remainingCapacityHours || 0} hrs</strong>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+              <span className="text-slate-500 text-[10px] uppercase font-bold block">Remaining Hours</span>
+              <strong className="text-2xl font-mono text-blue-600">{data?.currentWorkload?.remainingCapacityHours || 0} hrs</strong>
             </div>
           </div>
         </div>
@@ -1257,37 +1252,37 @@ export default function ReportsPage() {
 
       {/* TIMELINE PERFORMANCE REPORTS TAB */}
       {activeTab === 'timelines' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-6 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-blue-400" /> Operational Timeline &amp; History Analytics Matrix
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-6 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-blue-600" /> Operational Timeline &amp; History Analytics Matrix
             </h2>
-            <span className="text-[11px] text-blue-300 font-mono font-bold">
+            <span className="text-[11px] text-blue-700 font-mono font-bold">
               5 Mandatory Timeline Indicators Enforced
             </span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* 1. Project History */}
-            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
-              <h3 className="text-xs font-bold text-white flex items-center gap-2 sticky top-0 bg-gray-900/60 backdrop-blur-md pb-2">
-                <Layers className="w-3.5 h-3.5 text-blue-400" /> Project History
+            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 sticky top-0 bg-slate-50/60 backdrop-blur-xs pb-2">
+                <Layers className="w-3.5 h-3.5 text-blue-600" /> Project History
               </h3>
               <div className="space-y-2">
                 {time?.projectHistory?.length === 0 ? (
-                  <p className="text-gray-500 italic text-[10px]">No project history available.</p>
+                  <p className="text-slate-400 italic text-[10px]">No project history available.</p>
                 ) : (
                   time?.projectHistory?.map((p: any) => (
-                    <div key={p.projectId} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
+                    <div key={p.projectId} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
                       <div className="flex justify-between items-start mb-1">
                         <div>
-                          <span className="text-blue-300 font-bold text-xs">{p.projectName}</span>
-                          <span className="text-gray-500 text-[10px] ml-1">[{p.projectCode}]</span>
+                          <span className="text-blue-700 font-bold text-xs">{p.projectName}</span>
+                          <span className="text-slate-400 text-[10px] ml-1">[{p.projectCode}]</span>
                         </div>
-                        <span className="text-[9px] text-gray-400">{new Date(p.createdAt).toLocaleDateString()}</span>
+                        <span className="text-[9px] text-slate-500">{new Date(p.createdAt).toLocaleDateString()}</span>
                       </div>
-                      <div className="text-[10px] text-gray-400">Client: <span className="text-emerald-400">{p.clientName}</span> | Brand: <span className="text-cyan-400">{p.brandName}</span></div>
-                      <div className="text-[10px] text-gray-400">Status: <span className="text-amber-300">{p.status}</span> | Creator: <span className="text-purple-300">{p.creatorName}</span></div>
+                      <div className="text-[10px] text-slate-500">Client: <span className="text-emerald-600">{p.clientName}</span> | Brand: <span className="text-cyan-600">{p.brandName}</span></div>
+                      <div className="text-[10px] text-slate-500">Status: <span className="text-amber-800">{p.status}</span> | Creator: <span className="text-purple-700">{p.creatorName}</span></div>
                     </div>
                   ))
                 )}
@@ -1295,23 +1290,23 @@ export default function ReportsPage() {
             </div>
 
             {/* 2. Status Changes */}
-            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
-              <h3 className="text-xs font-bold text-white flex items-center gap-2 sticky top-0 bg-gray-900/60 backdrop-blur-md pb-2">
-                <TrendingUp className="w-3.5 h-3.5 text-purple-400" /> Status Changes
+            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 sticky top-0 bg-slate-50/60 backdrop-blur-xs pb-2">
+                <TrendingUp className="w-3.5 h-3.5 text-purple-600" /> Status Changes
               </h3>
               <div className="space-y-2">
                 {!time?.statusChanges || time?.statusChanges?.length === 0 ? (
-                  <p className="text-gray-500 italic text-[10px]">No status changes available.</p>
+                  <p className="text-slate-400 italic text-[10px]">No status changes available.</p>
                 ) : (
                   time?.statusChanges?.map((s: any) => (
-                    <div key={s.id} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg border-l-2 border-l-purple-500">
+                    <div key={s.id} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg border-l-2 border-l-purple-500">
                       <div className="flex justify-between items-start mb-1">
-                        <span className="text-white font-bold text-[11px]">{s.title}</span>
-                        <span className="text-[9px] text-gray-400">{new Date(s.timestamp).toLocaleString()}</span>
+                        <span className="text-slate-900 font-bold text-[11px]">{s.title}</span>
+                        <span className="text-[9px] text-slate-500">{new Date(s.timestamp).toLocaleString()}</span>
                       </div>
-                      <div className="text-[10px] text-gray-400">Event: <span className="text-purple-300 font-mono">{s.event}</span></div>
-                      <div className="text-[10px] text-gray-400">Changed by: <span className="text-blue-300">{s.changedByName}</span></div>
-                      <p className="text-[10px] text-gray-500 italic mt-1">{s.description}</p>
+                      <div className="text-[10px] text-slate-500">Event: <span className="text-purple-700 font-mono">{s.event}</span></div>
+                      <div className="text-[10px] text-slate-500">Changed by: <span className="text-blue-700">{s.changedByName}</span></div>
+                      <p className="text-[10px] text-slate-400 italic mt-1">{s.description}</p>
                     </div>
                   ))
                 )}
@@ -1319,25 +1314,25 @@ export default function ReportsPage() {
             </div>
 
             {/* 3. Approval History */}
-            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
-              <h3 className="text-xs font-bold text-white flex items-center gap-2 sticky top-0 bg-gray-900/60 backdrop-blur-md pb-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Approval History
+            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 sticky top-0 bg-slate-50/60 backdrop-blur-xs pb-2">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Approval History
               </h3>
               <div className="space-y-2">
                 {!time?.approvalHistory || time?.approvalHistory?.length === 0 ? (
-                  <p className="text-gray-500 italic text-[10px]">No approval history available.</p>
+                  <p className="text-slate-400 italic text-[10px]">No approval history available.</p>
                 ) : (
                   time?.approvalHistory?.map((a: any) => (
-                    <div key={a.approvalId} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
+                    <div key={a.approvalId} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
                       <div className="flex justify-between items-start mb-1">
                         <div>
-                          <span className="text-emerald-300 font-bold text-xs">{a.approvalType}</span>
-                          <span className="text-gray-500 text-[10px] ml-1">({a.entityType})</span>
+                          <span className="text-emerald-700 font-bold text-xs">{a.approvalType}</span>
+                          <span className="text-slate-400 text-[10px] ml-1">({a.entityType})</span>
                         </div>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${a.status === 'APPROVED' ? 'bg-emerald-950 text-emerald-400' : a.status === 'REJECTED' ? 'bg-rose-950 text-rose-400' : 'bg-amber-950 text-amber-400'}`}>{a.status}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${a.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600' : a.status === 'REJECTED' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'}`}>{a.status}</span>
                       </div>
-                      <div className="text-[10px] text-gray-400">Project: <span className="text-white">{a.projectName}</span></div>
-                      <div className="flex justify-between text-[10px] mt-1 pt-1 border-t border-gray-800 text-gray-500">
+                      <div className="text-[10px] text-slate-500">Project: <span className="text-slate-900">{a.projectName}</span></div>
+                      <div className="flex justify-between text-[10px] mt-1 pt-1 border-t border-slate-200 text-slate-400">
                         <span>Req: {a.requestedByName}</span>
                         <span>Rev: {a.reviewerName}</span>
                       </div>
@@ -1348,22 +1343,22 @@ export default function ReportsPage() {
             </div>
 
             {/* 4. Equipment History */}
-            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
-              <h3 className="text-xs font-bold text-white flex items-center gap-2 sticky top-0 bg-gray-900/60 backdrop-blur-md pb-2">
-                <Zap className="w-3.5 h-3.5 text-cyan-400" /> Equipment History
+            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 sticky top-0 bg-slate-50/60 backdrop-blur-xs pb-2">
+                <Zap className="w-3.5 h-3.5 text-cyan-600" /> Equipment History
               </h3>
               <div className="space-y-2">
                 {!time?.equipmentHistory || time?.equipmentHistory?.length === 0 ? (
-                  <p className="text-gray-500 italic text-[10px]">No equipment history available.</p>
+                  <p className="text-slate-400 italic text-[10px]">No equipment history available.</p>
                 ) : (
                   time?.equipmentHistory?.map((e: any) => (
-                    <div key={e.movementId} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
+                    <div key={e.movementId} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
                       <div className="flex justify-between items-start mb-1">
-                        <span className="text-cyan-300 font-bold text-xs">{e.equipmentName}</span>
-                        <span className="text-[9px] text-gray-400">{new Date(e.timestamp).toLocaleDateString()}</span>
+                        <span className="text-cyan-700 font-bold text-xs">{e.equipmentName}</span>
+                        <span className="text-[9px] text-slate-500">{new Date(e.timestamp).toLocaleDateString()}</span>
                       </div>
-                      <div className="text-[10px] text-gray-400">Action: <span className="text-amber-300 font-bold">{e.action}</span> | Handler: <span className="text-blue-300">{e.handlerName}</span></div>
-                      <div className="text-[10px] text-gray-500 mt-0.5">Project: {e.projectName}</div>
+                      <div className="text-[10px] text-slate-500">Action: <span className="text-amber-800 font-bold">{e.action}</span> | Handler: <span className="text-blue-700">{e.handlerName}</span></div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Project: {e.projectName}</div>
                     </div>
                   ))
                 )}
@@ -1371,24 +1366,24 @@ export default function ReportsPage() {
             </div>
 
             {/* 5. Employee Activities */}
-            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto lg:col-span-2">
-              <h3 className="text-xs font-bold text-white flex items-center gap-2 sticky top-0 bg-gray-900/60 backdrop-blur-md pb-2">
-                <Users className="w-3.5 h-3.5 text-amber-400" /> Employee Activities
+            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto lg:col-span-2">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 sticky top-0 bg-slate-50/60 backdrop-blur-xs pb-2">
+                <Users className="w-3.5 h-3.5 text-amber-600" /> Employee Activities
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {!time?.employeeActivities || time?.employeeActivities?.length === 0 ? (
-                  <p className="text-gray-500 italic text-[10px]">No employee activities available.</p>
+                  <p className="text-slate-400 italic text-[10px]">No employee activities available.</p>
                 ) : (
                   time?.employeeActivities?.map((act: any) => (
-                    <div key={act.logId} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg flex gap-2 items-start">
-                      <div className="w-1.5 h-full min-h-8 bg-gray-700 rounded-full"></div>
+                    <div key={act.logId} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg flex gap-2 items-start">
+                      <div className="w-1.5 h-full min-h-8 bg-slate-200 rounded-full"></div>
                       <div className="flex-1">
                         <div className="flex justify-between items-start">
-                          <span className="text-amber-300 font-bold text-xs">{act.userName}</span>
-                          <span className="text-[9px] text-gray-400">{new Date(act.timestamp).toLocaleString()}</span>
+                          <span className="text-amber-800 font-bold text-xs">{act.userName}</span>
+                          <span className="text-[9px] text-slate-500">{new Date(act.timestamp).toLocaleString()}</span>
                         </div>
-                        <div className="text-[10px] text-white my-0.5">{act.description}</div>
-                        <div className="text-[9px] text-gray-500 font-mono">Action: {act.action} | Entity: {act.entity}</div>
+                        <div className="text-[10px] text-slate-800 my-0.5">{act.description}</div>
+                        <div className="text-[9px] text-slate-400 font-mono">Action: {act.action} | Entity: {act.entity}</div>
                       </div>
                     </div>
                   ))
@@ -1401,12 +1396,12 @@ export default function ReportsPage() {
 
       {/* REVISION PERFORMANCE REPORTS TAB */}
       {activeTab === 'revisions' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-6 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <RotateCcw className="w-4 h-4 text-rose-400" /> Operational Rework &amp; Revision Analytics Matrix
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-6 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <RotateCcw className="w-4 h-4 text-rose-600" /> Operational Rework &amp; Revision Analytics Matrix
             </h2>
-            <span className="text-[11px] text-rose-300 font-mono font-bold">
+            <span className="text-[11px] text-rose-700 font-mono font-bold">
               5 Mandatory Revision Indicators Enforced
             </span>
           </div>
@@ -1414,52 +1409,52 @@ export default function ReportsPage() {
           {/* 5 Mandatory Indicators Summary Grid */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {/* 1. Total Revision Requests */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">1. Total Revision Requests</div>
-              <div className="text-xl font-mono font-bold text-rose-400">{rev?.totalRevisionRequests || 0}</div>
-              <p className="text-[9px] text-gray-400">Total project, script &amp; graphic reworks</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">1. Total Revision Requests</div>
+              <div className="text-xl font-mono font-bold text-rose-600">{rev?.totalRevisionRequests || 0}</div>
+              <p className="text-[9px] text-slate-500">Total project, script &amp; graphic reworks</p>
             </div>
 
             {/* 2. Employee Revision Count */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">2. Staff Tracked</div>
-              <div className="text-xl font-mono font-bold text-purple-400">{rev?.totalEmployees || 0} Staff</div>
-              <p className="text-[9px] text-gray-400">Employee revision distribution</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">2. Staff Tracked</div>
+              <div className="text-xl font-mono font-bold text-purple-600">{rev?.totalEmployees || 0} Staff</div>
+              <p className="text-[9px] text-slate-500">Employee revision distribution</p>
             </div>
 
             {/* 3. Project Revision Count */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">3. Projects Reworked</div>
-              <div className="text-xl font-mono font-bold text-blue-400">{rev?.totalProjects || 0} Projects</div>
-              <p className="text-[9px] text-gray-400">Project revision counts</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">3. Projects Reworked</div>
+              <div className="text-xl font-mono font-bold text-blue-600">{rev?.totalProjects || 0} Projects</div>
+              <p className="text-[9px] text-slate-500">Project revision counts</p>
             </div>
 
             {/* 4. Brand Revision Count */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">4. Brands Tracked</div>
-              <div className="text-xl font-mono font-bold text-cyan-400">{rev?.totalBrands || 0} Brands</div>
-              <p className="text-[9px] text-gray-400">Brand revision counts</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">4. Brands Tracked</div>
+              <div className="text-xl font-mono font-bold text-cyan-600">{rev?.totalBrands || 0} Brands</div>
+              <p className="text-[9px] text-slate-500">Brand revision counts</p>
             </div>
 
             {/* 5. Average Revisions per Project */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">5. Avg / Project</div>
-              <div className="text-xl font-mono font-bold text-amber-400">{rev?.avgRevisionsPerProject || 0}</div>
-              <p className="text-[9px] text-gray-400">Average revisions per project</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">5. Avg / Project</div>
+              <div className="text-xl font-mono font-bold text-amber-600">{rev?.avgRevisionsPerProject || 0}</div>
+              <p className="text-[9px] text-slate-500">Average revisions per project</p>
             </div>
           </div>
 
           {/* Breakdown Tables Grid: Project Revision Count & Brand Revision Count */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* 3. Project Revision Count Table */}
-            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3">
-              <h3 className="text-xs font-bold text-white flex items-center gap-2">
-                <Layers className="w-3.5 h-3.5 text-blue-400" /> Project Revision Breakdown
+            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                <Layers className="w-3.5 h-3.5 text-blue-600" /> Project Revision Breakdown
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                    <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
                       <th className="p-2">Project</th>
                       <th className="p-2">Brand</th>
                       <th className="p-2 text-center">Total Revisions</th>
@@ -1468,17 +1463,17 @@ export default function ReportsPage() {
                   <tbody className="divide-y divide-gray-800/60 font-medium">
                     {!rev?.projectRevisionBreakdown || rev.projectRevisionBreakdown.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="p-4 text-center text-gray-500 italic">No project revision data available.</td>
+                        <td colSpan={3} className="p-4 text-center text-slate-400 italic">No project revision data available.</td>
                       </tr>
                     ) : (
                       rev.projectRevisionBreakdown.slice(0, 10).map((p: any) => (
-                        <tr key={p.projectId} className="hover:bg-gray-900/50">
-                          <td className="p-2 font-bold text-white">
-                            <span className="text-blue-400">{p.projectName}</span>
-                            <span className="text-[10px] text-gray-500 ml-1">[{p.projectCode}]</span>
+                        <tr key={p.projectId} className="hover:bg-slate-50/50">
+                          <td className="p-2 font-bold text-slate-900">
+                            <span className="text-blue-600">{p.projectName}</span>
+                            <span className="text-[10px] text-slate-400 ml-1">[{p.projectCode}]</span>
                           </td>
-                          <td className="p-2 text-gray-400">{p.brandName}</td>
-                          <td className="p-2 text-center font-mono font-bold text-rose-400">{p.totalRevisions}</td>
+                          <td className="p-2 text-slate-500">{p.brandName}</td>
+                          <td className="p-2 text-center font-mono font-bold text-rose-600">{p.totalRevisions}</td>
                         </tr>
                       ))
                     )}
@@ -1488,14 +1483,14 @@ export default function ReportsPage() {
             </div>
 
             {/* 4. Brand Revision Count Table */}
-            <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-3">
-              <h3 className="text-xs font-bold text-white flex items-center gap-2">
-                <Tag className="w-3.5 h-3.5 text-cyan-400" /> Brand Revision Breakdown
+            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                <Tag className="w-3.5 h-3.5 text-cyan-600" /> Brand Revision Breakdown
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                    <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
                       <th className="p-2">Brand Name</th>
                       <th className="p-2 text-center">Projects</th>
                       <th className="p-2 text-center">Total Revisions</th>
@@ -1504,17 +1499,17 @@ export default function ReportsPage() {
                   <tbody className="divide-y divide-gray-800/60 font-medium">
                     {!rev?.brandRevisionBreakdown || rev.brandRevisionBreakdown.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="p-4 text-center text-gray-500 italic">No brand revision data available.</td>
+                        <td colSpan={3} className="p-4 text-center text-slate-400 italic">No brand revision data available.</td>
                       </tr>
                     ) : (
                       rev.brandRevisionBreakdown.slice(0, 10).map((b: any) => (
-                        <tr key={b.brandId} className="hover:bg-gray-900/50">
-                          <td className="p-2 font-bold text-white">
-                            <span className="text-cyan-300">{b.brandName}</span>
-                            <span className="text-[10px] text-gray-500 ml-1">({b.shortCode})</span>
+                        <tr key={b.brandId} className="hover:bg-slate-50/50">
+                          <td className="p-2 font-bold text-slate-900">
+                            <span className="text-cyan-700">{b.brandName}</span>
+                            <span className="text-[10px] text-slate-400 ml-1">({b.shortCode})</span>
                           </td>
-                          <td className="p-2 text-center font-mono text-gray-300">{b.totalProjects}</td>
-                          <td className="p-2 text-center font-mono font-bold text-amber-400">{b.totalRevisions}</td>
+                          <td className="p-2 text-center font-mono text-slate-700">{b.totalProjects}</td>
+                          <td className="p-2 text-center font-mono font-bold text-amber-600">{b.totalRevisions}</td>
                         </tr>
                       ))
                     )}
@@ -1528,9 +1523,9 @@ export default function ReportsPage() {
 
       {/* CAPACITY PERFORMANCE REPORTS TAB */}
       {activeTab === 'capacity' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-6 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-6 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-indigo-400" /> Operational Workload Capacity &amp; Resource Utilization Matrix
             </h2>
             <span className="text-[11px] text-indigo-300 font-mono font-bold">
@@ -1541,38 +1536,38 @@ export default function ReportsPage() {
           {/* 5 Mandatory Indicators Grid */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {/* 1. Daily Capacity */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">1. Daily Capacity</div>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">1. Daily Capacity</div>
               <div className="text-xl font-mono font-bold text-indigo-400">{cap?.dailyCapacity || 0} pts</div>
-              <p className="text-[9px] text-gray-400">Total daily output target</p>
+              <p className="text-[9px] text-slate-500">Total daily output target</p>
             </div>
 
             {/* 2. Assigned Capacity */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">2. Assigned Capacity</div>
-              <div className="text-xl font-mono font-bold text-blue-400">{cap?.assignedCapacity || 0} pts</div>
-              <p className="text-[9px] text-gray-400">Allocated active workload</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">2. Assigned Capacity</div>
+              <div className="text-xl font-mono font-bold text-blue-600">{cap?.assignedCapacity || 0} pts</div>
+              <p className="text-[9px] text-slate-500">Allocated active workload</p>
             </div>
 
             {/* 3. Remaining Capacity */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">3. Remaining Capacity</div>
-              <div className="text-xl font-mono font-bold text-emerald-400">{cap?.remainingCapacity || 0} pts</div>
-              <p className="text-[9px] text-gray-400">Unallocated available capacity</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">3. Remaining Capacity</div>
+              <div className="text-xl font-mono font-bold text-emerald-600">{cap?.remainingCapacity || 0} pts</div>
+              <p className="text-[9px] text-slate-500">Unallocated available capacity</p>
             </div>
 
             {/* 4. Overloaded Employees */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">4. Overloaded Staff</div>
-              <div className="text-xl font-mono font-bold text-rose-400">{cap?.overloadedEmployeesCount || 0} Staff</div>
-              <p className="text-[9px] text-gray-400">Workload &gt; 100% capacity</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">4. Overloaded Staff</div>
+              <div className="text-xl font-mono font-bold text-rose-600">{cap?.overloadedEmployeesCount || 0} Staff</div>
+              <p className="text-[9px] text-slate-500">Workload &gt; 100% capacity</p>
             </div>
 
             {/* 5. Underutilized Employees */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">5. Underutilized Staff</div>
-              <div className="text-xl font-mono font-bold text-amber-400">{cap?.underutilizedEmployeesCount || 0} Staff</div>
-              <p className="text-[9px] text-gray-400">Workload &lt; 60% capacity</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">5. Underutilized Staff</div>
+              <div className="text-xl font-mono font-bold text-amber-600">{cap?.underutilizedEmployeesCount || 0} Staff</div>
+              <p className="text-[9px] text-slate-500">Workload &lt; 60% capacity</p>
             </div>
           </div>
 
@@ -1580,7 +1575,7 @@ export default function ReportsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
                   <th className="p-3">Employee Name</th>
                   <th className="p-3 text-center">Daily Capacity Target</th>
                   <th className="p-3 text-center">Assigned Capacity</th>
@@ -1592,30 +1587,30 @@ export default function ReportsPage() {
               <tbody className="divide-y divide-gray-800/60 font-medium">
                 {!cap?.employeeDetails || cap.employeeDetails.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-6 text-center text-gray-500 italic">No capacity records available.</td>
+                    <td colSpan={6} className="p-6 text-center text-slate-400 italic">No capacity records available.</td>
                   </tr>
                 ) : (
                   cap.employeeDetails.map((emp: any) => (
-                    <tr key={emp.userId} className="hover:bg-gray-900/50 transition-colors">
-                      <td className="p-3 font-bold text-white">
+                    <tr key={emp.userId} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="p-3 font-bold text-slate-900">
                         <div>{emp.employeeName}</div>
-                        <div className="text-[10px] text-gray-400 font-normal">{emp.designation} • {emp.department}</div>
+                        <div className="text-[10px] text-slate-500 font-normal">{emp.designation} • {emp.department}</div>
                       </td>
 
                       {/* 1. Daily Capacity */}
                       <td className="p-3 text-center font-mono font-bold text-indigo-300">{emp.dailyCapacity} pts</td>
 
                       {/* 2. Assigned Capacity */}
-                      <td className="p-3 text-center font-mono font-bold text-blue-400">{emp.assignedCapacity} pts</td>
+                      <td className="p-3 text-center font-mono font-bold text-blue-600">{emp.assignedCapacity} pts</td>
 
                       {/* 3. Remaining Capacity */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{emp.remainingCapacity} pts</td>
+                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{emp.remainingCapacity} pts</td>
 
                       {/* Utilization % */}
                       <td className="p-3 text-center font-mono font-bold">
                         <div className="flex flex-col items-center gap-1">
                           <span>{emp.utilizationRate}%</span>
-                          <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                          <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full ${
                                 emp.isOverloaded ? 'bg-rose-500' : emp.isUnderutilized ? 'bg-amber-500' : 'bg-emerald-500'
@@ -1630,10 +1625,10 @@ export default function ReportsPage() {
                       <td className="p-3 text-center">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           emp.isOverloaded
-                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
                             : emp.isUnderutilized
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                         }`}>
                           {emp.isOverloaded ? 'OVERLOADED' : emp.isUnderutilized ? 'UNDERUTILIZED' : 'BALANCED'}
                         </span>
@@ -1649,12 +1644,12 @@ export default function ReportsPage() {
 
       {/* APPROVAL PERFORMANCE REPORTS TAB */}
       {activeTab === 'approvals' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-6 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-amber-400" /> Operational Approvals &amp; Quality Governance Matrix
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-6 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-amber-600" /> Operational Approvals &amp; Quality Governance Matrix
             </h2>
-            <span className="text-[11px] text-amber-300 font-mono font-bold">
+            <span className="text-[11px] text-amber-800 font-mono font-bold">
               6 Mandatory Approval Indicators Enforced
             </span>
           </div>
@@ -1662,45 +1657,45 @@ export default function ReportsPage() {
           {/* 6 Mandatory Indicator Cards Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {/* 1. Pending Technical Reviews */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">Pending Tech Reviews</div>
-              <div className="text-xl font-mono font-bold text-amber-400">{app?.pendingTechnicalReviews || 0}</div>
-              <p className="text-[9px] text-gray-400">Technical manager queue</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Pending Tech Reviews</div>
+              <div className="text-xl font-mono font-bold text-amber-600">{app?.pendingTechnicalReviews || 0}</div>
+              <p className="text-[9px] text-slate-500">Technical manager queue</p>
             </div>
 
             {/* 2. Pending Media Reviews */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">Pending Media Reviews</div>
-              <div className="text-xl font-mono font-bold text-purple-400">{app?.pendingMediaReviews || 0}</div>
-              <p className="text-[9px] text-gray-400">Media manager queue</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Pending Media Reviews</div>
+              <div className="text-xl font-mono font-bold text-purple-600">{app?.pendingMediaReviews || 0}</div>
+              <p className="text-[9px] text-slate-500">Media manager queue</p>
             </div>
 
             {/* 3. Pending Client Confirmations */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">Pending Client Confirm</div>
-              <div className="text-xl font-mono font-bold text-emerald-400">{app?.pendingClientConfirmations || 0}</div>
-              <p className="text-[9px] text-gray-400">Deliverables awaiting client</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Pending Client Confirm</div>
+              <div className="text-xl font-mono font-bold text-emerald-600">{app?.pendingClientConfirmations || 0}</div>
+              <p className="text-[9px] text-slate-500">Deliverables awaiting client</p>
             </div>
 
             {/* 4. Average Approval Time */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">Avg Approval Time</div>
-              <div className="text-xl font-mono font-bold text-cyan-300">{app?.avgApprovalTimeFormatted || 'N/A'}</div>
-              <p className="text-[9px] text-gray-400">Request to decision duration</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Avg Approval Time</div>
+              <div className="text-xl font-mono font-bold text-cyan-700">{app?.avgApprovalTimeFormatted || 'N/A'}</div>
+              <p className="text-[9px] text-slate-500">Request to decision duration</p>
             </div>
 
             {/* 5. Approval Success Rate */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">Approval Success Rate</div>
-              <div className="text-xl font-mono font-bold text-emerald-400">{app?.approvalSuccessRatePercentage || 100}%</div>
-              <p className="text-[9px] text-gray-400">Approved vs total decided</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Approval Success Rate</div>
+              <div className="text-xl font-mono font-bold text-emerald-600">{app?.approvalSuccessRatePercentage || 100}%</div>
+              <p className="text-[9px] text-slate-500">Approved vs total decided</p>
             </div>
 
             {/* 6. Revision Requests */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-gray-500 uppercase font-bold">Revision Requests</div>
-              <div className="text-xl font-mono font-bold text-rose-400">{app?.revisionRequests || 0}</div>
-              <p className="text-[9px] text-gray-400">Rejections &amp; modifications</p>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Revision Requests</div>
+              <div className="text-xl font-mono font-bold text-rose-600">{app?.revisionRequests || 0}</div>
+              <p className="text-[9px] text-slate-500">Rejections &amp; modifications</p>
             </div>
           </div>
         </div>
@@ -1708,12 +1703,12 @@ export default function ReportsPage() {
 
       {/* EQUIPMENT PERFORMANCE REPORTS TAB */}
       {activeTab === 'equipment' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <Zap className="w-4 h-4 text-cyan-400" /> Equipment Asset Performance, History &amp; Utilization Matrix
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Zap className="w-4 h-4 text-cyan-600" /> Equipment Asset Performance, History &amp; Utilization Matrix
             </h2>
-            <span className="text-[11px] text-cyan-300 font-mono font-bold">
+            <span className="text-[11px] text-cyan-700 font-mono font-bold">
               6 Mandatory Equipment Indicators Enforced
             </span>
           </div>
@@ -1721,7 +1716,7 @@ export default function ReportsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
                   <th className="p-3">Equipment Name &amp; Category</th>
                   <th className="p-3">Equipment Availability</th>
                   <th className="p-3 text-center">Equipment Utilization</th>
@@ -1734,30 +1729,30 @@ export default function ReportsPage() {
               <tbody className="divide-y divide-gray-800/60 font-medium">
                 {equipmentReports.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-6 text-center text-gray-500 italic">No equipment performance records available.</td>
+                    <td colSpan={7} className="p-6 text-center text-slate-400 italic">No equipment performance records available.</td>
                   </tr>
                 ) : (
                   equipmentReports.map((eq) => (
-                    <tr key={eq.equipmentId} className="hover:bg-gray-900/50 transition-colors">
+                    <tr key={eq.equipmentId} className="hover:bg-slate-50/50 transition-colors">
                       {/* Equipment Name & Category */}
-                      <td className="p-3 font-bold text-white">
-                        <div className="text-cyan-400 font-bold flex items-center gap-1.5">
+                      <td className="p-3 font-bold text-slate-900">
+                        <div className="text-cyan-600 font-bold flex items-center gap-1.5">
                           {eq.name}
-                          <span className="text-[10px] text-gray-500 font-mono">[{eq.serialNumber}]</span>
+                          <span className="text-[10px] text-slate-400 font-mono">[{eq.serialNumber}]</span>
                         </div>
-                        <div className="text-[10px] text-gray-400 font-normal">{eq.brand} {eq.model} • Category: {eq.category}</div>
+                        <div className="text-[10px] text-slate-500 font-normal">{eq.brand} {eq.model} • Category: {eq.category}</div>
                       </td>
 
                       {/* 1. Equipment Availability */}
                       <td className="p-3">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           eq.equipmentAvailabilityStatus === 'AVAILABLE'
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : eq.equipmentAvailabilityStatus === 'ISSUED' || eq.equipmentAvailabilityStatus === 'RESERVED'
-                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
                             : eq.equipmentAvailabilityStatus === 'MAINTENANCE' || eq.equipmentAvailabilityStatus === 'DAMAGED'
-                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                            : 'bg-gray-800 text-gray-400'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'bg-slate-100 text-slate-500'
                         }`}>
                           {eq.equipmentAvailabilityStatus}
                         </span>
@@ -1766,8 +1761,8 @@ export default function ReportsPage() {
                       {/* 2. Equipment Utilization */}
                       <td className="p-3 text-center font-mono font-bold">
                         <div className="flex flex-col items-center gap-1">
-                          <span className="text-cyan-300">{eq.equipmentUtilizationPercentage}%</span>
-                          <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                          <span className="text-cyan-700">{eq.equipmentUtilizationPercentage}%</span>
+                          <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                             <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${eq.equipmentUtilizationPercentage}%` }}></div>
                           </div>
                         </div>
@@ -1780,14 +1775,14 @@ export default function ReportsPage() {
 
                       {/* 4. Checkout History */}
                       <td className="p-3 text-center font-mono font-bold">
-                        <span className="px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800 text-[11px]">
+                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[11px]">
                           {eq.checkoutHistoryCount} Checkouts
                         </span>
                       </td>
 
                       {/* 5. Maintenance History */}
                       <td className="p-3 text-center font-mono font-bold">
-                        <span className="px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 text-[11px]">
+                        <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[11px]">
                           {eq.maintenanceHistoryCount} Records
                         </span>
                       </td>
@@ -1796,8 +1791,8 @@ export default function ReportsPage() {
                       <td className="p-3 text-center font-mono font-bold">
                         <span className={`px-2 py-0.5 rounded text-[11px] ${
                           eq.damageHistoryCount > 0
-                            ? 'bg-rose-950 text-rose-300 border border-rose-800'
-                            : 'bg-gray-900 text-gray-400 border border-gray-800'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'bg-slate-50 text-slate-500 border border-slate-200'
                         }`}>
                           {eq.damageHistoryCount} Reports
                         </span>
@@ -1813,18 +1808,18 @@ export default function ReportsPage() {
 
       {/* ATTENDANCE PERFORMANCE REPORTS TAB */}
       {activeTab === 'attendance' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-border pb-3">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-200 pb-3">
             <div>
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" /> Staff Attendance Analytics &amp; Timeframe Matrix
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" /> Staff Attendance Analytics &amp; Timeframe Matrix
               </h2>
-              <p className="text-[11px] text-gray-400 mt-0.5">Filter attendance by Daily, Weekly, Monthly, or Custom Date Range</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Filter attendance by Daily, Weekly, Monthly, or Custom Date Range</p>
             </div>
 
             {/* Timeframe Filter Switcher */}
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex bg-gray-900 border border-gray-800 rounded-lg p-0.5 text-xs font-medium">
+              <div className="flex bg-slate-50 border border-slate-200 rounded-lg p-0.5 text-xs font-medium">
                 {(['daily', 'weekly', 'monthly', 'custom'] as const).map((p) => (
                   <button
                     key={p}
@@ -1833,7 +1828,7 @@ export default function ReportsPage() {
                       if (p !== 'custom') fetchAttendance(p);
                     }}
                     className={`px-3 py-1 rounded-md capitalize transition-all ${
-                      attendancePeriod === p ? 'bg-emerald-600 text-white font-bold' : 'text-gray-400 hover:text-white'
+                      attendancePeriod === p ? 'bg-emerald-600 text-slate-900 font-bold' : 'text-slate-500 hover:text-slate-900'
                     }`}
                   >
                     {p}
@@ -1843,25 +1838,25 @@ export default function ReportsPage() {
 
               {/* Custom Date Range Picker */}
               {attendancePeriod === 'custom' && (
-                <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-800 p-1 rounded-lg">
+                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 p-1 rounded-lg">
                   <input
                     type="date"
                     value={attStartDateInput}
                     onChange={(e) => setAttStartDateInput(e.target.value)}
-                    className="bg-gray-800 text-white text-xs px-2 py-1 rounded border border-gray-700 focus:outline-none"
+                    className="bg-slate-100 text-slate-800 text-xs px-2 py-1 rounded border border-slate-200 focus:outline-none"
                     title="Attendance Start Date"
                   />
-                  <span className="text-gray-500">to</span>
+                  <span className="text-slate-400">to</span>
                   <input
                     type="date"
                     value={attEndDateInput}
                     onChange={(e) => setAttEndDateInput(e.target.value)}
-                    className="bg-gray-800 text-white text-xs px-2 py-1 rounded border border-gray-700 focus:outline-none"
+                    className="bg-slate-100 text-slate-800 text-xs px-2 py-1 rounded border border-slate-200 focus:outline-none"
                     title="Attendance End Date"
                   />
                   <button
                     onClick={() => fetchAttendance('custom', attStartDateInput, attEndDateInput)}
-                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-xs transition-colors shadow-sm"
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-slate-900 font-bold rounded text-xs transition-colors shadow-sm"
                   >
                     Apply
                   </button>
@@ -1873,7 +1868,7 @@ export default function ReportsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
                   <th className="p-3">Employee Name</th>
                   <th className="p-3 text-center">Present Days</th>
                   <th className="p-3 text-center">Absent Days</th>
@@ -1885,37 +1880,37 @@ export default function ReportsPage() {
               <tbody className="divide-y divide-gray-800/60 font-medium">
                 {!attendanceData?.report || attendanceData.report.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-6 text-center text-gray-500 italic">No attendance records found for this timeframe.</td>
+                    <td colSpan={6} className="p-6 text-center text-slate-400 italic">No attendance records found for this timeframe.</td>
                   </tr>
                 ) : (
                   attendanceData.report.map((emp: any) => (
-                    <tr key={emp.userId} className="hover:bg-gray-900/50 transition-colors">
+                    <tr key={emp.userId} className="hover:bg-slate-50/50 transition-colors">
                       {/* Employee Name */}
-                      <td className="p-3 font-bold text-white">
+                      <td className="p-3 font-bold text-slate-900">
                         <div>{emp.employeeName}</div>
-                        <div className="text-[10px] text-gray-400 font-normal">{emp.designation} • {emp.department}</div>
+                        <div className="text-[10px] text-slate-500 font-normal">{emp.designation} • {emp.department}</div>
                       </td>
 
                       {/* 1. Present Days */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{emp.presentDays}</td>
+                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{emp.presentDays}</td>
 
                       {/* 2. Absent Days */}
-                      <td className="p-3 text-center font-mono font-bold text-rose-400">{emp.absentDays}</td>
+                      <td className="p-3 text-center font-mono font-bold text-rose-600">{emp.absentDays}</td>
 
                       {/* 3. Half Days */}
-                      <td className="p-3 text-center font-mono font-bold text-cyan-300">{emp.halfDays}</td>
+                      <td className="p-3 text-center font-mono font-bold text-cyan-700">{emp.halfDays}</td>
 
                       {/* 4. Late Entries */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-300">{emp.lateEntries}</td>
+                      <td className="p-3 text-center font-mono font-bold text-amber-800">{emp.lateEntries}</td>
 
                       {/* 5. Attendance Percentage */}
                       <td className="p-3 text-center font-mono font-bold">
                         <span className={`px-2 py-0.5 rounded text-[11px] ${
                           emp.attendancePercentage >= 90
-                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : emp.attendancePercentage >= 75
-                            ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                            : 'bg-rose-950 text-rose-300 border border-rose-800'
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
                         }`}>
                           {emp.attendancePercentage}%
                         </span>
@@ -1931,12 +1926,12 @@ export default function ReportsPage() {
 
       {/* PROJECT PERFORMANCE REPORTS TAB */}
       {activeTab === 'projects' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <Layers className="w-4 h-4 text-blue-400" /> Project Operational Status &amp; Timeline Matrix
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Layers className="w-4 h-4 text-blue-600" /> Project Operational Status &amp; Timeline Matrix
             </h2>
-            <span className="text-[11px] text-blue-300 font-mono font-bold">
+            <span className="text-[11px] text-blue-700 font-mono font-bold">
               8 Mandatory Project Indicators Enforced
             </span>
           </div>
@@ -1944,7 +1939,7 @@ export default function ReportsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
                   <th className="p-3">Project &amp; Client</th>
                   <th className="p-3">Project Status</th>
                   <th className="p-3 text-center">Completion %</th>
@@ -1959,30 +1954,30 @@ export default function ReportsPage() {
               <tbody className="divide-y divide-gray-800/60 font-medium">
                 {projectReports.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="p-6 text-center text-gray-500 italic">No project performance records available.</td>
+                    <td colSpan={9} className="p-6 text-center text-slate-400 italic">No project performance records available.</td>
                   </tr>
                 ) : (
                   projectReports.map((p) => (
-                    <tr key={p.projectId} className="hover:bg-gray-900/50 transition-colors">
+                    <tr key={p.projectId} className="hover:bg-slate-50/50 transition-colors">
                       {/* Project & Client */}
-                      <td className="p-3 font-bold text-white">
-                        <div className="text-blue-400 font-bold flex items-center gap-1.5">
+                      <td className="p-3 font-bold text-slate-900">
+                        <div className="text-blue-600 font-bold flex items-center gap-1.5">
                           {p.projectName}
-                          <span className="text-[10px] text-gray-500 font-mono">[{p.projectCode}]</span>
+                          <span className="text-[10px] text-slate-400 font-mono">[{p.projectCode}]</span>
                         </div>
-                        <div className="text-[10px] text-gray-400 font-normal">Brand: {p.brandName} • Client: {p.clientName}</div>
+                        <div className="text-[10px] text-slate-500 font-normal">Brand: {p.brandName} • Client: {p.clientName}</div>
                       </td>
 
                       {/* 1. Project Status */}
                       <td className="p-3">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           p.projectStatus === 'COMPLETED'
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : p.projectStatus === 'IN_PROGRESS' || p.projectStatus === 'POST_PRODUCTION'
-                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
                             : p.projectStatus?.includes('WAITING') || p.projectStatus?.includes('REVISION')
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                            : 'bg-gray-800 text-gray-400'
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-slate-100 text-slate-500'
                         }`}>
                           {p.projectStatus}
                         </span>
@@ -1991,38 +1986,38 @@ export default function ReportsPage() {
                       {/* 2. Completion Percentage */}
                       <td className="p-3 text-center font-mono font-bold">
                         <div className="flex flex-col items-center gap-1">
-                          <span className="text-emerald-400">{p.completionPercentage}%</span>
-                          <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                          <span className="text-emerald-600">{p.completionPercentage}%</span>
+                          <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                             <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${p.completionPercentage}%` }}></div>
                           </div>
                         </div>
                       </td>
 
                       {/* 3. Pending Scripts */}
-                      <td className="p-3 text-center font-mono font-bold text-purple-300">{p.pendingScripts}</td>
+                      <td className="p-3 text-center font-mono font-bold text-purple-700">{p.pendingScripts}</td>
 
                       {/* 4. Pending Graphics */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-300">{p.pendingGraphics}</td>
+                      <td className="p-3 text-center font-mono font-bold text-amber-800">{p.pendingGraphics}</td>
 
                       {/* 5. Pending Reviews */}
-                      <td className="p-3 text-center font-mono font-bold text-rose-400">{p.pendingReviews}</td>
+                      <td className="p-3 text-center font-mono font-bold text-rose-600">{p.pendingReviews}</td>
 
                       {/* 6. Equipment Used */}
-                      <td className="p-3 text-gray-300">
-                        <div className="font-semibold text-cyan-300">{p.equipmentUsedCount} Items</div>
-                        <div className="text-[10px] text-gray-500 truncate max-w-[120px]">{p.equipmentUsedSummary}</div>
+                      <td className="p-3 text-slate-700">
+                        <div className="font-semibold text-cyan-700">{p.equipmentUsedCount} Items</div>
+                        <div className="text-[10px] text-slate-400 truncate max-w-[120px]">{p.equipmentUsedSummary}</div>
                       </td>
 
                       {/* 7. Assigned Employees */}
-                      <td className="p-3 text-gray-300">
+                      <td className="p-3 text-slate-700">
                         <div className="font-semibold text-indigo-300">{p.assignedEmployeesCount} Staff</div>
-                        <div className="text-[10px] text-gray-500 truncate max-w-[120px]">{p.assignedEmployeeNames}</div>
+                        <div className="text-[10px] text-slate-400 truncate max-w-[120px]">{p.assignedEmployeeNames}</div>
                       </td>
 
                       {/* 8. Timeline Summary */}
-                      <td className="p-3 text-gray-300">
-                        <div className="text-[10px] font-mono text-gray-300">{p.timelineSummary}</div>
-                        <div className="text-[9px] text-gray-500 font-normal">Location: {p.shootLocation} ({p.shootType})</div>
+                      <td className="p-3 text-slate-700">
+                        <div className="text-[10px] font-mono text-slate-700">{p.timelineSummary}</div>
+                        <div className="text-[9px] text-slate-400 font-normal">Location: {p.shootLocation} ({p.shootType})</div>
                       </td>
                     </tr>
                   ))
@@ -2035,9 +2030,9 @@ export default function ReportsPage() {
 
       {/* DEPARTMENT PERFORMANCE REPORTS TAB */}
       {activeTab === 'departments' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-indigo-400" /> Department Operational Performance &amp; Capacity Matrix
             </h2>
             <span className="text-[11px] text-indigo-300 font-mono font-bold">
@@ -2048,7 +2043,7 @@ export default function ReportsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
                   <th className="p-3">Department Name</th>
                   <th className="p-3 text-center">Total Employees</th>
                   <th className="p-3 text-center">Active Tasks</th>
@@ -2062,37 +2057,37 @@ export default function ReportsPage() {
               <tbody className="divide-y divide-gray-800/60 font-medium">
                 {deptReports.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-gray-500 italic">No department performance records available.</td>
+                    <td colSpan={8} className="p-6 text-center text-slate-400 italic">No department performance records available.</td>
                   </tr>
                 ) : (
                   deptReports.map((d) => (
-                    <tr key={d.departmentId} className="hover:bg-gray-900/50 transition-colors">
+                    <tr key={d.departmentId} className="hover:bg-slate-50/50 transition-colors">
                       {/* Department Name */}
-                      <td className="p-3 font-bold text-white">
+                      <td className="p-3 font-bold text-slate-900">
                         <div className="text-indigo-400 font-bold">{d.departmentName}</div>
-                        <div className="text-[10px] text-gray-400 font-normal">{d.description || 'Media Operations Division'}</div>
+                        <div className="text-[10px] text-slate-500 font-normal">{d.description || 'Media Operations Division'}</div>
                       </td>
 
                       {/* 1. Total Employees */}
-                      <td className="p-3 text-center font-mono font-bold text-blue-300">{d.totalEmployees}</td>
+                      <td className="p-3 text-center font-mono font-bold text-blue-700">{d.totalEmployees}</td>
 
                       {/* 2. Active Tasks */}
-                      <td className="p-3 text-center font-mono font-bold text-purple-300">{d.activeTasks}</td>
+                      <td className="p-3 text-center font-mono font-bold text-purple-700">{d.activeTasks}</td>
 
                       {/* 3. Completed Tasks */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{d.completedTasks}</td>
+                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{d.completedTasks}</td>
 
                       {/* 4. Total Outputs */}
-                      <td className="p-3 text-center font-mono font-bold text-cyan-300">{d.totalOutputs}</td>
+                      <td className="p-3 text-center font-mono font-bold text-cyan-700">{d.totalOutputs}</td>
 
                       {/* 5. Capacity Utilization */}
                       <td className="p-3 text-center font-mono font-bold">
                         <span className={`px-2 py-0.5 rounded text-[11px] ${
                           d.capacityUtilizationPercentage > 100
-                            ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
                             : d.capacityUtilizationPercentage < 50
-                            ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                            : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                         }`}>
                           {d.capacityUtilizationPercentage}%
                         </span>
@@ -2102,15 +2097,15 @@ export default function ReportsPage() {
                       <td className="p-3 text-center font-mono font-bold">
                         <span className={`px-2 py-0.5 rounded text-[11px] ${
                           d.productivityPercentage >= 100
-                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                            : 'bg-amber-950 text-amber-300 border border-amber-800'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-800 border border-amber-200'
                         }`}>
                           {d.productivityPercentage}%
                         </span>
                       </td>
 
                       {/* 7. Pending Work */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-300">{d.pendingWork}</td>
+                      <td className="p-3 text-center font-mono font-bold text-amber-800">{d.pendingWork}</td>
                     </tr>
                   ))
                 )}
@@ -2122,12 +2117,12 @@ export default function ReportsPage() {
 
       {/* PRODUCT PERFORMANCE REPORTS TAB */}
       {activeTab === 'products' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <Package className="w-4 h-4 text-rose-400" /> Product Performance &amp; Media Output Matrix
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Package className="w-4 h-4 text-rose-600" /> Product Performance &amp; Media Output Matrix
             </h2>
-            <span className="text-[11px] text-rose-300 font-mono font-bold">
+            <span className="text-[11px] text-rose-700 font-mono font-bold">
               8 Mandatory Product Indicators Enforced
             </span>
           </div>
@@ -2135,7 +2130,7 @@ export default function ReportsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
                   <th className="p-3">Product Name &amp; Brand</th>
                   <th className="p-3 text-center">Total Productions</th>
                   <th className="p-3 text-center">Videos</th>
@@ -2150,43 +2145,43 @@ export default function ReportsPage() {
               <tbody className="divide-y divide-gray-800/60 font-medium">
                 {productReports.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="p-6 text-center text-gray-500 italic">No product performance records available.</td>
+                    <td colSpan={9} className="p-6 text-center text-slate-400 italic">No product performance records available.</td>
                   </tr>
                 ) : (
                   productReports.map((p) => (
-                    <tr key={p.productId} className="hover:bg-gray-900/50 transition-colors">
+                    <tr key={p.productId} className="hover:bg-slate-50/50 transition-colors">
                       {/* Product Name & Brand */}
-                      <td className="p-3 font-bold text-white">
-                        <div className="text-rose-400 font-bold flex items-center gap-1.5">
+                      <td className="p-3 font-bold text-slate-900">
+                        <div className="text-rose-600 font-bold flex items-center gap-1.5">
                           {p.productName}
-                          <span className="text-[10px] text-gray-500 font-mono">[{p.productCode}]</span>
+                          <span className="text-[10px] text-slate-400 font-mono">[{p.productCode}]</span>
                         </div>
-                        <div className="text-[10px] text-gray-400 font-normal">Brand: {p.brandName} • Category: {p.category}</div>
+                        <div className="text-[10px] text-slate-500 font-normal">Brand: {p.brandName} • Category: {p.category}</div>
                       </td>
 
                       {/* 1. Total Productions */}
-                      <td className="p-3 text-center font-mono font-bold text-blue-300">{p.totalProductions}</td>
+                      <td className="p-3 text-center font-mono font-bold text-blue-700">{p.totalProductions}</td>
 
                       {/* 2. Videos */}
-                      <td className="p-3 text-center font-mono font-bold text-purple-300">{p.videos}</td>
+                      <td className="p-3 text-center font-mono font-bold text-purple-700">{p.videos}</td>
 
                       {/* 3. Posters */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-300">{p.posters}</td>
+                      <td className="p-3 text-center font-mono font-bold text-amber-800">{p.posters}</td>
 
                       {/* 4. Carousels */}
-                      <td className="p-3 text-center font-mono font-bold text-cyan-300">{p.carousels}</td>
+                      <td className="p-3 text-center font-mono font-bold text-cyan-700">{p.carousels}</td>
 
                       {/* 5. Awareness Campaigns */}
                       <td className="p-3 text-center font-mono font-bold text-indigo-300">{p.awarenessCampaigns}</td>
 
                       {/* 6. Advertisement Campaigns */}
-                      <td className="p-3 text-center font-mono font-bold text-rose-300">{p.advertisementCampaigns}</td>
+                      <td className="p-3 text-center font-mono font-bold text-rose-700">{p.advertisementCampaigns}</td>
 
                       {/* 7. Pending Deliverables */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-400">{p.pendingDeliverables}</td>
+                      <td className="p-3 text-center font-mono font-bold text-amber-600">{p.pendingDeliverables}</td>
 
                       {/* 8. Completed Deliverables */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{p.completedDeliverables}</td>
+                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{p.completedDeliverables}</td>
                     </tr>
                   ))
                 )}
@@ -2198,12 +2193,12 @@ export default function ReportsPage() {
 
       {/* CLIENT PERFORMANCE REPORTS TAB */}
       {activeTab === 'clients' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-emerald-400" /> Client Operational Performance &amp; Production Matrix
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-emerald-600" /> Client Operational Performance &amp; Production Matrix
             </h2>
-            <span className="text-[11px] text-emerald-300 font-mono font-bold">
+            <span className="text-[11px] text-emerald-700 font-mono font-bold">
               7 Mandatory Client Indicators Enforced
             </span>
           </div>
@@ -2211,7 +2206,7 @@ export default function ReportsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
                   <th className="p-3">Client &amp; Company</th>
                   <th className="p-3 text-center">Total Projects</th>
                   <th className="p-3 text-center">Total Deliverables</th>
@@ -2225,28 +2220,28 @@ export default function ReportsPage() {
               <tbody className="divide-y divide-gray-800/60 font-medium">
                 {clientReports.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-gray-500 italic">No client performance records available.</td>
+                    <td colSpan={8} className="p-6 text-center text-slate-400 italic">No client performance records available.</td>
                   </tr>
                 ) : (
                   clientReports.map((c) => (
-                    <tr key={c.clientId} className="hover:bg-gray-900/50 transition-colors">
+                    <tr key={c.clientId} className="hover:bg-slate-50/50 transition-colors">
                       {/* Client & Company */}
-                      <td className="p-3 font-bold text-white">
-                        <div className="text-emerald-400 font-bold">{c.clientName}</div>
-                        <div className="text-[10px] text-gray-400 font-normal">{c.companyName} • {c.email}</div>
+                      <td className="p-3 font-bold text-slate-900">
+                        <div className="text-emerald-600 font-bold">{c.clientName}</div>
+                        <div className="text-[10px] text-slate-500 font-normal">{c.companyName} • {c.email}</div>
                       </td>
 
                       {/* 1. Total Projects */}
-                      <td className="p-3 text-center font-mono font-bold text-blue-300">{c.totalProjects}</td>
+                      <td className="p-3 text-center font-mono font-bold text-blue-700">{c.totalProjects}</td>
 
                       {/* 2. Total Deliverables */}
-                      <td className="p-3 text-center font-mono font-bold text-purple-300">{c.totalDeliverables}</td>
+                      <td className="p-3 text-center font-mono font-bold text-purple-700">{c.totalDeliverables}</td>
 
                       {/* 3. Pending Approvals */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-300">{c.pendingApprovals}</td>
+                      <td className="p-3 text-center font-mono font-bold text-amber-800">{c.pendingApprovals}</td>
 
                       {/* 4. Completed Projects */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{c.completedProjects}</td>
+                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{c.completedProjects}</td>
 
                       {/* 5. Average Project Duration */}
                       <td className="p-3 text-center font-mono font-bold text-indigo-300">
@@ -2254,18 +2249,18 @@ export default function ReportsPage() {
                       </td>
 
                       {/* 6. Revision Requests */}
-                      <td className="p-3 text-center font-mono font-bold text-rose-400">{c.revisionRequests || 0}x</td>
+                      <td className="p-3 text-center font-mono font-bold text-rose-600">{c.revisionRequests || 0}x</td>
 
                       {/* 7. Production Summary */}
                       <td className="p-3">
                         <div className="flex items-center gap-1 flex-wrap">
-                          <span className="px-1.5 py-0.5 bg-blue-950 text-blue-300 border border-blue-800 rounded text-[9px]">
+                          <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[9px]">
                             Prog: {c.productionSummary?.IN_PROGRESS || 0}
                           </span>
-                          <span className="px-1.5 py-0.5 bg-amber-950 text-amber-300 border border-amber-800 rounded text-[9px]">
+                          <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[9px]">
                             Review: {c.productionSummary?.WAITING_FOR_REVIEW || 0}
                           </span>
-                          <span className="px-1.5 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded text-[9px]">
+                          <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[9px]">
                             Done: {c.productionSummary?.COMPLETED || 0}
                           </span>
                         </div>
@@ -2281,12 +2276,12 @@ export default function ReportsPage() {
 
       {/* BRAND INDEPENDENT PERFORMANCE REPORTS TAB */}
       {activeTab === 'brands' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <Tag className="w-4 h-4 text-cyan-400" /> Independent Brand Performance &amp; Production Matrix
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Tag className="w-4 h-4 text-cyan-600" /> Independent Brand Performance &amp; Production Matrix
             </h2>
-            <span className="text-[11px] text-cyan-300 font-mono font-bold">
+            <span className="text-[11px] text-cyan-700 font-mono font-bold">
               8 Mandatory Brand Indicators Enforced
             </span>
           </div>
@@ -2294,7 +2289,7 @@ export default function ReportsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
                   <th className="p-3">Brand &amp; Client</th>
                   <th className="p-3 text-center">Total Projects</th>
                   <th className="p-3 text-center">Total Deliverables</th>
@@ -2309,60 +2304,60 @@ export default function ReportsPage() {
               <tbody className="divide-y divide-gray-800/60 font-medium">
                 {brandReports.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="p-6 text-center text-gray-500 italic">No brand performance records available.</td>
+                    <td colSpan={9} className="p-6 text-center text-slate-400 italic">No brand performance records available.</td>
                   </tr>
                 ) : (
                   brandReports.map((b) => (
-                    <tr key={b.brandId} className="hover:bg-gray-900/50 transition-colors">
+                    <tr key={b.brandId} className="hover:bg-slate-50/50 transition-colors">
                       {/* Brand & Client */}
-                      <td className="p-3 font-bold text-white">
+                      <td className="p-3 font-bold text-slate-900">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-cyan-400 font-bold">{b.brandName}</span>
-                          <span className="text-[10px] text-gray-500 font-mono">[{b.shortCode}]</span>
+                          <span className="text-cyan-600 font-bold">{b.brandName}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">[{b.shortCode}]</span>
                         </div>
-                        <div className="text-[10px] text-gray-400 font-normal">Client: {b.clientName}</div>
+                        <div className="text-[10px] text-slate-500 font-normal">Client: {b.clientName}</div>
                       </td>
 
                       {/* 1. Total Projects */}
-                      <td className="p-3 text-center font-mono font-bold text-blue-300">{b.totalProjects}</td>
+                      <td className="p-3 text-center font-mono font-bold text-blue-700">{b.totalProjects}</td>
 
                       {/* 2. Total Deliverables */}
-                      <td className="p-3 text-center font-mono font-bold text-purple-300">{b.totalDeliverables}</td>
+                      <td className="p-3 text-center font-mono font-bold text-purple-700">{b.totalDeliverables}</td>
 
                       {/* 3. Total Outputs */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{b.totalOutputs}</td>
+                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{b.totalOutputs}</td>
 
                       {/* 4. Production Status */}
                       <td className="p-3">
                         <div className="flex items-center gap-1 flex-wrap">
-                          <span className="px-1.5 py-0.5 bg-blue-950 text-blue-300 border border-blue-800 rounded text-[9px]">
+                          <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[9px]">
                             Prog: {b.productionStatus?.IN_PROGRESS || 0}
                           </span>
-                          <span className="px-1.5 py-0.5 bg-amber-950 text-amber-300 border border-amber-800 rounded text-[9px]">
+                          <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[9px]">
                             Review: {b.productionStatus?.WAITING_FOR_REVIEW || 0}
                           </span>
-                          <span className="px-1.5 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded text-[9px]">
+                          <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[9px]">
                             Done: {b.productionStatus?.COMPLETED || 0}
                           </span>
                         </div>
                       </td>
 
                       {/* 5. Pending Deliverables */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-300">{b.pendingDeliverables}</td>
+                      <td className="p-3 text-center font-mono font-bold text-amber-800">{b.pendingDeliverables}</td>
 
                       {/* 6. Completion Rate */}
                       <td className="p-3 text-center font-mono font-bold">
                         <span className={`px-2 py-0.5 rounded text-[11px] ${
                           b.completionRatePercentage >= 75
-                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                            : 'bg-amber-950 text-amber-300 border border-amber-800'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-800 border border-amber-200'
                         }`}>
                           {b.completionRatePercentage}%
                         </span>
                       </td>
 
                       {/* 7. Revision Count */}
-                      <td className="p-3 text-center font-mono font-bold text-rose-400">{b.revisionCount || 0}x</td>
+                      <td className="p-3 text-center font-mono font-bold text-rose-600">{b.revisionCount || 0}x</td>
 
                       {/* 8. Average Delivery Time */}
                       <td className="p-3 text-center font-mono font-bold text-indigo-300">
@@ -2379,12 +2374,12 @@ export default function ReportsPage() {
 
       {/* EMPLOYEE-WISE PERFORMANCE REPORTS TAB */}
       {activeTab === 'employee' && (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <Users className="w-4 h-4 text-purple-400" /> Employee-Wise Operational Performance Matrix
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Users className="w-4 h-4 text-purple-600" /> Employee-Wise Operational Performance Matrix
             </h2>
-            <span className="text-[11px] text-purple-300 font-mono font-bold">
+            <span className="text-[11px] text-purple-700 font-mono font-bold">
               10 Mandatory Operational Indicators Enforced
             </span>
           </div>
@@ -2392,7 +2387,7 @@ export default function ReportsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-gray-900 text-gray-400 uppercase text-[10px] tracking-wider border-b border-gray-800">
+                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
                   <th className="p-3">Employee Name</th>
                   <th className="p-3">Today's Attendance</th>
                   <th className="p-3 text-center">Assigned Tasks</th>
@@ -2409,62 +2404,62 @@ export default function ReportsPage() {
               <tbody className="divide-y divide-gray-800/60 font-medium">
                 {employeeReports.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="p-6 text-center text-gray-500 italic">No employee performance data available.</td>
+                    <td colSpan={10} className="p-6 text-center text-slate-400 italic">No employee performance data available.</td>
                   </tr>
                 ) : (
                   employeeReports.map((emp) => (
-                    <tr key={emp.userId} className="hover:bg-gray-900/50 transition-colors">
+                    <tr key={emp.userId} className="hover:bg-slate-50/50 transition-colors">
                       {/* 1. Employee Name */}
-                      <td className="p-3 font-bold text-white">
+                      <td className="p-3 font-bold text-slate-900">
                         <div>{emp.employeeName || emp.name}</div>
-                        <div className="text-[10px] text-gray-400 font-normal">{emp.designation} • {emp.department}</div>
+                        <div className="text-[10px] text-slate-500 font-normal">{emp.designation} • {emp.department}</div>
                       </td>
 
                       {/* 2. Attendance */}
                       <td className="p-3">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           emp.attendance === 'PRESENT'
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : emp.attendance === 'LATE'
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
                             : emp.attendance === 'HALF_DAY'
-                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                            ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
                             : emp.attendance === 'ABSENT'
-                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                            : 'bg-gray-800 text-gray-400'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'bg-slate-100 text-slate-500'
                         }`}>
                           {emp.attendance || 'NOT MARKED'}
                         </span>
                       </td>
 
                       {/* 3. Assigned Tasks */}
-                      <td className="p-3 text-center font-mono font-bold text-blue-300">{emp.assignedTasksCount ?? emp.assignedTasks}</td>
+                      <td className="p-3 text-center font-mono font-bold text-blue-700">{emp.assignedTasksCount ?? emp.assignedTasks}</td>
 
                       {/* 4. Completed Tasks */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{emp.completedTasksCount ?? emp.completedTasks}</td>
+                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{emp.completedTasksCount ?? emp.completedTasks}</td>
 
                       {/* 9. Pending Tasks */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-300">{emp.pendingTasksCount ?? emp.pendingTasks}</td>
+                      <td className="p-3 text-center font-mono font-bold text-amber-800">{emp.pendingTasksCount ?? emp.pendingTasks}</td>
 
                       {/* 5. Daily Target */}
-                      <td className="p-3 text-center font-mono text-gray-300">{emp.dailyTarget}</td>
+                      <td className="p-3 text-center font-mono text-slate-700">{emp.dailyTarget}</td>
 
                       {/* 6. Actual Output */}
-                      <td className="p-3 text-center font-mono font-bold text-cyan-300">{emp.actualDailyOutput ?? emp.actualOutput}</td>
+                      <td className="p-3 text-center font-mono font-bold text-cyan-700">{emp.actualDailyOutput ?? emp.actualOutput}</td>
 
                       {/* 7. Target Achievement Percentage */}
                       <td className="p-3 text-center font-mono font-bold">
                         <span className={`px-2 py-0.5 rounded text-[11px] ${
                           (emp.targetAchievementPercentage ?? emp.achievementPercentage) >= 100
-                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                            : 'bg-amber-950 text-amber-300 border border-amber-800'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-800 border border-amber-200'
                         }`}>
                           {emp.targetAchievementPercentage ?? emp.achievementPercentage}%
                         </span>
                       </td>
 
                       {/* 8. Revision Count */}
-                      <td className="p-3 text-center font-mono font-bold text-rose-400">{emp.revisionCount || 0}x</td>
+                      <td className="p-3 text-center font-mono font-bold text-rose-600">{emp.revisionCount || 0}x</td>
 
                       {/* 10. Completion Rate */}
                       <td className="p-3 text-center font-mono font-bold text-indigo-300 font-mono">
@@ -2474,9 +2469,9 @@ export default function ReportsPage() {
                       {/* 11. Overall Score */}
                       <td className="p-3 text-center font-mono font-bold">
                         <span className={`px-2 py-0.5 rounded text-[11px] ${
-                          emp.overallProductivityScore >= 80 ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                          emp.overallProductivityScore >= 50 ? 'bg-amber-950 text-amber-400 border border-amber-800' :
-                          'bg-rose-950 text-rose-400 border border-rose-800'
+                          emp.overallProductivityScore >= 80 ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                          emp.overallProductivityScore >= 50 ? 'bg-amber-50 text-amber-600 border border-amber-200' :
+                          'bg-rose-50 text-rose-600 border border-rose-200'
                         }`}>
                           {emp.overallProductivityScore}
                         </span>
@@ -2494,44 +2489,44 @@ export default function ReportsPage() {
       {activeTab === 'scripts' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2"><Users className="w-4 h-4 text-blue-400" /> 1. Employee Productivity Reports</h2>
+            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Users className="w-4 h-4 text-blue-600" /> 1. Employee Productivity Reports</h2>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {(scriptAnalytics?.employeeProductivity || []).length === 0 ? (
-                  <p className="text-gray-500 italic">No employee assignments recorded yet.</p>
+                  <p className="text-slate-400 italic">No employee assignments recorded yet.</p>
                 ) : (
                   (scriptAnalytics?.employeeProductivity || []).map((emp: any) => (
-                    <div key={emp.userId} className="flex items-center justify-between bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
+                    <div key={emp.userId} className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
                       <div>
-                        <strong className="text-white text-xs block">{emp.name}</strong>
-                        <span className="text-[10px] text-gray-400">{emp.role}</span>
+                        <strong className="text-slate-900 text-xs block">{emp.name}</strong>
+                        <span className="text-[10px] text-slate-500">{emp.role}</span>
                       </div>
                       <div className="flex items-center gap-3 text-[11px] font-mono">
-                        <div><span className="text-gray-500">Assigned:</span> <strong className="text-blue-300">{emp.assignedCount}</strong></div>
-                        <div><span className="text-gray-500">Completed:</span> <strong className="text-emerald-400">{emp.completedCount}</strong></div>
-                        <div><span className="text-gray-500">Revisions:</span> <strong className="text-amber-300">{emp.revisionCount}</strong></div>
+                        <div><span className="text-slate-400">Assigned:</span> <strong className="text-blue-700">{emp.assignedCount}</strong></div>
+                        <div><span className="text-slate-400">Completed:</span> <strong className="text-emerald-600">{emp.completedCount}</strong></div>
+                        <div><span className="text-slate-400">Revisions:</span> <strong className="text-amber-800">{emp.revisionCount}</strong></div>
                       </div>
                     </div>
                   ))
                 )}
               </div>
             </div>
-            <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2"><Building2 className="w-4 h-4 text-purple-400" /> 2. Brand Performance Reports</h2>
+            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Building2 className="w-4 h-4 text-purple-600" /> 2. Brand Performance Reports</h2>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {(scriptAnalytics?.brandPerformance || []).length === 0 ? (
-                  <p className="text-gray-500 italic">No brand script data available.</p>
+                  <p className="text-slate-400 italic">No brand script data available.</p>
                 ) : (
                   (scriptAnalytics?.brandPerformance || []).map((b: any) => (
-                    <div key={b.brandId} className="flex items-center justify-between bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
+                    <div key={b.brandId} className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
                       <div>
-                        <strong className="text-purple-300 text-xs block">[{b.shortCode}] {b.name}</strong>
-                        <span className="text-[10px] text-gray-400">{b.deliverableCount} Deliverables Planned</span>
+                        <strong className="text-purple-700 text-xs block">[{b.shortCode}] {b.name}</strong>
+                        <span className="text-[10px] text-slate-500">{b.deliverableCount} Deliverables Planned</span>
                       </div>
                       <div className="flex items-center gap-3 text-[11px] font-mono">
-                        <div><span className="text-gray-500">Scripts:</span> <strong className="text-white">{b.scriptCount}</strong></div>
-                        <div><span className="text-gray-500">Completed:</span> <strong className="text-emerald-400">{b.completedCount}</strong></div>
-                        <div><span className="text-gray-500">Revisions:</span> <strong className="text-amber-300">{b.totalRevisions}</strong></div>
+                        <div><span className="text-slate-500">Scripts:</span> <strong className="text-slate-900">{b.scriptCount}</strong></div>
+                        <div><span className="text-slate-400">Completed:</span> <strong className="text-emerald-600">{b.completedCount}</strong></div>
+                        <div><span className="text-slate-400">Revisions:</span> <strong className="text-amber-800">{b.totalRevisions}</strong></div>
                       </div>
                     </div>
                   ))
@@ -2541,34 +2536,34 @@ export default function ReportsPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2"><Layers className="w-4 h-4 text-cyan-400" /> 3. Product Performance Reports</h2>
+            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Layers className="w-4 h-4 text-cyan-600" /> 3. Product Performance Reports</h2>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {(scriptAnalytics?.productPerformance || []).length === 0 ? (
-                  <p className="text-gray-500 italic">No product script data available.</p>
+                  <p className="text-slate-400 italic">No product script data available.</p>
                 ) : (
                   (scriptAnalytics?.productPerformance || []).map((p: any) => (
-                    <div key={p.productId} className="flex items-center justify-between bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
+                    <div key={p.productId} className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
                       <div>
-                        <strong className="text-cyan-300 text-xs block">{p.name}</strong>
-                        <span className="text-[10px] text-gray-400">Code: {p.productCode}</span>
+                        <strong className="text-cyan-700 text-xs block">{p.name}</strong>
+                        <span className="text-[10px] text-slate-500">Code: {p.productCode}</span>
                       </div>
                       <div className="flex items-center gap-3 text-[11px] font-mono">
-                        <div><span className="text-gray-500">Scripts:</span> <strong className="text-white">{p.scriptCount}</strong></div>
-                        <div><span className="text-gray-500">Completed:</span> <strong className="text-emerald-400">{p.completedCount}</strong></div>
+                        <div><span className="text-slate-500">Scripts:</span> <strong className="text-slate-900">{p.scriptCount}</strong></div>
+                        <div><span className="text-slate-400">Completed:</span> <strong className="text-emerald-600">{p.completedCount}</strong></div>
                       </div>
                     </div>
                   ))
                 )}
               </div>
             </div>
-            <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-400" /> 4. Language-wise Reports</h2>
+            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-600" /> 4. Language-wise Reports</h2>
               <div className="grid grid-cols-2 gap-2 text-[11px]">
                 {(scriptAnalytics?.languageWiseReports || []).map((l: any) => (
-                  <div key={l.language} className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1">
-                    <span className="font-bold text-emerald-300 block">{l.language}</span>
-                    <div className="text-gray-400 text-[10px]">Total: <strong className="text-white">{l.totalScripts}</strong> | Done: <strong className="text-emerald-400">{l.completedScripts}</strong></div>
+                  <div key={l.language} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                    <span className="font-bold text-emerald-700 block">{l.language}</span>
+                    <div className="text-slate-500 text-[10px]">Total: <strong className="text-slate-900">{l.totalScripts}</strong> | Done: <strong className="text-emerald-600">{l.completedScripts}</strong></div>
                   </div>
                 ))}
               </div>
@@ -2576,45 +2571,45 @@ export default function ReportsPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2"><PieChart className="w-4 h-4 text-amber-400" /> 5. Category-wise Reports</h2>
+            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><PieChart className="w-4 h-4 text-amber-600" /> 5. Category-wise Reports</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 {(scriptAnalytics?.categoryWiseReports || []).map((c: any) => (
-                  <div key={c.category} className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg space-y-1">
-                    <span className="font-semibold text-amber-300 block text-[11px]">{c.category}</span>
-                    <div className="text-xl font-bold text-white font-mono">{c.totalScripts}</div>
-                    <div className="text-[9px] text-gray-400">Completed: {c.completedScripts} | Revisions: {c.totalRevisions}</div>
+                  <div key={c.category} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                    <span className="font-semibold text-amber-800 block text-[11px]">{c.category}</span>
+                    <div className="text-xl font-bold text-slate-900 font-mono">{c.totalScripts}</div>
+                    <div className="text-[9px] text-slate-500">Completed: {c.completedScripts} | Revisions: {c.totalRevisions}</div>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2"><BarChart3 className="w-4 h-4 text-blue-400" /> 6. Production Capacity Reports</h2>
+            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><BarChart3 className="w-4 h-4 text-blue-600" /> 6. Production Capacity Reports</h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-[11px]">
-                <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">In Pipeline</span><strong className="text-lg text-blue-400 font-mono">{scriptAnalytics?.productionCapacity?.totalPipelineScripts || 0}</strong></div>
-                <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">In Production</span><strong className="text-lg text-yellow-400 font-mono">{scriptAnalytics?.productionCapacity?.inProductionCount || 0}</strong></div>
-                <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">Ready</span><strong className="text-lg text-purple-400 font-mono">{scriptAnalytics?.productionCapacity?.readyCount || 0}</strong></div>
-                <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">Deliverables</span><strong className="text-lg text-cyan-400 font-mono">{scriptAnalytics?.productionCapacity?.totalDeliverablesPlanned || 0}</strong></div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">In Pipeline</span><strong className="text-lg text-blue-600 font-mono">{scriptAnalytics?.productionCapacity?.totalPipelineScripts || 0}</strong></div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">In Production</span><strong className="text-lg text-amber-600 font-mono">{scriptAnalytics?.productionCapacity?.inProductionCount || 0}</strong></div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Ready</span><strong className="text-lg text-purple-600 font-mono">{scriptAnalytics?.productionCapacity?.readyCount || 0}</strong></div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Deliverables</span><strong className="text-lg text-cyan-600 font-mono">{scriptAnalytics?.productionCapacity?.totalDeliverablesPlanned || 0}</strong></div>
               </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2"><RotateCcw className="w-4 h-4 text-red-400" /> 7. Revision Reports</h2>
+            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><RotateCcw className="w-4 h-4 text-rose-600" /> 7. Revision Reports</h2>
               <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
-                <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">Total Revisions</span><strong className="text-lg text-amber-300 font-mono">{scriptAnalytics?.revisionReports?.totalRevisions || 0}</strong></div>
-                <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">Avg / Script</span><strong className="text-lg text-blue-400 font-mono">{scriptAnalytics?.revisionReports?.avgRevisionsPerScript || 0}</strong></div>
-                <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">Pending Revisions</span><strong className="text-lg text-red-400 font-mono">{scriptAnalytics?.revisionReports?.pendingRevisionRequestCount || 0}</strong></div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Total Revisions</span><strong className="text-lg text-amber-800 font-mono">{scriptAnalytics?.revisionReports?.totalRevisions || 0}</strong></div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Avg / Script</span><strong className="text-lg text-blue-600 font-mono">{scriptAnalytics?.revisionReports?.avgRevisionsPerScript || 0}</strong></div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Pending Revisions</span><strong className="text-lg text-rose-600 font-mono">{scriptAnalytics?.revisionReports?.pendingRevisionRequestCount || 0}</strong></div>
               </div>
             </div>
-            <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-emerald-400" /> 8. Approval Reports</h2>
+            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-emerald-600" /> 8. Approval Reports</h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-[11px]">
-                <div className="p-2 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">Tech Approved</span><strong className="text-purple-300 font-mono">{scriptAnalytics?.approvalReports?.technicalApprovedCount || 0}</strong></div>
-                <div className="p-2 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">Media Approved</span><strong className="text-indigo-300 font-mono">{scriptAnalytics?.approvalReports?.mediaApprovedCount || 0}</strong></div>
-                <div className="p-2 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">Client Confirmed</span><strong className="text-cyan-300 font-mono">{scriptAnalytics?.approvalReports?.clientConfirmedCount || 0}</strong></div>
-                <div className="p-2 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">Fully Approved</span><strong className="text-emerald-400 font-mono">{scriptAnalytics?.approvalReports?.fullyApprovedCount || 0}</strong></div>
+                <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Tech Approved</span><strong className="text-purple-700 font-mono">{scriptAnalytics?.approvalReports?.technicalApprovedCount || 0}</strong></div>
+                <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Media Approved</span><strong className="text-indigo-300 font-mono">{scriptAnalytics?.approvalReports?.mediaApprovedCount || 0}</strong></div>
+                <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Client Confirmed</span><strong className="text-cyan-700 font-mono">{scriptAnalytics?.approvalReports?.clientConfirmedCount || 0}</strong></div>
+                <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Fully Approved</span><strong className="text-emerald-600 font-mono">{scriptAnalytics?.approvalReports?.fullyApprovedCount || 0}</strong></div>
               </div>
             </div>
           </div>
@@ -2625,26 +2620,26 @@ export default function ReportsPage() {
       {activeTab === 'graphics' && (
         <div className="space-y-6">
           {/* 1. Employee Productivity */}
-          <div className="bg-card border border-amber-900/30 p-5 rounded-xl space-y-3">
-            <h2 className="font-bold text-white text-sm flex items-center gap-2">
-              <Users className="w-4 h-4 text-blue-400" /> 1. Employee Productivity Reports
-              <span className="ml-1 text-[10px] text-amber-400 bg-amber-950 border border-amber-800 px-2 py-0.5 rounded-full font-semibold">Graphic Reqs</span>
+          <div className="bg-white border border-amber-200 p-5 rounded-xl space-y-3">
+            <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <Users className="w-4 h-4 text-blue-600" /> 1. Employee Productivity Reports
+              <span className="ml-1 text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-semibold">Graphic Reqs</span>
             </h2>
             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
               {(gr?.employeeProductivity || []).length === 0 ? (
-                <p className="text-gray-500 italic">No employee assignments in graphic requirements yet.</p>
+                <p className="text-slate-400 italic">No employee assignments in graphic requirements yet.</p>
               ) : (
                 (gr?.employeeProductivity || []).map((emp: any) => (
-                  <div key={emp.userId} className="flex items-center justify-between bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
+                  <div key={emp.userId} className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
                     <div>
-                      <strong className="text-white text-xs block">{emp.name}</strong>
-                      <span className="text-[10px] text-gray-400">{emp.role}</span>
+                      <strong className="text-slate-900 text-xs block">{emp.name}</strong>
+                      <span className="text-[10px] text-slate-500">{emp.role}</span>
                     </div>
                     <div className="flex items-center gap-3 text-[11px] font-mono">
-                      <div><span className="text-gray-500">Reqs:</span> <strong className="text-blue-300">{emp.assignedCount}</strong></div>
-                      <div><span className="text-gray-500">In Prog:</span> <strong className="text-yellow-300">{emp.inProgressCount}</strong></div>
-                      <div><span className="text-gray-500">Done:</span> <strong className="text-emerald-400">{emp.completedCount}</strong></div>
-                      <div><span className="text-gray-500">Rev:</span> <strong className="text-amber-300">{emp.revisionCount}</strong></div>
+                      <div><span className="text-slate-400">Reqs:</span> <strong className="text-blue-700">{emp.assignedCount}</strong></div>
+                      <div><span className="text-slate-400">In Prog:</span> <strong className="text-amber-800">{emp.inProgressCount}</strong></div>
+                      <div><span className="text-slate-400">Done:</span> <strong className="text-emerald-600">{emp.completedCount}</strong></div>
+                      <div><span className="text-slate-400">Rev:</span> <strong className="text-amber-800">{emp.revisionCount}</strong></div>
                     </div>
                   </div>
                 ))
@@ -2654,49 +2649,49 @@ export default function ReportsPage() {
 
           {/* 2 & 3: Brand + Product */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2"><Building2 className="w-4 h-4 text-purple-400" /> 2. Brand Reports</h2>
+            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Building2 className="w-4 h-4 text-purple-600" /> 2. Brand Reports</h2>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {(gr?.brandReports || []).length === 0 ? (
-                  <p className="text-gray-500 italic">No brand graphic data available.</p>
+                  <p className="text-slate-400 italic">No brand graphic data available.</p>
                 ) : (
                   (gr?.brandReports || []).map((b: any) => (
-                    <div key={b.brandId} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
+                    <div key={b.brandId} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
                       <div className="flex items-center justify-between mb-1">
-                        <strong className="text-purple-300 text-xs">[{b.shortCode}] {b.name}</strong>
-                        <span className="text-[10px] text-gray-400 font-mono">{b.totalReqs} reqs</span>
+                        <strong className="text-purple-700 text-xs">[{b.shortCode}] {b.name}</strong>
+                        <span className="text-[10px] text-slate-500 font-mono">{b.totalReqs} reqs</span>
                       </div>
-                      <div className="w-full bg-gray-800 rounded-full h-1.5">
+                      <div className="w-full bg-slate-100 rounded-full h-1.5">
                         <div className="bg-purple-500 h-1.5 rounded-full" style={{ width: b.totalReqs > 0 ? `${(b.completedCount / b.totalReqs) * 100}%` : '0%' }} />
                       </div>
-                      <div className="flex justify-between text-[10px] mt-1 text-gray-500">
-                        <span>Done: <strong className="text-emerald-400">{b.completedCount}</strong></span>
-                        <span>In Prog: <strong className="text-yellow-400">{b.inProgressCount}</strong></span>
-                        <span>Rev: <strong className="text-amber-300">{b.totalRevisions}</strong></span>
+                      <div className="flex justify-between text-[10px] mt-1 text-slate-400">
+                        <span>Done: <strong className="text-emerald-600">{b.completedCount}</strong></span>
+                        <span>In Prog: <strong className="text-amber-600">{b.inProgressCount}</strong></span>
+                        <span>Rev: <strong className="text-amber-800">{b.totalRevisions}</strong></span>
                       </div>
                     </div>
                   ))
                 )}
               </div>
             </div>
-            <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2"><Package className="w-4 h-4 text-cyan-400" /> 3. Product Reports</h2>
+            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Package className="w-4 h-4 text-cyan-600" /> 3. Product Reports</h2>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {(gr?.productReports || []).length === 0 ? (
-                  <p className="text-gray-500 italic">No product graphic data available.</p>
+                  <p className="text-slate-400 italic">No product graphic data available.</p>
                 ) : (
                   (gr?.productReports || []).map((p: any) => (
-                    <div key={p.productId} className="bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
+                    <div key={p.productId} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
                       <div className="flex items-center justify-between mb-1">
-                        <strong className="text-cyan-300 text-xs">{p.name}</strong>
-                        <span className="text-[10px] text-gray-400 font-mono">{p.totalReqs} reqs</span>
+                        <strong className="text-cyan-700 text-xs">{p.name}</strong>
+                        <span className="text-[10px] text-slate-500 font-mono">{p.totalReqs} reqs</span>
                       </div>
-                      <div className="w-full bg-gray-800 rounded-full h-1.5">
+                      <div className="w-full bg-slate-100 rounded-full h-1.5">
                         <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: p.totalReqs > 0 ? `${(p.completedCount / p.totalReqs) * 100}%` : '0%' }} />
                       </div>
-                      <div className="flex justify-between text-[10px] mt-1 text-gray-500">
-                        <span>Done: <strong className="text-emerald-400">{p.completedCount}</strong></span>
-                        <span>Rev: <strong className="text-amber-300">{p.totalRevisions}</strong></span>
+                      <div className="flex justify-between text-[10px] mt-1 text-slate-400">
+                        <span>Done: <strong className="text-emerald-600">{p.completedCount}</strong></span>
+                        <span>Rev: <strong className="text-amber-800">{p.totalRevisions}</strong></span>
                       </div>
                     </div>
                   ))
@@ -2706,15 +2701,15 @@ export default function ReportsPage() {
           </div>
 
           {/* 4. Requirement Type Reports */}
-          <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-            <h2 className="font-bold text-white text-sm flex items-center gap-2"><Tag className="w-4 h-4 text-amber-400" /> 4. Requirement Type Reports</h2>
+          <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+            <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Tag className="w-4 h-4 text-amber-600" /> 4. Requirement Type Reports</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {(gr?.typeReports || []).map((t: any, i: number) => (
-                  <div key={t.type} className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg">
+                  <div key={t.type} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
                     <span className="font-semibold block text-[11px]" style={{ color: BRAND_COLORS[i % BRAND_COLORS.length] }}>{t.type}</span>
-                    <div className="text-2xl font-bold text-white font-mono">{t.totalReqs}</div>
-                    <div className="text-[9px] text-gray-400">Done: {t.completedCount} | Rev: {t.totalRevisions}</div>
+                    <div className="text-2xl font-bold text-slate-900 font-mono">{t.totalReqs}</div>
+                    <div className="text-[9px] text-slate-500">Done: {t.completedCount} | Rev: {t.totalRevisions}</div>
                   </div>
                 ))}
               </div>
@@ -2738,23 +2733,23 @@ export default function ReportsPage() {
           </div>
 
           {/* 5. Capacity Reports */}
-          <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-            <h2 className="font-bold text-white text-sm flex items-center gap-2"><Zap className="w-4 h-4 text-yellow-400" /> 5. Capacity Reports</h2>
+          <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+            <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Zap className="w-4 h-4 text-amber-600" /> 5. Capacity Reports</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-center text-[11px]">
               {[
                 { label: 'Total', value: gr?.capacityReports?.totalRequirements || 0, color: 'text-white' },
-                { label: 'Draft', value: gr?.capacityReports?.draftCount || 0, color: 'text-gray-400' },
-                { label: 'Ready', value: gr?.capacityReports?.readyCount || 0, color: 'text-blue-400' },
-                { label: 'Assigned', value: gr?.capacityReports?.assignedCount || 0, color: 'text-purple-400' },
-                { label: 'In Progress', value: gr?.capacityReports?.inProgressCount || 0, color: 'text-yellow-400' },
-                { label: 'Tech Review', value: gr?.capacityReports?.waitingTechnicalReview || 0, color: 'text-amber-400' },
-                { label: 'Media Review', value: gr?.capacityReports?.waitingMediaReview || 0, color: 'text-cyan-400' },
+                { label: 'Draft', value: gr?.capacityReports?.draftCount || 0, color: 'text-slate-500' },
+                { label: 'Ready', value: gr?.capacityReports?.readyCount || 0, color: 'text-blue-600' },
+                { label: 'Assigned', value: gr?.capacityReports?.assignedCount || 0, color: 'text-purple-600' },
+                { label: 'In Progress', value: gr?.capacityReports?.inProgressCount || 0, color: 'text-amber-600' },
+                { label: 'Tech Review', value: gr?.capacityReports?.waitingTechnicalReview || 0, color: 'text-amber-600' },
+                { label: 'Media Review', value: gr?.capacityReports?.waitingMediaReview || 0, color: 'text-cyan-600' },
                 { label: 'Client Review', value: gr?.capacityReports?.waitingClientConfirmation || 0, color: 'text-indigo-400' },
                 { label: 'Revision Req.', value: gr?.capacityReports?.revisionRequested || 0, color: 'text-orange-400' },
-                { label: 'Completed', value: gr?.capacityReports?.completedCount || 0, color: 'text-emerald-400' },
+                { label: 'Completed', value: gr?.capacityReports?.completedCount || 0, color: 'text-emerald-600' },
               ].map((stat) => (
-                <div key={stat.label} className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg">
-                  <span className="text-gray-400 text-[10px] block">{stat.label}</span>
+                <div key={stat.label} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                  <span className="text-slate-500 text-[10px] block">{stat.label}</span>
                   <strong className={`text-lg font-mono ${stat.color}`}>{stat.value}</strong>
                 </div>
               ))}
@@ -2763,37 +2758,37 @@ export default function ReportsPage() {
 
           {/* 6 & 7: Revision + Approval */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2"><RotateCcw className="w-4 h-4 text-red-400" /> 6. Revision Reports</h2>
+            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><RotateCcw className="w-4 h-4 text-rose-600" /> 6. Revision Reports</h2>
               <div className="grid grid-cols-2 gap-2 text-center text-[11px]">
-                <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">Total Revisions</span><strong className="text-2xl text-amber-300 font-mono">{gr?.revisionReports?.totalRevisions || 0}</strong></div>
-                <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">Avg / Req</span><strong className="text-2xl text-blue-400 font-mono">{gr?.revisionReports?.avgRevisionsPerReq || '0'}</strong></div>
-                <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg"><span className="text-gray-400 text-[10px] block">Pending</span><strong className="text-2xl text-red-400 font-mono">{gr?.revisionReports?.pendingRevisions || 0}</strong></div>
-                <div className="p-2.5 bg-gray-900 border border-gray-800 rounded-lg text-left px-3">
-                  <div className="text-[10px] text-gray-500 font-semibold uppercase">Distribution</div>
-                  <div className="text-[10px]">0 rev: <strong className="text-emerald-400">{gr?.revisionReports?.distribution?.zeroRevisions || 0}</strong></div>
-                  <div className="text-[10px]">1-2 rev: <strong className="text-amber-400">{gr?.revisionReports?.distribution?.oneToTwoRevisions || 0}</strong></div>
-                  <div className="text-[10px]">3+ rev: <strong className="text-red-400">{gr?.revisionReports?.distribution?.threePlusRevisions || 0}</strong></div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Total Revisions</span><strong className="text-2xl text-amber-800 font-mono">{gr?.revisionReports?.totalRevisions || 0}</strong></div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Avg / Req</span><strong className="text-2xl text-blue-600 font-mono">{gr?.revisionReports?.avgRevisionsPerReq || '0'}</strong></div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Pending</span><strong className="text-2xl text-rose-600 font-mono">{gr?.revisionReports?.pendingRevisions || 0}</strong></div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-left px-3">
+                  <div className="text-[10px] text-slate-400 font-semibold uppercase">Distribution</div>
+                  <div className="text-[10px]">0 rev: <strong className="text-emerald-600">{gr?.revisionReports?.distribution?.zeroRevisions || 0}</strong></div>
+                  <div className="text-[10px]">1-2 rev: <strong className="text-amber-600">{gr?.revisionReports?.distribution?.oneToTwoRevisions || 0}</strong></div>
+                  <div className="text-[10px]">3+ rev: <strong className="text-rose-600">{gr?.revisionReports?.distribution?.threePlusRevisions || 0}</strong></div>
                 </div>
               </div>
               {(gr?.revisionReports?.topRevised || []).length > 0 && (
                 <div className="space-y-1.5">
-                  <div className="text-[10px] text-gray-500 font-semibold uppercase">Top Revised Requirements</div>
+                  <div className="text-[10px] text-slate-400 font-semibold uppercase">Top Revised Requirements</div>
                   {(gr?.revisionReports?.topRevised || []).map((r: any) => (
-                    <div key={r.id} className="flex items-center justify-between bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-lg">
+                    <div key={r.id} className="flex items-center justify-between bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
                       <div>
-                        <span className="font-mono text-amber-400 text-[10px]">{r.id}</span>
-                        <span className="text-white text-[11px] ml-2">{r.name}</span>
+                        <span className="font-mono text-amber-600 text-[10px]">{r.id}</span>
+                        <span className="text-slate-800 text-[11px] ml-2">{r.name}</span>
                       </div>
-                      <span className="text-red-400 font-mono font-bold">{r.revisions}x</span>
+                      <span className="text-rose-600 font-mono font-bold">{r.revisions}x</span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="bg-card border border-border p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-emerald-400" /> 7. Approval Reports</h2>
+            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-emerald-600" /> 7. Approval Reports</h2>
               <div className="space-y-2">
                 {[
                   { label: 'Production Completed', value: gr?.approvalReports?.productionCompleted || 0, color: 'bg-blue-500' },
@@ -2806,19 +2801,19 @@ export default function ReportsPage() {
                   return (
                     <div key={stat.label} className="space-y-1">
                       <div className="flex justify-between text-[11px]">
-                        <span className="text-gray-300">{stat.label}</span>
-                        <span className="font-mono text-white">{stat.value} / {total}</span>
+                        <span className="text-slate-700">{stat.label}</span>
+                        <span className="font-mono text-slate-900">{stat.value} / {total}</span>
                       </div>
-                      <div className="w-full bg-gray-800 rounded-full h-1.5">
+                      <div className="w-full bg-slate-100 rounded-full h-1.5">
                         <div className={`${stat.color} h-1.5 rounded-full transition-all`} style={{ width: total > 0 ? `${Math.min(100, (stat.value / total) * 100)}%` : '0%' }} />
                       </div>
                     </div>
                   );
                 })}
-                <div className="pt-2 border-t border-gray-800 grid grid-cols-3 gap-2 text-center text-[10px]">
-                  <div className="p-2 bg-amber-950/60 border border-amber-800/40 rounded-lg"><span className="text-gray-400 block">Waiting Tech</span><strong className="text-amber-300 font-mono">{gr?.approvalReports?.waitingTechnicalReview || 0}</strong></div>
-                  <div className="p-2 bg-cyan-950/60 border border-cyan-800/40 rounded-lg"><span className="text-gray-400 block">Waiting Media</span><strong className="text-cyan-300 font-mono">{gr?.approvalReports?.waitingMediaReview || 0}</strong></div>
-                  <div className="p-2 bg-indigo-950/60 border border-indigo-800/40 rounded-lg"><span className="text-gray-400 block">Waiting Client</span><strong className="text-indigo-300 font-mono">{gr?.approvalReports?.waitingClientConfirmation || 0}</strong></div>
+                <div className="pt-2 border-t border-slate-200 grid grid-cols-3 gap-2 text-center text-[10px]">
+                  <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg"><span className="text-slate-500 block">Waiting Tech</span><strong className="text-amber-800 font-mono">{gr?.approvalReports?.waitingTechnicalReview || 0}</strong></div>
+                  <div className="p-2 bg-cyan-50 border border-cyan-200 rounded-lg"><span className="text-slate-500 block">Waiting Media</span><strong className="text-cyan-700 font-mono">{gr?.approvalReports?.waitingMediaReview || 0}</strong></div>
+                  <div className="p-2 bg-indigo-50 border border-indigo-800/40 rounded-lg"><span className="text-slate-500 block">Waiting Client</span><strong className="text-indigo-300 font-mono">{gr?.approvalReports?.waitingClientConfirmation || 0}</strong></div>
                 </div>
               </div>
             </div>

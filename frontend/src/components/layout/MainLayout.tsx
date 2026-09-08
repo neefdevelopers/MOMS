@@ -69,7 +69,7 @@ export function MainLayout({
       <FavoritesProvider>
         <BreadcrumbsProvider>
           {/* Standard Application Layout Shell */}
-          <div className="flex h-full w-full overflow-hidden bg-background text-gray-100 m-0 p-0">
+          <div className="flex h-full w-full overflow-hidden bg-background text-slate-800 m-0 p-0">
             {/* 1. Left Sidebar Navigation */}
             <Sidebar />
 
@@ -82,7 +82,7 @@ export function MainLayout({
 
               <div className="flex-1 flex min-h-0 overflow-hidden">
                 {/* 3. Main Content Area */}
-                <main className="flex-1 p-6 overflow-y-auto min-w-0">
+                <main className="flex-1 p-6 overflow-y-auto min-w-0 bg-slate-50">
                   <RoleGuard>
                     <Suspense fallback={<Loading />}>{children}</Suspense>
                   </RoleGuard>
@@ -90,7 +90,7 @@ export function MainLayout({
 
                 {/* 4. Right Utility Panel (Optional) */}
                 {rightUtilityPanel && (
-                  <aside className="w-80 border-l border-gray-800 bg-[#0d121f] overflow-y-auto p-4 shrink-0">
+                  <aside className="w-80 border-l border-slate-200 bg-white overflow-y-auto p-4 shrink-0 text-slate-800">
                     {rightUtilityPanel}
                   </aside>
                 )}
@@ -98,7 +98,7 @@ export function MainLayout({
 
               {/* 5. Footer / Status Bar (Optional) */}
               {footer && (
-                <footer className="h-8 bg-[#090d16] border-t border-gray-800 text-xs text-gray-400 flex items-center justify-between px-4 shrink-0">
+                <footer className="h-8 bg-white border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between px-4 shrink-0">
                   {footer}
                 </footer>
               )}

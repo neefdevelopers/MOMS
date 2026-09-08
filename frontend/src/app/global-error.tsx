@@ -10,16 +10,16 @@ export default function GlobalError({
   reset: () => void;
 }) {
   return (
-    <html>
-      <body className="bg-gray-950 text-white min-h-screen flex items-center justify-center p-6 text-xs font-sans">
-        <div className="bg-gray-900 border border-gray-800 p-8 rounded-2xl max-w-md w-full text-center space-y-4 shadow-2xl">
-          <h2 className="text-xl font-bold text-red-400">Application Error</h2>
-          <p className="text-gray-400 text-xs">
+    <html lang="en">
+      <body className="bg-slate-50 text-slate-900 min-h-screen flex items-center justify-center p-6 text-xs font-sans">
+        <div className="bg-white border border-slate-200 p-8 rounded-2xl max-w-md w-full text-center space-y-4 shadow-xl">
+          <h2 className="text-xl font-bold text-rose-600">Application Error</h2>
+          <p className="text-slate-500 text-xs">
             {error?.message || 'A critical global application error occurred.'}
           </p>
           <button
             onClick={() => reset()}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg shadow-md transition-colors"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
           >
             Reset Application
           </button>

@@ -158,24 +158,24 @@ export default function ExceptionalOperationalConditionsModal({
   const highCount = alertsList.filter((a) => !a.resolved && a.severity === 'HIGH').length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header Bar */}
-        <div className="p-5 bg-gradient-to-r from-red-950/60 via-zinc-900 to-zinc-950 border-b border-zinc-800 flex items-center justify-between shrink-0">
+        <div className="p-5 bg-red-50 border-b border-red-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-red-600/20 border border-red-500/40 rounded-xl text-red-400 shrink-0">
+            <div className="p-2.5 bg-red-100 border border-red-200 rounded-xl text-red-700 shrink-0">
               <ShieldAlert className="w-6 h-6 animate-pulse" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white tracking-wide">
+                <h2 className="text-base font-bold text-slate-900 tracking-wide">
                   Exceptional Operational Conditions Command Center
                 </h2>
-                <span className="text-[10px] font-mono font-black uppercase px-2 py-0.5 rounded bg-red-600 text-white shadow-sm">
+                <span className="text-[10px] font-mono font-black uppercase px-2 py-0.5 rounded bg-red-600 text-white shadow-xs">
                   Media Manager Administrative Scope
                 </span>
               </div>
-              <p className="text-xs text-zinc-400 mt-0.5">
+              <p className="text-xs text-slate-600 mt-0.5">
                 Real-time diagnostic monitoring for exceptional conditions requiring administrative attention
               </p>
             </div>
@@ -185,14 +185,14 @@ export default function ExceptionalOperationalConditionsModal({
             <button
               onClick={handleScanNow}
               disabled={scanning}
-              className="text-xs font-bold px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white border border-red-400 flex items-center gap-2 transition-all shadow-lg disabled:opacity-50"
+              className="text-xs font-bold px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white border border-red-500 flex items-center gap-2 transition-all shadow-xs disabled:opacity-50"
             >
               <RotateCcw className={`w-3.5 h-3.5 ${scanning ? 'animate-spin' : ''}`} />
               {scanning ? 'Scanning Operational Subsystems...' : 'Run Diagnostic Scan'}
             </button>
             <button
               onClick={onClose}
-              className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors"
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-red-100/60 rounded-xl transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -200,52 +200,52 @@ export default function ExceptionalOperationalConditionsModal({
         </div>
 
         {/* Top Diagnostic Counters */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-zinc-900/50 border-b border-zinc-800 shrink-0">
-          <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-xl flex items-center justify-between">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-50/70 border-b border-slate-200 shrink-0">
+          <div className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between shadow-xs">
             <div>
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                 Total Active Alerts
               </span>
-              <span className="text-xl font-black text-white">{activeCount}</span>
+              <span className="text-xl font-black text-slate-900">{activeCount}</span>
             </div>
-            <Activity className="w-5 h-5 text-amber-400" />
+            <Activity className="w-5 h-5 text-amber-500" />
           </div>
 
-          <div className="p-3 bg-red-950/30 border border-red-800/40 rounded-xl flex items-center justify-between">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between shadow-xs">
             <div>
-              <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider block">
+              <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider block">
                 Critical Conditions
               </span>
-              <span className="text-xl font-black text-red-400">{criticalCount}</span>
+              <span className="text-xl font-black text-red-700">{criticalCount}</span>
             </div>
-            <AlertTriangle className="w-5 h-5 text-red-400 animate-pulse" />
+            <AlertTriangle className="w-5 h-5 text-red-600 animate-pulse" />
           </div>
 
-          <div className="p-3 bg-amber-950/30 border border-amber-800/40 rounded-xl flex items-center justify-between">
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between shadow-xs">
             <div>
-              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+              <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">
                 High Priority Alerts
               </span>
-              <span className="text-xl font-black text-amber-300">{highCount}</span>
+              <span className="text-xl font-black text-amber-800">{highCount}</span>
             </div>
-            <Info className="w-5 h-5 text-amber-400" />
+            <Info className="w-5 h-5 text-amber-600" />
           </div>
 
-          <div className="p-3 bg-emerald-950/30 border border-emerald-800/40 rounded-xl flex items-center justify-between">
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-xs">
             <div>
-              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
+              <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
                 Operational Status
               </span>
-              <span className="text-xs font-bold text-emerald-300">
+              <span className="text-xs font-bold text-emerald-700">
                 {activeCount === 0 ? 'ALL SYSTEMS NOMINAL' : `${activeCount} REQUIRES ATTENTION`}
               </span>
             </div>
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
           </div>
         </div>
 
         {/* Filter Toolbar */}
-        <div className="p-4 bg-zinc-950 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div className="p-4 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
           {/* Category Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
             {(
@@ -264,8 +264,8 @@ export default function ExceptionalOperationalConditionsModal({
                 onClick={() => setActiveCategory(tab.id as FilterCategory)}
                 className={`text-xs font-bold px-3 py-1.5 rounded-lg whitespace-nowrap transition-all ${
                   activeCategory === tab.id
-                    ? 'bg-zinc-800 text-white border border-zinc-700 shadow-sm'
-                    : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 {tab.label}
@@ -278,7 +278,7 @@ export default function ExceptionalOperationalConditionsModal({
             <select
               value={severityFilter}
               onChange={(e) => setSeverityFilter(e.target.value as any)}
-              className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs rounded-lg px-2.5 py-1.5 font-medium outline-none"
+              className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg px-2.5 py-1.5 font-medium outline-none focus:bg-white focus:border-blue-500"
             >
               <option value="ALL">All Severities</option>
               <option value="CRITICAL">Critical Only</option>
@@ -290,8 +290,8 @@ export default function ExceptionalOperationalConditionsModal({
               onClick={() => setShowResolved(!showResolved)}
               className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 ${
                 showResolved
-                  ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300'
-                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
               }`}
             >
               <Check className="w-3.5 h-3.5" />
@@ -301,22 +301,22 @@ export default function ExceptionalOperationalConditionsModal({
         </div>
 
         {/* Diagnostic Test Simulation Bar */}
-        <div className="px-4 py-2 bg-zinc-900/30 border-b border-zinc-800/80 flex items-center justify-between gap-2 text-[11px]">
-          <span className="text-zinc-400 font-mono font-medium flex items-center gap-1.5">
-            <Sliders className="w-3.5 h-3.5 text-blue-400" /> Administrative Diagnostic Simulation Controls:
+        <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2 text-[11px]">
+          <span className="text-slate-500 font-mono font-medium flex items-center gap-1.5">
+            <Sliders className="w-3.5 h-3.5 text-blue-600" /> Administrative Diagnostic Simulation Controls:
           </span>
           <div className="flex items-center gap-2">
             <button
               disabled={testingTrigger}
               onClick={() => handleTestDiagnostic('BACKUP_FAILURE', true)}
-              className="text-[10px] font-bold px-2 py-1 rounded bg-red-950/50 hover:bg-red-900/60 text-red-300 border border-red-800/60 transition-colors"
+              className="text-[10px] font-bold px-2 py-1 rounded bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors shadow-xs"
             >
               Simulate Backup Failure
             </button>
             <button
               disabled={testingTrigger}
               onClick={() => handleTestDiagnostic('SERVER_CONNECTIVITY', true)}
-              className="text-[10px] font-bold px-2 py-1 rounded bg-amber-950/50 hover:bg-amber-900/60 text-amber-300 border border-amber-800/60 transition-colors"
+              className="text-[10px] font-bold px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-colors shadow-xs"
             >
               Simulate High Latency
             </button>
@@ -326,7 +326,7 @@ export default function ExceptionalOperationalConditionsModal({
                 await handleTestDiagnostic('BACKUP_FAILURE', false);
                 await handleTestDiagnostic('SERVER_CONNECTIVITY', false);
               }}
-              className="text-[10px] font-bold px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors"
+              className="text-[10px] font-bold px-2 py-1 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition-colors shadow-xs"
             >
               Reset Diagnostics
             </button>
@@ -334,7 +334,7 @@ export default function ExceptionalOperationalConditionsModal({
         </div>
 
         {/* Alerts Content Feed */}
-        <div className="p-5 overflow-y-auto space-y-4 flex-1">
+        <div className="p-5 overflow-y-auto space-y-4 flex-1 bg-white">
           {filteredAlerts.length > 0 ? (
             filteredAlerts.map((alertItem) => {
               const isCrit = alertItem.severity === 'CRITICAL';
@@ -346,31 +346,31 @@ export default function ExceptionalOperationalConditionsModal({
                   key={alertItem.id}
                   className={`p-4.5 rounded-2xl border space-y-3.5 transition-all ${
                     isRes
-                      ? 'bg-zinc-900/40 border-zinc-800 text-zinc-400 opacity-80'
+                      ? 'bg-slate-50 border-slate-200 text-slate-500 opacity-80'
                       : isCrit
-                      ? 'bg-gradient-to-r from-red-950/40 via-zinc-900 to-zinc-900 border-red-600/80 shadow-xl shadow-red-950/30 ring-1 ring-red-500/40'
-                      : 'bg-gradient-to-r from-amber-950/30 via-zinc-900 to-zinc-900 border-amber-500/60 shadow-lg'
+                      ? 'bg-red-50/50 border-red-300 shadow-sm ring-1 ring-red-200'
+                      : 'bg-amber-50/40 border-amber-300 shadow-sm'
                   }`}
                 >
                   {/* Top Bar badges */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/80 pb-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
                         className={`text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded border ${
                           isCrit
                             ? 'bg-red-600 text-white border-red-500 animate-pulse'
-                            : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            : 'bg-amber-50 text-amber-800 border-amber-200'
                         }`}
                       >
-                        {isCrit ? '🚨 CRITICAL ALERT' : '⚡ HIGH ALERT'}
+                        {isCrit ? 'CRITICAL ALERT' : 'HIGH ALERT'}
                       </span>
 
-                      <span className="text-[10px] font-mono font-bold bg-zinc-800 text-zinc-300 border border-zinc-700 px-2 py-0.5 rounded uppercase">
+                      <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded uppercase">
                         {alertItem.category?.replace(/_/g, ' ')}
                       </span>
 
                       {alertItem.entityCode && (
-                        <span className="text-[10px] font-mono text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">
+                        <span className="text-[10px] font-mono text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded">
                           {alertItem.entityCode}
                         </span>
                       )}
@@ -378,17 +378,17 @@ export default function ExceptionalOperationalConditionsModal({
 
                     <div className="flex items-center gap-2 text-[10px] font-mono">
                       {isRes ? (
-                        <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded font-bold flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Resolved by{' '}
+                        <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Resolved by{' '}
                           {alertItem.resolutionInfo?.resolvedBy || 'Media Manager'}
                         </span>
                       ) : isAck ? (
-                        <span className="bg-blue-950/80 text-blue-300 border border-blue-800 px-2 py-0.5 rounded font-bold flex items-center gap-1">
-                          <UserCheck className="w-3 h-3 text-blue-400" /> Acknowledged by{' '}
+                        <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                          <UserCheck className="w-3 h-3 text-blue-600" /> Acknowledged by{' '}
                           {alertItem.acknowledgedInfo?.acknowledgedBy || 'Media Manager'}
                         </span>
                       ) : (
-                        <span className="bg-red-900/40 text-red-300 border border-red-800 px-2 py-0.5 rounded font-bold uppercase animate-pulse">
+                        <span className="bg-red-100 text-red-700 border border-red-300 px-2 py-0.5 rounded font-bold uppercase animate-pulse">
                           Requires Action
                         </span>
                       )}
@@ -397,21 +397,21 @@ export default function ExceptionalOperationalConditionsModal({
 
                   {/* Title & Description */}
                   <div>
-                    <h3 className="font-bold text-white text-sm leading-snug">{alertItem.title}</h3>
-                    <p className="text-xs text-zinc-300 mt-1 leading-relaxed">{alertItem.description}</p>
+                    <h3 className="font-bold text-slate-900 text-sm leading-snug">{alertItem.title}</h3>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">{alertItem.description}</p>
                   </div>
 
                   {/* Diagnostic Metrics Display */}
                   {alertItem.metrics && (
-                    <div className="p-3 bg-zinc-950/80 border border-zinc-800 rounded-xl text-xs space-y-1 font-mono text-zinc-300">
-                      <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                        <Activity className="w-3 h-3 text-zinc-400" /> Diagnostic Breakdown Details:
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-1 font-mono text-slate-700 shadow-xs">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                        <Activity className="w-3 h-3 text-slate-400" /> Diagnostic Breakdown Details:
                       </div>
 
                       {alertItem.category === 'STAFF_CAPACITY' && (
                         <div className="flex items-center justify-between">
-                          <span>Overload Target: <strong>{alertItem.metrics.employeeName}</strong></span>
-                          <span className="text-amber-400 font-bold">
+                          <span>Overload Target: <strong className="text-slate-900">{alertItem.metrics.employeeName}</strong></span>
+                          <span className="text-amber-700 font-bold">
                             {alertItem.metrics.activeTaskCount} Active Tasks (Capacity Limit: {alertItem.metrics.threshold})
                           </span>
                         </div>
@@ -419,24 +419,24 @@ export default function ExceptionalOperationalConditionsModal({
 
                       {alertItem.category === 'EQUIPMENT_CONFLICT' && (
                         <div className="space-y-1">
-                          <div>Conflicting Gear: <strong className="text-white">{alertItem.metrics.equipmentName}</strong> ({alertItem.metrics.equipmentCode})</div>
-                          <div className="text-[11px] text-red-300">
-                            Projects involved: {alertItem.metrics.conflictingProjects?.map((p: any) => p.name).join(' ⚡ ')}
+                          <div>Conflicting Gear: <strong className="text-slate-900">{alertItem.metrics.equipmentName}</strong> ({alertItem.metrics.equipmentCode})</div>
+                          <div className="text-[11px] text-red-700">
+                            Projects involved: {alertItem.metrics.conflictingProjects?.map((p: any) => p.name).join(' · ')}
                           </div>
                         </div>
                       )}
 
                       {alertItem.category === 'CALENDAR_CONFLICT' && (
                         <div className="flex items-center justify-between">
-                          <span>Studio Location: <strong className="text-white">{alertItem.metrics.location}</strong></span>
-                          <span className="text-amber-300 font-bold">Date: {alertItem.metrics.shootDate}</span>
+                          <span>Studio Location: <strong className="text-slate-900">{alertItem.metrics.location}</strong></span>
+                          <span className="text-amber-700 font-bold">Date: {alertItem.metrics.shootDate}</span>
                         </div>
                       )}
 
                       {alertItem.category === 'STORAGE_WARNING' && (
                         <div className="flex items-center justify-between">
                           <span>Media Repository Space:</span>
-                          <span className="text-amber-300 font-bold">
+                          <span className="text-amber-700 font-bold">
                             {alertItem.metrics.totalGB} GB / {alertItem.metrics.quotaGB} GB ({alertItem.metrics.usagePercentage}% Used)
                           </span>
                         </div>
@@ -445,14 +445,14 @@ export default function ExceptionalOperationalConditionsModal({
                       {alertItem.category === 'BACKUP_FAILURE' && (
                         <div className="flex items-center justify-between">
                           <span>Backup Verification Status:</span>
-                          <span className="text-red-400 font-bold">{alertItem.metrics.status}</span>
+                          <span className="text-red-700 font-bold">{alertItem.metrics.status}</span>
                         </div>
                       )}
 
                       {alertItem.category === 'CONNECTIVITY_ISSUE' && (
                         <div className="flex items-center justify-between">
                           <span>API Gateway Latency:</span>
-                          <span className="text-red-400 font-bold">
+                          <span className="text-red-700 font-bold">
                             {alertItem.metrics.latencyMs} ms (Threshold: {alertItem.metrics.thresholdMs} ms)
                           </span>
                         </div>
@@ -462,8 +462,8 @@ export default function ExceptionalOperationalConditionsModal({
 
                   {/* Resolution Notes Log (if resolved) */}
                   {isRes && alertItem.resolutionInfo && (
-                    <div className="p-2.5 bg-emerald-950/30 border border-emerald-800/40 rounded-xl text-xs text-emerald-300 flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                       <div>
                         <strong className="block font-semibold">Administrative Resolution Action:</strong>
                         <span>{alertItem.resolutionInfo.actionNotes}</span>
@@ -473,22 +473,22 @@ export default function ExceptionalOperationalConditionsModal({
 
                   {/* Admin Action Buttons */}
                   {!isRes && (
-                    <div className="pt-2 border-t border-zinc-800/80 flex flex-wrap items-center justify-between gap-2">
+                    <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         {/* Acknowledge Button */}
                         {!isAck && (
                           <button
                             onClick={() => setSelectedAlertForAck(alertItem)}
-                            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 transition-all flex items-center gap-1.5"
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-xs"
                           >
-                            <UserCheck className="w-3.5 h-3.5 text-blue-400" /> Acknowledge Alert
+                            <UserCheck className="w-3.5 h-3.5 text-blue-600" /> Acknowledge Alert
                           </button>
                         )}
 
                         {/* Mark Resolved Button */}
                         <button
                           onClick={() => setSelectedAlertForResolve(alertItem)}
-                          className="text-xs font-bold px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400 transition-all flex items-center gap-1.5 shadow-md"
+                          className="text-xs font-bold px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500 transition-all flex items-center gap-1.5 shadow-xs"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5 text-white" /> Mark Condition Resolved
                         </button>
@@ -499,7 +499,7 @@ export default function ExceptionalOperationalConditionsModal({
                         {alertItem.category === 'STAFF_CAPACITY' && onOpenReassignmentModal && (
                           <button
                             onClick={onOpenReassignmentModal}
-                            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition-all flex items-center gap-1.5"
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-all flex items-center gap-1.5 shadow-xs"
                           >
                             <Layers className="w-3.5 h-3.5" /> Rebalance Staff Workload
                           </button>
@@ -508,10 +508,10 @@ export default function ExceptionalOperationalConditionsModal({
                         {alertItem.actionUrl && (
                           <Link
                             href={alertItem.actionUrl}
-                            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 transition-all flex items-center gap-1.5"
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-xs"
                           >
                             <span>{alertItem.actionLabel || 'Inspect Module'}</span>
-                            <ExternalLink className="w-3 h-3 text-zinc-400" />
+                            <ExternalLink className="w-3 h-3 text-slate-500" />
                           </Link>
                         )}
                       </div>
@@ -521,10 +521,10 @@ export default function ExceptionalOperationalConditionsModal({
               );
             })
           ) : (
-            <div className="py-12 px-4 text-center bg-zinc-900/30 border border-zinc-800/80 rounded-2xl space-y-3">
-              <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto animate-bounce" />
-              <h3 className="text-base font-bold text-white">No Active Exceptional Operational Conditions</h3>
-              <p className="text-xs text-zinc-400 max-w-md mx-auto">
+            <div className="py-12 px-4 text-center bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+              <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
+              <h3 className="text-base font-bold text-slate-800">No Active Exceptional Operational Conditions</h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
                 All media production subsystems, capacity thresholds, gear scheduling, studio bookings, storage quotas, and server gateways are operational and nominal.
               </p>
             </div>
@@ -532,13 +532,13 @@ export default function ExceptionalOperationalConditionsModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-zinc-900/80 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400 shrink-0">
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 shrink-0">
           <span className="font-mono text-[11px]">
             Last Diagnostic Scan: {systemAlertsData?.evaluatedAt ? new Date(systemAlertsData.evaluatedAt).toLocaleString() : 'Just Now'}
           </span>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl border border-zinc-700 transition-colors"
+            className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors shadow-xs"
           >
             Close Command Center
           </button>
@@ -547,41 +547,41 @@ export default function ExceptionalOperationalConditionsModal({
 
       {/* Acknowledge Notes Modal */}
       {selectedAlertForAck && (
-        <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-blue-400" /> Acknowledge Operational Alert
+        <div className="fixed inset-0 z-60 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-blue-600" /> Acknowledge Operational Alert
               </h3>
-              <button onClick={() => setSelectedAlertForAck(null)} className="text-zinc-400 hover:text-white">
+              <button onClick={() => setSelectedAlertForAck(null)} className="text-slate-400 hover:text-slate-700">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-xs text-zinc-300">{selectedAlertForAck.title}</p>
+            <p className="text-xs text-slate-700">{selectedAlertForAck.title}</p>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-zinc-300 block">Acknowledgment Note / Remark</label>
+              <label className="text-xs font-semibold text-slate-700 block">Acknowledgment Note / Remark</label>
               <textarea
                 value={ackNotes}
                 onChange={(e) => setAckNotes(e.target.value)}
                 placeholder="Optional notes on administrative review..."
                 rows={3}
-                className="w-full bg-zinc-950 border border-zinc-800 text-white text-xs rounded-xl p-3 outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl p-3 outline-none focus:bg-white focus:border-blue-500"
               />
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => setSelectedAlertForAck(null)}
-                className="px-3.5 py-2 text-xs font-bold text-zinc-400 hover:text-white bg-zinc-800 rounded-xl"
+                className="px-3.5 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-xl"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAcknowledgeAlert}
                 disabled={submittingAck}
-                className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl flex items-center gap-1.5 disabled:opacity-50"
+                className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl flex items-center gap-1.5 disabled:opacity-50 shadow-xs"
               >
                 <Send className="w-3.5 h-3.5" />
                 {submittingAck ? 'Saving...' : 'Confirm Acknowledgment'}
@@ -593,43 +593,43 @@ export default function ExceptionalOperationalConditionsModal({
 
       {/* Resolve Condition Modal */}
       {selectedAlertForResolve && (
-        <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Mark Operational Condition Resolved
+        <div className="fixed inset-0 z-60 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Mark Operational Condition Resolved
               </h3>
-              <button onClick={() => setSelectedAlertForResolve(null)} className="text-zinc-400 hover:text-white">
+              <button onClick={() => setSelectedAlertForResolve(null)} className="text-slate-400 hover:text-slate-700">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-xs text-zinc-300">{selectedAlertForResolve.title}</p>
+            <p className="text-xs text-slate-700">{selectedAlertForResolve.title}</p>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-zinc-300 block">
-                Administrative Action Taken / Resolution Details <span className="text-red-400">*</span>
+              <label className="text-xs font-semibold text-slate-700 block">
+                Administrative Action Taken / Resolution Details <span className="text-red-500">*</span>
               </label>
               <textarea
                 value={resolutionNotes}
                 onChange={(e) => setResolutionNotes(e.target.value)}
                 placeholder="Describe administrative action taken to clear this condition (e.g. reallocated shoot date, cleared disk cache, rebalanced staff)..."
                 rows={3}
-                className="w-full bg-zinc-950 border border-zinc-800 text-white text-xs rounded-xl p-3 outline-none focus:border-emerald-500"
+                className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl p-3 outline-none focus:bg-white focus:border-emerald-500"
               />
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => setSelectedAlertForResolve(null)}
-                className="px-3.5 py-2 text-xs font-bold text-zinc-400 hover:text-white bg-zinc-800 rounded-xl"
+                className="px-3.5 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-xl"
               >
                 Cancel
               </button>
               <button
                 onClick={handleResolveAlert}
                 disabled={submittingResolution || !resolutionNotes.trim()}
-                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl flex items-center gap-1.5 disabled:opacity-50 shadow-lg"
+                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl flex items-center gap-1.5 disabled:opacity-50 shadow-xs"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 {submittingResolution ? 'Resolving...' : 'Confirm Condition Resolved'}

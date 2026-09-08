@@ -145,7 +145,7 @@ export default function ConvertEventToTaskModal({
         }
       }
 
-      alert('⚡ Task successfully created and assigned!');
+      alert('Task successfully created and assigned!');
       if (onSuccess) onSuccess();
       onClose();
     } catch (err: any) {
@@ -158,56 +158,56 @@ export default function ConvertEventToTaskModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200"
+      className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-card border border-border rounded-xl w-full max-w-xl p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto shadow-2xl relative text-left"
+        className="bg-white border border-slate-200 rounded-2xl w-full max-w-xl p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto shadow-xl relative text-left"
       >
         {/* Modal Header */}
-        <div className="flex justify-between items-start border-b border-border pb-3">
+        <div className="flex justify-between items-start border-b border-slate-100 pb-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40">
-                ⚡ TASK CONVERSION MODAL
+              <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-purple-50 text-purple-700 border border-purple-200">
+                TASK CONVERSION MODAL
               </span>
-              <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-gray-900 border border-gray-700 text-gray-300">
+              <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-slate-100 border border-slate-200 text-slate-700">
                 {eventData.parentType === 'PROJECT' ? 'Shoot Project' : 'Graphic Requirement'}
               </span>
             </div>
-            <h3 className="text-base font-bold text-white mt-1">
-              Create &amp; Assign Task for "{eventData.title}"
+            <h3 className="text-base font-bold text-slate-900 mt-1">
+              Create &amp; Assign Task for &quot;{eventData.title}&quot;
             </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white flex items-center justify-center font-bold text-sm transition-colors"
+            className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 flex items-center justify-center font-bold text-sm transition-colors"
           >
-            ✕
+            ×
           </button>
         </div>
 
         {errorMsg && (
-          <div className="p-3 bg-red-950/60 border border-red-800 text-red-300 rounded-lg text-xs font-semibold flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+          <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
             <span>{errorMsg}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Parent Entity Read-Only Box */}
-          <div className="p-3 bg-gray-950 border border-gray-800 rounded-xl space-y-1">
-            <span className="text-[10px] text-gray-400 font-bold uppercase block">Bound Parent Entity</span>
-            <div className="text-white font-bold text-xs">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+            <span className="text-[10px] text-slate-500 font-bold uppercase block">Bound Parent Entity</span>
+            <div className="text-slate-900 font-bold text-xs">
               {eventData.parentCode ? `[${eventData.parentCode}] ` : ''}{eventData.title}
             </div>
             {eventData.createdBy && (
-              <div className="text-[11px] text-gray-400 flex items-center gap-1.5 pt-1.5 border-t border-gray-900">
-                <User className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                <span>Created by: <strong className="text-gray-200">{eventData.createdBy.name || 'Social Media Manager'}</strong></span>
+              <div className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-1.5 border-t border-slate-200">
+                <User className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                <span>Created by: <strong className="text-slate-800">{eventData.createdBy.name || 'Social Media Manager'}</strong></span>
                 {eventData.createdBy.role && (
-                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-950 text-purple-300 border border-purple-800 uppercase">
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200 uppercase">
                     {eventData.createdBy.role.replace(/_/g, ' ')}
                   </span>
                 )}
@@ -217,25 +217,25 @@ export default function ConvertEventToTaskModal({
 
           {/* Task Title */}
           <div>
-            <label className="block text-gray-300 font-bold mb-1">Task Title *</label>
+            <label className="block text-slate-700 font-bold mb-1">Task Title *</label>
             <input
               type="text"
               required
               value={taskTitle}
               onChange={(e) => setTaskTitle(e.target.value)}
               placeholder="e.g. Key Visual Design & Typography Layout"
-              className="w-full bg-gray-900 border border-purple-500/60 rounded-lg p-2.5 text-white font-semibold focus:outline-none focus:border-purple-400"
+              className="w-full bg-slate-50 border border-purple-200 rounded-xl p-2.5 text-slate-900 font-semibold focus:outline-none focus:border-purple-500 focus:bg-white transition-colors"
             />
           </div>
 
           {/* Priority & Due Date */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-gray-300 font-semibold mb-1">Priority *</label>
+              <label className="block text-slate-700 font-semibold mb-1">Priority *</label>
               <select
                 value={taskPriority}
                 onChange={(e) => setTaskPriority(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white font-semibold"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 font-semibold focus:outline-none focus:bg-white"
               >
                 <option value="LOW">LOW</option>
                 <option value="MEDIUM">MEDIUM</option>
@@ -245,46 +245,46 @@ export default function ConvertEventToTaskModal({
             </div>
 
             <div>
-              <label className="block text-gray-300 font-semibold mb-1">Due Date *</label>
+              <label className="block text-slate-700 font-semibold mb-1">Due Date *</label>
               <input
                 type="date"
                 required
                 value={taskDueDate}
                 onChange={(e) => setTaskDueDate(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white font-semibold"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 font-semibold focus:outline-none focus:bg-white"
               />
             </div>
 
             <div>
-              <label className="block text-gray-300 font-semibold mb-1">Estimated Hours *</label>
+              <label className="block text-slate-700 font-semibold mb-1">Estimated Hours *</label>
               <input
                 type="number"
                 step="0.5"
                 required
                 value={taskEstimatedHours}
                 onChange={(e) => setTaskEstimatedHours(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white font-mono font-bold"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 font-mono font-bold focus:outline-none focus:bg-white"
               />
             </div>
           </div>
 
           {/* Assign Staff Members */}
           <div>
-            <label className="block text-gray-300 font-bold mb-1 flex items-center justify-between">
+            <label className="block text-slate-700 font-bold mb-1 flex items-center justify-between">
               <span>Assign Staff Member(s) *</span>
-              <span className="text-[10px] text-purple-400 font-mono">
+              <span className="text-[10px] text-purple-700 font-mono font-semibold">
                 {assignedStaffIds.length} Selected
               </span>
             </label>
 
             {loadingStaff ? (
-              <div className="p-3 text-center text-gray-400 bg-gray-950 rounded-lg border border-gray-800">
+              <div className="p-3 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
                 Loading active staff members…
               </div>
             ) : (
-              <div className="space-y-1.5 max-h-40 overflow-y-auto bg-gray-950 border border-gray-800 rounded-xl p-2.5 scrollbar-thin">
+              <div className="space-y-1.5 max-h-40 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5">
                 {staffUsersList.filter((u) => ['STAFF', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER'].includes(u.role)).length === 0 ? (
-                  <div className="text-gray-500 italic text-center py-2 text-[11px]">No active staff members found.</div>
+                  <div className="text-slate-400 italic text-center py-2 text-[11px]">No active staff members found.</div>
                 ) : (
                   staffUsersList
                     .filter((u) => ['STAFF', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER'].includes(u.role))
@@ -294,12 +294,12 @@ export default function ConvertEventToTaskModal({
                     return (
                       <label
                         key={u.id}
-                        className={`flex items-center justify-between p-2 rounded-lg border transition-all ${
+                        className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
                           assignedStaffIds.includes(u.id)
-                            ? 'bg-purple-950/40 border-purple-500/60 text-purple-200 font-bold'
+                            ? 'bg-purple-50 border-purple-300 text-purple-900 font-bold'
                             : isActive
-                            ? 'bg-gray-900/50 border-gray-800 text-gray-300 hover:bg-gray-800/60 cursor-pointer'
-                            : 'bg-gray-950 border-gray-900 text-gray-600 opacity-50 cursor-not-allowed'
+                            ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer'
+                            : 'bg-slate-100 border-slate-200 text-slate-400 opacity-50 cursor-not-allowed'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -311,11 +311,11 @@ export default function ConvertEventToTaskModal({
                               if (e.target.checked) setAssignedStaffIds([...assignedStaffIds, u.id]);
                               else setAssignedStaffIds(assignedStaffIds.filter((id) => id !== u.id));
                             }}
-                            className="w-4 h-4 accent-purple-500 cursor-pointer disabled:cursor-not-allowed"
+                            className="w-4 h-4 accent-purple-600 cursor-pointer disabled:cursor-not-allowed"
                           />
                           <span>{u.name}</span>
                         </div>
-                        <span className="text-[10px] text-gray-400 font-mono">
+                        <span className="text-[10px] text-slate-500 font-mono">
                           ({u.employeeProfile?.designation || u.role})
                         </span>
                       </label>
@@ -328,24 +328,24 @@ export default function ConvertEventToTaskModal({
 
           {/* Equipment Requirements / Allocation */}
           <div>
-            <label className="block text-gray-300 font-bold mb-1 flex items-center justify-between">
+            <label className="block text-slate-700 font-bold mb-1 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
-                <Camera className="w-4 h-4 text-cyan-400" />
+                <Camera className="w-4 h-4 text-cyan-600" />
                 <span>Equipment Allocation / Requirements (Optional)</span>
               </span>
-              <span className="text-[10px] text-cyan-400 font-mono">
+              <span className="text-[10px] text-cyan-700 font-mono font-semibold">
                 {selectedEquipmentIds.length} Selected
               </span>
             </label>
 
             {loadingEquipment ? (
-              <div className="p-3 text-center text-gray-400 bg-gray-950 rounded-lg border border-gray-800">
+              <div className="p-3 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
                 Loading equipment inventory…
               </div>
             ) : (
-              <div className="space-y-1.5 max-h-40 overflow-y-auto bg-gray-950 border border-gray-800 rounded-xl p-2.5 scrollbar-thin">
+              <div className="space-y-1.5 max-h-40 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5">
                 {equipmentList.length === 0 ? (
-                  <div className="text-gray-500 italic text-center py-2 text-[11px]">No equipment items found in inventory.</div>
+                  <div className="text-slate-400 italic text-center py-2 text-[11px]">No equipment items found in inventory.</div>
                 ) : (
                   equipmentList.map((eq) => {
                     const isAvailable = eq.availability === 'AVAILABLE';
@@ -354,12 +354,12 @@ export default function ConvertEventToTaskModal({
                     return (
                       <label
                         key={eq.id}
-                        className={`flex items-center justify-between p-2 rounded-lg border transition-all ${
+                        className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
                           isChecked
-                            ? 'bg-cyan-950/40 border-cyan-500/60 text-cyan-200 font-bold'
+                            ? 'bg-cyan-50 border-cyan-300 text-cyan-900 font-bold'
                             : isAvailable
-                            ? 'bg-gray-900/50 border-gray-800 text-gray-300 hover:bg-gray-800/60 cursor-pointer'
-                            : 'bg-gray-950/60 border-gray-900 text-gray-500 opacity-50 cursor-not-allowed'
+                            ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer'
+                            : 'bg-slate-100 border-slate-200 text-slate-400 opacity-50 cursor-not-allowed'
                         }`}
                       >
                         <div className="flex items-center gap-2 overflow-hidden">
@@ -371,13 +371,13 @@ export default function ConvertEventToTaskModal({
                               if (e.target.checked) setSelectedEquipmentIds([...selectedEquipmentIds, eq.id]);
                               else setSelectedEquipmentIds(selectedEquipmentIds.filter((id) => id !== eq.id));
                             }}
-                            className="w-4 h-4 accent-cyan-500 cursor-pointer disabled:cursor-not-allowed"
+                            className="w-4 h-4 accent-cyan-600 cursor-pointer disabled:cursor-not-allowed"
                           />
-                          <span className="truncate font-medium">📷 {eq.name} <span className="font-mono text-[10px] text-gray-400">({eq.equipmentId})</span></span>
+                          <span className="truncate font-medium">{eq.name} <span className="font-mono text-[10px] text-slate-500">({eq.equipmentId})</span></span>
                         </div>
 
                         <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase border ${
-                          isAvailable ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-red-500/15 text-red-400 border-red-500/30'
+                          isAvailable ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
                         }`}>
                           {isAvailable ? 'AVAILABLE' : `${eq.availability} - UNAVAILABLE`}
                         </span>
@@ -391,31 +391,31 @@ export default function ConvertEventToTaskModal({
 
           {/* Task Brief / Instructions */}
           <div>
-            <label className="block text-gray-300 font-semibold mb-1">Task Brief &amp; Instructions (Optional)</label>
+            <label className="block text-slate-700 font-semibold mb-1">Task Brief &amp; Instructions (Optional)</label>
             <textarea
               rows={3}
               value={taskDescription}
               onChange={(e) => setTaskDescription(e.target.value)}
               placeholder="Enter specific instructions, reference links, dimensions..."
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 focus:outline-none focus:border-purple-500 focus:bg-white transition-colors"
             ></textarea>
           </div>
 
           {/* Modal Footer */}
-          <div className="pt-3 border-t border-border flex items-center justify-between">
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-semibold text-xs transition-colors"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={creating || assignedStaffIds.length === 0}
-              className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs transition-all shadow-lg shadow-purple-600/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+              className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs transition-all shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
-              {creating ? 'Creating Task…' : '⚡ Create & Assign Task'}
+              {creating ? 'Creating Task…' : 'Create & Assign Task'}
             </button>
           </div>
         </form>

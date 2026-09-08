@@ -63,21 +63,21 @@ export function PaginationControls({
 
   return (
     <div
-      className={`flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-card/80 border-t border-border text-xs rounded-b-xl ${className}`}
+      className={`flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-white border-t border-slate-200 text-xs rounded-b-xl ${className}`}
     >
       {/* Left: Record Range Summary */}
-      <div className="text-gray-400 font-medium select-none text-center sm:text-left">
-        Showing <strong className="text-white font-mono">{startRecord}</strong> to{' '}
-        <strong className="text-white font-mono">{endRecord}</strong> of{' '}
-        <strong className="text-blue-400 font-mono font-bold">{totalItems}</strong> records
+      <div className="text-slate-500 font-medium select-none text-center sm:text-left">
+        Showing <strong className="text-slate-900 font-mono">{startRecord}</strong> to{' '}
+        <strong className="text-slate-900 font-mono">{endRecord}</strong> of{' '}
+        <strong className="text-blue-600 font-mono font-bold">{totalItems}</strong> records
       </div>
 
       {/* Right: Page Size Selector & Navigation Buttons */}
       <div className="flex flex-wrap items-center justify-center gap-3">
         {/* Configurable Page Size Selector */}
-        <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-800 rounded-lg px-2.5 py-1">
-          <ListFilter className="w-3.5 h-3.5 text-gray-500" />
-          <span className="text-[11px] text-gray-400 font-semibold">Per page:</span>
+        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1">
+          <ListFilter className="w-3.5 h-3.5 text-slate-400" />
+          <span className="text-[11px] text-slate-600 font-semibold">Per page:</span>
           <select
             value={pageSize}
             onChange={(e) => {
@@ -85,10 +85,10 @@ export function PaginationControls({
               onPageSizeChange(newSize);
               onPageChange(1); // Reset to page 1 on page size change
             }}
-            className="bg-transparent text-white font-mono font-bold focus:outline-none cursor-pointer text-xs"
+            className="bg-transparent text-slate-900 font-mono font-bold focus:outline-none cursor-pointer text-xs"
           >
             {pageSizeOptions.map((size) => (
-              <option key={size} value={size} className="bg-gray-900 text-white">
+              <option key={size} value={size} className="bg-white text-slate-900">
                 {size}
               </option>
             ))}
@@ -102,7 +102,7 @@ export function PaginationControls({
             type="button"
             onClick={() => onPageChange(1)}
             disabled={safeCurrentPage === 1}
-            className="p-1.5 rounded-lg bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+            className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 disabled:opacity-30 disabled:pointer-events-none transition-colors"
             title="First Page"
           >
             <ChevronsLeft className="w-4 h-4" />
@@ -113,7 +113,7 @@ export function PaginationControls({
             type="button"
             onClick={() => onPageChange(safeCurrentPage - 1)}
             disabled={safeCurrentPage === 1}
-            className="p-1.5 rounded-lg bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+            className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 disabled:opacity-30 disabled:pointer-events-none transition-colors"
             title="Previous Page"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -129,14 +129,14 @@ export function PaginationControls({
                   onClick={() => onPageChange(p)}
                   className={`min-w-[28px] h-7 px-2 rounded-lg font-mono text-xs font-bold transition-all ${
                     p === safeCurrentPage
-                      ? 'bg-blue-600 border border-blue-500 text-white shadow-md shadow-blue-600/30'
-                      : 'bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-400 hover:text-white'
+                      ? 'bg-blue-600 border border-blue-600 text-white shadow-xs'
+                      : 'bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 hover:text-slate-900'
                   }`}
                 >
                   {p}
                 </button>
               ) : (
-                <span key={idx} className="px-1 text-gray-600 font-mono">
+                <span key={idx} className="px-1 text-slate-400 font-mono">
                   {p}
                 </span>
               )
@@ -148,7 +148,7 @@ export function PaginationControls({
             type="button"
             onClick={() => onPageChange(safeCurrentPage + 1)}
             disabled={safeCurrentPage === totalPages || totalPages === 0}
-            className="p-1.5 rounded-lg bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+            className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 disabled:opacity-30 disabled:pointer-events-none transition-colors"
             title="Next Page"
           >
             <ChevronRight className="w-4 h-4" />
@@ -159,7 +159,7 @@ export function PaginationControls({
             type="button"
             onClick={() => onPageChange(totalPages)}
             disabled={safeCurrentPage === totalPages || totalPages === 0}
-            className="p-1.5 rounded-lg bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+            className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 disabled:opacity-30 disabled:pointer-events-none transition-colors"
             title="Last Page"
           >
             <ChevronsRight className="w-4 h-4" />

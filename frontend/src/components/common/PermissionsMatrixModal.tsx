@@ -88,19 +88,19 @@ export function PermissionsMatrixModal({
   const currentRoleMatrix = ROLE_PERMISSION_MATRIX[selectedRole];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="bg-card border border-border rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-xs">
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+      <div className="bg-white border border-slate-200 rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-xs">
         {/* Header */}
-        <div className="p-5 bg-gray-900/90 border-b border-border flex items-center justify-between">
+        <div className="p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-purple-500/15 border border-purple-500/30 rounded-xl text-purple-400">
+            <div className="p-2.5 bg-purple-50 border border-purple-200 rounded-xl text-purple-700">
               <Shield className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 Operational Permission Types & RBAC Matrix
               </h2>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-slate-500">
                 Supported permissions (View, Create, Edit, Delete, Approve, Assign, Configure, Export, Archive) across operational modules
               </p>
             </div>
@@ -108,16 +108,16 @@ export function PermissionsMatrixModal({
 
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* 9 Standard Permission Types Legend */}
-        <div className="p-4 bg-gray-950/70 border-b border-border/80 space-y-2">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Info className="w-3 h-3 text-blue-400" />
+        <div className="p-4 bg-slate-100/70 border-b border-slate-200 space-y-2">
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <Info className="w-3 h-3 text-blue-600" />
             <span>Operational Permission Types (Unrestricted for Media Manager / Admin)</span>
           </div>
 
@@ -132,15 +132,13 @@ export function PermissionsMatrixModal({
                   key={type}
                   onMouseEnter={() => setHoveredPerm(type)}
                   onMouseLeave={() => setHoveredPerm(null)}
-                  className={`p-2 rounded-lg border text-center transition-all cursor-default ${
-                    meta.badgeBg
-                  } ${meta.badgeBorder} ${
-                    isHovered ? 'scale-105 ring-1 ring-white/20' : ''
+                  className={`p-2 rounded-lg border text-center transition-all cursor-default bg-white border-slate-200 ${
+                    isHovered ? 'scale-105 ring-1 ring-blue-400 shadow-xs' : ''
                   }`}
                   title={meta.description}
                 >
-                  <Icon className={`w-3.5 h-3.5 mx-auto mb-1 ${meta.badgeText}`} />
-                  <span className={`font-bold text-[10px] block ${meta.badgeText}`}>
+                  <Icon className="w-3.5 h-3.5 mx-auto mb-1 text-blue-600" />
+                  <span className="font-bold text-[10px] block text-slate-800">
                     {meta.label}
                   </span>
                 </div>
@@ -150,10 +148,10 @@ export function PermissionsMatrixModal({
         </div>
 
         {/* Role Switcher Tabs */}
-        <div className="px-5 py-3 bg-gray-900/50 border-b border-border space-y-2">
+        <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 space-y-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] font-bold text-gray-300 mr-1">Role Matrix:</span>
+              <span className="text-[11px] font-bold text-slate-700 mr-1">Role Matrix:</span>
               {(
                 [
                   'MEDIA_MANAGER',
@@ -173,8 +171,8 @@ export function PermissionsMatrixModal({
                   onClick={() => setSelectedRole(r)}
                   className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors flex items-center gap-1.5 ${
                     selectedRole === r
-                      ? 'bg-purple-600 text-white shadow-md'
-                      : 'bg-gray-800 text-gray-400 hover:text-white'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
                   <Shield className="w-3 h-3" />
@@ -185,34 +183,34 @@ export function PermissionsMatrixModal({
 
             <div className="text-[11px] font-mono">
               {selectedRole === 'MEDIA_MANAGER' && (
-                <span className="text-blue-300">👑 Media Manager: Highest operational authority across all system modules.</span>
+                <span className="text-blue-700 font-semibold">Media Manager: Highest operational authority across all system modules.</span>
               )}
               {selectedRole === 'TECHNICAL_MANAGER' && (
-                <span className="text-purple-300">🔧 Technical Manager: Technical reviews, equipment lifecycle & remarks.</span>
+                <span className="text-purple-700 font-semibold">Technical Manager: Technical reviews, equipment lifecycle & remarks.</span>
               )}
               {selectedRole === 'STAFF' && (
-                <span className="text-emerald-300">🎨 Production Staff: Work strictly scoped to assigned records & tasks.</span>
+                <span className="text-emerald-700 font-semibold">Production Staff: Work strictly scoped to assigned records & tasks.</span>
               )}
               {selectedRole === 'SOCIAL_MEDIA_MANAGER' && (
-                <span className="text-blue-400">📱 Social Media Manager: Creates calendar events, drafts, and submits for client approval.</span>
+                <span className="text-blue-700 font-semibold">Social Media Manager: Creates calendar events, drafts, and submits for client approval.</span>
               )}
               {selectedRole === 'MARKETING_MANAGER' && (
-                <span className="text-amber-300">🤝 Marketing Manager (Client): Client representative for calendar review, feedback & sign-offs.</span>
+                <span className="text-amber-800 font-semibold">Marketing Manager (Client): Client representative for calendar review, feedback & sign-offs.</span>
               )}
               {selectedRole === 'HR_MANAGER' && (
-                <span className="text-amber-300">👥 HR Manager: Staff directory, shift scheduling, and employee attendance.</span>
+                <span className="text-amber-800 font-semibold">HR Manager: Staff directory, shift scheduling, and employee attendance.</span>
               )}
               {selectedRole === 'FINANCE_MANAGER' && (
-                <span className="text-emerald-300">💰 Finance Manager: Billing formulas, commercial settings & cost analytics.</span>
+                <span className="text-emerald-700 font-semibold">Finance Manager: Billing formulas, commercial settings & cost analytics.</span>
               )}
               {selectedRole === 'SALES_MANAGER' && (
-                <span className="text-cyan-300">🤝 Sales Manager: Enterprise clients, commercial proposals & contracts.</span>
+                <span className="text-cyan-800 font-semibold">Sales Manager: Enterprise clients, commercial proposals & contracts.</span>
               )}
               {selectedRole === 'CLIENT_COORDINATOR' && (
-                <span className="text-indigo-300">💬 Client Coordinator: Client liaison, approvals & communications.</span>
+                <span className="text-indigo-700 font-semibold">Client Coordinator: Client liaison, approvals & communications.</span>
               )}
               {selectedRole === 'ADMINISTRATOR' && (
-                <span className="text-red-300">⚡ Administrator: Super-user with full system configuration & access.</span>
+                <span className="text-rose-700 font-semibold">Administrator: Super-user with full system configuration & access.</span>
               )}
             </div>
           </div>
@@ -222,17 +220,17 @@ export function PermissionsMatrixModal({
         <div className="p-5 overflow-y-auto max-h-[480px]">
           <table className="w-full border-collapse text-left">
             <thead>
-              <tr className="border-b border-gray-800 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                <th className="p-2.5 bg-gray-900/80 sticky top-0 rounded-l-lg">Operational Module</th>
+              <tr className="border-b border-slate-200 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                <th className="p-2.5 bg-slate-50 sticky top-0 rounded-l-lg border-b border-slate-200">Operational Module</th>
                 {ALL_PERMISSION_TYPES.map((type) => {
                   const Icon = PERMISSION_ICONS[type];
                   return (
                     <th
                       key={type}
-                      className="p-2.5 text-center bg-gray-900/80 sticky top-0"
+                      className="p-2.5 text-center bg-slate-50 sticky top-0 border-b border-slate-200"
                     >
                       <div className="flex flex-col items-center gap-1">
-                        <Icon className="w-3.5 h-3.5 text-gray-400" />
+                        <Icon className="w-3.5 h-3.5 text-slate-500" />
                         <span>{type}</span>
                       </div>
                     </th>
@@ -240,16 +238,16 @@ export function PermissionsMatrixModal({
                 })}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800/60 font-mono">
+            <tbody className="divide-y divide-slate-100 font-mono">
               {ALL_MODULES.map((mod) => {
                 const supportedList = MODULE_SUPPORTED_PERMISSIONS[mod.id] || [];
                 const roleAllowedList = currentRoleMatrix[mod.id] || [];
 
                 return (
-                  <tr key={mod.id} className="hover:bg-gray-900/50 transition-colors">
+                  <tr key={mod.id} className="hover:bg-slate-50 transition-colors">
                     <td className="p-2.5 font-sans">
-                      <div className="font-bold text-white text-xs">{mod.label}</div>
-                      <div className="text-[10px] text-gray-500 font-normal">{mod.description}</div>
+                      <div className="font-bold text-slate-900 text-xs">{mod.label}</div>
+                      <div className="text-[10px] text-slate-500 font-normal">{mod.description}</div>
                     </td>
 
                     {ALL_PERMISSION_TYPES.map((type) => {
@@ -260,24 +258,24 @@ export function PermissionsMatrixModal({
                         <td key={type} className="p-2 text-center align-middle">
                           {!isSupportedByModule ? (
                             <span
-                              className="text-gray-700 font-bold text-[10px]"
+                              className="text-slate-300 font-bold text-[10px]"
                               title="Permission type not implemented by this module"
                             >
                               —
                             </span>
                           ) : isGrantedToRole ? (
                             <span
-                              className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm"
+                              className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs"
                               title={`Granted: ${selectedRole} has ${type} permission on ${mod.label}`}
                             >
                               <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                             </span>
                           ) : (
                             <span
-                              className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-900 text-gray-600 border border-gray-800"
+                              className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-400 border border-slate-200"
                               title={`Restricted: ${selectedRole} lacks ${type} permission on ${mod.label}`}
                             >
-                              <Lock className="w-3 h-3 text-gray-600" />
+                              <Lock className="w-3 h-3 text-slate-400" />
                             </span>
                           )}
                         </td>
@@ -291,22 +289,22 @@ export function PermissionsMatrixModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-gray-950 border-t border-border flex items-center justify-between text-[11px] text-gray-400">
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Granted
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-gray-700 inline-block" /> Restricted
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-300 inline-block" /> Restricted
             </span>
-            <span className="flex items-center gap-1.5 text-gray-600">
+            <span className="flex items-center gap-1.5 text-slate-400">
               <span>—</span> Not Implemented by Module
             </span>
           </div>
 
           <button
             onClick={onClose}
-            className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-semibold transition-colors"
+            className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-lg font-semibold transition-colors"
           >
             Close Matrix
           </button>

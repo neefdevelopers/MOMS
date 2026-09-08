@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Star,
   Film,
@@ -12,9 +13,16 @@ import {
   ExternalLink,
   Trash2,
   Layers,
+  Calendar,
+  Building2,
+  Tag,
+  Package,
+  ArrowRight,
+  Clock,
   X,
 } from 'lucide-react';
 import { useFavorites, FavoriteEntityType } from '@/lib/favorites-context';
+import { formatRelativeTime } from '@/utils/notificationCategories';
 
 const ENTITY_CONFIG: Record<
   FavoriteEntityType,
@@ -23,220 +31,219 @@ const ENTITY_CONFIG: Record<
   PROJECT: {
     label: 'Projects',
     icon: Film,
-    color: 'text-blue-400',
-    badgeBg: 'bg-blue-950/50 text-blue-300 border-blue-800/50',
+    color: 'text-blue-600',
+    badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
   },
   SCRIPT: {
     label: 'Scripts',
     icon: FileText,
-    color: 'text-purple-400',
-    badgeBg: 'bg-purple-950/50 text-purple-300 border-purple-800/50',
+    color: 'text-purple-600',
+    badgeBg: 'bg-purple-50 text-purple-700 border-purple-200',
   },
   GRAPHIC_REQUIREMENT: {
     label: 'Graphic Reqs',
     icon: Palette,
-    color: 'text-amber-400',
-    badgeBg: 'bg-amber-950/50 text-amber-300 border-amber-800/50',
+    color: 'text-amber-600',
+    badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
   },
   TASK: {
     label: 'Tasks',
     icon: CheckSquare,
-    color: 'text-emerald-400',
-    badgeBg: 'bg-emerald-950/50 text-emerald-300 border-emerald-800/50',
+    color: 'text-emerald-600',
+    badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  },
+  CALENDAR_EVENT: {
+    label: 'Media Calendar',
+    icon: Calendar,
+    color: 'text-rose-600',
+    badgeBg: 'bg-rose-50 text-rose-700 border-rose-200',
+  },
+  CLIENT: {
+    label: 'Clients',
+    icon: Building2,
+    color: 'text-indigo-600',
+    badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  },
+  BRAND: {
+    label: 'Brands',
+    icon: Tag,
+    color: 'text-amber-700',
+    badgeBg: 'bg-amber-50 text-amber-800 border-amber-200',
+  },
+  PRODUCT: {
+    label: 'Products',
+    icon: Package,
+    color: 'text-cyan-600',
+    badgeBg: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   },
   REPORT: {
     label: 'Reports',
     icon: BarChart3,
-    color: 'text-pink-400',
-    badgeBg: 'bg-pink-950/50 text-pink-300 border-pink-800/50',
+    color: 'text-pink-600',
+    badgeBg: 'bg-pink-50 text-pink-700 border-pink-200',
   },
 };
 
 export function FavoritesQuickMenu() {
   const { favorites, removeFavorite } = useFavorites();
-  const [open, setOpen] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<'ALL' | FavoriteEntityType>('ALL');
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [showHoverPreview, setShowHoverPreview] = useState(false);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const router = useRouter();
 
-  // Close on click outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const handleMouseEnter = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setShowHoverPreview(true);
+  };
 
-  const filteredFavorites =
-    selectedTab === 'ALL'
-      ? favorites
-      : favorites.filter((f) => f.entityType === selectedTab);
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    hoverTimeoutRef.current = setTimeout(() => {
+      setShowHoverPreview(false);
+    }, 180);
+  };
+
+  const count = favorites.length;
 
   return (
-    <div className="relative" ref={menuRef}>
-      {/* Header Star Trigger Button */}
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className={`relative p-2 rounded-lg transition-all flex items-center justify-center ${
-          open
-            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-            : favorites.length > 0
-            ? 'text-amber-400 hover:bg-gray-800 border border-gray-800'
-            : 'text-gray-400 hover:text-white hover:bg-gray-800 border border-transparent'
+    <div
+      className="relative"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Navbar Star Trigger Button (Click navigates to /favourites) */}
+      <Link
+        href="/favourites"
+        onClick={() => setShowHoverPreview(false)}
+        className={`p-2 rounded-xl transition-colors relative flex items-center justify-center ${
+          count > 0
+            ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50/60'
+            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
         }`}
-        title="My Favorites (Projects, Scripts, Graphic Reqs, Tasks, Reports)"
+        aria-label={`Favourites${count > 0 ? `, ${count} saved items` : ''}`}
       >
         <Star
-          className={`w-4 h-4 ${
-            favorites.length > 0
-              ? 'fill-amber-400/30 text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.3)]'
-              : ''
+          className={`w-5 h-5 transition-all ${
+            count > 0 ? 'fill-amber-400 text-amber-500' : 'text-slate-500'
           }`}
         />
-        {favorites.length > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-gray-950 font-extrabold text-[10px] flex items-center justify-center font-mono shadow">
-            {favorites.length}
+        {count > 0 && (
+          <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 bg-amber-500 text-white font-black text-[9px] rounded-full flex items-center justify-center shadow-xs">
+            {count > 99 ? '99+' : count}
           </span>
         )}
-      </button>
+      </Link>
 
-      {/* Popover Dropdown */}
-      {open && (
-        <div className="absolute right-0 top-11 w-80 sm:w-96 bg-card border border-border rounded-xl shadow-2xl z-50 text-xs overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      {/* Hover Favourites Preview Dropdown */}
+      {showHoverPreview && (
+        <div
+          className="absolute right-0 top-full mt-1 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 text-xs overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150"
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
           {/* Header */}
-          <div className="p-3.5 border-b border-border bg-gray-900/60 flex items-center justify-between">
+          <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-amber-500/20 text-amber-400 rounded-lg border border-amber-500/30">
-                <Star className="w-4 h-4 fill-amber-400" />
-              </div>
-              <div>
-                <h3 className="font-bold text-white text-xs">My Starred Favorites</h3>
-                <p className="text-[10px] text-gray-400">
-                  Private shortcuts to frequently accessed records
-                </p>
-              </div>
+              <span className="font-extrabold text-slate-900 text-sm">Favourites</span>
+              {count > 0 && (
+                <span className="text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full">
+                  {count} Saved
+                </span>
+              )}
             </div>
-            <button
-              onClick={() => setOpen(false)}
-              className="p-1 text-gray-400 hover:text-white rounded-lg transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
           </div>
 
-          {/* Filter Tabs */}
-          <div className="flex items-center gap-1 p-2 bg-gray-950/60 border-b border-border overflow-x-auto text-[11px] scrollbar-none">
-            <button
-              onClick={() => setSelectedTab('ALL')}
-              className={`px-2.5 py-1 rounded-md font-semibold shrink-0 transition-colors ${
-                selectedTab === 'ALL'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}
-            >
-              All ({favorites.length})
-            </button>
-            {(Object.keys(ENTITY_CONFIG) as FavoriteEntityType[]).map((type) => {
-              const count = favorites.filter((f) => f.entityType === type).length;
-              if (count === 0 && selectedTab !== type) return null;
-              const config = ENTITY_CONFIG[type];
-              return (
-                <button
-                  key={type}
-                  onClick={() => setSelectedTab(type)}
-                  className={`px-2.5 py-1 rounded-md font-semibold shrink-0 transition-colors flex items-center gap-1 ${
-                    selectedTab === type
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                  }`}
-                >
-                  <span>{config.label}</span>
-                  <span className="font-mono text-[9px] opacity-75">({count})</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Favorites List */}
-          <div className="max-h-80 overflow-y-auto divide-y divide-gray-800/60 p-1">
-            {filteredFavorites.length === 0 ? (
-              <div className="p-8 text-center text-gray-400 space-y-1.5">
-                <Star className="w-8 h-8 text-gray-600 mx-auto stroke-1" />
-                <p className="font-semibold text-gray-300">No favorites marked yet</p>
-                <p className="text-[10px] text-gray-500">
-                  Click the star icon ⭐ on Projects, Scripts, Graphic Reqs, Tasks, or Reports
-                  to bookmark them here.
+          {/* Recent Favourites List (Top 6) */}
+          <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+            {favorites.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 space-y-1">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-amber-500 mb-2">
+                  <Star className="w-5 h-5 text-amber-500" />
+                </div>
+                <p className="font-semibold text-slate-700 text-xs">No favourites yet</p>
+                <p className="text-[11px] text-slate-400">
+                  Items you save as favourites will appear here.
                 </p>
               </div>
             ) : (
-              filteredFavorites.map((fav) => {
-                const config = ENTITY_CONFIG[fav.entityType] || {
-                  label: fav.entityType,
-                  icon: Layers,
-                  color: 'text-gray-400',
-                  badgeBg: 'bg-gray-800 text-gray-300 border-gray-700',
-                };
+              favorites.slice(0, 6).map((fav) => {
+                const config =
+                  ENTITY_CONFIG[fav.entityType] || ENTITY_CONFIG.PROJECT;
                 const Icon = config.icon;
+                const relativeTime = formatRelativeTime(fav.createdAt);
 
                 return (
                   <div
                     key={fav.id}
-                    className="p-2.5 hover:bg-gray-900/80 rounded-lg flex items-center justify-between gap-3 group transition-colors"
+                    className="p-3 transition-colors flex items-start justify-between gap-3 hover:bg-slate-50 group"
                   >
                     <Link
                       href={fav.url}
-                      onClick={() => setOpen(false)}
-                      className="flex items-start gap-2.5 min-w-0 flex-1"
+                      onClick={() => setShowHoverPreview(false)}
+                      className="flex items-start gap-3 min-w-0 flex-1"
                     >
-                      <div
-                        className={`p-1.5 rounded-lg bg-gray-900 border border-gray-800 shrink-0 ${config.color}`}
-                      >
-                        <Icon className="w-4 h-4" />
+                      <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 shrink-0 mt-0.5 group-hover:border-slate-300">
+                        <Icon className={`w-3.5 h-3.5 ${config.color}`} />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
+
+                      <div className="space-y-0.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${config.badgeBg}`}>
+                            {config.label}
+                          </span>
                           {fav.code && (
-                            <span className="font-mono text-[10px] text-blue-400 font-bold">
+                            <span className="font-mono text-[9px] text-slate-600 bg-slate-100 px-1 py-0.2 rounded border border-slate-200">
                               {fav.code}
                             </span>
                           )}
-                          <span
-                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${config.badgeBg}`}
-                          >
-                            {config.label}
+                        </div>
+
+                        <h5 className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors">
+                          {fav.title}
+                        </h5>
+
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" />
+                            {relativeTime}
                           </span>
                         </div>
-                        <h4 className="font-semibold text-white text-xs truncate group-hover:text-blue-400 transition-colors mt-0.5">
-                          {fav.title}
-                        </h4>
                       </div>
                     </Link>
 
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Link
-                        href={fav.url}
-                        onClick={() => setOpen(false)}
-                        className="p-1 text-gray-400 hover:text-white rounded transition-colors"
-                        title="Open record"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => removeFavorite(fav.id)}
-                        className="p-1 text-gray-400 hover:text-red-400 rounded transition-colors"
-                        title="Remove favorite"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    {/* Unfavourite Action */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        removeFavorite(fav.id);
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors shrink-0 self-center"
+                      title="Remove from favourites"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 );
               })
             )}
+          </div>
+
+          {/* Dropdown Footer Link to /favourites */}
+          <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+            <Link
+              href="/favourites"
+              onClick={() => setShowHoverPreview(false)}
+              className="text-xs text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 group w-full justify-between"
+            >
+              <span>View all favourites</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
           </div>
         </div>
       )}

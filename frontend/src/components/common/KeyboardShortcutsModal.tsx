@@ -49,22 +49,22 @@ export function KeyboardShortcutsModal() {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="bg-card border border-border rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-xs">
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+      <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-xs">
         {/* Header */}
-        <div className="p-4 bg-gray-900/80 border-b border-border flex items-center justify-between">
+        <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-blue-500/15 border border-blue-500/30 rounded-xl text-blue-400">
+            <div className="p-2 bg-blue-50 border border-blue-200 rounded-xl text-blue-600">
               <Keyboard className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                 Keyboard Shortcuts
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-semibold">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
                   MOMS Hotkeys
                 </span>
               </h2>
-              <p className="text-[11px] text-gray-400">
+              <p className="text-[11px] text-slate-500">
                 Speed up production workflows with built-in hotkeys
               </p>
             </div>
@@ -72,7 +72,7 @@ export function KeyboardShortcutsModal() {
 
           <button
             onClick={() => setShowHelpModal(false)}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -84,8 +84,8 @@ export function KeyboardShortcutsModal() {
             const Icon = cat.icon;
             return (
               <div key={cat.id} className="space-y-2.5">
-                <div className="flex items-center gap-2 text-xs font-bold text-gray-300 border-b border-border/60 pb-1.5">
-                  <Icon className={`w-4 h-4 ${cat.color}`} />
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-800 border-b border-slate-200 pb-1.5">
+                  <Icon className={`w-4 h-4 ${cat.color.replace('400', '600')}`} />
                   <span>{cat.title}</span>
                 </div>
 
@@ -93,13 +93,13 @@ export function KeyboardShortcutsModal() {
                   {cat.items.map((item) => (
                     <div
                       key={item.id}
-                      className="bg-gray-900/60 border border-gray-800/80 hover:border-gray-700 p-2.5 rounded-xl flex items-center justify-between gap-3 transition-colors"
+                      className="bg-slate-50 border border-slate-200 hover:border-slate-300 p-2.5 rounded-xl flex items-center justify-between gap-3 transition-colors shadow-xs"
                     >
                       <div className="min-w-0">
-                        <div className="font-semibold text-white text-xs truncate">
+                        <div className="font-semibold text-slate-900 text-xs truncate">
                           {item.actionName}
                         </div>
-                        <div className="text-[10px] text-gray-400 truncate">
+                        <div className="text-[10px] text-slate-500 truncate">
                           {item.description}
                         </div>
                       </div>
@@ -108,11 +108,11 @@ export function KeyboardShortcutsModal() {
                       <div className="flex items-center gap-1 shrink-0">
                         {item.keys.map((k, i) => (
                           <React.Fragment key={i}>
-                            <kbd className="min-w-[24px] px-2 py-1 bg-gray-950 text-gray-200 border border-gray-700/80 rounded-md font-mono text-[11px] font-bold text-center shadow-inner">
+                            <kbd className="min-w-[24px] px-2 py-1 bg-white text-slate-700 border border-slate-300 rounded-md font-mono text-[11px] font-bold text-center shadow-xs">
                               {k}
                             </kbd>
                             {i < item.keys.length - 1 && (
-                              <span className="text-gray-500 text-[10px] font-mono">+</span>
+                              <span className="text-slate-400 text-[10px] font-mono">+</span>
                             )}
                           </React.Fragment>
                         ))}
@@ -126,15 +126,15 @@ export function KeyboardShortcutsModal() {
         </div>
 
         {/* Footer */}
-        <div className="p-3.5 bg-gray-950/80 border-t border-border flex items-center justify-between text-[11px] text-gray-400">
+        <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-600">
           <div className="flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Tip: Press <kbd className="px-1.5 py-0.5 bg-gray-900 border border-gray-700 rounded text-gray-200 font-mono text-[10px]">?</kbd> anywhere to toggle this cheat sheet</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Tip: Press <kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-slate-700 font-mono text-[10px]">?</kbd> anywhere to toggle this cheat sheet</span>
           </div>
 
           <button
             onClick={() => setShowHelpModal(false)}
-            className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-semibold transition-colors"
+            className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold transition-colors"
           >
             Got it
           </button>

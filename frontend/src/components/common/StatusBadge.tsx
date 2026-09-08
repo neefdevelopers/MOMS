@@ -27,9 +27,9 @@ export function getStatusBadgeStyles(status: string): { bg: string; text: string
   switch (norm) {
     case 'DRAFT':
       return {
-        bg: 'bg-slate-500/15',
-        text: 'text-slate-300',
-        border: 'border-slate-500/30',
+        bg: 'bg-slate-100',
+        text: 'text-slate-700',
+        border: 'border-slate-300',
         label: 'Draft',
       };
     case 'IN_PROGRESS':
@@ -37,77 +37,80 @@ export function getStatusBadgeStyles(status: string): { bg: string; text: string
     case 'SHOOTING':
     case 'EDITING':
       return {
-        bg: 'bg-blue-500/15',
-        text: 'text-blue-300',
-        border: 'border-blue-500/30',
+        bg: 'bg-blue-50',
+        text: 'text-blue-700',
+        border: 'border-blue-200',
         label: 'In Progress',
       };
     case 'PENDING_REVIEW':
     case 'PENDING':
     case 'UNDER_REVIEW':
     case 'PENDING_APPROVAL':
+    case 'PENDING_MARKETING_APPROVAL':
       return {
-        bg: 'bg-amber-500/15',
-        text: 'text-amber-300',
-        border: 'border-amber-500/30',
+        bg: 'bg-amber-50',
+        text: 'text-amber-800',
+        border: 'border-amber-300',
         label: 'Pending Review',
       };
     case 'APPROVED':
     case 'READY_FOR_SHOOT':
     case 'ACTIVE':
       return {
-        bg: 'bg-emerald-500/15',
-        text: 'text-emerald-300',
-        border: 'border-emerald-500/30',
+        bg: 'bg-emerald-50',
+        text: 'text-emerald-700',
+        border: 'border-emerald-200',
         label: 'Approved',
       };
     case 'COMPLETED':
     case 'DELIVERED':
     case 'PASSED':
       return {
-        bg: 'bg-green-500/15',
-        text: 'text-green-300',
-        border: 'border-green-500/30',
+        bg: 'bg-green-50',
+        text: 'text-green-700',
+        border: 'border-green-200',
         label: 'Completed',
       };
     case 'CLOSED':
     case 'RESOLVED':
       return {
-        bg: 'bg-cyan-500/15',
-        text: 'text-cyan-300',
-        border: 'border-cyan-500/30',
+        bg: 'bg-cyan-50',
+        text: 'text-cyan-800',
+        border: 'border-cyan-200',
         label: 'Closed',
       };
     case 'CANCELLED':
     case 'REJECTED':
     case 'FAILED':
     case 'DAMAGED':
+    case 'REVISION_REQUESTED':
+    case 'CHANGES_REQUESTED':
       return {
-        bg: 'bg-red-500/15',
-        text: 'text-red-300',
-        border: 'border-red-500/30',
-        label: 'Cancelled',
+        bg: 'bg-rose-50',
+        text: 'text-rose-700',
+        border: 'border-rose-200',
+        label: norm === 'REVISION_REQUESTED' ? 'Revision Requested' : norm === 'CHANGES_REQUESTED' ? 'Changes Requested' : 'Rejected',
       };
     case 'PLANNED':
       return {
-        bg: 'bg-indigo-500/15',
-        text: 'text-indigo-300',
-        border: 'border-indigo-500/30',
+        bg: 'bg-indigo-50',
+        text: 'text-indigo-700',
+        border: 'border-indigo-200',
         label: 'Planned',
       };
     case 'ARCHIVED':
     case 'INACTIVE':
       return {
-        bg: 'bg-zinc-800',
-        text: 'text-zinc-400',
-        border: 'border-zinc-700',
+        bg: 'bg-slate-100',
+        text: 'text-slate-600',
+        border: 'border-slate-200',
         label: 'Archived',
       };
     default:
       return {
-        bg: 'bg-gray-500/15',
-        text: 'text-gray-300',
-        border: 'border-gray-500/30',
+        bg: 'bg-slate-100',
+        text: 'text-slate-700',
+        border: 'border-slate-200',
         label: status ? status.replace(/_/g, ' ') : 'Unknown',
       };
   }

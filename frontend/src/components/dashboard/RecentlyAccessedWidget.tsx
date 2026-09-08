@@ -25,38 +25,38 @@ const ENTITY_ICONS: Record<
   PROJECT: {
     label: 'Project',
     icon: Film,
-    color: 'text-blue-400',
-    badgeBg: 'bg-blue-950/50 text-blue-300 border-blue-800/50',
+    color: 'text-blue-600',
+    badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
   },
   SCRIPT: {
     label: 'Script',
     icon: FileText,
-    color: 'text-purple-400',
-    badgeBg: 'bg-purple-950/50 text-purple-300 border-purple-800/50',
+    color: 'text-purple-600',
+    badgeBg: 'bg-purple-50 text-purple-700 border-purple-200',
   },
   REPORT: {
     label: 'Report',
     icon: BarChart3,
-    color: 'text-pink-400',
-    badgeBg: 'bg-pink-950/50 text-pink-300 border-pink-800/50',
+    color: 'text-pink-600',
+    badgeBg: 'bg-pink-50 text-pink-700 border-pink-200',
   },
   EQUIPMENT: {
     label: 'Equipment',
     icon: Camera,
-    color: 'text-cyan-400',
-    badgeBg: 'bg-cyan-950/50 text-cyan-300 border-cyan-800/50',
+    color: 'text-cyan-600',
+    badgeBg: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   },
   TASK: {
     label: 'Task',
     icon: CheckSquare,
-    color: 'text-emerald-400',
-    badgeBg: 'bg-emerald-950/50 text-emerald-300 border-emerald-800/50',
+    color: 'text-emerald-600',
+    badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   },
   GRAPHIC_REQUIREMENT: {
     label: 'Graphic Req',
     icon: Palette,
-    color: 'text-amber-400',
-    badgeBg: 'bg-amber-950/50 text-amber-300 border-amber-800/50',
+    color: 'text-amber-600',
+    badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
   },
 };
 
@@ -83,21 +83,18 @@ export function RecentlyAccessedWidget({ className = '' }: { className?: string 
 
   return (
     <div
-      className={`bg-card border border-border rounded-xl p-5 shadow-lg space-y-4 text-xs ${className}`}
+      className={`bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 text-xs ${className}`}
     >
       {/* Widget Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-blue-500/15 border border-blue-500/30 rounded-lg text-blue-400">
+          <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-600">
             <History className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-white text-sm flex items-center gap-2">
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
               Recently Accessed Records
             </h3>
-            <p className="text-[11px] text-gray-400">
-              Quick resume history for your active Projects, Scripts, Reports & Equipment
-            </p>
           </div>
         </div>
 
@@ -107,8 +104,8 @@ export function RecentlyAccessedWidget({ className = '' }: { className?: string 
             onClick={() => setFilterType('ALL')}
             className={`px-2.5 py-1 rounded-md font-semibold transition-colors ${
               filterType === 'ALL'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             All
@@ -120,8 +117,8 @@ export function RecentlyAccessedWidget({ className = '' }: { className?: string 
                 onClick={() => setFilterType(type)}
                 className={`px-2.5 py-1 rounded-md font-semibold transition-colors flex items-center gap-1 ${
                   filterType === type
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 {ENTITY_ICONS[type].label}s
@@ -133,17 +130,14 @@ export function RecentlyAccessedWidget({ className = '' }: { className?: string 
 
       {/* Records Grid / List */}
       {loading ? (
-        <div className="p-8 text-center text-gray-400">Loading recent history...</div>
+        <div className="p-8 text-center text-slate-400 font-mono">Loading recent history...</div>
       ) : recentRecords.length === 0 ? (
-        <div className="py-3.5 px-4 bg-gray-950/60 border border-gray-800/80 rounded-xl flex items-center gap-3 text-left">
-          <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+        <div className="py-3.5 px-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3 text-left">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0">
             <Clock className="w-4 h-4" />
           </div>
           <div>
-            <p className="font-bold text-gray-300 text-xs">No recently accessed records found</p>
-            <p className="text-[11px] text-gray-400 leading-snug">
-              As you navigate through Projects, Scripts, Reports, and Equipment, your quick history will appear here.
-            </p>
+            <p className="font-bold text-slate-800 text-xs">No recently accessed records found</p>
           </div>
         </div>
       ) : (
@@ -152,27 +146,27 @@ export function RecentlyAccessedWidget({ className = '' }: { className?: string 
             const config = ENTITY_ICONS[rec.entityType] || {
               label: rec.entityType,
               icon: Layers,
-              color: 'text-gray-400',
-              badgeBg: 'bg-gray-800 text-gray-300 border-gray-700',
+              color: 'text-slate-600',
+              badgeBg: 'bg-slate-100 text-slate-700 border-slate-200',
             };
             const Icon = config.icon;
 
             return (
               <div
                 key={rec.id}
-                className="bg-gray-900/60 hover:bg-gray-900 border border-gray-800/80 hover:border-blue-500/40 p-3.5 rounded-xl transition-all group flex flex-col justify-between space-y-2.5 shadow-sm"
+                className="bg-slate-50/70 hover:bg-slate-50 border border-slate-200 hover:border-blue-300 p-3.5 rounded-xl transition-all group flex flex-col justify-between space-y-2.5 shadow-xs"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <div
-                      className={`p-1.5 rounded-lg bg-gray-950 border border-gray-800 shrink-0 ${config.color}`}
+                      className={`p-1.5 rounded-lg bg-white border border-slate-200 shrink-0 ${config.color}`}
                     >
                       <Icon className="w-3.5 h-3.5" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         {rec.code && (
-                          <span className="font-mono text-[10px] text-blue-400 font-bold">
+                          <span className="font-mono text-[10px] text-blue-700 font-bold">
                             {rec.code}
                           </span>
                         )}
@@ -201,19 +195,19 @@ export function RecentlyAccessedWidget({ className = '' }: { className?: string 
                 </div>
 
                 <Link href={rec.url} className="block group-hover:underline">
-                  <h4 className="font-bold text-white text-xs truncate leading-snug">
+                  <h4 className="font-bold text-slate-900 text-xs truncate leading-snug">
                     {rec.title}
                   </h4>
                 </Link>
 
-                <div className="flex items-center justify-between pt-2 border-t border-gray-800/60 text-[10px] text-gray-400">
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-[10px] text-slate-500">
                   <span className="flex items-center gap-1 font-mono">
-                    <Clock className="w-3 h-3 text-gray-500" />
+                    <Clock className="w-3 h-3 text-slate-400" />
                     {formatRelativeTime(rec.accessedAt)}
                   </span>
                   <Link
                     href={rec.url}
-                    className="flex items-center gap-1 text-blue-400 hover:text-blue-300 font-semibold transition-colors"
+                    className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-semibold transition-colors"
                   >
                     Open <ArrowRight className="w-3 h-3" />
                   </Link>

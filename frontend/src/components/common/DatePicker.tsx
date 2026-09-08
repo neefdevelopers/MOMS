@@ -39,18 +39,18 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   return (
     <div className={`relative inline-flex flex-col ${className}`}>
       {label && (
-        <label className="text-[11px] font-semibold text-gray-400 mb-1 flex items-center gap-1">
-          <CalendarIcon className="w-3 h-3 text-indigo-400" />
+        <label className="text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
+          <CalendarIcon className="w-3 h-3 text-blue-600" />
           {label}
         </label>
       )}
       <div
         onClick={handleOpenPicker}
-        className={`group relative flex items-center bg-gray-900 border border-gray-700 hover:border-indigo-500/70 focus-within:border-indigo-500 rounded-lg px-2.5 py-1.5 transition-all cursor-pointer ${
-          disabled ? 'opacity-50 cursor-not-allowed bg-gray-950' : ''
+        className={`group relative flex items-center bg-white border border-slate-300 hover:border-blue-500 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 rounded-lg px-2.5 py-1.5 transition-all cursor-pointer shadow-xs ${
+          disabled ? 'opacity-50 cursor-not-allowed bg-slate-100' : ''
         }`}
       >
-        <CalendarIcon className="w-4 h-4 text-indigo-400 group-hover:text-indigo-300 mr-2 shrink-0 transition-colors" />
+        <CalendarIcon className="w-4 h-4 text-blue-600 group-hover:text-blue-700 mr-2 shrink-0 transition-colors" />
         <input
           ref={inputRef}
           type="date"
@@ -62,7 +62,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           }}
           disabled={disabled}
           placeholder={placeholder}
-          className={`bg-transparent text-white text-xs focus:outline-none w-full cursor-pointer placeholder-gray-500 ${inputClassName}`}
+          className={`bg-transparent text-slate-900 text-xs focus:outline-none w-full cursor-pointer placeholder-slate-400 ${inputClassName}`}
           {...rest}
         />
         {allowClear && value && !disabled && (
@@ -72,7 +72,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
               e.stopPropagation();
               onChange('');
             }}
-            className="ml-1.5 p-0.5 text-gray-500 hover:text-white rounded-full hover:bg-gray-800 transition-colors"
+            className="ml-1.5 p-0.5 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-100 transition-colors"
             title="Clear Date"
           >
             <X className="w-3 h-3" />

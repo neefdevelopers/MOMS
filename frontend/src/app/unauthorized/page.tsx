@@ -10,29 +10,29 @@ export default function UnauthorizedPage() {
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-card border border-red-900/50 rounded-2xl p-8 text-center space-y-6 shadow-2xl shadow-red-950/20">
-        <div className="w-16 h-16 rounded-2xl bg-red-950/80 border border-red-800/80 text-red-400 flex items-center justify-center mx-auto shadow-inner">
+      <div className="max-w-md w-full bg-white border border-rose-200 rounded-2xl p-8 text-center space-y-6 shadow-xs">
+        <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto shadow-xs">
           <ShieldAlert className="w-8 h-8" />
         </div>
 
         <div className="space-y-2">
-          <span className="px-3 py-1 bg-red-950 text-red-300 border border-red-800 text-[10px] font-mono font-extrabold rounded-full uppercase tracking-wider">
+          <span className="px-3 py-1 bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-mono font-bold rounded-full uppercase tracking-wider">
             403 — Access Denied
           </span>
-          <h1 className="text-xl font-black text-white">Restricted Operational Module</h1>
-          <p className="text-xs text-gray-400 leading-relaxed">
-            Your role (<strong className="text-red-300 font-mono">{user?.role || 'GUEST'}</strong>) is not authorized to access this page or perform operations on this route.
+          <h1 className="text-xl font-bold text-slate-900">Restricted Operational Module</h1>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Your role (<strong className="text-rose-700 font-mono">{user?.role || 'GUEST'}</strong>) is not authorized to access this page or perform operations on this route.
           </p>
         </div>
 
-        <div className="p-3 bg-gray-950 border border-gray-800 rounded-xl text-[11px] text-gray-400 font-mono">
+        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-500 font-mono">
           Security Policy Rule Violation: Module Access Revoked
         </div>
 
         <div className="flex items-center justify-center gap-3 pt-2">
           <Link
             href="/"
-            className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-2 shadow-lg shadow-purple-600/30"
+            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-2 shadow-xs"
           >
             <Home className="w-4 h-4" /> Go to My Authorized Dashboard
           </Link>

@@ -222,8 +222,8 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
   if (loading) {
     return (
       <div className="py-20 text-center space-y-3">
-        <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-xs text-zinc-400 font-mono">
+        <div className="w-10 h-10 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-xs text-slate-500 font-medium">
           Loading Technical Operations Command & Review Center...
         </p>
       </div>
@@ -277,32 +277,26 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 border border-zinc-800 rounded-2xl p-5 shadow-2xl flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="p-3 bg-emerald-950/80 border border-emerald-700/80 rounded-2xl text-emerald-400 shrink-0">
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-700 shrink-0">
             <Wrench className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-white tracking-wide">
-                Technical Operations Command & Review Center
+              <h1 className="text-base font-bold text-slate-900 tracking-tight">
+                Technical Operations Command &amp; Review Center
               </h1>
-              <span className="text-[10px] font-mono font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
-                Technical Manager Workspace
-              </span>
             </div>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              Work waiting for technical review, script & graphic sign-offs, live downstream updates on approved work, and technical deadlines
-            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={loadTechnicalDashboard}
-            className="text-xs font-bold px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 flex items-center gap-1.5 transition-all"
+            className="text-xs font-semibold px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-xs flex items-center gap-1.5 transition-all"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-emerald-400" />
+            <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
             <span>Refresh Review Hub</span>
           </button>
         </div>
@@ -310,131 +304,126 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
 
       {/* KPI Metric Counter Bar (7 Cards) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
-        <div className="p-3.5 bg-emerald-950/40 border border-emerald-800/80 rounded-2xl space-y-1 shadow-lg relative overflow-hidden">
-          <div className="flex items-center justify-between text-emerald-400">
+        <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-2xl space-y-1 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between text-emerald-700">
             <span className="text-[10px] font-bold uppercase tracking-wider">Waiting Review</span>
-            <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
+            <Sparkles className="w-4 h-4 text-emerald-600 animate-pulse" />
           </div>
-          <div className="text-2xl font-black text-white font-mono">{totalWaitingCount}</div>
-          <span className="text-[10px] text-emerald-300 font-bold block">Requires Action</span>
+          <div className="text-2xl font-black text-slate-900 font-mono">{totalWaitingCount}</div>
+          <span className="text-[10px] text-emerald-700 font-bold block">Requires Action</span>
         </div>
 
-        <div className="p-3.5 bg-zinc-950/80 border border-teal-800/60 rounded-2xl space-y-1 shadow-lg">
-          <div className="flex items-center justify-between text-teal-400">
+        <div className="p-3.5 bg-white border border-slate-200 rounded-2xl space-y-1 shadow-xs">
+          <div className="flex items-center justify-between text-teal-700">
             <span className="text-[10px] font-bold uppercase tracking-wider">Approved & Live</span>
-            <CheckCircle2 className="w-4 h-4 text-teal-400" />
+            <CheckCircle2 className="w-4 h-4 text-teal-600" />
           </div>
-          <div className="text-2xl font-black text-teal-300 font-mono">{totalApprovedCount}</div>
-          <span className="text-[10px] text-teal-400 font-semibold block">Tracking Updates</span>
+          <div className="text-2xl font-black text-slate-900 font-mono">{totalApprovedCount}</div>
+          <span className="text-[10px] text-teal-700 font-semibold block">Tracking Updates</span>
         </div>
 
-        <div className="p-3.5 bg-zinc-950/80 border border-zinc-800/80 rounded-2xl space-y-1 shadow-lg">
-          <div className="flex items-center justify-between text-zinc-400">
+        <div className="p-3.5 bg-white border border-slate-200 rounded-2xl space-y-1 shadow-xs">
+          <div className="flex items-center justify-between text-slate-600">
             <span className="text-[10px] font-bold uppercase tracking-wider">Scripts Awaiting</span>
-            <FileText className="w-4 h-4 text-purple-400" />
+            <FileText className="w-4 h-4 text-purple-600" />
           </div>
-          <div className="text-xl font-black text-purple-300 font-mono">{scriptsAwaiting.length}</div>
-          <span className="text-[10px] text-purple-400 font-semibold block">Script Tech Review</span>
+          <div className="text-xl font-black text-slate-900 font-mono">{scriptsAwaiting.length}</div>
+          <span className="text-[10px] text-purple-700 font-semibold block">Script Tech Review</span>
         </div>
 
-        <div className="p-3.5 bg-zinc-950/80 border border-zinc-800/80 rounded-2xl space-y-1 shadow-lg">
-          <div className="flex items-center justify-between text-zinc-400">
+        <div className="p-3.5 bg-white border border-slate-200 rounded-2xl space-y-1 shadow-xs">
+          <div className="flex items-center justify-between text-slate-600">
             <span className="text-[10px] font-bold uppercase tracking-wider">Graphics Awaiting</span>
-            <Palette className="w-4 h-4 text-amber-400" />
+            <Palette className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="text-xl font-black text-amber-300 font-mono">{graphicsAwaiting.length}</div>
-          <span className="text-[10px] text-amber-400 font-semibold block">Stage 2: Tech Review</span>
+          <div className="text-xl font-black text-slate-900 font-mono">{graphicsAwaiting.length}</div>
+          <span className="text-[10px] text-amber-700 font-semibold block">Stage 2: Tech Review</span>
         </div>
 
-        <div className="p-3.5 bg-zinc-950/80 border border-zinc-800/80 rounded-2xl space-y-1 shadow-lg">
-          <div className="flex items-center justify-between text-zinc-400">
+        <div className="p-3.5 bg-white border border-slate-200 rounded-2xl space-y-1 shadow-xs">
+          <div className="flex items-center justify-between text-slate-600">
             <span className="text-[10px] font-bold uppercase tracking-wider">Projects Attention</span>
-            <Film className="w-4 h-4 text-blue-400" />
+            <Film className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="text-xl font-black text-blue-300 font-mono">{projectsAttention.length}</div>
-          <span className="text-[10px] text-blue-400 font-semibold block">Technical Readiness</span>
+          <div className="text-xl font-black text-slate-900 font-mono">{projectsAttention.length}</div>
+          <span className="text-[10px] text-blue-700 font-semibold block">Technical Readiness</span>
         </div>
 
-        <div className="p-3.5 bg-zinc-950/80 border border-zinc-800/80 rounded-2xl space-y-1 shadow-lg">
-          <div className="flex items-center justify-between text-zinc-400">
+        <div className="p-3.5 bg-white border border-slate-200 rounded-2xl space-y-1 shadow-xs">
+          <div className="flex items-center justify-between text-slate-600">
             <span className="text-[10px] font-bold uppercase tracking-wider">Tech Deadlines</span>
-            <Clock className="w-4 h-4 text-rose-400" />
+            <Clock className="w-4 h-4 text-rose-600" />
           </div>
-          <div className="text-xl font-black text-rose-300 font-mono">{upcomingDeadlines.length}</div>
-          <span className="text-[10px] text-rose-400 font-semibold block">Due Next 7 Days</span>
+          <div className="text-xl font-black text-slate-900 font-mono">{upcomingDeadlines.length}</div>
+          <span className="text-[10px] text-rose-700 font-semibold block">Due Next 7 Days</span>
         </div>
 
-        <div className="p-3.5 bg-zinc-950/80 border border-zinc-800/80 rounded-2xl space-y-1 shadow-lg">
-          <div className="flex items-center justify-between text-zinc-400">
+        <div className="p-3.5 bg-white border border-slate-200 rounded-2xl space-y-1 shadow-xs">
+          <div className="flex items-center justify-between text-slate-600">
             <span className="text-[10px] font-bold uppercase tracking-wider">Technical Tasks</span>
-            <CheckSquare className="w-4 h-4 text-cyan-400" />
+            <CheckSquare className="w-4 h-4 text-cyan-600" />
           </div>
-          <div className="text-xl font-black text-cyan-300 font-mono">{technicalTasks.length}</div>
-          <span className="text-[10px] text-cyan-400 font-semibold block">In Production</span>
+          <div className="text-xl font-black text-slate-900 font-mono">{technicalTasks.length}</div>
+          <span className="text-[10px] text-cyan-700 font-semibold block">In Production</span>
         </div>
       </div>
 
       {/* Primary Section: COMMAND HUB (TOGGLE: AWAITING REVIEW vs APPROVED & TRACKING UPDATES) */}
-      <div className="bg-zinc-950 border-2 border-emerald-800/80 rounded-2xl p-5 space-y-4 shadow-2xl">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl border shrink-0 ${hubMode === 'AWAITING' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-teal-950 text-teal-300 border-teal-700'}`}>
+            <div className={`p-2.5 rounded-xl border shrink-0 ${hubMode === 'AWAITING' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>
               {hubMode === 'AWAITING' ? <FileCheck className="w-6 h-6" /> : <Activity className="w-6 h-6" />}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-black text-white tracking-wide uppercase">
-                  {hubMode === 'AWAITING' ? '⚡ Waiting for Technical Review Command Hub' : '✅ Approved Technical Work & Live Downstream Updates'}
+                <h2 className="text-base font-bold text-slate-900 tracking-tight uppercase">
+                  {hubMode === 'AWAITING' ? 'Waiting for Technical Review Command Hub' : 'Approved Technical Work & Live Downstream Updates'}
                 </h2>
-                <span className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border ${hubMode === 'AWAITING' ? 'bg-emerald-950 text-emerald-300 border-emerald-700' : 'bg-teal-950 text-teal-300 border-teal-700'}`}>
+                <span className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border ${hubMode === 'AWAITING' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>
                   {hubMode === 'AWAITING' ? `${totalWaitingCount} Items Awaiting Review` : `${totalApprovedCount} Approved Items Tracking`}
                 </span>
               </div>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                {hubMode === 'AWAITING'
-                  ? 'Sign off on Scripts, Graphic Requirements, Production Deliverables, and Assigned Review Requests'
-                  : 'Track downstream updates, Media Manager review progress, Client Confirmation, and latest remarks on all technical-approved items'}
-              </p>
             </div>
           </div>
 
           {/* Main Mode Toggle & Category Filter Pills */}
           <div className="flex flex-wrap items-center gap-2">
             {/* Mode Switcher */}
-            <div className="flex items-center bg-zinc-900 p-1 rounded-xl border border-zinc-700 text-xs">
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
               <button
                 onClick={() => setHubMode('AWAITING')}
                 className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
                   hubMode === 'AWAITING'
-                    ? 'bg-emerald-600 text-white shadow'
-                    : 'text-zinc-400 hover:text-white'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>⚡ Awaiting Review</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/40 font-mono">{totalWaitingCount}</span>
+                <span>Awaiting Review</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 font-mono">{totalWaitingCount}</span>
               </button>
               <button
                 onClick={() => setHubMode('APPROVED')}
                 className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
                   hubMode === 'APPROVED'
-                    ? 'bg-teal-600 text-white shadow'
-                    : 'text-zinc-400 hover:text-white'
+                    ? 'bg-teal-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>✅ Approved & Updates</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/40 font-mono">{totalApprovedCount}</span>
+                <span>Approved & Updates</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 font-mono">{totalApprovedCount}</span>
               </button>
             </div>
 
             {/* Sub Filter Pills for Awaiting Mode */}
             {hubMode === 'AWAITING' && (
-              <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800 text-[11px] overflow-x-auto">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] overflow-x-auto">
                 <button
                   onClick={() => setReviewTab('ALL')}
                   className={`px-3 py-1 rounded-lg font-bold transition-all ${
                     reviewTab === 'ALL'
-                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-700 shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-white text-emerald-700 border border-emerald-200 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   All ({totalWaitingCount})
@@ -443,8 +432,8 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   onClick={() => setReviewTab('SCRIPTS')}
                   className={`px-3 py-1 rounded-lg font-bold transition-all ${
                     reviewTab === 'SCRIPTS'
-                      ? 'bg-purple-950 text-purple-300 border border-purple-800 shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-white text-purple-700 border border-purple-200 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Scripts ({scriptsAwaiting.length})
@@ -453,8 +442,8 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   onClick={() => setReviewTab('GRAPHICS')}
                   className={`px-3 py-1 rounded-lg font-bold transition-all ${
                     reviewTab === 'GRAPHICS'
-                      ? 'bg-amber-950 text-amber-300 border border-amber-800 shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-white text-amber-700 border border-amber-200 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Graphics ({graphicsAwaiting.length})
@@ -463,8 +452,8 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   onClick={() => setReviewTab('DELIVERABLES')}
                   className={`px-3 py-1 rounded-lg font-bold transition-all ${
                     reviewTab === 'DELIVERABLES'
-                      ? 'bg-blue-950 text-blue-300 border border-blue-800 shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-white text-blue-700 border border-blue-200 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Sign-Offs ({pendingApprovals.length})
@@ -474,13 +463,13 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
 
             {/* Sub Filter Pills for Approved Mode */}
             {hubMode === 'APPROVED' && (
-              <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800 text-[11px] overflow-x-auto">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] overflow-x-auto">
                 <button
                   onClick={() => setApprovedTab('ALL')}
                   className={`px-3 py-1 rounded-lg font-bold transition-all ${
                     approvedTab === 'ALL'
-                      ? 'bg-teal-950 text-teal-300 border border-teal-700 shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-white text-teal-700 border border-teal-200 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   All ({totalApprovedCount})
@@ -489,8 +478,8 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   onClick={() => setApprovedTab('GRAPHICS')}
                   className={`px-3 py-1 rounded-lg font-bold transition-all ${
                     approvedTab === 'GRAPHICS'
-                      ? 'bg-amber-950 text-amber-300 border border-amber-800 shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-white text-amber-700 border border-amber-200 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Graphics ({approvedGraphics.length})
@@ -499,8 +488,8 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   onClick={() => setApprovedTab('SCRIPTS')}
                   className={`px-3 py-1 rounded-lg font-bold transition-all ${
                     approvedTab === 'SCRIPTS'
-                      ? 'bg-purple-950 text-purple-300 border border-purple-800 shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-white text-purple-700 border border-purple-200 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Scripts ({approvedScripts.length})
@@ -509,8 +498,8 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   onClick={() => setApprovedTab('TASKS')}
                   className={`px-3 py-1 rounded-lg font-bold transition-all ${
                     approvedTab === 'TASKS'
-                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-800 shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-white text-cyan-700 border border-cyan-200 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Tasks ({approvedTasks.length})
@@ -519,8 +508,8 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   onClick={() => setApprovedTab('PROJECTS')}
                   className={`px-3 py-1 rounded-lg font-bold transition-all ${
                     approvedTab === 'PROJECTS'
-                      ? 'bg-blue-950 text-blue-300 border border-blue-800 shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-white text-blue-700 border border-blue-200 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Projects ({approvedProjects.length})
@@ -538,50 +527,50 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               graphicsAwaiting.map((gr: any) => (
                 <div
                   key={gr.id}
-                  className="bg-zinc-900/80 hover:bg-zinc-900 border border-amber-900/60 p-4 rounded-2xl space-y-3 transition-all flex flex-col justify-between shadow-lg group"
+                  className="bg-white hover:border-amber-300 border border-amber-200 p-4 rounded-2xl space-y-3 transition-all flex flex-col justify-between shadow-xs group"
                 >
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 uppercase flex items-center gap-1">
-                        <Palette className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 uppercase flex items-center gap-1">
+                        <Palette className="w-3.5 h-3.5 text-amber-600" />
                         Graphic Req • Stage 2 Review
                       </span>
-                      <span className="text-[10px] font-mono text-amber-400 font-bold">
+                      <span className="text-[10px] font-mono text-amber-700 font-bold">
                         {gr.requirementId || 'GRAPHIC'}
                       </span>
                     </div>
 
-                    <h4 className="font-bold text-white text-xs leading-snug group-hover:text-amber-300 transition-colors">
+                    <h4 className="font-bold text-slate-900 text-xs leading-snug group-hover:text-amber-800 transition-colors">
                       {gr.name}
                     </h4>
 
-                    <p className="text-[11px] text-zinc-400">
-                      Project: <span className="text-zinc-200 font-medium">{gr.project?.name || 'Standalone'}</span>
+                    <p className="text-[11px] text-slate-500">
+                      Project: <span className="text-slate-800 font-medium">{gr.project?.name || 'Standalone'}</span>
                     </p>
 
                     {/* 5-Stage Graphic Requirement Workflow Progress Bar */}
-                    <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-800/80 space-y-1.5">
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
                       <div className="flex items-center justify-between text-[9px] font-mono">
-                        <span className="text-zinc-400 uppercase font-bold">Defined Workflow Stage:</span>
-                        <span className="text-amber-400 font-bold">Stage 2: Technical Review</span>
+                        <span className="text-slate-500 uppercase font-bold">Defined Workflow Stage:</span>
+                        <span className="text-amber-700 font-bold">Stage 2: Technical Review</span>
                       </div>
 
                       <div className="grid grid-cols-5 gap-1 pt-0.5">
-                        <div className="h-1.5 rounded-full bg-emerald-500" title="Stage 1: Production Complete ✓" />
-                        <div className="h-1.5 rounded-full bg-amber-400 animate-pulse" title="Stage 2: Technical Review (⚡ ACTIVE)" />
-                        <div className="h-1.5 rounded-full bg-zinc-800" title="Stage 3: Media Manager Review" />
-                        <div className="h-1.5 rounded-full bg-zinc-800" title="Stage 4: Client Confirmation" />
-                        <div className="h-1.5 rounded-full bg-zinc-800" title="Stage 5: Completed" />
+                        <div className="h-1.5 rounded-full bg-emerald-500" title="Stage 1: Production Complete" />
+                        <div className="h-1.5 rounded-full bg-amber-500 animate-pulse" title="Stage 2: Technical Review (ACTIVE)" />
+                        <div className="h-1.5 rounded-full bg-slate-200" title="Stage 3: Media Manager Review" />
+                        <div className="h-1.5 rounded-full bg-slate-200" title="Stage 4: Client Confirmation" />
+                        <div className="h-1.5 rounded-full bg-slate-200" title="Stage 5: Completed" />
                       </div>
 
-                      <div className="text-[9px] text-zinc-500 font-mono text-center pt-0.5">
-                        Production ✓ → <strong className="text-amber-300">Technical Review ⚡</strong> → Media Mgr → Client → Done
+                      <div className="text-[9px] text-slate-500 font-mono text-center pt-0.5">
+                        Production Complete &rarr; <strong className="text-amber-700">Technical Review</strong> &rarr; Media Mgr &rarr; Client &rarr; Done
                       </div>
                     </div>
                   </div>
 
                   {/* Actions Footer */}
-                  <div className="pt-2.5 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-1.5">
+                  <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5">
                     <button
                       onClick={() =>
                         setActiveReviewItem({
@@ -596,9 +585,9 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                           rawData: gr,
                         })
                       }
-                      className="w-full text-xs font-bold py-2 rounded-xl bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-800/80 flex items-center justify-center gap-1.5 shadow-md transition-all"
+                      className="w-full text-xs font-semibold py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 flex items-center justify-center gap-1.5 shadow-xs transition-all"
                     >
-                      <Wrench className="w-3.5 h-3.5 text-amber-400" />
+                      <Wrench className="w-3.5 h-3.5 text-amber-700" />
                       <span>Perform Technical Review</span>
                     </button>
                   </div>
@@ -610,33 +599,33 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               scriptsAwaiting.map((sc: any) => (
                 <div
                   key={sc.id}
-                  className="bg-zinc-900/80 hover:bg-zinc-900 border border-purple-900/60 p-4 rounded-2xl space-y-3 transition-all flex flex-col justify-between shadow-lg group"
+                  className="bg-white hover:border-purple-300 border border-purple-200 p-4 rounded-2xl space-y-3 transition-all flex flex-col justify-between shadow-xs group"
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 uppercase flex items-center gap-1">
-                        <FileText className="w-3.5 h-3.5 text-purple-400" />
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 uppercase flex items-center gap-1">
+                        <FileText className="w-3.5 h-3.5 text-purple-600" />
                         Script Technical Review
                       </span>
-                      <span className="text-[10px] font-mono text-purple-400 font-bold">
+                      <span className="text-[10px] font-mono text-purple-700 font-bold">
                         {sc.scriptId || 'SCRIPT'}
                       </span>
                     </div>
 
-                    <h4 className="font-bold text-white text-xs leading-snug group-hover:text-purple-300 transition-colors">
+                    <h4 className="font-bold text-slate-900 text-xs leading-snug group-hover:text-purple-800 transition-colors">
                       {sc.name}
                     </h4>
 
-                    <p className="text-[11px] text-zinc-400">
-                      Project: <span className="text-zinc-200 font-medium">{sc.project?.name || 'Independent'}</span>
+                    <p className="text-[11px] text-slate-500">
+                      Project: <span className="text-slate-800 font-medium">{sc.project?.name || 'Independent'}</span>
                     </p>
 
-                    <div className="p-2 bg-zinc-950 rounded-xl border border-zinc-800 text-[10px] text-zinc-400">
+                    <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 text-[10px] text-slate-600">
                       Awaiting technical validation of shooting script format, scene breakdown & technical requirements.
                     </div>
                   </div>
 
-                  <div className="pt-2.5 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-1.5">
+                  <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5">
                     <button
                       onClick={() =>
                         setActiveReviewItem({
@@ -651,9 +640,9 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                           rawData: sc,
                         })
                       }
-                      className="w-full text-xs font-bold py-2 rounded-xl bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-800/80 flex items-center justify-center gap-1.5 shadow-md transition-all"
+                      className="w-full text-xs font-semibold py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 flex items-center justify-center gap-1.5 shadow-xs transition-all"
                     >
-                      <Wrench className="w-3.5 h-3.5 text-purple-400" />
+                      <Wrench className="w-3.5 h-3.5 text-purple-700" />
                       <span>Perform Technical Review</span>
                     </button>
                   </div>
@@ -665,28 +654,28 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               pendingApprovals.map((app: any) => (
                 <div
                   key={app.id}
-                  className="bg-zinc-900/80 hover:bg-zinc-900 border border-blue-900/60 p-4 rounded-2xl space-y-3 transition-all flex flex-col justify-between shadow-lg group"
+                  className="bg-white hover:border-blue-300 border border-blue-200 p-4 rounded-2xl space-y-3 transition-all flex flex-col justify-between shadow-xs group"
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800 uppercase">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 uppercase">
                         Technical Sign-Off Request
                       </span>
-                      <span className="text-[10px] text-zinc-500 font-mono">
+                      <span className="text-[10px] text-slate-500 font-mono">
                         {new Date(app.createdAt).toLocaleDateString()}
                       </span>
                     </div>
 
-                    <h4 className="font-bold text-white text-xs leading-snug group-hover:text-blue-300 transition-colors">
+                    <h4 className="font-bold text-slate-900 text-xs leading-snug group-hover:text-blue-800 transition-colors">
                       {app.title || app.project?.name || 'Deliverable Sign-Off'}
                     </h4>
 
-                    <p className="text-[11px] text-zinc-400 line-clamp-2">
+                    <p className="text-[11px] text-slate-500 line-clamp-2">
                       {app.description || 'Pending Technical Manager quality sign-off.'}
                     </p>
                   </div>
 
-                  <div className="pt-2.5 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-1.5">
+                  <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5">
                     <button
                       onClick={() =>
                         setActiveReviewItem({
@@ -703,9 +692,9 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                           rawData: app,
                         })
                       }
-                      className="w-full text-xs font-bold py-2 rounded-xl bg-blue-950/80 hover:bg-blue-900 text-blue-300 border border-blue-800/80 flex items-center justify-center gap-1.5 shadow-md transition-all"
+                      className="w-full text-xs font-semibold py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 flex items-center justify-center gap-1.5 shadow-xs transition-all"
                     >
-                      <Wrench className="w-3.5 h-3.5 text-blue-400" />
+                      <Wrench className="w-3.5 h-3.5 text-blue-700" />
                       <span>Perform Technical Review</span>
                     </button>
                   </div>
@@ -713,10 +702,10 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               ))}
 
             {totalWaitingCount === 0 && (
-              <div className="col-span-full py-12 text-center bg-zinc-900/20 border border-zinc-800/80 rounded-2xl space-y-2">
-                <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
-                <h4 className="text-sm font-bold text-white">All Technical Reviews Complete</h4>
-                <p className="text-xs text-zinc-400 max-w-md mx-auto">
+              <div className="col-span-full py-12 text-center bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-900">All Technical Reviews Complete</h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
                   No scripts, graphic requirements, production deliverables, or review requests are currently awaiting technical review.
                 </p>
               </div>
@@ -732,56 +721,56 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               approvedGraphics.map((gr: any) => (
                 <div
                   key={gr.id}
-                  className="bg-zinc-900/80 border border-teal-900/60 p-4 rounded-2xl space-y-3 shadow-lg flex flex-col justify-between"
+                  className="bg-white border border-teal-200 p-4 rounded-2xl space-y-3 shadow-xs flex flex-col justify-between"
                 >
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-700 uppercase flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
-                        Tech Approved ✓
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200 uppercase flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
+                        Tech Approved
                       </span>
-                      <span className="text-[10px] font-mono font-bold text-zinc-400">
+                      <span className="text-[10px] font-mono font-bold text-slate-500">
                         {gr.requirementId}
                       </span>
                     </div>
 
-                    <h4 className="font-bold text-white text-xs">{gr.name}</h4>
-                    <p className="text-[11px] text-zinc-400">
-                      Project: <span className="text-zinc-200">{gr.project?.name || 'Standalone'}</span>
+                    <h4 className="font-bold text-slate-900 text-xs">{gr.name}</h4>
+                    <p className="text-[11px] text-slate-500">
+                      Project: <span className="text-slate-800">{gr.project?.name || 'Standalone'}</span>
                     </p>
 
                     {/* Current Stage & Downstream Status */}
-                    <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-800 space-y-1.5">
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
                       <div className="flex items-center justify-between text-[9px] font-mono">
-                        <span className="text-zinc-400 uppercase font-bold">Downstream Stage:</span>
-                        <span className="text-teal-300 font-bold">
+                        <span className="text-slate-500 uppercase font-bold">Downstream Stage:</span>
+                        <span className="text-teal-700 font-bold">
                           {gr.status === 'WAITING_FOR_MEDIA_REVIEW' ? 'Media Manager Review' : gr.status === 'WAITING_FOR_CLIENT_CONFIRMATION' ? 'Client Confirmation' : gr.status}
                         </span>
                       </div>
 
                       <div className="grid grid-cols-5 gap-1 pt-0.5">
-                        <div className="h-1.5 rounded-full bg-emerald-500" title="Stage 1: Production Complete ✓" />
-                        <div className="h-1.5 rounded-full bg-emerald-500" title="Stage 2: Tech Review Approved ✓" />
-                        <div className={`h-1.5 rounded-full ${gr.status === 'WAITING_FOR_MEDIA_REVIEW' ? 'bg-cyan-400 animate-pulse' : ['WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED', 'CLOSED'].includes(gr.status) ? 'bg-emerald-500' : 'bg-zinc-800'}`} title="Stage 3: Media Manager Review" />
-                        <div className={`h-1.5 rounded-full ${gr.status === 'WAITING_FOR_CLIENT_CONFIRMATION' ? 'bg-indigo-400 animate-pulse' : ['COMPLETED', 'CLOSED'].includes(gr.status) ? 'bg-emerald-500' : 'bg-zinc-800'}`} title="Stage 4: Client Confirmation" />
-                        <div className={`h-1.5 rounded-full ${['COMPLETED', 'CLOSED'].includes(gr.status) ? 'bg-emerald-500' : 'bg-zinc-800'}`} title="Stage 5: Completed" />
+                        <div className="h-1.5 rounded-full bg-emerald-500" title="Stage 1: Production Complete" />
+                        <div className="h-1.5 rounded-full bg-emerald-500" title="Stage 2: Tech Review Approved" />
+                        <div className={`h-1.5 rounded-full ${gr.status === 'WAITING_FOR_MEDIA_REVIEW' ? 'bg-cyan-500 animate-pulse' : ['WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED', 'CLOSED'].includes(gr.status) ? 'bg-emerald-500' : 'bg-slate-200'}`} title="Stage 3: Media Manager Review" />
+                        <div className={`h-1.5 rounded-full ${gr.status === 'WAITING_FOR_CLIENT_CONFIRMATION' ? 'bg-indigo-500 animate-pulse' : ['COMPLETED', 'CLOSED'].includes(gr.status) ? 'bg-emerald-500' : 'bg-slate-200'}`} title="Stage 4: Client Confirmation" />
+                        <div className={`h-1.5 rounded-full ${['COMPLETED', 'CLOSED'].includes(gr.status) ? 'bg-emerald-500' : 'bg-slate-200'}`} title="Stage 5: Completed" />
                       </div>
                     </div>
 
                     {/* Latest Remark / Update */}
                     {gr.remarksHistory && gr.remarksHistory.length > 0 && (
-                      <div className="p-2 bg-zinc-950/60 rounded-lg border border-zinc-800 text-[10px] text-zinc-400">
-                        <span className="text-zinc-500 font-mono">Latest Note: </span>
-                        <span className="text-zinc-300 italic line-clamp-1">{gr.remarksHistory[0]?.remark || gr.remarksHistory[0]?.content}</span>
+                      <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 text-[10px] text-slate-600">
+                        <span className="text-slate-400 font-mono">Latest Note: </span>
+                        <span className="text-slate-700 italic line-clamp-1">{gr.remarksHistory[0]?.remark || gr.remarksHistory[0]?.content}</span>
                       </div>
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-teal-400 font-bold">Status: {gr.status}</span>
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-teal-700 font-bold">Status: {gr.status}</span>
                     <Link
                       href={`/graphic-reqs?inspect=${gr.id}`}
-                      className="text-[11px] font-bold text-teal-400 hover:text-teal-300 flex items-center gap-1 font-mono"
+                      className="text-[11px] font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 font-mono"
                     >
                       <span>Track Updates</span>
                       <ArrowRight className="w-3 h-3" />
@@ -795,45 +784,45 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               approvedScripts.map((sc: any) => (
                 <div
                   key={sc.id}
-                  className="bg-zinc-900/80 border border-teal-900/60 p-4 rounded-2xl space-y-3 shadow-lg flex flex-col justify-between"
+                  className="bg-white border border-teal-200 p-4 rounded-2xl space-y-3 shadow-xs flex flex-col justify-between"
                 >
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-700 uppercase flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
-                        Script Tech Approved ✓
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200 uppercase flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
+                        Script Tech Approved
                       </span>
-                      <span className="text-[10px] font-mono text-zinc-400 font-bold">{sc.scriptId}</span>
+                      <span className="text-[10px] font-mono text-slate-500 font-bold">{sc.scriptId}</span>
                     </div>
 
-                    <h4 className="font-bold text-white text-xs">{sc.name}</h4>
-                    <p className="text-[11px] text-zinc-400">
-                      Project: <span className="text-zinc-200">{sc.project?.name || 'Independent'}</span>
+                    <h4 className="font-bold text-slate-900 text-xs">{sc.name}</h4>
+                    <p className="text-[11px] text-slate-500">
+                      Project: <span className="text-slate-800">{sc.project?.name || 'Independent'}</span>
                     </p>
 
-                    <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-800 space-y-1">
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
                       <div className="flex items-center justify-between text-[9px] font-mono">
-                        <span className="text-zinc-400 uppercase font-bold">Downstream Status:</span>
-                        <span className="text-teal-300 font-bold">{sc.status}</span>
+                        <span className="text-slate-500 uppercase font-bold">Downstream Status:</span>
+                        <span className="text-teal-700 font-bold">{sc.status}</span>
                       </div>
-                      <div className="text-[10px] text-zinc-400">
-                        Approval: <strong className="text-teal-300">{sc.approvalStatus || 'APPROVED'}</strong>
+                      <div className="text-[10px] text-slate-600">
+                        Approval: <strong className="text-teal-700">{sc.approvalStatus || 'APPROVED'}</strong>
                       </div>
                     </div>
 
                     {sc.scriptRemarks && sc.scriptRemarks.length > 0 && (
-                      <div className="p-2 bg-zinc-950/60 rounded-lg border border-zinc-800 text-[10px] text-zinc-400">
-                        <span className="text-zinc-500 font-mono">Latest Update: </span>
-                        <span className="text-zinc-300 italic line-clamp-1">{sc.scriptRemarks[0]?.content}</span>
+                      <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 text-[10px] text-slate-600">
+                        <span className="text-slate-400 font-mono">Latest Update: </span>
+                        <span className="text-slate-700 italic line-clamp-1">{sc.scriptRemarks[0]?.content}</span>
                       </div>
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-teal-400 font-bold">Status: {sc.status}</span>
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-teal-700 font-bold">Status: {sc.status}</span>
                     <Link
                       href={`/scripts?id=${sc.id}`}
-                      className="text-[11px] font-bold text-teal-400 hover:text-teal-300 flex items-center gap-1 font-mono"
+                      className="text-[11px] font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 font-mono"
                     >
                       <span>Track Updates</span>
                       <ArrowRight className="w-3 h-3" />
@@ -847,40 +836,40 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               approvedTasks.map((t: any) => (
                 <div
                   key={t.id}
-                  className="bg-zinc-900/80 border border-teal-900/60 p-4 rounded-2xl space-y-3 shadow-lg flex flex-col justify-between"
+                  className="bg-white border border-teal-200 p-4 rounded-2xl space-y-3 shadow-xs flex flex-col justify-between"
                 >
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-700 uppercase flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
-                        Task Approved ✓
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200 uppercase flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
+                        Task Approved
                       </span>
-                      <span className="text-[10px] font-mono text-zinc-400 font-bold">{t.taskId}</span>
+                      <span className="text-[10px] font-mono text-slate-500 font-bold">{t.taskId}</span>
                     </div>
 
-                    <h4 className="font-bold text-white text-xs">{t.title}</h4>
-                    <p className="text-[11px] text-zinc-400">
-                      Project: <span className="text-zinc-200">{t.project?.name || t.script?.name || t.graphicRequirement?.name || 'General Task'}</span>
+                    <h4 className="font-bold text-slate-900 text-xs">{t.title}</h4>
+                    <p className="text-[11px] text-slate-500">
+                      Project: <span className="text-slate-800">{t.project?.name || t.script?.name || t.graphicRequirement?.name || 'General Task'}</span>
                     </p>
 
-                    <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-between text-[10px]">
-                      <span className="text-zinc-400 font-mono">Task Status:</span>
-                      <span className="font-bold text-teal-300 font-mono uppercase">{t.status}</span>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-[10px]">
+                      <span className="text-slate-500 font-mono">Task Status:</span>
+                      <span className="font-bold text-teal-700 font-mono uppercase">{t.status}</span>
                     </div>
 
                     {t.remarksHistory && t.remarksHistory.length > 0 && (
-                      <div className="p-2 bg-zinc-950/60 rounded-lg border border-zinc-800 text-[10px] text-zinc-400">
-                        <span className="text-zinc-500 font-mono">Latest Update: </span>
-                        <span className="text-zinc-300 italic line-clamp-1">{t.remarksHistory[0]?.remark || t.remarksHistory[0]?.content}</span>
+                      <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 text-[10px] text-slate-600">
+                        <span className="text-slate-400 font-mono">Latest Update: </span>
+                        <span className="text-slate-700 italic line-clamp-1">{t.remarksHistory[0]?.remark || t.remarksHistory[0]?.content}</span>
                       </div>
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-teal-400 font-bold">Progress: {t.completionPercentage || 100}%</span>
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-teal-700 font-bold">Progress: {t.completionPercentage || 100}%</span>
                     <Link
                       href={`/tasks?id=${t.id}`}
-                      className="text-[11px] font-bold text-teal-400 hover:text-teal-300 flex items-center gap-1 font-mono"
+                      className="text-[11px] font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 font-mono"
                     >
                       <span>Track Task</span>
                       <ArrowRight className="w-3 h-3" />
@@ -894,33 +883,33 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               approvedProjects.map((p: any) => (
                 <div
                   key={p.id}
-                  className="bg-zinc-900/80 border border-teal-900/60 p-4 rounded-2xl space-y-3 shadow-lg flex flex-col justify-between"
+                  className="bg-white border border-teal-200 p-4 rounded-2xl space-y-3 shadow-xs flex flex-col justify-between"
                 >
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-700 uppercase flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
-                        Project Tech Approved ✓
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200 uppercase flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
+                        Project Tech Approved
                       </span>
-                      <span className="text-[10px] font-mono text-zinc-400 font-bold">{p.projectId}</span>
+                      <span className="text-[10px] font-mono text-slate-500 font-bold">{p.projectId}</span>
                     </div>
 
-                    <h4 className="font-bold text-white text-xs">{p.name}</h4>
-                    <p className="text-[11px] text-zinc-400">
-                      Client: <span className="text-zinc-200">{p.client?.name || 'General'}</span>
+                    <h4 className="font-bold text-slate-900 text-xs">{p.name}</h4>
+                    <p className="text-[11px] text-slate-500">
+                      Client: <span className="text-slate-800">{p.client?.name || 'General'}</span>
                     </p>
 
-                    <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-between text-[10px]">
-                      <span className="text-zinc-400 font-mono">Project Status:</span>
-                      <span className="font-bold text-teal-300 font-mono uppercase">{p.status}</span>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-[10px]">
+                      <span className="text-slate-500 font-mono">Project Status:</span>
+                      <span className="font-bold text-teal-700 font-mono uppercase">{p.status}</span>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-teal-400 font-bold">Status: {p.status}</span>
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-teal-700 font-bold">Status: {p.status}</span>
                     <Link
                       href={`/projects/${p.id}`}
-                      className="text-[11px] font-bold text-teal-400 hover:text-teal-300 flex items-center gap-1 font-mono"
+                      className="text-[11px] font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 font-mono"
                     >
                       <span>Inspect Project</span>
                       <ArrowRight className="w-3 h-3" />
@@ -930,10 +919,10 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               ))}
 
             {totalApprovedCount === 0 && (
-              <div className="col-span-full py-12 text-center bg-zinc-900/20 border border-zinc-800/80 rounded-2xl space-y-2">
-                <Activity className="w-10 h-10 text-teal-400 mx-auto" />
-                <h4 className="text-sm font-bold text-white">No Approved Items Tracking</h4>
-                <p className="text-xs text-zinc-400 max-w-md mx-auto">
+              <div className="col-span-full py-12 text-center bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <Activity className="w-10 h-10 text-teal-600 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-900">No Approved Items Tracking</h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
                   When you approve scripts, graphic requirements, tasks, or projects, they will show here with their latest downstream updates and progress.
                 </p>
               </div>
@@ -951,19 +940,19 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
       {/* Secondary Grid: Projects Requiring Attention & Upcoming Technical Deadlines */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Projects Requiring Technical Involvement (Read-Only Technical Visibility) */}
-        <div className="bg-zinc-950/90 border border-zinc-800/90 rounded-2xl p-5 space-y-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <Film className="w-4.5 h-4.5 text-blue-400" />
+              <Film className="w-4.5 h-4.5 text-blue-600" />
               <div>
-                <h3 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
                   Projects Requiring Technical Involvement ({projectsAttention.length})
                 </h3>
-                <p className="text-[10px] text-zinc-400 font-mono">Read-Only Technical Status, Progress & Task Audit</p>
+                <p className="text-[10px] text-slate-500 font-mono">Read-Only Technical Status, Progress & Task Audit</p>
               </div>
             </div>
-            <Link href="/projects" className="text-[11px] text-blue-400 hover:text-blue-300 font-bold">
-              View Projects List →
+            <Link href="/projects" className="text-[11px] text-blue-700 hover:text-blue-900 font-bold">
+              View Projects List
             </Link>
           </div>
 
@@ -972,20 +961,20 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               projectsAttention.map((p: any) => (
                 <div
                   key={p.id}
-                  className="p-3.5 bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800 rounded-xl transition-all space-y-2 shadow-sm"
+                  className="p-3.5 bg-slate-50/70 hover:bg-slate-50 border border-slate-200 rounded-xl transition-all space-y-2 shadow-xs"
                 >
                   {/* Top Line: Project Code, Name & Status Badges */}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-mono text-[10px] text-blue-400 font-bold px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800">
+                      <span className="font-mono text-[10px] text-blue-700 font-bold px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200">
                         {p.projectId}
                       </span>
-                      <h4 className="text-xs font-bold text-white truncate max-w-[180px]">{p.name}</h4>
+                      <h4 className="text-xs font-bold text-slate-900 truncate max-w-[180px]">{p.name}</h4>
                     </div>
 
                     <div className="flex items-center gap-1.5">
                       {/* Project Status */}
-                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-950 text-zinc-300 border border-zinc-800 uppercase">
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-white text-slate-700 border border-slate-200 uppercase">
                         {p.status}
                       </span>
 
@@ -993,11 +982,11 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                       <span
                         className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border ${
                           p.hasPendingTechApproval || p.technicalReviewStatus === 'WAITING_FOR_TECHNICAL_REVIEW'
-                            ? 'bg-emerald-950 text-emerald-300 border-emerald-800 animate-pulse'
-                            : 'bg-zinc-950 text-zinc-400 border-zinc-800'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 animate-pulse'
+                            : 'bg-white text-slate-500 border-slate-200'
                         }`}
                       >
-                        {p.hasPendingTechApproval ? '⚡ Tech Review Pending' : 'Tech Readiness OK'}
+                        {p.hasPendingTechApproval ? 'Tech Review Pending' : 'Tech Readiness OK'}
                       </span>
                     </div>
                   </div>
@@ -1005,13 +994,13 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   {/* Progress Bar & Assigned Technical Work Summary */}
                   <div className="space-y-1.5 pt-1">
                     <div className="flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-zinc-400">Technical Progress:</span>
-                      <span className="text-blue-400 font-bold">{p.progressPercentage || 35}% Complete</span>
+                      <span className="text-slate-500">Technical Progress:</span>
+                      <span className="text-blue-700 font-bold">{p.progressPercentage || 35}% Complete</span>
                     </div>
 
-                    <div className="w-full bg-zinc-950 rounded-full h-1.5 border border-zinc-800 overflow-hidden">
+                    <div className="w-full bg-slate-200 rounded-full h-1.5 border border-slate-200 overflow-hidden">
                       <div
-                        className="bg-blue-500 h-full rounded-full transition-all duration-500"
+                        className="bg-blue-600 h-full rounded-full transition-all duration-500"
                         style={{ width: `${Math.min(100, Math.max(5, p.progressPercentage || 35))}%` }}
                       />
                     </div>
@@ -1019,11 +1008,11 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                     {/* Assigned Technical Work Pills */}
                     {p.assignedTechnicalWork && p.assignedTechnicalWork.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1 pt-1">
-                        <span className="text-[9px] text-zinc-500 font-mono">Assigned Tech Work:</span>
+                        <span className="text-[9px] text-slate-400 font-mono">Assigned Tech Work:</span>
                         {p.assignedTechnicalWork.map((taskTitle: string, idx: number) => (
                           <span
                             key={idx}
-                            className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-zinc-950 text-cyan-300 border border-zinc-800 truncate max-w-[140px]"
+                            className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white text-cyan-700 border border-slate-200 truncate max-w-[140px]"
                           >
                             {taskTitle}
                           </span>
@@ -1033,14 +1022,14 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   </div>
 
                   {/* Footer: Upcoming Target Deadline & Read-Only Action */}
-                  <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-[10px] text-zinc-400">
+                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
                     <span className="font-mono">
-                      Target Date: <strong className="text-zinc-300">{p.shootDate ? new Date(p.shootDate).toLocaleDateString() : 'Scheduled'}</strong>
+                      Target Date: <strong className="text-slate-800">{p.shootDate ? new Date(p.shootDate).toLocaleDateString() : 'Scheduled'}</strong>
                     </span>
 
                     <Link
                       href={`/projects/${p.id}`}
-                      className="text-[11px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 font-mono"
+                      className="text-[11px] font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1 font-mono"
                     >
                       <span>Inspect Project Technical Status</span>
                       <ArrowRight className="w-3 h-3" />
@@ -1049,7 +1038,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                 </div>
               ))
             ) : (
-              <div className="py-8 text-center text-xs text-zinc-500">
+              <div className="py-8 text-center text-xs text-slate-500">
                 No active projects require technical involvement.
               </div>
             )}
@@ -1057,15 +1046,15 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
         </div>
 
         {/* Upcoming Technical Deadlines */}
-        <div className="bg-zinc-950/90 border border-zinc-800/90 rounded-2xl p-5 space-y-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <Clock className="w-4.5 h-4.5 text-rose-400" />
-              <h3 className="text-sm font-bold text-white tracking-wide">
+              <Clock className="w-4.5 h-4.5 text-rose-600" />
+              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
                 Upcoming Technical Deadlines ({upcomingDeadlines.length})
               </h3>
             </div>
-            <span className="text-[10px] font-mono text-zinc-500">Due within 7 Days</span>
+            <span className="text-[10px] font-mono text-slate-500">Due within 7 Days</span>
           </div>
 
           <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
@@ -1073,28 +1062,28 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               upcomingDeadlines.map((dl: any) => (
                 <div
                   key={dl.id}
-                  className="p-3 bg-zinc-900/40 hover:bg-zinc-900 border border-zinc-800 rounded-xl transition-all flex items-center justify-between gap-3"
+                  className="p-3 bg-slate-50/70 hover:bg-slate-50 border border-slate-200 rounded-xl transition-all flex items-center justify-between gap-3"
                 >
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-rose-400 font-bold">{dl.code}</span>
-                      <span className="text-xs font-bold text-white truncate max-w-[200px]">{dl.title}</span>
+                      <span className="font-mono text-[10px] text-rose-700 font-bold">{dl.code}</span>
+                      <span className="text-xs font-bold text-slate-900 truncate max-w-[200px]">{dl.title}</span>
                     </div>
-                    <p className="text-[10px] text-zinc-400">
-                      Target Date: <span className="text-rose-300 font-mono font-bold">{new Date(dl.dueDate).toLocaleDateString()}</span>
+                    <p className="text-[10px] text-slate-500">
+                      Target Date: <span className="text-rose-700 font-mono font-bold">{new Date(dl.dueDate).toLocaleDateString()}</span>
                     </p>
                   </div>
 
                   <Link
                     href={`/projects/${dl.id}`}
-                    className="text-[11px] font-bold text-rose-400 hover:text-rose-300 bg-rose-950/40 border border-rose-800/60 px-2.5 py-1 rounded-lg"
+                    className="text-[11px] font-bold text-rose-700 hover:text-rose-900 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg"
                   >
                     Inspect Deadline
                   </Link>
                 </div>
               ))
             ) : (
-              <div className="py-8 text-center text-xs text-zinc-500">
+              <div className="py-8 text-center text-xs text-slate-500">
                 No upcoming technical deadlines due within 7 days.
               </div>
             )}
@@ -1105,16 +1094,16 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
       {/* Grid: Technical Tasks & Relevant Notifications */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Technical Tasks */}
-        <div className="bg-zinc-950/90 border border-zinc-800/90 rounded-2xl p-5 space-y-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <CheckSquare className="w-4.5 h-4.5 text-cyan-400" />
-              <h3 className="text-sm font-bold text-white tracking-wide">
+              <CheckSquare className="w-4.5 h-4.5 text-cyan-600" />
+              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
                 Technical Production Tasks ({technicalTasks.length})
               </h3>
             </div>
-            <Link href="/tasks" className="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold">
-              Task Board →
+            <Link href="/tasks" className="text-[11px] text-cyan-700 hover:text-cyan-900 font-bold">
+              Task Board
             </Link>
           </div>
 
@@ -1123,22 +1112,22 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               technicalTasks.map((t: any) => (
                 <div
                   key={t.id}
-                  className="p-3 bg-zinc-900/40 hover:bg-zinc-900 border border-zinc-800 rounded-xl transition-all space-y-1.5"
+                  className="p-3 bg-slate-50/70 hover:bg-slate-50 border border-slate-200 rounded-xl transition-all space-y-1.5"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-[10px] text-cyan-400 font-bold">{t.taskId}</span>
-                    <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-zinc-950 text-zinc-300 border border-zinc-800">
+                    <span className="font-mono text-[10px] text-cyan-700 font-bold">{t.taskId}</span>
+                    <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-white text-slate-700 border border-slate-200">
                       {t.status}
                     </span>
                   </div>
-                  <h4 className="text-xs font-bold text-white truncate">{t.title}</h4>
-                  <p className="text-[10px] text-zinc-400">
-                    Project: <span className="text-zinc-200">{t.project?.name || 'System Task'}</span>
+                  <h4 className="text-xs font-bold text-slate-900 truncate">{t.title}</h4>
+                  <p className="text-[10px] text-slate-500">
+                    Project: <span className="text-slate-800">{t.project?.name || 'System Task'}</span>
                   </p>
                 </div>
               ))
             ) : (
-              <div className="py-8 text-center text-xs text-zinc-500">
+              <div className="py-8 text-center text-xs text-slate-500">
                 No active production tasks assigned.
               </div>
             )}
@@ -1146,11 +1135,11 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
         </div>
 
         {/* Relevant Notifications */}
-        <div className="bg-zinc-950/90 border border-zinc-800/90 rounded-2xl p-5 space-y-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <Bell className="w-4.5 h-4.5 text-amber-400" />
-              <h3 className="text-sm font-bold text-white tracking-wide">
+              <Bell className="w-4.5 h-4.5 text-amber-600" />
+              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
                 Relevant Notifications ({notifications.length})
               </h3>
             </div>
@@ -1161,19 +1150,19 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               notifications.map((n: any) => (
                 <div
                   key={n.id}
-                  className="p-3 bg-zinc-900/40 hover:bg-zinc-900 border border-zinc-800 rounded-xl transition-all space-y-1"
+                  className="p-3 bg-slate-50/70 hover:bg-slate-50 border border-slate-200 rounded-xl transition-all space-y-1"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white truncate">{n.title}</span>
-                    <span className="text-[9px] text-zinc-500 font-mono">
+                    <span className="text-xs font-bold text-slate-900 truncate">{n.title}</span>
+                    <span className="text-[9px] text-slate-400 font-mono">
                       {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <p className="text-[11px] text-zinc-400 line-clamp-2">{n.message}</p>
+                  <p className="text-[11px] text-slate-500 line-clamp-2">{n.message}</p>
                 </div>
               ))
             ) : (
-              <div className="py-8 text-center text-xs text-zinc-500">
+              <div className="py-8 text-center text-xs text-slate-500">
                 No new technical notifications.
               </div>
             )}
@@ -1182,15 +1171,15 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
       </div>
 
       {/* Recent Technical Activity Stream */}
-      <div className="bg-zinc-950/90 border border-zinc-800/90 rounded-2xl p-5 space-y-4 shadow-xl">
-        <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
-            <Activity className="w-4.5 h-4.5 text-emerald-400" />
-            <h3 className="text-sm font-bold text-white tracking-wide">
+            <Activity className="w-4.5 h-4.5 text-emerald-600" />
+            <h3 className="text-sm font-bold text-slate-900 tracking-tight">
               Recent Technical Activity History
             </h3>
           </div>
-          <span className="text-[10px] font-mono text-zinc-500">Technical Operations Stream</span>
+          <span className="text-[10px] font-mono text-slate-500">Technical Operations Stream</span>
         </div>
 
         <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
@@ -1198,22 +1187,22 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
             activityLog.map((log: any) => (
               <div
                 key={log.id}
-                className="p-2.5 bg-zinc-900/40 border border-zinc-800/80 rounded-xl flex items-center justify-between text-xs text-zinc-300"
+                className="p-2.5 bg-slate-50/70 border border-slate-200 rounded-xl flex items-center justify-between text-xs text-slate-700"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center text-[9px] font-bold text-white uppercase shrink-0">
+                  <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[9px] font-bold uppercase shrink-0">
                     {log.user?.name ? log.user.name.substring(0, 2) : 'TC'}
                   </div>
-                  <span className="font-bold text-white text-xs shrink-0">{log.user?.name || 'Tech Staff'}</span>
-                  <span className="text-zinc-400 truncate">{log.description}</span>
+                  <span className="font-bold text-slate-900 text-xs shrink-0">{log.user?.name || 'Tech Staff'}</span>
+                  <span className="text-slate-500 truncate">{log.description}</span>
                 </div>
-                <span className="text-[10px] font-mono text-zinc-500 shrink-0 ml-2">
+                <span className="text-[10px] font-mono text-slate-400 shrink-0 ml-2">
                   {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
             ))
           ) : (
-            <div className="py-6 text-center text-xs text-zinc-500">
+            <div className="py-6 text-center text-xs text-slate-500">
               No recent technical activity logged.
             </div>
           )}
@@ -1222,32 +1211,32 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
 
       {/* FULL TECHNICAL REVIEW & ASSET INSPECTOR MODAL (All 8 Actions) */}
       {activeReviewItem && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-zinc-950 border-2 border-emerald-700/80 rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl shadow-xl flex flex-col max-h-[92vh] overflow-hidden">
             {/* Modal Header */}
-            <div className="p-5 bg-gradient-to-r from-zinc-900 via-zinc-950 to-zinc-950 border-b border-zinc-800 flex items-center justify-between shrink-0">
+            <div className="p-5 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-950 text-emerald-400 border border-emerald-800 rounded-xl shrink-0">
+                <div className="p-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl shrink-0">
                   <Wrench className="w-6 h-6" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-black uppercase px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                    <span className="text-xs font-mono font-bold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                       {activeReviewItem.code}
                     </span>
-                    <h3 className="text-base font-bold text-white tracking-wide truncate max-w-md">
+                    <h3 className="text-base font-bold text-slate-900 tracking-tight truncate max-w-md">
                       {activeReviewItem.title}
                     </h3>
                   </div>
-                  <p className="text-xs text-zinc-400 mt-0.5">
-                    Technical Review Control Panel • Project: <span className="text-zinc-200 font-semibold">{activeReviewItem.projectName || 'Internal'}</span>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Technical Review Control Panel • Project: <span className="text-slate-800 font-semibold">{activeReviewItem.projectName || 'Internal'}</span>
                   </p>
                 </div>
               </div>
 
               <button
                 onClick={() => setActiveReviewItem(null)}
-                className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors"
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1255,37 +1244,37 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
 
             {/* Notification message feedback */}
             {actionSuccessMessage && (
-              <div className="p-3 bg-emerald-950 border-b border-emerald-800 text-emerald-300 text-xs font-bold flex items-center justify-between shrink-0">
+              <div className="p-3 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-xs font-bold flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   <span>{actionSuccessMessage}</span>
                 </div>
               </div>
             )}
 
             {/* Modal Body */}
-            <div className="p-5 overflow-y-auto flex-1 space-y-5">
+            <div className="p-5 overflow-y-auto flex-1 space-y-5 bg-white">
               {/* 5-Stage Graphic Requirement Workflow Visualizer */}
               {activeReviewItem.type === 'GRAPHIC' && (
-                <div className="p-3.5 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-2">
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                   <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="text-zinc-400 font-bold uppercase">Graphic Requirement Defined Workflow:</span>
-                    <span className="text-amber-400 font-bold">Stage 2: Technical Review</span>
+                    <span className="text-slate-500 font-bold uppercase">Graphic Requirement Defined Workflow:</span>
+                    <span className="text-amber-700 font-bold">Stage 2: Technical Review</span>
                   </div>
                   <div className="grid grid-cols-5 gap-1.5 pt-1 text-[10px] text-center font-mono font-bold">
-                    <div className="p-2 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-800">
-                      1. Production ✓
+                    <div className="p-2 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      1. Production Complete
                     </div>
-                    <div className="p-2 rounded-lg bg-amber-950 text-amber-300 border border-amber-700 animate-pulse">
-                      2. Technical Review ⚡
+                    <div className="p-2 rounded-lg bg-amber-50 text-amber-800 border border-amber-300 animate-pulse">
+                      2. Technical Review
                     </div>
-                    <div className="p-2 rounded-lg bg-zinc-950 text-zinc-500 border border-zinc-800">
+                    <div className="p-2 rounded-lg bg-white text-slate-400 border border-slate-200">
                       3. Media Mgr Review
                     </div>
-                    <div className="p-2 rounded-lg bg-zinc-950 text-zinc-500 border border-zinc-800">
+                    <div className="p-2 rounded-lg bg-white text-slate-400 border border-slate-200">
                       4. Client Confirm
                     </div>
-                    <div className="p-2 rounded-lg bg-zinc-950 text-zinc-500 border border-zinc-800">
+                    <div className="p-2 rounded-lg bg-white text-slate-400 border border-slate-200">
                       5. Completed
                     </div>
                   </div>
@@ -1294,23 +1283,23 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
 
               {/* ACTION 4: Inspect Submitted Work Section */}
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-blue-400" /> Action 4: Inspect Submitted Work & Specifications
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-blue-600" /> Action 4: Inspect Submitted Work & Specifications
                 </h4>
 
-                <div className="p-4 bg-zinc-900/90 border border-zinc-800 rounded-xl space-y-2 text-xs">
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
                   <div>
-                    <strong className="text-zinc-400 font-mono">Description / Specifications:</strong>
-                    <p className="text-zinc-200 mt-1 leading-relaxed whitespace-pre-wrap">
+                    <strong className="text-slate-600 font-mono">Description / Specifications:</strong>
+                    <p className="text-slate-800 mt-1 leading-relaxed whitespace-pre-wrap">
                       {activeReviewItem.description || 'No detailed specifications submitted. Review submitted assets below.'}
                     </p>
                   </div>
 
                   {activeReviewItem.submittedBy && (
-                    <div className="pt-2 border-t border-zinc-800 flex items-center justify-between text-[11px] text-zinc-400">
-                      <span>Submitted by: <strong className="text-white">{activeReviewItem.submittedBy}</strong></span>
+                    <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>Submitted by: <strong className="text-slate-900">{activeReviewItem.submittedBy}</strong></span>
                       {activeReviewItem.createdAt && (
-                        <span>Date: <strong className="text-zinc-300 font-mono">{new Date(activeReviewItem.createdAt).toLocaleString()}</strong></span>
+                        <span>Date: <strong className="text-slate-700 font-mono">{new Date(activeReviewItem.createdAt).toLocaleString()}</strong></span>
                       )}
                     </div>
                   )}
@@ -1319,8 +1308,8 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
 
               {/* ACTION 5: Add Technical Remarks Section */}
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-amber-400" /> Action 5: Add Technical Remarks & Revisions Feedback
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-amber-600" /> Action 5: Add Technical Remarks & Revisions Feedback
                 </h4>
 
                 <div className="space-y-2">
@@ -1329,13 +1318,13 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                     onChange={(e) => setTechnicalRemark(e.target.value)}
                     placeholder="Type technical feedback notes, format specifications, resolution notes, or required corrections..."
                     rows={3}
-                    className="w-full bg-zinc-900 border border-zinc-800 text-white text-xs rounded-xl p-3 outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-xl p-3 outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                   />
                   <div className="flex justify-end">
                     <button
                       onClick={handleAddTechnicalRemark}
                       disabled={!technicalRemark.trim() || actionLoading === 'remark'}
-                      className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-amber-300 font-bold text-xs rounded-xl border border-zinc-700 flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+                      className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-amber-800 font-bold text-xs rounded-xl border border-slate-200 flex items-center gap-1.5 disabled:opacity-50 transition-colors shadow-xs"
                     >
                       <Send className="w-3.5 h-3.5" />
                       <span>Log Technical Remark</span>
@@ -1345,9 +1334,9 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
               </div>
 
               {/* 8-ACTION CONTROL PANEL GRID */}
-              <div className="space-y-2.5 pt-2 border-t border-zinc-800">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <Wrench className="w-4 h-4 text-emerald-400" /> Technical Authority Review Action Panel
+              <div className="space-y-2.5 pt-2 border-t border-slate-200">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <Wrench className="w-4 h-4 text-emerald-600" /> Technical Authority Review Action Panel
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
@@ -1355,15 +1344,15 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   <Link
                     href={activeReviewItem.projectId ? `/projects/${activeReviewItem.projectId}` : '/projects'}
                     target="_blank"
-                    className="p-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-left transition-all group flex flex-col justify-between"
+                    className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition-all group flex flex-col justify-between"
                   >
-                    <div className="flex items-center justify-between text-blue-400">
+                    <div className="flex items-center justify-between text-blue-600">
                       <Film className="w-4 h-4" />
                       <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                     </div>
                     <div>
-                      <span className="text-xs font-bold text-white block">1. Open Project</span>
-                      <span className="text-[10px] text-zinc-400 block">Inspect parent shoot project</span>
+                      <span className="text-xs font-bold text-slate-900 block">1. Open Project</span>
+                      <span className="text-[10px] text-slate-500 block">Inspect parent shoot project</span>
                     </div>
                   </Link>
 
@@ -1371,15 +1360,15 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   <Link
                     href={activeReviewItem.type === 'SCRIPT' ? `/scripts?scriptId=${activeReviewItem.id}` : '/scripts'}
                     target="_blank"
-                    className="p-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-left transition-all group flex flex-col justify-between"
+                    className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition-all group flex flex-col justify-between"
                   >
-                    <div className="flex items-center justify-between text-purple-400">
+                    <div className="flex items-center justify-between text-purple-600">
                       <FileText className="w-4 h-4" />
                       <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                     </div>
                     <div>
-                      <span className="text-xs font-bold text-white block">2. Open Script</span>
-                      <span className="text-[10px] text-zinc-400 block">Inspect script editor & scene text</span>
+                      <span className="text-xs font-bold text-slate-900 block">2. Open Script</span>
+                      <span className="text-[10px] text-slate-500 block">Inspect script editor & scene text</span>
                     </div>
                   </Link>
 
@@ -1387,15 +1376,15 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   <Link
                     href={activeReviewItem.type === 'GRAPHIC' ? `/graphic-reqs?reqId=${activeReviewItem.id}` : '/graphic-reqs'}
                     target="_blank"
-                    className="p-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-left transition-all group flex flex-col justify-between"
+                    className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition-all group flex flex-col justify-between"
                   >
-                    <div className="flex items-center justify-between text-amber-400">
+                    <div className="flex items-center justify-between text-amber-600">
                       <Palette className="w-4 h-4" />
                       <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                     </div>
                     <div>
-                      <span className="text-xs font-bold text-white block">3. Open Graphic Req</span>
-                      <span className="text-[10px] text-zinc-400 block">Inspect design specs & assets</span>
+                      <span className="text-xs font-bold text-slate-900 block">3. Open Graphic Req</span>
+                      <span className="text-[10px] text-slate-500 block">Inspect design specs & assets</span>
                     </div>
                   </Link>
 
@@ -1408,15 +1397,15 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                         alert('Submitted asset files loaded above.');
                       }
                     }}
-                    className="p-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-left transition-all group flex flex-col justify-between"
+                    className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition-all group flex flex-col justify-between"
                   >
-                    <div className="flex items-center justify-between text-emerald-400">
+                    <div className="flex items-center justify-between text-emerald-600">
                       <Eye className="w-4 h-4" />
                       <Download className="w-3 h-3 group-hover:scale-110 transition-transform" />
                     </div>
                     <div>
-                      <span className="text-xs font-bold text-white block">4. Inspect Asset</span>
-                      <span className="text-[10px] text-zinc-400 block">Download / preview file</span>
+                      <span className="text-xs font-bold text-slate-900 block">4. Inspect Asset</span>
+                      <span className="text-[10px] text-slate-500 block">Download / preview file</span>
                     </div>
                   </button>
                 </div>
@@ -1427,15 +1416,15 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   <button
                     onClick={handleApproveTechnicalReview}
                     disabled={actionLoading === 'approve'}
-                    className="p-3 bg-emerald-950 hover:bg-emerald-900 border border-emerald-700 rounded-xl text-left transition-all flex flex-col justify-between shadow-md"
+                    className="p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl text-left transition-all flex flex-col justify-between shadow-xs"
                   >
-                    <div className="flex items-center justify-between text-emerald-300">
+                    <div className="flex items-center justify-between text-emerald-800">
                       <CheckCircle2 className="w-5 h-5" />
-                      <span className="text-[10px] font-mono font-bold uppercase bg-emerald-900 px-1.5 py-0.5 rounded">Action 6</span>
+                      <span className="text-[10px] font-mono font-bold uppercase bg-emerald-100 px-1.5 py-0.5 rounded text-emerald-800">Action 6</span>
                     </div>
                     <div className="pt-2">
-                      <span className="text-xs font-bold text-white block">6. Approve Technical Review</span>
-                      <span className="text-[10px] text-emerald-300 block">Advance to Media Manager Review stage</span>
+                      <span className="text-xs font-bold text-slate-900 block">6. Approve Technical Review</span>
+                      <span className="text-[10px] text-emerald-800 block">Advance to Media Manager Review stage</span>
                     </div>
                   </button>
 
@@ -1443,15 +1432,15 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   <button
                     onClick={handleRejectRequestChanges}
                     disabled={actionLoading === 'reject'}
-                    className="p-3 bg-amber-950 hover:bg-amber-900 border border-amber-700 rounded-xl text-left transition-all flex flex-col justify-between shadow-md"
+                    className="p-3 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl text-left transition-all flex flex-col justify-between shadow-xs"
                   >
-                    <div className="flex items-center justify-between text-amber-300">
+                    <div className="flex items-center justify-between text-amber-800">
                       <MessageSquare className="w-5 h-5" />
-                      <span className="text-[10px] font-mono font-bold uppercase bg-amber-900 px-1.5 py-0.5 rounded">Action 7</span>
+                      <span className="text-[10px] font-mono font-bold uppercase bg-amber-100 px-1.5 py-0.5 rounded text-amber-800">Action 7</span>
                     </div>
                     <div className="pt-2">
-                      <span className="text-xs font-bold text-white block">7. Reject / Request Changes</span>
-                      <span className="text-[10px] text-amber-300 block">Mark as Revision Required</span>
+                      <span className="text-xs font-bold text-slate-900 block">7. Reject / Request Changes</span>
+                      <span className="text-[10px] text-amber-800 block">Mark as Revision Required</span>
                     </div>
                   </button>
 
@@ -1459,15 +1448,15 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                   <button
                     onClick={handleSendBackToProduction}
                     disabled={actionLoading === 'send_back'}
-                    className="p-3 bg-rose-950 hover:bg-rose-900 border border-rose-700 rounded-xl text-left transition-all flex flex-col justify-between shadow-md"
+                    className="p-3 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-xl text-left transition-all flex flex-col justify-between shadow-xs"
                   >
-                    <div className="flex items-center justify-between text-rose-300">
+                    <div className="flex items-center justify-between text-rose-800">
                       <CornerUpLeft className="w-5 h-5" />
-                      <span className="text-[10px] font-mono font-bold uppercase bg-rose-900 px-1.5 py-0.5 rounded">Action 8</span>
+                      <span className="text-[10px] font-mono font-bold uppercase bg-rose-100 px-1.5 py-0.5 rounded text-rose-800">Action 8</span>
                     </div>
                     <div className="pt-2">
-                      <span className="text-xs font-bold text-white block">8. Send Back to Production</span>
-                      <span className="text-[10px] text-rose-300 block">Reset status to In Production (`IN_PROGRESS`)</span>
+                      <span className="text-xs font-bold text-slate-900 block">8. Send Back to Production</span>
+                      <span className="text-[10px] text-rose-800 block">Reset status to In Production (`IN_PROGRESS`)</span>
                     </div>
                   </button>
                 </div>
@@ -1475,13 +1464,13 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-zinc-900/90 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400 shrink-0">
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 shrink-0">
               <span className="font-mono text-[11px]">
                 Final Technical Authority • Creative/Media Manager Final Sign-Off Required Subsequently
               </span>
               <button
                 onClick={() => setActiveReviewItem(null)}
-                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl border border-zinc-700 transition-colors"
+                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors shadow-xs"
               >
                 Close Control Panel
               </button>

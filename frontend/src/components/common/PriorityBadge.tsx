@@ -21,52 +21,52 @@ export function getPriorityBadgeStyles(priority: string): {
   switch (norm) {
     case 'LOW':
       return {
-        bg: 'bg-zinc-800/80',
-        text: 'text-zinc-300',
-        border: 'border-zinc-700',
+        bg: 'bg-slate-100',
+        text: 'text-slate-700',
+        border: 'border-slate-200',
         label: 'Low',
-        icon: '⚪',
+        icon: null,
         pulse: false,
       };
     case 'MEDIUM':
     case 'NORMAL':
       return {
-        bg: 'bg-blue-500/15',
-        text: 'text-blue-300',
-        border: 'border-blue-500/30',
+        bg: 'bg-blue-50',
+        text: 'text-blue-700',
+        border: 'border-blue-200',
         label: 'Medium',
-        icon: '🔷',
+        icon: null,
         pulse: false,
       };
     case 'HIGH':
     case 'HIGH_PRIORITY':
     case 'URGENT':
       return {
-        bg: 'bg-amber-500/20',
-        text: 'text-amber-300',
-        border: 'border-amber-500/40',
+        bg: 'bg-amber-50',
+        text: 'text-amber-800',
+        border: 'border-amber-300',
         label: 'High',
-        icon: '⚡',
+        icon: null,
         pulse: false,
       };
     case 'CRITICAL':
     case 'EMERGENCY':
     case 'BLOCKER':
       return {
-        bg: 'bg-red-600/30',
-        text: 'text-red-200',
-        border: 'border-red-500/60',
+        bg: 'bg-rose-50',
+        text: 'text-rose-700',
+        border: 'border-rose-300',
         label: 'Critical',
-        icon: '🚨',
+        icon: null,
         pulse: true,
       };
     default:
       return {
-        bg: 'bg-zinc-800',
-        text: 'text-zinc-300',
-        border: 'border-zinc-700',
+        bg: 'bg-slate-100',
+        text: 'text-slate-700',
+        border: 'border-slate-200',
         label: priority ? priority.replace(/_/g, ' ') : 'Normal',
-        icon: '⚪',
+        icon: null,
         pulse: false,
       };
   }

@@ -281,29 +281,29 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
   ].filter(Boolean).length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-card border border-border w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="bg-white border border-slate-200 w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-xs">
         {/* Header */}
-        <div className="p-4 px-6 border-b border-border flex items-center justify-between bg-gray-900/50">
+        <div className="p-4 px-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            <div className="p-2 rounded-lg bg-blue-50 text-blue-600 border border-blue-200">
               <SlidersHorizontal className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 Advanced Multi-Condition Search & Saved Filters
                 {activeFilterCount > 0 && (
-                  <span className="text-[10px] bg-blue-500 text-white font-mono px-2 py-0.5 rounded-full font-normal">
+                  <span className="text-[10px] bg-blue-600 text-white font-mono px-2 py-0.5 rounded-full font-normal">
                     {activeFilterCount} active conditions
                   </span>
                 )}
               </h2>
-              <p className="text-[11px] text-gray-400">Save and combine private operational filter presets across authorized modules</p>
+              <p className="text-[11px] text-slate-500">Save and combine private operational filter presets across authorized modules</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -312,16 +312,16 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* User-Private Saved Filter Presets Bar */}
-          <div className="space-y-2 bg-gray-900/40 p-3.5 border border-gray-800 rounded-xl">
+          <div className="space-y-2 bg-slate-50 p-3.5 border border-slate-200 rounded-xl">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Bookmark className="w-3.5 h-3.5 text-blue-400" /> Private Saved Filters & Presets:
+              <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Bookmark className="w-3.5 h-3.5 text-blue-600" /> Private Saved Filters & Presets:
               </span>
               {activeFilterCount > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowSaveDialog(true)}
-                  className="text-[10px] font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 transition-colors"
+                  className="text-[10px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 transition-colors"
                 >
                   <BookmarkPlus className="w-3 h-3" /> Save Current Combination
                 </button>
@@ -330,13 +330,13 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
 
             {/* Save Filter Name Prompt Popover */}
             {showSaveDialog && (
-              <form onSubmit={handleSaveCurrentFilter} className="flex items-center gap-2 pt-2 border-t border-gray-800">
+              <form onSubmit={handleSaveCurrentFilter} className="flex items-center gap-2 pt-2 border-t border-slate-200">
                 <input
                   type="text"
                   placeholder="Filter name (e.g. My Weekly Shoots, Q3 Deliverables)..."
                   value={newFilterName}
                   onChange={(e) => setNewFilterName(e.target.value)}
-                  className="flex-1 bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                  className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                   autoFocus
                 />
                 <button
@@ -349,7 +349,7 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
                 <button
                   type="button"
                   onClick={() => setShowSaveDialog(false)}
-                  className="px-2 py-1.5 text-gray-400 hover:text-white"
+                  className="px-2 py-1.5 text-slate-500 hover:text-slate-800"
                 >
                   Cancel
                 </button>
@@ -366,20 +366,20 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
                     onClick={() => applySavedFilter(sf)}
                     className={`cursor-pointer px-3 py-1.5 rounded-lg border transition-all flex items-center gap-2 text-xs select-none ${
                       isActive
-                        ? 'bg-blue-600/20 border-blue-500 text-blue-300 shadow-sm'
-                        : 'bg-gray-900/90 hover:bg-gray-900 border-gray-800 hover:border-gray-700 text-gray-300'
+                        ? 'bg-blue-50 border-blue-300 text-blue-700 shadow-xs font-bold'
+                        : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700'
                     }`}
                   >
                     {sf.id === 'preset_today_tasks' ? (
-                      <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                      <Calendar className="w-3.5 h-3.5 text-blue-600" />
                     ) : sf.id === 'preset_pending_reviews' ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
                     ) : sf.id === 'preset_active_projects' ? (
-                      <Film className="w-3.5 h-3.5 text-purple-400" />
+                      <Film className="w-3.5 h-3.5 text-purple-600" />
                     ) : sf.id === 'preset_high_priority' ? (
-                      <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
                     ) : (
-                      <Bookmark className="w-3.5 h-3.5 text-emerald-400" />
+                      <Bookmark className="w-3.5 h-3.5 text-emerald-600" />
                     )}
 
                     <span className="font-semibold">{sf.name}</span>
@@ -387,7 +387,7 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
                     {!sf.isSystem && (
                       <button
                         onClick={(e) => handleDeleteSavedFilter(sf.id, e)}
-                        className="text-gray-500 hover:text-red-400 p-0.5 ml-1 transition-colors"
+                        className="text-slate-400 hover:text-rose-600 p-0.5 ml-1 transition-colors"
                         title="Delete private filter"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -403,13 +403,13 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
           <form onSubmit={handleSearch} className="space-y-4">
             {/* Top Keywords Input */}
             <div className="relative">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <input
                 type="text"
                 placeholder="Keywords or remarks (e.g. 4K Video, Studio Shoot, Color Grade, Sony FX6, Drone Permit)..."
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-500 transition-colors"
               />
             </div>
 
@@ -417,95 +417,95 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {/* Client */}
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-400 flex items-center gap-1">
-                  <Building2 className="w-3 h-3 text-gray-500" /> Client
+                <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                  <Building2 className="w-3 h-3 text-slate-400" /> Client
                 </label>
                 <input
                   type="text"
                   placeholder="e.g. Nike, Acme Corp"
                   value={selectedClient}
                   onChange={(e) => setSelectedClient(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               {/* Brand */}
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-400 flex items-center gap-1">
-                  <Tag className="w-3 h-3 text-gray-500" /> Brand
+                <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                  <Tag className="w-3 h-3 text-slate-400" /> Brand
                 </label>
                 <input
                   type="text"
                   placeholder="e.g. Nike Running, Jordan"
                   value={selectedBrand}
                   onChange={(e) => setSelectedBrand(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               {/* Product */}
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-400 flex items-center gap-1">
-                  <Package className="w-3 h-3 text-gray-500" /> Product
+                <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                  <Package className="w-3 h-3 text-slate-400" /> Product
                 </label>
                 <input
                   type="text"
                   placeholder="e.g. Air Zoom, Pegasus"
                   value={selectedProduct}
                   onChange={(e) => setSelectedProduct(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               {/* Project */}
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-400 flex items-center gap-1">
-                  <Film className="w-3 h-3 text-gray-500" /> Project / Shoot
+                <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                  <Film className="w-3 h-3 text-slate-400" /> Project / Shoot
                 </label>
                 <input
                   type="text"
                   placeholder="e.g. Spring Commercial, PRJ-001"
                   value={selectedProject}
                   onChange={(e) => setSelectedProject(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               {/* Employee */}
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-400 flex items-center gap-1">
-                  <User className="w-3 h-3 text-gray-500" /> Employee / Staff
+                <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                  <User className="w-3 h-3 text-slate-400" /> Employee / Staff
                 </label>
                 <input
                   type="text"
                   placeholder="e.g. Rahul, Priya, EMP-003"
                   value={selectedEmployee}
                   onChange={(e) => setSelectedEmployee(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               {/* Equipment */}
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-400 flex items-center gap-1">
-                  <Camera className="w-3 h-3 text-gray-500" /> Equipment & Gear
+                <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                  <Camera className="w-3 h-3 text-slate-400" /> Equipment & Gear
                 </label>
                 <input
                   type="text"
                   placeholder="e.g. Sony FX3, 50mm Lens"
                   value={selectedEquipment}
                   onChange={(e) => setSelectedEquipment(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               {/* Status */}
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-400">Current Status</label>
+                <label className="text-[11px] font-semibold text-slate-600">Current Status</label>
                 <select
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 >
                   <option value="ALL">All Statuses</option>
                   <option value="ACTIVE">ACTIVE</option>
@@ -522,11 +522,11 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
 
               {/* Language */}
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-400">Language (Scripts)</label>
+                <label className="text-[11px] font-semibold text-slate-600">Language (Scripts)</label>
                 <select
                   value={selectedLanguage}
                   onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 >
                   <option value="ALL">All Languages</option>
                   <option value="English">English</option>
@@ -543,11 +543,11 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
 
               {/* Priority */}
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-400">Priority</label>
+                <label className="text-[11px] font-semibold text-slate-600">Priority</label>
                 <select
                   value={selectedPriority}
                   onChange={(e) => setSelectedPriority(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 >
                   <option value="ALL">All Priorities</option>
                   <option value="LOW">LOW</option>
@@ -559,39 +559,39 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
 
               {/* Date From */}
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-400 flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-gray-500" /> Date From
+                <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                  <Calendar className="w-3 h-3 text-slate-400" /> Date From
                 </label>
                 <input
                   type="date"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               {/* Date To */}
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-400 flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-gray-500" /> Date To
+                <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                  <Calendar className="w-3 h-3 text-slate-400" /> Date To
                 </label>
                 <input
                   type="date"
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               {/* Target Module */}
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-400 flex items-center gap-1">
-                  <Layers className="w-3 h-3 text-gray-500" /> Target Module
+                <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                  <Layers className="w-3 h-3 text-slate-400" /> Target Module
                 </label>
                 <select
                   value={selectedModule}
                   onChange={(e) => setSelectedModule(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 >
                   <option value="ALL">All Authorized Modules</option>
                   <option value="projects">Projects Only</option>
@@ -604,11 +604,11 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
             </div>
 
             {/* Actions Bar */}
-            <div className="flex items-center justify-between pt-2 border-t border-border/60">
+            <div className="flex items-center justify-between pt-2 border-t border-slate-200">
               <button
                 type="button"
                 onClick={handleReset}
-                className="px-3 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-white rounded-lg transition-colors flex items-center gap-1.5"
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded-lg transition-colors flex items-center gap-1.5"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Clear All Filters
               </button>
@@ -616,7 +616,7 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
               <button
                 type="submit"
                 disabled={isSearching}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2 disabled:opacity-50"
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 disabled:opacity-50"
               >
                 {isSearching ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -630,27 +630,27 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
 
           {/* Results Section */}
           {hasSearched && (
-            <div className="space-y-3 pt-3 border-t border-border">
+            <div className="space-y-3 pt-3 border-t border-slate-200">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                   Matching Operational Results
                 </span>
                 {results && (
-                  <span className="text-gray-400 font-mono text-[11px]">
+                  <span className="text-slate-500 font-mono text-[11px]">
                     {Number(Object.values(results).reduce((acc: number, list: any) => acc + (list?.length || 0), 0))} records found
                   </span>
                 )}
               </div>
 
               {isSearching ? (
-                <div className="p-8 text-center text-gray-400 space-y-2">
+                <div className="p-8 text-center text-slate-500 space-y-2">
                   <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
                   <p>Searching multi-condition criteria across authorized records...</p>
                 </div>
               ) : !results || Object.keys(results).every((k) => results[k]?.length === 0) ? (
-                <div className="p-8 text-center bg-gray-900/40 border border-gray-800 rounded-xl space-y-1 text-gray-400">
-                  <p className="font-semibold text-gray-300">No records match the combined conditions</p>
-                  <p className="text-[10px] text-gray-500">Try loosening one of the filter parameters.</p>
+                <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-slate-500">
+                  <p className="font-semibold text-slate-700">No records match the combined conditions</p>
+                  <p className="text-[10px] text-slate-400">Try loosening one of the filter parameters.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -659,12 +659,12 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
                     if (!items || items.length === 0) return null;
                     return (
                       <div key={category} className="space-y-2">
-                        <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase px-1 pb-1 border-b border-border/40">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase px-1 pb-1 border-b border-slate-200">
                           <span className="flex items-center gap-1.5">
-                            <Layers className="w-3 h-3 text-blue-400" />
+                            <Layers className="w-3 h-3 text-blue-600" />
                             {category}
                           </span>
-                          <span className="font-mono text-gray-500">{items.length} records</span>
+                          <span className="font-mono text-slate-500">{items.length} records</span>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                           {items.map((item: any) => {
@@ -681,34 +681,34 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
                                 key={item.id}
                                 href={item.url}
                                 onClick={onClose}
-                                className="block p-3 bg-gray-900/60 hover:bg-gray-900 border border-gray-800 hover:border-blue-500/50 rounded-xl transition-all group"
+                                className="block p-3 bg-white hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 rounded-xl transition-all shadow-xs group"
                               >
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5 mb-1">
-                                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">
+                                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
                                         {item.entityType || category}
                                       </span>
-                                      <span className="font-mono text-[9px] text-gray-500">
+                                      <span className="font-mono text-[9px] text-slate-400">
                                         {item.internalId || item.code || item.id}
                                       </span>
                                     </div>
-                                    <h4 className="font-bold text-white group-hover:text-blue-400 transition-colors truncate">
+                                    <h4 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
                                       {item.name || item.title}
                                     </h4>
-                                    <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{item.subtitle}</p>
+                                    <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{item.subtitle}</p>
                                   </div>
                                   <div className="shrink-0 flex flex-col items-end gap-1">
                                     {item.status && (
-                                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-300">
+                                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700">
                                         {item.status}
                                       </span>
                                     )}
-                                    <ExternalLink className="w-3 h-3 text-gray-600 group-hover:text-blue-400 transition-colors" />
+                                    <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-blue-600 transition-colors" />
                                   </div>
                                 </div>
 
-                                <div className="mt-2 pt-1.5 border-t border-gray-800/60 flex items-center justify-between text-[9px] text-gray-500">
+                                <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[9px] text-slate-400">
                                   <span>
                                     {item.relatedClient && item.relatedClient !== '—'
                                       ? `Client: ${item.relatedClient}`

@@ -89,33 +89,17 @@ export default function ClientDashboard() {
   return (
     <div className="space-y-6 pb-12">
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-950/60 via-gray-900 to-slate-900 border border-amber-500/20 p-6 md:p-8 shadow-xl">
-        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-50 via-white to-amber-50/50 border border-amber-200 p-6 md:p-8 shadow-sm">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Client Representative Portal
-              </span>
-              {clients.map((c) => (
-                <span key={c.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-800 text-gray-300 border border-gray-700">
-                  <Building2 className="w-3 h-3 text-blue-400" />
-                  {c.name}
-                </span>
-              ))}
-            </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
               Media Calendar Approval Portal
             </h1>
-            <p className="text-sm text-gray-400 mt-1 max-w-2xl">
-              Review media calendar content, provide brand feedback, request copy/creative revisions, and grant client sign-offs.
-            </p>
           </div>
 
           <Link
             href="/client-review"
-            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/20 transition-all shrink-0"
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm shadow-sm transition-all shrink-0"
           >
             <CheckCircle2 className="w-4 h-4" />
             Review Pending Content ({pendingApprovals.length})
@@ -125,21 +109,21 @@ export default function ClientDashboard() {
 
       {/* Overdue Warning Alert Banner */}
       {overdueApprovals.length > 0 && (
-        <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/40 flex items-center justify-between gap-4">
+        <div className="p-4 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-lg bg-red-100 text-red-700 flex items-center justify-center shrink-0">
               <AlertCircle className="w-5 h-5 animate-pulse" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-red-300">Approval Deadline Overdue</h4>
-              <p className="text-xs text-red-200/80">
+              <h4 className="text-sm font-bold text-red-800">Approval Deadline Overdue</h4>
+              <p className="text-xs text-red-700">
                 {overdueApprovals.length} calendar event(s) have passed their client review deadline. Please review to avoid publishing delays.
               </p>
             </div>
           </div>
           <Link
             href="/client-review"
-            className="px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs shrink-0"
+            className="px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs shrink-0 shadow-xs"
           >
             Review Now
           </Link>
@@ -148,47 +132,47 @@ export default function ClientDashboard() {
 
       {/* KPI Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl bg-card border border-border space-y-2">
-          <div className="flex items-center justify-between text-amber-400">
-            <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Pending Review</span>
+        <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2 shadow-xs">
+          <div className="flex items-center justify-between text-amber-600">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Pending Review</span>
             <Clock className="w-5 h-5" />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-white">{pendingApprovals.length}</span>
-            <span className="text-xs text-amber-400 font-medium">Requires Sign-off</span>
+            <span className="text-2xl font-black text-slate-900">{pendingApprovals.length}</span>
+            <span className="text-xs text-amber-700 font-medium">Requires Sign-off</span>
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-card border border-border space-y-2">
-          <div className="flex items-center justify-between text-emerald-400">
-            <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Approved Content</span>
+        <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2 shadow-xs">
+          <div className="flex items-center justify-between text-emerald-600">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Approved Content</span>
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-white">{approvedEvents.length}</span>
-            <span className="text-xs text-emerald-400 font-medium">Ready for Publishing</span>
+            <span className="text-2xl font-black text-slate-900">{approvedEvents.length}</span>
+            <span className="text-xs text-emerald-700 font-medium">Ready for Publishing</span>
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-card border border-border space-y-2">
-          <div className="flex items-center justify-between text-orange-400">
-            <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Changes Requested</span>
+        <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2 shadow-xs">
+          <div className="flex items-center justify-between text-orange-600">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Changes Requested</span>
             <RotateCcw className="w-5 h-5" />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-white">{changesRequested.length}</span>
-            <span className="text-xs text-orange-400 font-medium">In Revision</span>
+            <span className="text-2xl font-black text-slate-900">{changesRequested.length}</span>
+            <span className="text-xs text-orange-700 font-medium">In Revision</span>
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-card border border-border space-y-2">
-          <div className="flex items-center justify-between text-red-400">
-            <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Rejected Content</span>
+        <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2 shadow-xs">
+          <div className="flex items-center justify-between text-rose-600">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Rejected Content</span>
             <XCircle className="w-5 h-5" />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-white">{rejectedEvents.length}</span>
-            <span className="text-xs text-red-400 font-medium">Not Approved</span>
+            <span className="text-2xl font-black text-slate-900">{rejectedEvents.length}</span>
+            <span className="text-xs text-rose-700 font-medium">Not Approved</span>
           </div>
         </div>
       </div>
@@ -198,22 +182,22 @@ export default function ClientDashboard() {
         {/* Event Approval Session Stream (2 cols) */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-400" />
+            <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-600" />
               Event Approval Session ({pendingApprovals.length} Pending Sign-Off)
             </h3>
-            <Link href="/client-review" className="text-xs font-bold text-amber-400 hover:underline flex items-center gap-1">
+            <Link href="/client-review" className="text-xs font-bold text-amber-700 hover:underline flex items-center gap-1">
               View All <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
           {pendingApprovals.length === 0 ? (
-            <div className="p-8 rounded-xl bg-card border border-border text-center space-y-3">
-              <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto">
+            <div className="p-8 rounded-xl bg-white border border-slate-200 text-center space-y-3 shadow-xs">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
-              <h4 className="text-sm font-bold text-white">All Caught Up!</h4>
-              <p className="text-xs text-gray-400 max-w-sm mx-auto">
+              <h4 className="text-sm font-bold text-slate-900">All Caught Up!</h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 There are currently no media calendar items pending your client review.
               </p>
             </div>
@@ -224,30 +208,30 @@ export default function ClientDashboard() {
                 return (
                   <div
                     key={event.id}
-                    className="p-4 rounded-xl bg-card border border-border hover:border-amber-500/40 transition-all space-y-3"
+                    className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 transition-all space-y-3 shadow-xs"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 font-bold">
+                          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-bold">
                             {event.eventId || 'CAL-EVENT'}
                           </span>
-                          <span className="text-xs text-gray-400 font-medium">{event.brand?.name}</span>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-gray-800 text-gray-300 font-mono">
+                          <span className="text-xs text-slate-500 font-medium">{event.brand?.name}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono border border-slate-200">
                             v{event.version}
                           </span>
                         </div>
-                        <h4 className="text-sm font-bold text-white">{event.title}</h4>
+                        <h4 className="text-sm font-bold text-slate-900">{event.title}</h4>
                       </div>
 
                       <div className="text-right shrink-0">
                         {isOverdue ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-400 bg-red-950/60 border border-red-800/60 px-2 py-0.5 rounded">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
                             <AlertCircle className="w-3 h-3" /> Overdue
                           </span>
                         ) : (
-                          <span className="text-[11px] text-gray-400 font-medium flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                          <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
                             Scheduled: {new Date(event.shootDate).toLocaleDateString()}
                           </span>
                         )}
@@ -255,19 +239,19 @@ export default function ClientDashboard() {
                     </div>
 
                     {event.caption && (
-                      <p className="text-xs text-gray-300 bg-gray-900/60 p-2.5 rounded-lg border border-gray-800/60 italic line-clamp-2">
+                      <p className="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-200 italic line-clamp-2">
                         "{event.caption}"
                       </p>
                     )}
 
-                    <div className="flex items-center justify-between pt-1 border-t border-gray-800/60">
-                      <div className="flex items-center gap-2 text-xs text-gray-400">
-                        <span>Submitted by: <strong className="text-gray-200">{event.createdBy?.name || 'Social Media Manager'}</strong></span>
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <span>Submitted by: <strong className="text-slate-800">{event.createdBy?.name || 'Social Media Manager'}</strong></span>
                       </div>
 
                       <Link
                         href={`/client-review?eventId=${event.id}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs transition-colors shadow-xs"
                       >
                         <Eye className="w-3.5 h-3.5" /> Review & Sign Off
                       </Link>
@@ -282,66 +266,66 @@ export default function ClientDashboard() {
         {/* Right Column: Recent Client Activity & Quick Actions */}
         <div className="space-y-6">
           {/* Quick Nav Links */}
-          <div className="p-4 rounded-xl bg-card border border-border space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">Quick Navigation</h4>
+          <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 shadow-xs">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Quick Navigation</h4>
             <div className="space-y-2">
               <Link
                 href="/client-review"
-                className="flex items-center justify-between p-2.5 rounded-lg bg-gray-800/50 hover:bg-gray-800 text-xs font-medium text-gray-200 border border-gray-700/50 transition-colors"
+                className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-xs font-medium text-slate-800 border border-slate-200 transition-colors"
               >
                 <span className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-amber-400" />
+                  <CheckCircle2 className="w-4 h-4 text-amber-600" />
                   Event Approval Session
                 </span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
+                <ChevronRight className="w-4 h-4 text-slate-400" />
               </Link>
 
               <Link
                 href="/calendar"
-                className="flex items-center justify-between p-2.5 rounded-lg bg-gray-800/50 hover:bg-gray-800 text-xs font-medium text-gray-200 border border-gray-700/50 transition-colors"
+                className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-xs font-medium text-slate-800 border border-slate-200 transition-colors"
               >
                 <span className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-blue-400" />
+                  <Calendar className="w-4 h-4 text-blue-600" />
                   Full Media Calendar View
                 </span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
+                <ChevronRight className="w-4 h-4 text-slate-400" />
               </Link>
 
               <Link
                 href="/brands"
-                className="flex items-center justify-between p-2.5 rounded-lg bg-gray-800/50 hover:bg-gray-800 text-xs font-medium text-gray-200 border border-gray-700/50 transition-colors"
+                className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-xs font-medium text-slate-800 border border-slate-200 transition-colors"
               >
                 <span className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-emerald-400" />
+                  <Building2 className="w-4 h-4 text-emerald-600" />
                   Assigned Brands & Products
                 </span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
+                <ChevronRight className="w-4 h-4 text-slate-400" />
               </Link>
             </div>
           </div>
 
           {/* Recent Approval History & Feedback Log */}
-          <div className="p-4 rounded-xl bg-card border border-border space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center justify-between">
+          <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 shadow-xs">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
               <span>Recent Decision Audit Log</span>
-              <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
+              <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
             </h4>
 
             {recentApprovalsAndComments.length === 0 ? (
-              <p className="text-xs text-gray-500 italic py-2">No review actions recorded yet.</p>
+              <p className="text-xs text-slate-400 italic py-2">No review actions recorded yet.</p>
             ) : (
               <div className="space-y-3">
                 {recentApprovalsAndComments.map((log: any, idx: number) => (
-                  <div key={idx} className="p-2.5 rounded-lg bg-gray-900/60 border border-gray-800 text-xs space-y-1">
+                  <div key={idx} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-gray-300 truncate">{log.eventTitle}</span>
+                      <span className="font-bold text-slate-800 truncate">{log.eventTitle}</span>
                       <span
                         className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
                           log.action?.includes('APPROVE')
-                            ? 'bg-emerald-500/20 text-emerald-400'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : log.action?.includes('REQUEST')
-                            ? 'bg-amber-500/20 text-amber-400'
-                            : 'bg-red-500/20 text-red-400'
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
                         }`}
                       >
                         {log.action?.replace('_', ' ')}
@@ -349,10 +333,10 @@ export default function ClientDashboard() {
                     </div>
 
                     {log.comment && (
-                      <p className="text-[11px] text-gray-400 italic">"{log.comment}"</p>
+                      <p className="text-[11px] text-slate-600 italic">"{log.comment}"</p>
                     )}
 
-                    <div className="flex items-center justify-between text-[10px] text-gray-500 pt-1">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
                       <span>By: {log.user?.name || log.role}</span>
                       <span>{new Date(log.timestamp).toLocaleDateString()}</span>
                     </div>

@@ -67,50 +67,50 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
 
     if (category === 'PROJECTS' || actUpper.includes('PROJECT')) {
       return {
-        icon: <Film className="w-3.5 h-3.5 text-blue-400" />,
-        badgeBg: 'bg-blue-950/60 text-blue-300 border-blue-800/80',
+        icon: <Film className="w-3.5 h-3.5 text-blue-600" />,
+        badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
         label: 'Project Event',
       };
     }
     if (category === 'TASKS' || actUpper.includes('TASK')) {
       return {
-        icon: <CheckSquare className="w-3.5 h-3.5 text-amber-400" />,
-        badgeBg: 'bg-amber-950/60 text-amber-300 border-amber-800/80',
+        icon: <CheckSquare className="w-3.5 h-3.5 text-amber-600" />,
+        badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
         label: 'Task Update',
       };
     }
     if (category === 'EQUIPMENT' || actUpper.includes('EQUIPMENT')) {
       return {
-        icon: <Camera className="w-3.5 h-3.5 text-cyan-400" />,
-        badgeBg: 'bg-cyan-950/60 text-cyan-300 border-cyan-800/80',
+        icon: <Camera className="w-3.5 h-3.5 text-cyan-600" />,
+        badgeBg: 'bg-cyan-50 text-cyan-700 border-cyan-200',
         label: 'Equipment Movement',
       };
     }
     if (category === 'ATTENDANCE' || actUpper.includes('ATTENDANCE')) {
       return {
-        icon: <UserCheck className="w-3.5 h-3.5 text-emerald-400" />,
-        badgeBg: 'bg-emerald-950/60 text-emerald-300 border-emerald-800/80',
+        icon: <UserCheck className="w-3.5 h-3.5 text-emerald-600" />,
+        badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
         label: 'Attendance Record',
       };
     }
     if (category === 'COMMUNICATION' || actUpper.includes('COMMUNICATION')) {
       return {
-        icon: <MessageSquare className="w-3.5 h-3.5 text-purple-400" />,
-        badgeBg: 'bg-purple-950/60 text-purple-300 border-purple-800/80',
+        icon: <MessageSquare className="w-3.5 h-3.5 text-purple-600" />,
+        badgeBg: 'bg-purple-50 text-purple-700 border-purple-200',
         label: 'Communication Note',
       };
     }
     if (category === 'APPROVALS' || actUpper.includes('APPROVAL')) {
       return {
-        icon: <CheckCircle2 className="w-3.5 h-3.5 text-rose-400" />,
-        badgeBg: 'bg-rose-950/60 text-rose-300 border-rose-800/80',
+        icon: <CheckCircle2 className="w-3.5 h-3.5 text-rose-600" />,
+        badgeBg: 'bg-rose-50 text-rose-700 border-rose-200',
         label: 'Approval Review',
       };
     }
 
     return {
-      icon: <FileCheck className="w-3.5 h-3.5 text-zinc-400" />,
-      badgeBg: 'bg-zinc-800 text-zinc-300 border-zinc-700',
+      icon: <FileCheck className="w-3.5 h-3.5 text-slate-600" />,
+      badgeBg: 'bg-slate-100 text-slate-700 border-slate-200',
       label: 'Operational Audit',
     };
   };
@@ -136,23 +136,20 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
   };
 
   return (
-    <div className="bg-zinc-950/90 border border-zinc-800/90 rounded-2xl p-4.5 space-y-4 shadow-xl">
+    <div className="bg-white border border-slate-200 rounded-2xl p-4.5 space-y-4 shadow-sm">
       {/* Widget Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800/80 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-emerald-950/60 border border-emerald-800/60 rounded-xl text-emerald-400 shrink-0">
+          <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 shrink-0">
             <Activity className="w-4.5 h-4.5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-900 tracking-wide flex items-center gap-2">
               Recent Operational Activity
-              <span className="text-[10px] font-mono font-bold bg-zinc-800 text-zinc-300 border border-zinc-700 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-full">
                 {activities.length} Entries
               </span>
             </h3>
-            <p className="text-[11px] text-zinc-400">
-              Permanent operational activity timeline stream across projects, tasks, reviews, gear, and approvals
-            </p>
           </div>
         </div>
 
@@ -160,9 +157,9 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
           {onOpenHistoryModal && (
             <button
               onClick={onOpenHistoryModal}
-              className="text-xs font-bold px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80 flex items-center gap-1.5 transition-all"
+              className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1.5 transition-all shadow-xs"
             >
-              <History className="w-3.5 h-3.5 text-emerald-400" />
+              <History className="w-3.5 h-3.5 text-emerald-600" />
               <span>Permanent Activity History</span>
             </button>
           )}
@@ -170,7 +167,7 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
           <button
             onClick={loadActivities}
             disabled={loading}
-            className="p-1.5 text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl transition-all disabled:opacity-50"
+            className="p-1.5 text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all disabled:opacity-50"
             title="Refresh Feed"
           >
             <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -198,8 +195,8 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
               onClick={() => setSelectedCategory(tab.id as ActivityCategory)}
               className={`text-[11px] font-bold px-2.5 py-1 rounded-lg whitespace-nowrap transition-all ${
                 selectedCategory === tab.id
-                  ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/80 shadow-sm'
-                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
               {tab.label}
@@ -208,13 +205,13 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
         </div>
 
         <form onSubmit={handleSearchSubmit} className="relative min-w-[160px]">
-          <Search className="w-3 h-3 text-zinc-500 absolute left-2.5 top-2.5" />
+          <Search className="w-3 h-3 text-slate-400 absolute left-2.5 top-2.5" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search operational logs..."
-            className="w-full bg-zinc-900/90 border border-zinc-800 text-zinc-200 text-[11px] rounded-lg pl-7 pr-2.5 py-1 outline-none focus:border-emerald-500/80 transition-colors"
+            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-[11px] rounded-lg pl-7 pr-2.5 py-1 outline-none focus:bg-white focus:border-emerald-500 transition-colors"
           />
         </form>
       </div>
@@ -222,7 +219,7 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
       {/* Activity Timeline List */}
       <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
         {loading ? (
-          <div className="py-8 text-center text-xs text-zinc-500 font-mono animate-pulse">
+          <div className="py-8 text-center text-xs text-slate-400 font-mono animate-pulse">
             Fetching recent operational activity history...
           </div>
         ) : activities.length > 0 ? (
@@ -233,7 +230,7 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
             return (
               <div
                 key={item.id}
-                className="p-3 bg-zinc-900/40 hover:bg-zinc-900/80 border border-zinc-800/80 rounded-xl transition-all flex items-start justify-between gap-3 group"
+                className="p-3 bg-slate-50/70 hover:bg-slate-50 border border-slate-200 rounded-xl transition-all flex items-start justify-between gap-3 group shadow-xs"
               >
                 <div className="flex items-start gap-3 flex-1 min-w-0">
                   {/* User Avatar / Initials */}
@@ -242,10 +239,10 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
                       <img
                         src={item.user.avatarUrl}
                         alt={item.user.name}
-                        className="w-7 h-7 rounded-full object-cover border border-zinc-700"
+                        className="w-7 h-7 rounded-full object-cover border border-slate-200"
                       />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-[10px] font-bold text-zinc-300 uppercase">
+                      <div className="w-7 h-7 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] font-bold text-slate-700 uppercase">
                         {item.user?.name ? item.user.name.substring(0, 2) : 'OP'}
                       </div>
                     )}
@@ -254,7 +251,7 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
                   {/* Body Content */}
                   <div className="space-y-1 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-white truncate max-w-[140px]">
+                      <span className="text-xs font-bold text-slate-900 truncate max-w-[140px]">
                         {item.user?.name || 'Media Staff'}
                       </span>
 
@@ -263,25 +260,25 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
                         {config.label}
                       </span>
 
-                      <span className="text-[10px] text-zinc-500 font-mono ml-auto shrink-0">
+                      <span className="text-[10px] text-slate-400 font-mono ml-auto shrink-0">
                         {timeAgo}
                       </span>
                     </div>
 
-                    <p className="text-xs text-zinc-300 leading-snug break-words">
+                    <p className="text-xs text-slate-700 leading-snug break-words">
                       {item.description}
                     </p>
 
                     {/* Metadata Snapshot Pills if available */}
                     {item.metadata && (
-                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px] font-mono text-zinc-400">
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px] font-mono text-slate-600">
                         {item.metadata.status && (
-                          <span className="bg-zinc-950 px-1.5 py-0.5 rounded border border-zinc-800 text-amber-300">
+                          <span className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-amber-700 font-semibold">
                             Status: {item.metadata.status}
                           </span>
                         )}
                         {item.metadata.subject && (
-                          <span className="bg-zinc-950 px-1.5 py-0.5 rounded border border-zinc-800 text-purple-300 truncate max-w-[180px]">
+                          <span className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-purple-700 truncate max-w-[180px]">
                             {item.metadata.subject}
                           </span>
                         )}
@@ -294,7 +291,7 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
                 {item.targetUrl && (
                   <Link
                     href={item.targetUrl}
-                    className="p-1.5 text-zinc-500 hover:text-white bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors shrink-0 self-center"
+                    className="p-1.5 text-slate-400 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors shrink-0 self-center shadow-xs"
                     title="View referenced operational item"
                   >
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -304,10 +301,10 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
             );
           })
         ) : (
-          <div className="py-10 text-center bg-zinc-900/30 border border-zinc-800/60 rounded-xl space-y-2">
-            <Activity className="w-8 h-8 text-zinc-600 mx-auto" />
-            <h4 className="text-xs font-bold text-zinc-400">No Operational Activity Found</h4>
-            <p className="text-[11px] text-zinc-500 max-w-xs mx-auto">
+          <div className="py-10 text-center bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <Activity className="w-8 h-8 text-slate-400 mx-auto" />
+            <h4 className="text-xs font-bold text-slate-700">No Operational Activity Found</h4>
+            <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
               No recent operational events match the selected category filter or search query.
             </p>
           </div>
@@ -316,11 +313,11 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
 
       {/* Footer link to full history */}
       {onOpenHistoryModal && (
-        <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs text-zinc-400">
+        <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
           <span className="text-[11px] font-mono">Permanent audit history preserved indefinitely</span>
           <button
             onClick={onOpenHistoryModal}
-            className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-mono"
+            className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 font-mono"
           >
             <span>Inspect Full Activity Audit Feed</span>
             <ExternalLink className="w-3 h-3" />

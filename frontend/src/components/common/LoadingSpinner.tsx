@@ -51,8 +51,8 @@ export function LoadingSpinner({
 
   if (variant === 'inline') {
     return (
-      <span className={`inline-flex items-center gap-2 text-xs font-semibold text-blue-400 ${className}`}>
-        <Loader2 className={`${iconSizeClass} animate-spin text-blue-400 shrink-0`} />
+      <span className={`inline-flex items-center gap-2 text-xs font-semibold text-blue-600 ${className}`}>
+        <Loader2 className={`${iconSizeClass} animate-spin text-blue-600 shrink-0`} />
         {displayLabel && <span>{displayLabel}</span>}
       </span>
     );
@@ -60,16 +60,16 @@ export function LoadingSpinner({
 
   return (
     <div
-      className={`bg-card border border-border rounded-xl p-8 text-center flex flex-col items-center justify-center space-y-3 shadow-md my-4 ${className}`}
+      className={`bg-white border border-slate-200 rounded-xl p-8 text-center flex flex-col items-center justify-center space-y-3 shadow-sm my-4 ${className}`}
     >
-      <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-inner">
-        <IconComponent className={`${iconSizeClass} animate-spin text-blue-400`} />
+      <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-sm">
+        <IconComponent className={`${iconSizeClass} animate-spin text-blue-600`} />
       </div>
 
       {displayLabel && (
         <div className="space-y-1">
-          <p className="text-xs font-bold text-white tracking-wide">{displayLabel}</p>
-          <p className="text-[11px] text-gray-400 font-mono">Please wait while the operation completes</p>
+          <p className="text-xs font-bold text-slate-900 tracking-wide">{displayLabel}</p>
+          <p className="text-[11px] text-slate-500 font-mono">Please wait while the operation completes</p>
         </div>
       )}
     </div>
@@ -79,17 +79,17 @@ export function LoadingSpinner({
 /** Full-Screen / Modal Backdrop Loading Overlay for long operations */
 export function LoadingOverlay({ message }: { message?: string }) {
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-card border border-border rounded-2xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl">
-        <div className="w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 mx-auto shadow-lg">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-sm w-full text-center space-y-4 shadow-xl">
+        <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 mx-auto shadow-sm">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
         </div>
         <div className="space-y-1">
-          <h3 className="text-sm font-bold text-white">Operation In Progress</h3>
-          <p className="text-xs text-gray-300">{message || 'Processing operational payload...'}</p>
+          <h3 className="text-sm font-bold text-slate-900">Operation In Progress</h3>
+          <p className="text-xs text-slate-600">{message || 'Processing operational payload...'}</p>
         </div>
-        <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 animate-pulse rounded-full w-3/4" />
+        <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 animate-pulse rounded-full w-3/4" />
         </div>
       </div>
     </div>

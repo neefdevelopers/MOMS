@@ -293,14 +293,11 @@ export default function ProjectsPage() {
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card border border-border p-6 rounded-xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 p-6 rounded-xl">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <Film className="w-5 h-5 text-blue-400" /> Media Shoot Projects Directory
+          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <Film className="w-5 h-5 text-blue-600" /> Media Shoot Projects Directory
           </h1>
-          <p className="text-xs text-gray-400 mt-1">
-            Create and track Indoor Studio shoots vs Outdoor Field shoots. Projects can only be created for Active Clients and Brands.
-          </p>
         </div>
 
         <Link
@@ -312,9 +309,9 @@ export default function ProjectsPage() {
       </div>
 
       {/* User-Friendly 11-Parameter Filter Control Panel */}
-      <div className="bg-card border border-border p-5 rounded-xl space-y-4 text-xs shadow-md">
+      <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-4 text-xs shadow-md">
         {/* Quick View Tab Pills */}
-        <div className="flex items-center gap-2 pb-1 border-b border-gray-800 flex-wrap">
+        <div className="flex items-center gap-2 pb-1 border-b border-slate-200 flex-wrap">
           <button
             onClick={() => {
               setSelectedStatus('');
@@ -323,7 +320,7 @@ export default function ProjectsPage() {
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               !selectedStatus && !selectedEmployee
                 ? 'bg-blue-600 text-white shadow'
-                : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
+                : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
             }`}
           >
             All Project Shoots
@@ -337,7 +334,7 @@ export default function ProjectsPage() {
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
               selectedStatus === 'PENDING_APPROVAL'
                 ? 'bg-amber-500 text-slate-950 shadow'
-                : 'bg-gray-900 text-amber-400 hover:text-white border border-gray-800'
+                : 'bg-slate-50 text-amber-600 hover:text-slate-900 border border-slate-200'
             }`}
           >
             <Clock className="w-3.5 h-3.5" /> Pending Approval
@@ -352,7 +349,7 @@ export default function ProjectsPage() {
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 selectedEmployee === user.id
                   ? 'bg-purple-600 text-white shadow'
-                  : 'bg-gray-900 text-purple-400 hover:text-white border border-gray-800'
+                  : 'bg-slate-50 text-purple-600 hover:text-slate-900 border border-slate-200'
               }`}
             >
               <User className="w-3.5 h-3.5" /> My Project Shoots
@@ -364,18 +361,18 @@ export default function ProjectsPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Main Keyword Search Bar */}
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
             <input
               type="text"
               placeholder="Search by ID, Name, Client, Brand, Product, Campaign, Staff, Location..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 focus:border-blue-500 rounded-xl pl-9 pr-4 py-2.5 text-white font-medium focus:outline-none transition-all placeholder:text-gray-500"
+              className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl pl-9 pr-4 py-2.5 text-slate-800 font-medium focus:outline-none transition-all placeholder:text-slate-400"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-white"
+                className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-900"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -388,11 +385,11 @@ export default function ProjectsPage() {
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
               className={`px-3.5 py-2 rounded-lg font-semibold flex items-center gap-1.5 transition-colors border ${
                 showAdvancedFilters || (selectedClient || selectedBrand || selectedProduct || selectedType || selectedStatus || selectedPriority || selectedDate || selectedMediaManager || selectedTechManager || selectedEmployee || selectedLocation)
-                  ? 'bg-purple-600/20 text-purple-300 border-purple-500/50'
-                  : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-600'
+                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
               }`}
             >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-purple-400" />
+              <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600" />
               <span>Advanced Filters</span>
               {([selectedClient, selectedBrand, selectedProduct, selectedType, selectedStatus, selectedPriority, selectedDate, selectedMediaManager, selectedTechManager, selectedEmployee, selectedLocation].filter(Boolean).length > 0) && (
                 <span className="w-4 h-4 rounded-full bg-purple-500 text-white font-bold text-[10px] flex items-center justify-center">
@@ -426,7 +423,7 @@ export default function ProjectsPage() {
                   setSelectedEmployee('');
                   setSelectedLocation('');
                 }}
-                className="px-3 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-800/40 text-red-300 rounded-lg font-semibold flex items-center gap-1.5 transition-colors"
+                className="px-3 py-2 bg-rose-50 hover:bg-red-900/60 border border-rose-200 text-rose-700 rounded-lg font-semibold flex items-center gap-1.5 transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Reset Filters
               </button>
@@ -436,54 +433,54 @@ export default function ProjectsPage() {
 
         {/* Active Filter Chips / Pills Bar */}
         {(selectedClient || selectedBrand || selectedProduct || selectedType || selectedStatus || selectedPriority || selectedDate || selectedMediaManager || selectedTechManager || selectedEmployee || selectedLocation) && (
-          <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-gray-800">
-            <span className="text-gray-500 text-[11px] font-semibold">Active Filters:</span>
+          <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-200">
+            <span className="text-slate-400 text-[11px] font-semibold">Active Filters:</span>
             {selectedType && (
-              <span className="px-2.5 py-1 bg-cyan-950 text-cyan-300 border border-cyan-800 rounded-full flex items-center gap-1 text-[11px] font-medium">
-                Type: {selectedType === 'GRAPHIC_REQ' ? '🎨 Graphic Requirement' : selectedType === 'SHOOT' ? '🎬 All Shoots' : selectedType === 'INDOOR' ? '🏢 Indoor Shoot' : '🌲 Outdoor Shoot'}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedType('')} />
+              <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 border border-cyan-200 rounded-full flex items-center gap-1 text-[11px] font-medium">
+                Type: {selectedType === 'GRAPHIC_REQ' ? 'Graphic Requirement' : selectedType === 'SHOOT' ? 'All Shoots' : selectedType === 'INDOOR' ? 'Indoor Shoot' : 'Outdoor Shoot'}
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setSelectedType('')} />
               </span>
             )}
             {selectedStatus && (
-              <span className="px-2.5 py-1 bg-blue-950 text-blue-300 border border-blue-800 rounded-full flex items-center gap-1 text-[11px]">
+              <span className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full flex items-center gap-1 text-[11px]">
                 Status: {selectedStatus}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedStatus('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setSelectedStatus('')} />
               </span>
             )}
             {selectedClient && (
-              <span className="px-2.5 py-1 bg-purple-950 text-purple-300 border border-purple-800 rounded-full flex items-center gap-1 text-[11px]">
+              <span className="px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-full flex items-center gap-1 text-[11px]">
                 Client: {clients.find((c) => c.id === selectedClient)?.name}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedClient('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setSelectedClient('')} />
               </span>
             )}
             {selectedBrand && (
-              <span className="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded-full flex items-center gap-1 text-[11px]">
+              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full flex items-center gap-1 text-[11px]">
                 Brand: [{brands.find((b) => b.id === selectedBrand)?.shortCode}] {brands.find((b) => b.id === selectedBrand)?.name}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedBrand('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setSelectedBrand('')} />
               </span>
             )}
             {selectedProduct && (
-              <span className="px-2.5 py-1 bg-cyan-950 text-cyan-300 border border-cyan-800 rounded-full flex items-center gap-1 text-[11px]">
+              <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 border border-cyan-200 rounded-full flex items-center gap-1 text-[11px]">
                 Product: {products.find((p) => p.id === selectedProduct)?.name}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedProduct('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setSelectedProduct('')} />
               </span>
             )}
             {selectedPriority && (
-              <span className="px-2.5 py-1 bg-amber-950 text-amber-300 border border-amber-800 rounded-full flex items-center gap-1 text-[11px]">
+              <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full flex items-center gap-1 text-[11px]">
                 Priority: {selectedPriority}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedPriority('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setSelectedPriority('')} />
               </span>
             )}
             {selectedDate && (
-              <span className="px-2.5 py-1 bg-gray-800 text-gray-200 border border-gray-700 rounded-full flex items-center gap-1 text-[11px] font-mono">
+              <span className="px-2.5 py-1 bg-slate-100 text-slate-800 border border-slate-200 rounded-full flex items-center gap-1 text-[11px] font-mono">
                 Date: {selectedDate}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedDate('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setSelectedDate('')} />
               </span>
             )}
             {selectedLocation && (
-              <span className="px-2.5 py-1 bg-indigo-950 text-indigo-300 border border-indigo-800 rounded-full flex items-center gap-1 text-[11px]">
+              <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full flex items-center gap-1 text-[11px]">
                 Location: {selectedLocation}
-                <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => setSelectedLocation('')} />
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setSelectedLocation('')} />
               </span>
             )}
           </div>
@@ -491,30 +488,30 @@ export default function ProjectsPage() {
 
         {/* Expandable Grouped Advanced Filters Panel */}
         {showAdvancedFilters && (
-          <div className="pt-3 border-t border-gray-800 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="pt-3 border-t border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Group 1: Commercial Context & Project Type */}
-              <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
-                <div className="font-bold text-purple-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-purple-400" /> Commercial &amp; Project Type
+              <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                <div className="font-bold text-purple-700 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-purple-600" /> Commercial &amp; Project Type
                 </div>
                 <div className="space-y-2">
                   <select
                     value={selectedType}
                     onChange={(e) => setSelectedType(e.target.value)}
-                    className="w-full bg-gray-950 border border-purple-800/80 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 font-semibold text-xs"
+                    className="w-full bg-slate-50 border border-purple-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-purple-500 focus:bg-white font-semibold text-xs"
                   >
                     <option value="">All Project Types (Shoot &amp; Graphic)</option>
-                    <option value="GRAPHIC_REQ">🎨 Graphic Requirement</option>
-                    <option value="SHOOT">🎬 All Shoots</option>
-                    <option value="INDOOR">🏢 Indoor Shoot</option>
-                    <option value="OUTDOOR">🌲 Outdoor Shoot</option>
+                    <option value="GRAPHIC_REQ">Graphic Requirement</option>
+                    <option value="SHOOT">All Shoots</option>
+                    <option value="INDOOR">Indoor Shoot</option>
+                    <option value="OUTDOOR">Outdoor Shoot</option>
                   </select>
 
                   <select
                     value={selectedClient}
                     onChange={(e) => setSelectedClient(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-purple-500 focus:bg-white font-medium"
                   >
                     <option value="">All Clients</option>
                     {(clients || []).map((c) => (
@@ -527,7 +524,7 @@ export default function ProjectsPage() {
                   <select
                     value={selectedBrand}
                     onChange={(e) => setSelectedBrand(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 focus:bg-white font-medium"
                   >
                     <option value="">All Brands</option>
                     {(brands || []).map((b) => (
@@ -540,7 +537,7 @@ export default function ProjectsPage() {
                   <select
                     value={selectedProduct}
                     onChange={(e) => setSelectedProduct(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 focus:bg-white font-medium"
                   >
                     <option value="">All Products</option>
                     {(products || []).map((p) => (
@@ -553,15 +550,15 @@ export default function ProjectsPage() {
               </div>
 
               {/* Group 2: Key Managers & Personnel */}
-              <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
-                <div className="font-bold text-blue-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-blue-400" /> Crew & Management
+              <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                <div className="font-bold text-blue-700 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-blue-600" /> Crew & Management
                 </div>
                 <div className="space-y-2">
                   <select
                     value={selectedMediaManager}
                     onChange={(e) => setSelectedMediaManager(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
                   >
                     <option value="">All Media Managers</option>
                     {(usersList || [])
@@ -576,7 +573,7 @@ export default function ProjectsPage() {
                   <select
                     value={selectedTechManager}
                     onChange={(e) => setSelectedTechManager(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
                   >
                     <option value="">All Tech Managers</option>
                     {(usersList || [])
@@ -591,7 +588,7 @@ export default function ProjectsPage() {
                   <select
                     value={selectedEmployee}
                     onChange={(e) => setSelectedEmployee(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
                   >
                     <option value="">All Assigned Staff</option>
                     {(usersList || []).map((u) => (
@@ -604,15 +601,15 @@ export default function ProjectsPage() {
               </div>
 
               {/* Group 3: Operations & Status */}
-              <div className="bg-gray-900/70 p-3.5 rounded-xl border border-gray-800 space-y-2.5">
-                <div className="font-bold text-amber-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Filter className="w-3.5 h-3.5 text-amber-400" /> Status & Operations
+              <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                <div className="font-bold text-amber-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-amber-600" /> Status & Operations
                 </div>
                 <div className="space-y-2">
                   <select
                     value={selectedStatus}
                     onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
                   >
                     <option value="">All Operational Statuses</option>
                     <option value="DRAFT">Draft</option>
@@ -632,7 +629,7 @@ export default function ProjectsPage() {
                   <select
                     value={selectedPriority}
                     onChange={(e) => setSelectedPriority(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
                   >
                     <option value="">All Priorities</option>
                     <option value="LOW">Priority: LOW</option>
@@ -646,14 +643,14 @@ export default function ProjectsPage() {
                       type="date"
                       value={selectedDate}
                       onChange={(e) => setSelectedDate(e.target.value)}
-                      className="bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-2 text-white focus:outline-none focus:border-amber-500 font-mono text-[11px]"
+                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-white focus:outline-none focus:border-amber-500 focus:bg-white font-mono text-[11px]"
                     />
                     <input
                       type="text"
                       placeholder="Location..."
                       value={selectedLocation}
                       onChange={(e) => setSelectedLocation(e.target.value)}
-                      className="bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-2 text-white focus:outline-none focus:border-amber-500 text-[11px]"
+                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-white focus:outline-none focus:border-amber-500 focus:bg-white text-[11px]"
                     />
                   </div>
                 </div>
@@ -699,12 +696,12 @@ export default function ProjectsPage() {
         });
 
         if (loading) {
-          return <div className="p-8 text-center text-gray-400">Loading Projects...</div>;
+          return <div className="p-8 text-center text-slate-500">Loading Projects...</div>;
         }
 
         if (filteredProjects.length === 0) {
           return (
-            <div className="p-8 text-center bg-card border border-border rounded-xl text-gray-400">
+            <div className="p-8 text-center bg-white border border-slate-200 rounded-xl text-slate-500">
               No shoot projects found matching criteria.
             </div>
           );
@@ -716,8 +713,8 @@ export default function ProjectsPage() {
               {paginate(sortData(filteredProjects, sortBy, sortOrder)).map((proj) => (
             <div
               key={proj.id}
-              className={`bg-card border p-5 rounded-xl space-y-4 relative flex flex-col justify-between transition-all hover:border-gray-700 ${
-                proj.shootType === 'INDOOR' ? 'border-blue-900/40' : 'border-emerald-900/40'
+              className={`bg-white border p-5 rounded-xl space-y-4 relative flex flex-col justify-between transition-all hover:border-slate-200 ${
+                proj.shootType === 'INDOOR' ? 'border-blue-200' : 'border-emerald-200'
               }`}
             >
               <div className="space-y-3">
@@ -725,21 +722,21 @@ export default function ProjectsPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-mono text-xs font-bold text-blue-400">{proj.projectId}</span>
+                      <span className="font-mono text-xs font-bold text-blue-600">{proj.projectId}</span>
                       <span className={`text-[9px] font-bold font-mono px-1.5 py-0.2 rounded border ${
                         proj.shootType === 'INDOOR'
-                          ? 'bg-blue-950/70 text-blue-300 border-blue-800'
-                          : 'bg-emerald-950/70 text-emerald-300 border-emerald-800'
+                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       }`}>
-                        {proj.shootType === 'INDOOR' ? '🏢 INDOOR' : '🌲 OUTDOOR'}
+                        {proj.shootType === 'INDOOR' ? 'INDOOR' : 'OUTDOOR'}
                       </span>
                       {Boolean(proj._count?.graphicRequirements || proj.graphicRequirements?.length) && (
-                        <span className="text-[9px] font-bold font-mono px-1.5 py-0.2 rounded border bg-purple-950/70 text-purple-300 border-purple-800">
-                          🎨 {proj._count?.graphicRequirements || proj.graphicRequirements?.length} Graphic Req
+                        <span className="text-[9px] font-bold font-mono px-1.5 py-0.2 rounded border bg-purple-50 text-purple-700 border-purple-200">
+                          {proj._count?.graphicRequirements || proj.graphicRequirements?.length} Graphic Req
                         </span>
                       )}
                     </div>
-                    <h3 className="text-base font-bold text-white leading-snug mt-0.5">{proj.name}</h3>
+                    <h3 className="text-base font-bold text-slate-900 leading-snug mt-0.5">{proj.name}</h3>
                   </div>
 
                   <div className="flex items-center gap-1.5">
@@ -755,10 +752,10 @@ export default function ProjectsPage() {
                     <span
                       className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${
                         proj.status === 'COMPLETED' || proj.status === 'APPROVED'
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
                           : proj.status === 'PLANNED' || proj.status === 'PENDING_CLIENT_APPROVAL' || proj.status === 'PENDING_MARKETING_APPROVAL' || proj.status === 'PENDING'
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                          : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                          ? 'bg-amber-50 text-amber-800 border border-amber-200 shadow-sm'
+                          : 'bg-blue-50 text-blue-600 border border-blue-200'
                       }`}
                     >
                       {proj.status === 'PLANNED' || proj.status === 'PENDING_CLIENT_APPROVAL' || proj.status === 'PENDING_MARKETING_APPROVAL' || proj.status === 'PENDING'
@@ -769,19 +766,19 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Parent Client & Brand */}
-                <div className="text-xs text-gray-400 flex items-center justify-between border-y border-border py-2">
-                  <div>Client: <strong className="text-gray-200">{proj.client?.name}</strong></div>
-                  <div>Brand: <strong className="text-blue-400">[{proj.brand?.shortCode}] {proj.brand?.name}</strong></div>
+                <div className="text-xs text-slate-500 flex items-center justify-between border-y border-slate-200 py-2">
+                  <div>Client: <strong className="text-slate-800">{proj.client?.name}</strong></div>
+                  <div>Brand: <strong className="text-blue-600">[{proj.brand?.shortCode}] {proj.brand?.name}</strong></div>
                 </div>
 
                 {/* Location & Shoot Date */}
-                <div className="space-y-1 text-xs text-gray-300">
+                <div className="space-y-1 text-xs text-slate-700">
                   <div className="flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                    <MapPin className="w-3.5 h-3.5 text-slate-500" />
                     <span>{proj.shootLocation}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-gray-400">
-                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                  <div className="flex items-center gap-1.5 text-slate-500">
+                    <Calendar className="w-3.5 h-3.5 text-slate-500" />
                     <span>{new Date(proj.shootDate).toLocaleDateString()}</span>
                     {proj.influencerTalent && <span>• Talent: {proj.influencerTalent}</span>}
                   </div>
@@ -791,22 +788,22 @@ export default function ProjectsPage() {
                 {proj.shootType === 'OUTDOOR' && proj.outdoorDetails && (
                   <div className="space-y-1.5 pt-1">
                     {proj.outdoorDetails.permissionStatus === 'PENDING' && (
-                      <div className="p-2 bg-amber-950/30 border border-amber-800/40 rounded text-[11px] text-amber-300 flex items-center gap-1.5 font-medium">
-                        <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <div className="p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-800 flex items-center gap-1.5 font-medium">
+                        <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                         <span>Warning: Permit Application Pending</span>
                       </div>
                     )}
 
                     {proj.outdoorDetails.weatherStatus === 'RISK_RAIN' && (
-                      <div className="p-2 bg-purple-950/30 border border-purple-800/40 rounded text-[11px] text-purple-300 flex items-center gap-1.5 font-medium">
-                        <CloudRain className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <div className="p-2 bg-purple-50 border border-purple-200 rounded text-[11px] text-purple-700 flex items-center gap-1.5 font-medium">
+                        <CloudRain className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                         <span>Warning: Rain / Weather Risk Alert</span>
                       </div>
                     )}
 
                     {proj.outdoorDetails.transportationReq && !proj.outdoorDetails.driver && (
-                      <div className="p-2 bg-red-950/30 border border-red-800/40 rounded text-[11px] text-red-300 flex items-center gap-1.5 font-medium">
-                        <Truck className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                      <div className="p-2 bg-rose-50 border border-rose-200 rounded text-[11px] text-rose-700 flex items-center gap-1.5 font-medium">
+                        <Truck className="w-3.5 h-3.5 text-rose-600 shrink-0" />
                         <span>Warning: Transportation Driver Not Assigned</span>
                       </div>
                     )}
@@ -815,15 +812,15 @@ export default function ProjectsPage() {
 
                 {/* Assigned Team */}
                 {proj.assignedTeam && proj.assignedTeam.length > 0 && (
-                  <div className="text-xs pt-1 border-t border-border/50">
-                    <div className="text-[11px] font-medium text-gray-400 flex items-center gap-1 mb-1.5">
-                      <Users className="w-3.5 h-3.5 text-blue-400" /> Assigned Team:
+                  <div className="text-xs pt-1 border-t border-slate-200/50">
+                    <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1 mb-1.5">
+                      <Users className="w-3.5 h-3.5 text-blue-600" /> Assigned Team:
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {proj.assignedTeam.map((member: any) => (
                         <span
                           key={member.id || member.userId}
-                          className="bg-blue-950/40 text-blue-300 border border-blue-800/40 text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1"
+                          className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1"
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
                           {member.user?.name || 'Staff Member'}
@@ -834,31 +831,31 @@ export default function ProjectsPage() {
                 )}
 
                 {/* Reserved Equipment */}
-                <div className="text-xs pt-1 border-t border-border/50">
-                  <div className="text-[11px] font-medium text-gray-400 flex items-center gap-1 mb-1.5">
-                    <Camera className="w-3.5 h-3.5 text-purple-400" /> Reserved Equipment:
+                <div className="text-xs pt-1 border-t border-slate-200/50">
+                  <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1 mb-1.5">
+                    <Camera className="w-3.5 h-3.5 text-purple-600" /> Reserved Equipment:
                   </div>
                   {proj.equipmentReservations && proj.equipmentReservations.length > 0 ? (
                     <div className="flex flex-wrap gap-1.5">
                       {proj.equipmentReservations.map((res: any) => (
                         <span
                           key={res.id}
-                          className="bg-purple-950/40 text-purple-300 border border-purple-800/40 text-[10px] px-2 py-0.5 rounded-full font-medium"
+                          className="bg-purple-50 text-purple-700 border border-purple-200 text-[10px] px-2 py-0.5 rounded-full font-medium"
                         >
                           {res.equipment?.name || 'Equipment'}
                         </span>
                       ))}
                     </div>
                   ) : (
-                    <span className="text-gray-500 italic text-[11px]">No gear reserved yet</span>
+                    <span className="text-slate-400 italic text-[11px]">No gear reserved yet</span>
                   )}
                 </div>
               </div>
 
               {/* Card Footer */}
-              <div className="pt-3 border-t border-border flex items-center justify-between">
-                <div className="text-[11px] text-gray-400">
-                  Revision Count: <strong className="text-amber-400">{proj.revisionCount || 0}</strong>
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
+                <div className="text-[11px] text-slate-500">
+                  Revision Count: <strong className="text-amber-600">{proj.revisionCount || 0}</strong>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -874,7 +871,7 @@ export default function ProjectsPage() {
                   )}
                   <Link
                     href={`/projects/${proj.id}`}
-                    className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-600/30 text-blue-600 border border-blue-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
                   >
                     Workspace <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
@@ -897,22 +894,22 @@ export default function ProjectsPage() {
 
       {/* Creation Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-card border border-border rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Sticky Header */}
-            <div className="p-4 border-b border-border flex items-center justify-between shrink-0 bg-card z-10">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white z-10">
               <div className="flex items-center gap-3">
-                <h2 className="text-base font-bold text-white flex items-center gap-2">
-                  <Film className="w-5 h-5 text-blue-400" /> Create New Shoot Project
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Film className="w-5 h-5 text-blue-600" /> Create New Shoot Project
                 </h2>
-                <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 hidden sm:inline-block">
+                <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 hidden sm:inline-block">
                   Active Clients & Brands Only
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
                 title="Close Modal"
               >
                 <X className="w-5 h-5" />
@@ -925,41 +922,41 @@ export default function ProjectsPage() {
                 {/* Project ID & Project Name */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Project ID</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Project ID</label>
                     <input
                       type="text"
                       placeholder="Auto (SP-XXXXXX)"
                       value={customProjectId}
                       onChange={(e) => setCustomProjectId(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-blue-400 font-mono font-semibold px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-blue-600 font-mono font-semibold px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                     />
-                    <p className="text-[10px] text-gray-500 mt-1">Leave empty to auto-generate</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Leave empty to auto-generate</p>
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="block text-gray-300 font-semibold mb-1">Project Name</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Project Name</label>
                     <input
                       type="text"
                       placeholder="e.g. Summer Campaign Shoot (Auto-generated if empty)"
                       value={projectName}
                       onChange={(e) => setProjectName(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:bg-white focus:outline-none"
                     />
-                    <p className="text-[10px] text-gray-500 mt-1">Optional custom name override</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Optional custom name override</p>
                   </div>
                 </div>
 
                 {/* Shoot Type Toggle */}
                 <div className="space-y-1">
-                  <label className="block text-gray-300 font-semibold mb-1">Shoot Type (Mandatory Selection)</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Shoot Type (Mandatory Selection)</label>
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setShootType('INDOOR')}
                       className={`p-3 rounded-lg border text-center font-bold transition-all ${
                         shootType === 'INDOOR'
-                          ? 'bg-blue-600/30 border-blue-500 text-blue-300 shadow-lg'
-                          : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white'
+                          ? 'bg-blue-600/30 border-blue-500 text-blue-700 shadow-lg'
+                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-900'
                       }`}
                     >
                       INDOOR SHOOT
@@ -970,8 +967,8 @@ export default function ProjectsPage() {
                       onClick={() => setShootType('OUTDOOR')}
                       className={`p-3 rounded-lg border text-center font-bold transition-all ${
                         shootType === 'OUTDOOR'
-                          ? 'bg-emerald-600/30 border-emerald-500 text-emerald-300 shadow-lg'
-                          : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white'
+                          ? 'bg-emerald-600/30 border-emerald-500 text-emerald-700 shadow-lg'
+                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-900'
                       }`}
                     >
                       OUTDOOR SHOOT
@@ -982,12 +979,12 @@ export default function ProjectsPage() {
                 {/* Client, Brand, Product, Campaign, Calendar Event */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Active Client *</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Active Client *</label>
                     <select
                       required
                       value={clientId}
                       onChange={(e) => handleClientChange(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:bg-white focus:outline-none"
                     >
                       <option value="">Select Active Client</option>
                       {activeClients.map((c) => (
@@ -997,17 +994,17 @@ export default function ProjectsPage() {
                       ))}
                     </select>
                     {activeClients.length === 0 && (
-                      <p className="text-[10px] text-amber-400 mt-1">No active clients found!</p>
+                      <p className="text-[10px] text-amber-600 mt-1">No active clients found!</p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Active Brand *</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Active Brand *</label>
                     <select
                       required
                       value={brandId}
                       onChange={(e) => setBrandId(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:bg-white focus:outline-none"
                     >
                       <option value="">Select Active Brand</option>
                       {activeBrands.map((b) => (
@@ -1017,16 +1014,16 @@ export default function ProjectsPage() {
                       ))}
                     </select>
                     {clientId && activeBrands.length === 0 && (
-                      <p className="text-[10px] text-amber-400 mt-1">No active brands found!</p>
+                      <p className="text-[10px] text-amber-600 mt-1">No active brands found!</p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Product (Optional)</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Product (Optional)</label>
                     <select
                       value={productId}
                       onChange={(e) => setProductId(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                     >
                       <option value="">None / General Shoot</option>
                       {activeProducts.map((p) => (
@@ -1040,24 +1037,24 @@ export default function ProjectsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Campaign (Optional)</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Campaign (Optional)</label>
                     <input
                       type="text"
                       placeholder="e.g. Festive Launch 2026"
                       value={campaignId}
                       onChange={(e) => setCampaignId(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Calendar Event / Ref</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Calendar Event / Ref</label>
                     <input
                       type="text"
                       placeholder="e.g. EVT-2026-0811"
                       value={calendarEventId}
                       onChange={(e) => setCalendarEventId(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                     />
                   </div>
                 </div>
@@ -1065,45 +1062,45 @@ export default function ProjectsPage() {
                 {/* Dates, Schedule & Priority */}
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Shoot Date *</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Shoot Date *</label>
                     <input
                       type="date"
                       required
                       value={shootDate}
                       onChange={(e) => setShootDate(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:bg-white focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Reporting Time</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Reporting Time</label>
                     <input
                       type="text"
                       placeholder="09:00 AM"
                       value={reportingTime}
                       onChange={(e) => setReportingTime(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Wrap-up Time</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Wrap-up Time</label>
                     <input
                       type="text"
                       placeholder="06:00 PM"
                       value={expectedWrapUpTime}
                       onChange={(e) => setExpectedWrapUpTime(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Estimated Completion</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Estimated Completion</label>
                     <input
                       type="date"
                       value={estimatedCompletionDate}
                       onChange={(e) => setEstimatedCompletionDate(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                     />
                   </div>
                 </div>
@@ -1111,11 +1108,11 @@ export default function ProjectsPage() {
                 {/* Priority, Status & Talent */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Project Priority</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Project Priority</label>
                     <select
                       value={priority}
                       onChange={(e) => setPriority(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:bg-white focus:outline-none"
                     >
                       <option value="LOW">LOW</option>
                       <option value="MEDIUM">MEDIUM</option>
@@ -1125,11 +1122,11 @@ export default function ProjectsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Current Status</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Current Status</label>
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:bg-white focus:outline-none"
                     >
                       <option value="DRAFT">Draft</option>
                       <option value="PLANNED">Planned</option>
@@ -1147,13 +1144,13 @@ export default function ProjectsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Influencer / Talent</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Influencer / Talent</label>
                     <input
                       type="text"
                       placeholder="e.g. Devika Sharma"
                       value={influencerTalent}
                       onChange={(e) => setInfluencerTalent(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                     />
                   </div>
                 </div>
@@ -1161,82 +1158,82 @@ export default function ProjectsPage() {
                 {/* Location Operational Details */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Location Category</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Location Category</label>
                     <input
                       type="text"
                       placeholder="e.g. Studio Bay / Outdoor Park"
                       value={locationCategory}
                       onChange={(e) => setLocationCategory(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Location Address</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Location Address</label>
                     <input
                       type="text"
                       placeholder="Full Street / Venue Address"
                       value={locationAddress}
                       onChange={(e) => setLocationAddressInput(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">Location Contact Person</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Location Contact Person</label>
                     <input
                       type="text"
                       placeholder="Manager Name & Phone"
                       value={locationContactPerson}
                       onChange={(e) => setLocationContactPerson(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                     />
                   </div>
                 </div>
 
                 {/* Initial Project Remark (Permanent History) */}
                 <div>
-                  <label className="block text-gray-300 font-semibold mb-1 flex items-center justify-between">
+                  <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
                     <span>Project Remark / Notes</span>
-                    <span className="text-[10px] text-blue-400 font-normal">Logged as permanent immutable history</span>
+                    <span className="text-[10px] text-blue-600 font-normal">Logged as permanent immutable history</span>
                   </label>
                   <textarea
                     rows={2}
                     placeholder="Add initial operational remarks, special instructions, or client notes..."
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none resize-none"
                   />
                 </div>
 
                 {/* Team / Crew Member Assignment Section */}
-                <div className="space-y-2 border-t border-border pt-3">
+                <div className="space-y-2 border-t border-slate-200 pt-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-gray-300 font-semibold flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-blue-400" /> Crew Assignment
+                    <label className="text-slate-700 font-semibold flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-blue-600" /> Crew Assignment
                     </label>
-                    <span className="text-[11px] text-amber-400 font-bold">
+                    <span className="text-[11px] text-amber-600 font-bold">
                       Not Assigned
                     </span>
                   </div>
-                  <div className="bg-gray-900 border border-gray-800 p-3 rounded-lg text-[11px] text-gray-400">
-                    Shoot Project will be created as <strong className="text-amber-300">Not Assigned</strong>. Crew and staff assignment is specified when scheduling the Media Calendar Event.
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg text-[11px] text-slate-500">
+                    Shoot Project will be created as <strong className="text-amber-800">Not Assigned</strong>. Crew and staff assignment is specified when scheduling the Media Calendar Event.
                   </div>
                 </div>
 
                 {/* Equipment / Gear Reservation Section */}
-                <div className="space-y-2 border-t border-border pt-3">
+                <div className="space-y-2 border-t border-slate-200 pt-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-gray-300 font-semibold flex items-center gap-1.5">
-                      <Camera className="w-4 h-4 text-purple-400" /> Reserve Equipment & Production Gear
+                    <label className="text-slate-700 font-semibold flex items-center gap-1.5">
+                      <Camera className="w-4 h-4 text-purple-600" /> Reserve Equipment & Production Gear
                     </label>
-                    <span className="text-[11px] text-gray-400 font-mono">
+                    <span className="text-[11px] text-slate-500 font-mono">
                       {selectedEquipmentIds.length} selected
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto bg-gray-900 border border-gray-800 p-2.5 rounded-lg">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
                     {equipmentList.length === 0 ? (
-                      <div className="text-gray-500 text-[11px] col-span-2 text-center py-2">No equipment items found.</div>
+                      <div className="text-slate-400 text-[11px] col-span-2 text-center py-2">No equipment items found.</div>
                     ) : (
                       equipmentList.map((eq) => {
                         const isSelected = selectedEquipmentIds.includes(eq.id);
@@ -1253,15 +1250,15 @@ export default function ProjectsPage() {
                             }}
                             className={`flex items-center justify-between p-2 rounded-lg text-left transition-all border ${
                               isSelected
-                                ? 'bg-purple-600/20 border-purple-500 text-purple-200'
-                                : 'bg-card border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
+                                ? 'bg-purple-50 border-purple-500 text-purple-800'
+                                : 'bg-white border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-200'
                             }`}
                           >
                             <div className="truncate">
-                              <div className="font-semibold text-xs text-white leading-none truncate">{eq.name}</div>
-                              <div className="text-[10px] text-gray-400 truncate font-mono">[{eq.category}] {eq.brand} {eq.model}</div>
+                              <div className="font-semibold text-xs text-slate-900 leading-none truncate">{eq.name}</div>
+                              <div className="text-[10px] text-slate-500 truncate font-mono">[{eq.category}] {eq.brand} {eq.model}</div>
                             </div>
-                            {isSelected && <Check className="w-3.5 h-3.5 text-purple-400 shrink-0 ml-1" />}
+                            {isSelected && <Check className="w-3.5 h-3.5 text-purple-600 shrink-0 ml-1" />}
                           </button>
                         );
                       })
@@ -1271,52 +1268,52 @@ export default function ProjectsPage() {
 
                 {/* Dynamic Form Sections based on Shoot Type */}
                 {shootType === 'INDOOR' ? (
-                  <div className="p-4 bg-blue-950/20 border border-blue-800/40 rounded-lg space-y-3">
-                    <h4 className="font-bold text-blue-300">Indoor Studio Operational Details</h4>
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+                    <h4 className="font-bold text-blue-700">Indoor Studio Operational Details</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-gray-300 font-semibold mb-1">Studio Name *</label>
+                        <label className="block text-slate-700 font-semibold mb-1">Studio Name *</label>
                         <input
                           type="text"
                           required
                           value={studioName}
                           onChange={(e) => setStudioName(e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                         />
                       </div>
                       <div>
-                        <label className="block text-gray-300 font-semibold mb-1">Studio Address</label>
+                        <label className="block text-slate-700 font-semibold mb-1">Studio Address</label>
                         <input
                           type="text"
                           value={studioAddress}
                           onChange={(e) => setStudioAddress(e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                         />
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="p-4 bg-emerald-950/20 border border-emerald-800/40 rounded-lg space-y-3">
-                    <h4 className="font-bold text-emerald-300">Outdoor Shoot Operational Details</h4>
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg space-y-3">
+                    <h4 className="font-bold text-emerald-700">Outdoor Shoot Operational Details</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-gray-300 font-semibold mb-1">Outdoor Location *</label>
+                        <label className="block text-slate-700 font-semibold mb-1">Outdoor Location *</label>
                         <input
                           type="text"
                           required
                           placeholder="e.g. Juhu Beach Promenade"
                           value={outdoorLocation}
                           onChange={(e) => setOutdoorLocation(e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-gray-300 font-semibold mb-1">Permission Status</label>
+                        <label className="block text-slate-700 font-semibold mb-1">Permission Status</label>
                         <select
                           value={permissionStatus}
                           onChange={(e) => setPermissionStatus(e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:bg-white focus:outline-none"
                         >
                           <option value="PENDING">PENDING (Triggers Warning)</option>
                           <option value="APPROVED">APPROVED</option>
@@ -1325,11 +1322,11 @@ export default function ProjectsPage() {
                       </div>
 
                       <div>
-                        <label className="block text-gray-300 font-semibold mb-1">Weather Status</label>
+                        <label className="block text-slate-700 font-semibold mb-1">Weather Status</label>
                         <select
                           value={weatherStatus}
                           onChange={(e) => setWeatherStatus(e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:bg-white focus:outline-none"
                         >
                           <option value="FAVORABLE">FAVORABLE</option>
                           <option value="RISK_RAIN">RISK RAIN (Triggers Warning)</option>
@@ -1339,18 +1336,18 @@ export default function ProjectsPage() {
                     </div>
 
                     {/* Transportation & Logistics Section */}
-                    <div className="space-y-2 border-t border-emerald-800/40 pt-3 mt-2">
-                      <h5 className="font-bold text-emerald-300 flex items-center gap-1.5">
-                        <Truck className="w-4 h-4 text-emerald-400" /> Transportation & Logistics Setup
+                    <div className="space-y-2 border-t border-emerald-200 pt-3 mt-2">
+                      <h5 className="font-bold text-emerald-700 flex items-center gap-1.5">
+                        <Truck className="w-4 h-4 text-emerald-600" /> Transportation & Logistics Setup
                       </h5>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-gray-300 font-semibold mb-1">Transportation Requirement</label>
+                          <label className="block text-slate-700 font-semibold mb-1">Transportation Requirement</label>
                           <select
                             value={transportationReq ? 'REQUIRED' : 'NONE'}
                             onChange={(e) => setTransportationReq(e.target.value === 'REQUIRED')}
-                            className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:outline-none"
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:bg-white focus:outline-none"
                           >
                             <option value="REQUIRED">REQUIRED (Van / Vehicle Needed)</option>
                             <option value="NONE">NOT REQUIRED (Self Travel)</option>
@@ -1358,35 +1355,35 @@ export default function ProjectsPage() {
                         </div>
 
                         <div>
-                          <label className="block text-gray-300 font-semibold mb-1">Assigned Driver Name</label>
+                          <label className="block text-slate-700 font-semibold mb-1">Assigned Driver Name</label>
                           <input
                             type="text"
                             placeholder="e.g. Ramesh Kumar (or empty for warning)"
                             value={driver}
                             onChange={(e) => setDriver(e.target.value)}
-                            className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-gray-300 font-semibold mb-1">Logistics Coordinator</label>
+                          <label className="block text-slate-700 font-semibold mb-1">Logistics Coordinator</label>
                           <input
                             type="text"
                             placeholder="e.g. Anand Sharma"
                             value={logisticsCoordinator}
                             onChange={(e) => setLogisticsCoordinator(e.target.value)}
-                            className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-gray-300 font-semibold mb-1">Travel / Route Notes</label>
+                          <label className="block text-slate-700 font-semibold mb-1">Travel / Route Notes</label>
                           <input
                             type="text"
                             placeholder="e.g. Departure from HQ at 06:00 AM"
                             value={travelNotes}
                             onChange={(e) => setTravelNotes(e.target.value)}
-                            className="w-full bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                           />
                         </div>
                       </div>
@@ -1396,11 +1393,11 @@ export default function ProjectsPage() {
               </div>
 
               {/* Modal Sticky Footer */}
-              <div className="px-5 py-3 border-t border-border flex items-center justify-end gap-2 shrink-0 bg-card">
+              <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0 bg-white">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg text-xs font-semibold transition-colors"
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg text-xs font-semibold transition-colors"
                 >
                   Cancel
                 </button>

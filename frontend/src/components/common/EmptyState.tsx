@@ -40,15 +40,15 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <div
-      className={`bg-card border border-dashed border-gray-800 rounded-xl p-10 text-center space-y-4 shadow-sm flex flex-col items-center justify-center my-4 ${className}`}
+      className={`bg-white border border-dashed border-slate-300 rounded-xl p-10 text-center space-y-4 shadow-xs flex flex-col items-center justify-center my-4 ${className}`}
     >
-      <div className="w-14 h-14 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center text-gray-400 shadow-inner">
-        <Icon className="w-7 h-7 text-blue-400" />
+      <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-xs">
+        <Icon className="w-7 h-7 text-blue-600" />
       </div>
 
       <div className="space-y-1 max-w-md">
-        <h3 className="text-sm font-bold text-white tracking-wide">{title}</h3>
-        <p className="text-xs text-gray-400 leading-relaxed">{description}</p>
+        <h3 className="text-sm font-bold text-slate-900 tracking-wide">{title}</h3>
+        <p className="text-xs text-slate-500 leading-relaxed">{description}</p>
       </div>
 
       {(actionLabel || secondaryActionLabel) && (
@@ -56,7 +56,7 @@ export function EmptyState({
           {actionHref ? (
             <Link
               href={actionHref}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-blue-600/30 inline-flex items-center gap-1.5"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-blue-500/20 inline-flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
               <span>{actionLabel}</span>
@@ -65,7 +65,7 @@ export function EmptyState({
             <button
               type="button"
               onClick={onActionClick}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-blue-600/30 inline-flex items-center gap-1.5"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-blue-500/20 inline-flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
               <span>{actionLabel}</span>
@@ -76,7 +76,7 @@ export function EmptyState({
             <button
               type="button"
               onClick={onSecondaryActionClick}
-              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1.5"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1.5"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>{secondaryActionLabel}</span>

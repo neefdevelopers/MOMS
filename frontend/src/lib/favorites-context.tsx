@@ -9,6 +9,10 @@ export type FavoriteEntityType =
   | 'SCRIPT'
   | 'GRAPHIC_REQUIREMENT'
   | 'TASK'
+  | 'CALENDAR_EVENT'
+  | 'CLIENT'
+  | 'BRAND'
+  | 'PRODUCT'
   | 'REPORT';
 
 export interface FavoriteRecord {
@@ -78,6 +82,15 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     loadFavorites();
   }, [loadFavorites]);
 
+  // Listen to window-level sync event
+  useEffect(() => {
+    const handleSync = () => {
+      loadFavorites();
+    };
+    window.addEventListener('moms:favorites-updated', handleSync);
+    return () => window.removeEventListener('moms:favorites-updated', handleSync);
+  }, [loadFavorites]);
+
   const isFavorite = useCallback(
     (entityType: FavoriteEntityType, entityId: string) => {
       return favorites.some(
@@ -123,12 +136,11 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify(payload),
       });
 
-      // Reload fresh state from backend
+      window.dispatchEvent(new CustomEvent('moms:favorites-updated'));
       loadFavorites();
       return res?.favorited ?? !currentlyFav;
     } catch (err) {
       console.error('Failed to toggle favorite:', err);
-      // Rollback on error
       loadFavorites();
       return currentlyFav;
     }
@@ -138,6 +150,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     setFavorites((prev) => prev.filter((f) => f.id !== id));
     try {
       await fetchApi(`/favorites/${id}`, { method: 'DELETE' });
+      window.dispatchEvent(new CustomEvent('moms:favorites-updated'));
     } catch (err) {
       console.error('Failed to remove favorite:', err);
       loadFavorites();

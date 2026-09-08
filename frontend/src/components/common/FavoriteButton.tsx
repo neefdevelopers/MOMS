@@ -49,7 +49,7 @@ export function FavoriteButton({
     e.stopPropagation();
 
     setAnimating(true);
-    setTimeout(() => setAnimating(false), 400);
+    setTimeout(() => setAnimating(false), 350);
 
     await toggleFavorite({
       entityType,
@@ -65,21 +65,26 @@ export function FavoriteButton({
     <button
       type="button"
       onClick={handleClick}
-      title={favorited ? 'Remove from favorites' : 'Mark as favorite'}
+      aria-label={favorited ? 'Remove from favourites' : 'Add to favourites'}
+      title={favorited ? 'Remove from favourites' : 'Add to favourites'}
       className={`inline-flex items-center gap-1.5 rounded-lg transition-all select-none ${buttonPaddings[size]} ${
         favorited
-          ? 'text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30'
-          : 'text-gray-400 hover:text-amber-400 hover:bg-gray-800/80 border border-transparent'
+          ? 'text-amber-500 hover:text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 shadow-xs'
+          : 'text-slate-400 hover:text-amber-500 hover:bg-slate-100 border border-transparent'
       } ${className}`}
     >
       <Star
-        className={`${iconSizes[size]} transition-transform ${
+        className={`${iconSizes[size]} transition-all ${
           animating ? 'scale-125 rotate-12' : ''
-        } ${favorited ? 'fill-amber-400 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]' : ''}`}
+        } ${
+          favorited
+            ? 'fill-amber-400 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]'
+            : 'text-slate-400 hover:text-amber-500'
+        }`}
       />
       {showLabel && (
         <span className="text-[11px] font-semibold">
-          {favorited ? 'Favorited' : 'Favorite'}
+          {favorited ? 'Favourited' : 'Favourite'}
         </span>
       )}
     </button>

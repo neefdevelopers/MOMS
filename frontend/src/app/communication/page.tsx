@@ -445,42 +445,42 @@ export default function CommunicationPage() {
   const getEntityIcon = (type: string) => {
     switch (type) {
       case 'PROJECT':
-        return <Film className="w-3.5 h-3.5 text-blue-400" />;
+        return <Film className="w-3.5 h-3.5 text-blue-600" />;
       case 'SCRIPT':
-        return <FileText className="w-3.5 h-3.5 text-amber-400" />;
+        return <FileText className="w-3.5 h-3.5 text-amber-600" />;
       case 'GRAPHIC_REQ':
-        return <ImageIcon className="w-3.5 h-3.5 text-purple-400" />;
+        return <ImageIcon className="w-3.5 h-3.5 text-purple-600" />;
       case 'TASK':
-        return <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />;
+        return <CheckSquare className="w-3.5 h-3.5 text-emerald-600" />;
       case 'EQUIPMENT':
-        return <Wrench className="w-3.5 h-3.5 text-cyan-400" />;
+        return <Wrench className="w-3.5 h-3.5 text-cyan-600" />;
       case 'APPROVAL':
         return <CheckCircle className="w-3.5 h-3.5 text-green-400" />;
       case 'REVIEW':
         return <Eye className="w-3.5 h-3.5 text-pink-400" />;
       default:
-        return <MessageSquare className="w-3.5 h-3.5 text-gray-400" />;
+        return <MessageSquare className="w-3.5 h-3.5 text-slate-500" />;
     }
   };
 
   const getEntityBadgeColor = (type: string) => {
     switch (type) {
       case 'PROJECT':
-        return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+        return 'bg-blue-50 text-blue-600 border-blue-200';
       case 'SCRIPT':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+        return 'bg-amber-50 text-amber-600 border-amber-200';
       case 'GRAPHIC_REQ':
-        return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+        return 'bg-purple-50 text-purple-600 border-purple-200';
       case 'TASK':
-        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+        return 'bg-emerald-50 text-emerald-600 border-emerald-200';
       case 'EQUIPMENT':
-        return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+        return 'bg-cyan-50 text-cyan-600 border-cyan-200';
       case 'APPROVAL':
         return 'bg-green-500/10 text-green-400 border-green-500/20';
       case 'REVIEW':
         return 'bg-pink-500/10 text-pink-400 border-pink-500/20';
       default:
-        return 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+        return 'bg-gray-500/10 text-slate-500 border-gray-500/20';
     }
   };
 
@@ -488,34 +488,34 @@ export default function CommunicationPage() {
     switch (cat) {
       case 'INFORMATION':
       case 'ANNOUNCEMENT':
-        return 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+        return 'bg-blue-50 text-blue-600 border-blue-200';
       case 'QUESTION':
       case 'CLARIFICATION':
-        return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30';
+        return 'bg-cyan-50 text-cyan-600 border-cyan-200';
       case 'REQUIREMENT':
-        return 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+        return 'bg-purple-50 text-purple-600 border-purple-200';
       case 'APPROVAL_REQUEST':
-        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+        return 'bg-emerald-50 text-emerald-600 border-emerald-200';
       case 'REVIEW_COMMENT':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+        return 'bg-amber-50 text-amber-600 border-amber-200';
       case 'ISSUE_REPORT':
       case 'BLOCKER':
-        return 'bg-red-500/10 text-red-400 border-red-500/30';
+        return 'bg-rose-50 text-rose-600 border-rose-200';
       default:
-        return 'bg-zinc-700/30 text-zinc-300 border-zinc-600/30';
+        return 'bg-slate-200/30 text-slate-700 border-slate-300';
     }
   };
 
   const getStatusBadgeClass = (st: string) => {
     switch (st) {
       case 'DELIVERED':
-        return 'bg-purple-950/80 text-purple-300 border-purple-800/80';
+        return 'bg-purple-50 text-purple-700 border-purple-200';
       case 'READ':
-        return 'bg-emerald-950/80 text-emerald-300 border-emerald-800/80';
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       case 'CLOSED':
-        return 'bg-zinc-800 text-zinc-400 border-zinc-700';
+        return 'bg-slate-100 text-slate-500 border-slate-200';
       default:
-        return 'bg-blue-950/80 text-blue-300 border-blue-800/80';
+        return 'bg-blue-50 text-blue-700 border-blue-200';
     }
   };
 
@@ -527,9 +527,9 @@ export default function CommunicationPage() {
         return (
           <span
             key={index}
-            className="bg-blue-500/20 text-blue-300 border border-blue-500/30 font-semibold px-1.5 py-0.5 rounded text-[11px] inline-flex items-center gap-0.5"
+            className="bg-blue-50 text-blue-700 border border-blue-200 font-semibold px-1.5 py-0.5 rounded text-[11px] inline-flex items-center gap-0.5"
           >
-            <AtSign className="w-3 h-3 text-blue-400" />
+            <AtSign className="w-3 h-3 text-blue-600" />
             {part.substring(1)}
           </span>
         );
@@ -545,11 +545,11 @@ export default function CommunicationPage() {
 
     if (isImg) {
       return (
-        <div key={att.id || att.fileUrl} className="group relative bg-zinc-950 border border-zinc-800 rounded-lg overflow-hidden p-1 space-y-1">
+        <div key={att.id || att.fileUrl} className="group relative bg-slate-50 border border-slate-200 rounded-lg overflow-hidden p-1 space-y-1">
           <img src={att.fileUrl} alt={att.fileName} className="w-full h-24 object-cover rounded" />
-          <div className="flex items-center justify-between text-[10px] text-gray-300 px-1 truncate">
-            <span className="truncate flex items-center gap-1 font-medium"><ImageIcon className="w-3 h-3 text-purple-400 shrink-0" />{att.fileName}</span>
-            <a href={att.fileUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-white shrink-0"><Download className="w-3 h-3" /></a>
+          <div className="flex items-center justify-between text-[10px] text-slate-700 px-1 truncate">
+            <span className="truncate flex items-center gap-1 font-medium"><ImageIcon className="w-3 h-3 text-purple-600 shrink-0" />{att.fileName}</span>
+            <a href={att.fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-slate-900 shrink-0"><Download className="w-3 h-3" /></a>
           </div>
         </div>
       );
@@ -557,9 +557,9 @@ export default function CommunicationPage() {
 
     if (isVid) {
       return (
-        <div key={att.id || att.fileUrl} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2 space-y-1">
-          <div className="flex items-center gap-1.5 text-xs text-zinc-200 font-semibold">
-            <Video className="w-3.5 h-3.5 text-red-400 shrink-0" /> {att.fileName}
+        <div key={att.id || att.fileUrl} className="bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-1">
+          <div className="flex items-center gap-1.5 text-xs text-slate-800 font-semibold">
+            <Video className="w-3.5 h-3.5 text-rose-600 shrink-0" /> {att.fileName}
           </div>
           <video src={att.fileUrl} controls className="w-full h-28 object-cover rounded bg-black" />
         </div>
@@ -568,9 +568,9 @@ export default function CommunicationPage() {
 
     if (isAud) {
       return (
-        <div key={att.id || att.fileUrl} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2 space-y-1">
-          <div className="flex items-center gap-1.5 text-xs text-zinc-200 font-semibold">
-            <Music className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> {att.fileName}
+        <div key={att.id || att.fileUrl} className="bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-1">
+          <div className="flex items-center gap-1.5 text-xs text-slate-800 font-semibold">
+            <Music className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> {att.fileName}
           </div>
           <audio src={att.fileUrl} controls className="w-full h-8" />
         </div>
@@ -578,15 +578,15 @@ export default function CommunicationPage() {
     }
 
     return (
-      <div key={att.id || att.fileUrl} className="flex items-center justify-between bg-zinc-950 border border-zinc-800 p-2 rounded-lg text-xs">
+      <div key={att.id || att.fileUrl} className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2 rounded-lg text-xs">
         <div className="flex items-center gap-2 truncate">
-          <File className="w-4 h-4 text-blue-400 shrink-0" />
+          <File className="w-4 h-4 text-blue-600 shrink-0" />
           <div className="truncate">
-            <p className="font-semibold text-zinc-200 truncate">{att.fileName}</p>
-            <span className="text-[10px] text-gray-500 font-mono">{att.fileType || 'REFERENCE'}</span>
+            <p className="font-semibold text-slate-800 truncate">{att.fileName}</p>
+            <span className="text-[10px] text-slate-400 font-mono">{att.fileType || 'REFERENCE'}</span>
           </div>
         </div>
-        <a href={att.fileUrl} target="_blank" rel="noreferrer" className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded text-[10px] font-semibold flex items-center gap-1 shrink-0">
+        <a href={att.fileUrl} target="_blank" rel="noreferrer" className="px-2 py-1 bg-blue-50 hover:bg-blue-600/30 text-blue-700 border border-blue-200 rounded text-[10px] font-semibold flex items-center gap-1 shrink-0">
           <Download className="w-3 h-3" /> Download
         </a>
       </div>
@@ -647,24 +647,24 @@ export default function CommunicationPage() {
         }}
         className={`${
           isChild
-            ? 'ml-6 pl-3 border-l-2 border-blue-500/30 bg-zinc-950/40'
+            ? 'ml-6 pl-3 border-l-2 border-blue-200 bg-slate-50/40'
             : isBlockerOpen
-            ? 'bg-red-950/20 border-2 border-red-600/60 shadow-lg shadow-red-950/30'
+            ? 'bg-rose-50 border-2 border-red-600/60 shadow-lg shadow-red-950/30'
             : isThreadUnread
-            ? 'bg-blue-950/20 border-2 border-blue-500/60 shadow-lg shadow-blue-950/40'
+            ? 'bg-blue-50 border-2 border-blue-200 shadow-lg shadow-blue-950/40'
             : isBlocker
-            ? 'bg-zinc-900/60 border border-emerald-800/40'
+            ? 'bg-slate-50/60 border border-emerald-200'
             : isRemark
-            ? 'bg-amber-950/10 border border-amber-800/40'
+            ? 'bg-amber-50 border border-amber-200'
             : isApprovalReq
-            ? 'bg-emerald-950/10 border border-emerald-800/40'
-            : 'bg-card border border-border shadow-sm'
-        } hover:border-zinc-700 rounded-xl p-4 transition-colors space-y-3 cursor-pointer`}
+            ? 'bg-emerald-50 border border-emerald-200'
+            : 'bg-white border border-slate-200 shadow-sm'
+        } hover:border-slate-200 rounded-xl p-4 transition-colors space-y-3 cursor-pointer`}
       >
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5">
           <div className="flex items-center gap-2 flex-wrap">
-            {isChild && <CornerDownRight className="w-3.5 h-3.5 text-blue-400 shrink-0" />}
+            {isChild && <CornerDownRight className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
             <span
               className={`inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-md font-semibold border ${getEntityBadgeColor(
                 comm.entityType
@@ -673,7 +673,7 @@ export default function CommunicationPage() {
               {getEntityIcon(comm.entityType)}
               {comm.entityType?.replace('_', ' ')}
             </span>
-            <span className="font-mono text-[11px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded border border-zinc-700">
+            <span className="font-mono text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
               {comm.entityRef}
             </span>
 
@@ -682,24 +682,24 @@ export default function CommunicationPage() {
                 <AlertTriangle className="w-3.5 h-3.5" /> BLOCKER - OPEN
               </span>
             ) : isBlocker ? (
-              <span className="text-[10px] px-2.5 py-0.5 rounded font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-mono uppercase">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> BLOCKER - RESOLVED (PERMANENT HISTORY)
+              <span className="text-[10px] px-2.5 py-0.5 rounded font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 font-mono uppercase">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> BLOCKER - RESOLVED (PERMANENT HISTORY)
               </span>
             ) : isRemark ? (
-              <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1 font-mono uppercase">
-                <Bookmark className="w-3 h-3 text-amber-400" /> Operational Remark
+              <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1 font-mono uppercase">
+                <Bookmark className="w-3 h-3 text-amber-600" /> Operational Remark
               </span>
             ) : null}
 
             {comm.blockerReason && (
-              <span className="text-[10px] px-2 py-0.5 rounded font-mono font-semibold bg-red-950/70 text-red-200 border border-red-800/60">
+              <span className="text-[10px] px-2 py-0.5 rounded font-mono font-semibold bg-rose-50 text-rose-800 border border-rose-200">
                 Reason: {comm.blockerReason.replace(/_/g, ' ')}
               </span>
             )}
 
             {isApprovalReq && (
-              <span className="text-[10px] px-2.5 py-0.5 rounded font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 font-mono">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Automated Pending Review Item Created
+              <span className="text-[10px] px-2.5 py-0.5 rounded font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 font-mono">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Automated Pending Review Item Created
               </span>
             )}
 
@@ -709,7 +709,7 @@ export default function CommunicationPage() {
               </span>
             )}
 
-            <h3 className="font-bold text-white text-sm">{comm.subject || (isRemark ? 'Operational Remark' : 'Operational Communication')}</h3>
+            <h3 className="font-bold text-slate-900 text-sm">{comm.subject || (isRemark ? 'Operational Remark' : 'Operational Communication')}</h3>
           </div>
 
           <div className="flex items-center gap-3">
@@ -731,9 +731,9 @@ export default function CommunicationPage() {
                 {/* System-Controlled Automated Read Receipt Badge (No manual status selection) */}
                 <span className={`text-[10px] font-mono px-2 py-0.5 rounded border font-semibold inline-flex items-center gap-1 ${getStatusBadgeClass(comm.status)}`}>
                   {comm.status === 'READ' ? (
-                    <>✓✓ Read {comm.readAt ? `· ${new Date(comm.readAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</>
+                    <>Read {comm.readAt ? `· ${new Date(comm.readAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</>
                   ) : comm.status === 'DELIVERED' ? (
-                    <>✓ Delivered {comm.deliveredAt ? `· ${new Date(comm.deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</>
+                    <>Delivered {comm.deliveredAt ? `· ${new Date(comm.deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</>
                   ) : comm.status === 'CLOSED' ? (
                     <>Closed</>
                   ) : (
@@ -748,10 +748,10 @@ export default function CommunicationPage() {
                     e.stopPropagation();
                     handleOpenTimeline(comm);
                   }}
-                  className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded text-[10px] font-semibold flex items-center gap-1 transition-colors"
+                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded text-[10px] font-semibold flex items-center gap-1 transition-colors"
                   title="View Immutable Communication Audit Timeline"
                 >
-                  <Clock className="w-3 h-3 text-purple-400" /> Timeline
+                  <Clock className="w-3 h-3 text-purple-600" /> Timeline
                 </button>
 
                 {/* View Parent Record Link */}
@@ -759,17 +759,17 @@ export default function CommunicationPage() {
                   <Link
                     href={getEntityLink(comm)}
                     onClick={(e) => e.stopPropagation()}
-                    className="px-2 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded text-[10px] font-bold flex items-center gap-1 transition-colors"
+                    className="px-2 py-1 bg-purple-50 hover:bg-purple-600/30 text-purple-700 border border-purple-200 rounded text-[10px] font-bold flex items-center gap-1 transition-colors"
                     title="Open Operational Record Context"
                   >
-                    <ExternalLink className="w-3 h-3 text-purple-400" /> View Record
+                    <ExternalLink className="w-3 h-3 text-purple-600" /> View Record
                   </Link>
                 ) : (
                   <span
-                    className="px-2 py-1 bg-red-950/60 text-red-300 border border-red-800 rounded text-[10px] font-bold flex items-center gap-1"
+                    className="px-2 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded text-[10px] font-bold flex items-center gap-1"
                     title="Parent operational entity is no longer available"
                   >
-                    <AlertCircle className="w-3 h-3 text-red-400" /> Related Record Unavailable
+                    <AlertCircle className="w-3 h-3 text-rose-600" /> Related Record Unavailable
                   </span>
                 )}
 
@@ -778,13 +778,13 @@ export default function CommunicationPage() {
                     e.stopPropagation();
                     setReplyingToId(isReplying ? null : comm.id);
                   }}
-                  className="px-2.5 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-[11px] font-medium flex items-center gap-1 transition-colors"
+                  className="px-2.5 py-1 bg-blue-50 hover:bg-blue-50 text-blue-600 border border-blue-200 rounded text-[11px] font-medium flex items-center gap-1 transition-colors"
                 >
                   <CornerDownRight className="w-3 h-3" /> Reply
                 </button>
               </>
             ) : (
-              <span className="text-[10px] font-mono px-2.5 py-0.5 rounded border bg-zinc-800 text-zinc-400 border-zinc-700">
+              <span className="text-[10px] font-mono px-2.5 py-0.5 rounded border bg-slate-100 text-slate-500 border-slate-200">
                 Standalone Remark
               </span>
             )}
@@ -792,7 +792,7 @@ export default function CommunicationPage() {
             {!isChild && (
               <Link
                 href={getEntityLink(comm)}
-                className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium bg-blue-500/10 hover:bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/20 transition-colors"
+                className="text-[11px] text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium bg-blue-50 hover:bg-blue-50 px-2 py-0.5 rounded border border-blue-200 transition-colors"
               >
                 View Record <ExternalLink className="w-3 h-3" />
               </Link>
@@ -802,128 +802,128 @@ export default function CommunicationPage() {
 
         {/* Structured Blocker Metadata Panel (Reported By, Assigned To, Resolution, Resolution Date) */}
         {isBlocker ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-zinc-950/80 p-3 rounded-lg border border-zinc-800 text-[11px]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-slate-50/80 p-3 rounded-lg border border-slate-200 text-[11px]">
             <div className="space-y-1">
-              <span className="flex items-center gap-1.5 text-zinc-300">
-                <User className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <strong className="text-zinc-400">Reported By:</strong>{' '}
-                <span className="text-white font-semibold">{comm.sender?.name || 'Staff Member'}</span> ({comm.sender?.role || 'STAFF'})
+              <span className="flex items-center gap-1.5 text-slate-700">
+                <User className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <strong className="text-slate-500">Reported By:</strong>{' '}
+                <span className="text-slate-900 font-semibold">{comm.sender?.name || 'Staff Member'}</span> ({comm.sender?.role || 'STAFF'})
               </span>
-              <span className="flex items-center gap-1.5 text-zinc-300">
-                <UserCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                <strong className="text-zinc-400">Assigned To:</strong>{' '}
-                <span className="text-purple-300 font-semibold">{comm.assignedTo?.name || comm.recipients || 'All Team Members'}</span> {comm.assignedTo?.role ? `(${comm.assignedTo.role})` : ''}
+              <span className="flex items-center gap-1.5 text-slate-700">
+                <UserCheck className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                <strong className="text-slate-500">Assigned To:</strong>{' '}
+                <span className="text-purple-700 font-semibold">{comm.assignedTo?.name || comm.recipients || 'All Team Members'}</span> {comm.assignedTo?.role ? `(${comm.assignedTo.role})` : ''}
               </span>
             </div>
 
             <div className="space-y-1">
               {comm.blockerStatus === 'RESOLVED' ? (
                 <>
-                  <span className="flex items-center gap-1.5 text-emerald-300">
-                    <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <strong className="text-zinc-400">Resolution:</strong>{' '}
-                    <span className="text-emerald-200 font-medium">{comm.resolutionNotes || 'Operational Blocker resolved.'}</span>
+                  <span className="flex items-center gap-1.5 text-emerald-700">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <strong className="text-slate-500">Resolution:</strong>{' '}
+                    <span className="text-emerald-800 font-medium">{comm.resolutionNotes || 'Operational Blocker resolved.'}</span>
                   </span>
-                  <span className="flex items-center gap-1.5 text-zinc-300">
-                    <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <strong className="text-zinc-400">Resolution Date:</strong>{' '}
-                    <span className="text-white font-mono text-[10px]">
+                  <span className="flex items-center gap-1.5 text-slate-700">
+                    <Clock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <strong className="text-slate-500">Resolution Date:</strong>{' '}
+                    <span className="text-slate-800 font-mono text-[10px]">
                       {comm.resolvedAt ? `${new Date(comm.resolvedAt).toLocaleDateString()} ${new Date(comm.resolvedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'N/A'}
                     </span>
                   </span>
                 </>
               ) : (
-                <span className="flex items-center gap-1.5 text-red-400">
-                  <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                  <strong className="text-zinc-400">Resolution Status:</strong> <span className="text-red-300 font-bold">Unresolved (Active Open Blocker)</span>
+                <span className="flex items-center gap-1.5 text-rose-600">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                  <strong className="text-slate-500">Resolution Status:</strong> <span className="text-rose-700 font-bold">Unresolved (Active Open Blocker)</span>
                 </span>
               )}
             </div>
           </div>
         ) : (
           /* Standard Structured Meta Line */
-          <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] text-gray-400 bg-zinc-900/50 p-2.5 rounded-lg border border-zinc-800/60">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-500 bg-slate-50/50 p-2.5 rounded-lg border border-slate-200">
             <div className="flex items-center gap-4 flex-wrap">
-              <span className="flex items-center gap-1.5 text-zinc-200">
-                <User className="w-3.5 h-3.5 text-blue-400" />
-                Author: <strong className="text-white">{comm.sender?.name || 'Staff Member'}</strong> ({comm.sender?.role || 'STAFF'})
+              <span className="flex items-center gap-1.5 text-slate-800">
+                <User className="w-3.5 h-3.5 text-blue-600" />
+                Author: <strong className="text-slate-900">{comm.sender?.name || 'Staff Member'}</strong> ({comm.sender?.role || 'STAFF'})
               </span>
               {!isRemark && (
                 <>
                   <span className="text-zinc-700">•</span>
-                  <span className="flex items-center gap-1.5 text-zinc-300">
-                    <Users className="w-3.5 h-3.5 text-purple-400" />
-                    Recipient(s): <span className="text-zinc-200 font-medium">{comm.recipients || 'All Assigned Team Members'}</span>
+                  <span className="flex items-center gap-1.5 text-slate-700">
+                    <Users className="w-3.5 h-3.5 text-purple-600" />
+                    Recipient(s): <span className="text-slate-800 font-medium">{comm.recipients || 'All Assigned Team Members'}</span>
                   </span>
                 </>
               )}
             </div>
 
-            <div className="flex items-center gap-3 text-[10px] font-mono text-zinc-400">
+            <div className="flex items-center gap-3 text-[10px] font-mono text-slate-500">
               <span className="flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-gray-400" /> {dateStr}
+                <Calendar className="w-3 h-3 text-slate-500" /> {dateStr}
               </span>
               <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3 text-gray-400" /> {timeStr}
+                <Clock className="w-3 h-3 text-slate-500" /> {timeStr}
               </span>
             </div>
           </div>
         )}
 
         {/* Permanent Operational Timeline Stepper (5 Milestones: Created, Delivered, Read, Replied, Closed) */}
-        <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 space-y-1.5 text-[10px] font-mono">
-          <div className="flex items-center justify-between text-zinc-400 font-semibold border-b border-zinc-800/60 pb-1">
-            <span className="flex items-center gap-1 text-blue-400">
+        <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 space-y-1.5 text-[10px] font-mono">
+          <div className="flex items-center justify-between text-slate-500 font-semibold border-b border-slate-200 pb-1">
+            <span className="flex items-center gap-1 text-blue-600">
               <Clock className="w-3 h-3" /> Permanent Operational Timeline (Preserved Indefinitely)
             </span>
-            <span className="text-zinc-500 uppercase">Status: {comm.status || 'SENT'}</span>
+            <span className="text-slate-400 uppercase">Status: {comm.status || 'SENT'}</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-0.5">
             {/* 1. Created */}
-            <div className="space-y-0.5 bg-zinc-900/60 p-1.5 rounded border border-blue-500/30">
-              <span className="text-blue-400 font-bold flex items-center gap-1">
-                <CheckCircle className="w-3 h-3 text-blue-400" /> 1. Created
+            <div className="space-y-0.5 bg-slate-50/60 p-1.5 rounded border border-blue-200">
+              <span className="text-blue-600 font-bold flex items-center gap-1">
+                <CheckCircle className="w-3 h-3 text-blue-600" /> 1. Created
               </span>
-              <p className="text-zinc-300 text-[9px] truncate">{dateStr} {timeStr}</p>
+              <p className="text-slate-700 text-[9px] truncate">{dateStr} {timeStr}</p>
             </div>
 
             {/* 2. Delivered */}
-            <div className={`space-y-0.5 bg-zinc-900/60 p-1.5 rounded border ${comm.deliveredAt ? 'border-purple-500/40' : 'border-zinc-800 opacity-60'}`}>
-              <span className={`font-bold flex items-center gap-1 ${comm.deliveredAt ? 'text-purple-300' : 'text-zinc-500'}`}>
+            <div className={`space-y-0.5 bg-slate-50/60 p-1.5 rounded border ${comm.deliveredAt ? 'border-purple-200' : 'border-slate-200 opacity-60'}`}>
+              <span className={`font-bold flex items-center gap-1 ${comm.deliveredAt ? 'text-purple-700' : 'text-slate-400'}`}>
                 <CheckCircle className="w-3 h-3" /> 2. Delivered
               </span>
-              <p className="text-zinc-300 text-[9px] truncate">
+              <p className="text-slate-700 text-[9px] truncate">
                 {comm.deliveredAt ? `${new Date(comm.deliveredAt).toLocaleDateString()} ${new Date(comm.deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Pending'}
               </p>
             </div>
 
             {/* 3. Read */}
-            <div className={`space-y-0.5 bg-zinc-900/60 p-1.5 rounded border ${comm.readAt ? 'border-emerald-500/40' : 'border-zinc-800 opacity-60'}`}>
-              <span className={`font-bold flex items-center gap-1 ${comm.readAt ? 'text-emerald-300' : 'text-zinc-500'}`}>
+            <div className={`space-y-0.5 bg-slate-50/60 p-1.5 rounded border ${comm.readAt ? 'border-emerald-200' : 'border-slate-200 opacity-60'}`}>
+              <span className={`font-bold flex items-center gap-1 ${comm.readAt ? 'text-emerald-700' : 'text-slate-400'}`}>
                 <Eye className="w-3 h-3" /> 3. Read
               </span>
-              <p className="text-zinc-300 text-[9px] truncate">
+              <p className="text-slate-700 text-[9px] truncate">
                 {comm.readAt ? `${new Date(comm.readAt).toLocaleDateString()} ${new Date(comm.readAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Unread'}
               </p>
             </div>
 
             {/* 4. Replied */}
-            <div className={`space-y-0.5 bg-zinc-900/60 p-1.5 rounded border ${comm.replies && comm.replies.length > 0 ? 'border-cyan-500/40' : 'border-zinc-800 opacity-60'}`}>
-              <span className={`font-bold flex items-center gap-1 ${comm.replies && comm.replies.length > 0 ? 'text-cyan-300' : 'text-zinc-500'}`}>
+            <div className={`space-y-0.5 bg-slate-50/60 p-1.5 rounded border ${comm.replies && comm.replies.length > 0 ? 'border-cyan-200' : 'border-slate-200 opacity-60'}`}>
+              <span className={`font-bold flex items-center gap-1 ${comm.replies && comm.replies.length > 0 ? 'text-cyan-700' : 'text-slate-400'}`}>
                 <CornerDownRight className="w-3 h-3" /> 4. Replied
               </span>
-              <p className="text-zinc-300 text-[9px] truncate">
+              <p className="text-slate-700 text-[9px] truncate">
                 {comm.replies && comm.replies.length > 0 ? `${comm.replies.length} Reply Note(s)` : 'No replies yet'}
               </p>
             </div>
 
             {/* 5. Closed */}
-            <div className={`space-y-0.5 bg-zinc-900/60 p-1.5 rounded border ${comm.closedAt || comm.status === 'CLOSED' ? 'border-amber-500/40' : 'border-zinc-800 opacity-60'}`}>
-              <span className={`font-bold flex items-center gap-1 ${comm.closedAt || comm.status === 'CLOSED' ? 'text-amber-300' : 'text-zinc-500'}`}>
+            <div className={`space-y-0.5 bg-slate-50/60 p-1.5 rounded border ${comm.closedAt || comm.status === 'CLOSED' ? 'border-amber-200' : 'border-slate-200 opacity-60'}`}>
+              <span className={`font-bold flex items-center gap-1 ${comm.closedAt || comm.status === 'CLOSED' ? 'text-amber-800' : 'text-slate-400'}`}>
                 <CheckCircle className="w-3 h-3" /> 5. Closed
               </span>
-              <p className="text-zinc-300 text-[9px] truncate">
+              <p className="text-slate-700 text-[9px] truncate">
                 {comm.closedAt ? `${new Date(comm.closedAt).toLocaleDateString()} ${new Date(comm.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : comm.status === 'CLOSED' ? 'Closed' : 'Active Thread'}
               </p>
             </div>
@@ -931,15 +931,15 @@ export default function CommunicationPage() {
         </div>
 
         {/* Message Content Body */}
-        <div className="text-zinc-200 text-xs leading-relaxed whitespace-pre-wrap pl-1 pt-0.5">
+        <div className="text-slate-800 text-xs leading-relaxed whitespace-pre-wrap pl-1 pt-0.5">
           {renderContentWithMentions(comm.content)}
         </div>
 
         {/* Multi-Format Media Attachments */}
         {commAtts.length > 0 && (
-          <div className="space-y-2 pt-1 border-t border-zinc-800/60">
-            <div className="text-[11px] text-gray-400 font-semibold flex items-center gap-1">
-              <Paperclip className="w-3.5 h-3.5 text-purple-400" /> Multi-Format Attachments ({commAtts.length}):
+          <div className="space-y-2 pt-1 border-t border-slate-200">
+            <div className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+              <Paperclip className="w-3.5 h-3.5 text-purple-600" /> Multi-Format Attachments ({commAtts.length}):
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
               {commAtts.map((att: any) => renderAttachmentItem(att))}
@@ -949,15 +949,15 @@ export default function CommunicationPage() {
 
         {/* Inline Reply Form */}
         {!isRemark && isReplying && (
-          <div className="pt-2 border-t border-zinc-800 space-y-2 bg-zinc-950 p-3 rounded-lg border border-blue-500/30 mt-2">
-            <div className="flex items-center justify-between text-[11px] text-blue-400 font-medium">
+          <div className="pt-2 border-t border-slate-200 space-y-2 bg-slate-50 p-3 rounded-lg border border-blue-200 mt-2">
+            <div className="flex items-center justify-between text-[11px] text-blue-600 font-medium">
               <span className="flex items-center gap-1">
                 <CornerDownRight className="w-3.5 h-3.5" /> Replying to {comm.sender?.name || 'Author'}
               </span>
               <button
                 type="button"
                 onClick={() => setReplyingToId(null)}
-                className="text-gray-400 hover:text-white"
+                className="text-slate-500 hover:text-slate-900"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -966,15 +966,15 @@ export default function CommunicationPage() {
             {/* Quick Staff Mention Bar */}
             {usersList.length > 0 && (
               <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[10px]">
-                <span className="text-gray-500 font-semibold flex items-center gap-0.5">
-                  <AtSign className="w-3 h-3 text-blue-400" /> Mention:
+                <span className="text-slate-400 font-semibold flex items-center gap-0.5">
+                  <AtSign className="w-3 h-3 text-blue-600" /> Mention:
                 </span>
                 {usersList.slice(0, 8).map((staff) => (
                   <button
                     key={staff.id}
                     type="button"
                     onClick={() => handleAppendReplyMention(staff.name)}
-                    className="px-1.5 py-0.5 bg-zinc-900 hover:bg-blue-600/20 hover:text-blue-300 border border-zinc-700 rounded text-gray-300 transition-colors whitespace-nowrap"
+                    className="px-1.5 py-0.5 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 border border-slate-200 rounded text-slate-700 transition-colors whitespace-nowrap"
                   >
                     @{staff.name.split(' ')[0]}
                   </button>
@@ -994,7 +994,7 @@ export default function CommunicationPage() {
                   }
                 }}
                 placeholder="Type your reply note (use @name to tag employees)..."
-                className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-zinc-200 text-xs focus:outline-none focus:border-blue-500 placeholder-zinc-500"
+                className="flex-1 bg-slate-50 border border-slate-200 rounded px-3 py-2 text-slate-800 text-xs focus:outline-none focus:border-blue-500 focus:bg-white placeholder-slate-400"
               />
               <button
                 type="button"
@@ -1021,18 +1021,15 @@ export default function CommunicationPage() {
   return (
     <div className="space-y-6 text-xs max-w-7xl mx-auto">
       {/* Header Banner & Operational Summary KPI Grid */}
-      <div className="bg-card border border-border p-6 rounded-2xl shadow-xl space-y-5">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-4">
-          <div className="space-y-1">
-            <h1 className="text-xl font-bold text-white flex items-center gap-2.5 tracking-tight">
-              <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 shadow-inner">
+      <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-xl space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2.5 tracking-tight">
+              <div className="p-2 bg-blue-50 border border-blue-200 rounded-xl text-blue-600 shadow-inner">
                 <MessageSquare className="w-5 h-5" />
               </div>
               Internal Operational Communication &amp; Remarks Repository
             </h1>
-            <p className="text-xs text-gray-400 max-w-3xl leading-relaxed">
-              Activity-based operational communication stream linked to parent records (Projects, Scripts, Graphic Reqs, Tasks, Equipment, Calendar Events).
-            </p>
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
@@ -1040,9 +1037,9 @@ export default function CommunicationPage() {
               <button
                 type="button"
                 onClick={() => setIsCategoryModalOpen(true)}
-                className="px-3.5 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 font-semibold rounded-xl flex items-center gap-1.5 text-xs transition-all shadow-sm hover:shadow-purple-950/40"
+                className="px-3.5 py-2.5 bg-purple-50 hover:bg-purple-600/30 text-purple-700 border border-purple-200 font-semibold rounded-xl flex items-center gap-1.5 text-xs transition-all shadow-sm hover:shadow-purple-950/40"
               >
-                <Settings className="w-4 h-4 text-purple-400" /> Custom Category
+                <Settings className="w-4 h-4 text-purple-600" /> Custom Category
               </button>
             )}
 
@@ -1058,57 +1055,57 @@ export default function CommunicationPage() {
 
         {/* Quick KPI Operational Metrics Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
-          <div className="bg-zinc-950/60 border border-zinc-800/80 p-3 rounded-xl space-y-1">
-            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Total Activities</span>
+          <div className="bg-slate-50/60 border border-slate-200 p-3 rounded-xl space-y-1">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Total Activities</span>
             <div className="flex items-center justify-between">
-              <strong className="text-lg text-white font-bold">{communications.length}</strong>
-              <Layers className="w-4 h-4 text-blue-400 opacity-80" />
+              <strong className="text-lg text-slate-900 font-bold">{communications.length}</strong>
+              <Layers className="w-4 h-4 text-blue-600 opacity-80" />
             </div>
           </div>
 
-          <div className="bg-zinc-950/60 border border-zinc-800/80 p-3 rounded-xl space-y-1">
-            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Open Blockers</span>
+          <div className="bg-slate-50/60 border border-slate-200 p-3 rounded-xl space-y-1">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Open Blockers</span>
             <div className="flex items-center justify-between">
-              <strong className="text-lg text-red-400 font-bold">
+              <strong className="text-lg text-rose-600 font-bold">
                 {communications.filter((c) => (c.isBlocker || c.type === 'BLOCKER') && c.blockerStatus !== 'RESOLVED').length}
               </strong>
-              <AlertTriangle className="w-4 h-4 text-red-400 opacity-80 animate-pulse" />
+              <AlertTriangle className="w-4 h-4 text-rose-600 opacity-80 animate-pulse" />
             </div>
           </div>
 
-          <div className="bg-zinc-950/60 border border-zinc-800/80 p-3 rounded-xl space-y-1">
-            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Unread Items</span>
+          <div className="bg-slate-50/60 border border-slate-200 p-3 rounded-xl space-y-1">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Unread Items</span>
             <div className="flex items-center justify-between">
-              <strong className="text-lg text-blue-300 font-bold">
+              <strong className="text-lg text-blue-700 font-bold">
                 {communications.filter((c) => c.senderId !== user?.id && (!c.readAt || c.status !== 'READ')).length}
               </strong>
-              <Bell className="w-4 h-4 text-blue-400 opacity-80" />
+              <Bell className="w-4 h-4 text-blue-600 opacity-80" />
             </div>
           </div>
 
-          <div className="bg-zinc-950/60 border border-zinc-800/80 p-3 rounded-xl space-y-1">
-            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Pending Requests</span>
+          <div className="bg-slate-50/60 border border-slate-200 p-3 rounded-xl space-y-1">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Pending Requests</span>
             <div className="flex items-center justify-between">
-              <strong className="text-lg text-emerald-400 font-bold">
+              <strong className="text-lg text-emerald-600 font-bold">
                 {communications.filter((c) => c.type === 'APPROVAL_REQUEST').length}
               </strong>
-              <ShieldCheck className="w-4 h-4 text-emerald-400 opacity-80" />
+              <ShieldCheck className="w-4 h-4 text-emerald-600 opacity-80" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Navigation View Tabs: All, Inbox, Sent, Requests */}
-      <div className="flex items-center gap-2 border-b border-border pb-3 overflow-x-auto">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
         <button
           onClick={() => setActiveViewTab('ALL')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
             activeViewTab === 'ALL'
-              ? 'bg-blue-600/20 text-blue-300 border-blue-500/50 shadow-md'
-              : 'bg-zinc-900/60 text-gray-400 hover:text-white border-zinc-800'
+              ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-md'
+              : 'bg-slate-50/60 text-slate-500 hover:text-slate-900 border-slate-200'
           }`}
         >
-          <Layers className="w-4 h-4 text-blue-400" />
+          <Layers className="w-4 h-4 text-blue-600" />
           <span>All Communications ({communications.length})</span>
         </button>
 
@@ -1116,11 +1113,11 @@ export default function CommunicationPage() {
           onClick={() => setActiveViewTab('INBOX')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
             activeViewTab === 'INBOX'
-              ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/50 shadow-md'
-              : 'bg-zinc-900/60 text-gray-400 hover:text-white border-zinc-800'
+              ? 'bg-emerald-600/20 text-emerald-700 border-emerald-200 shadow-md'
+              : 'bg-slate-50/60 text-slate-500 hover:text-slate-900 border-slate-200'
           }`}
         >
-          <Bell className="w-4 h-4 text-emerald-400" />
+          <Bell className="w-4 h-4 text-emerald-600" />
           <span>Inbox (Received)</span>
         </button>
 
@@ -1128,11 +1125,11 @@ export default function CommunicationPage() {
           onClick={() => setActiveViewTab('SENT')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
             activeViewTab === 'SENT'
-              ? 'bg-purple-600/20 text-purple-300 border-purple-500/50 shadow-md'
-              : 'bg-zinc-900/60 text-gray-400 hover:text-white border-zinc-800'
+              ? 'bg-purple-50 text-purple-700 border-purple-200 shadow-md'
+              : 'bg-slate-50/60 text-slate-500 hover:text-slate-900 border-slate-200'
           }`}
         >
-          <Send className="w-4 h-4 text-purple-400" />
+          <Send className="w-4 h-4 text-purple-600" />
           <span>Sent</span>
         </button>
 
@@ -1140,32 +1137,32 @@ export default function CommunicationPage() {
           onClick={() => setActiveViewTab('REQUESTS')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
             activeViewTab === 'REQUESTS'
-              ? 'bg-amber-600/20 text-amber-300 border-amber-500/50 shadow-md'
-              : 'bg-zinc-900/60 text-gray-400 hover:text-white border-zinc-800'
+              ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-md'
+              : 'bg-slate-50/60 text-slate-500 hover:text-slate-900 border-slate-200'
           }`}
         >
-          <AlertCircle className="w-4 h-4 text-amber-400" />
+          <AlertCircle className="w-4 h-4 text-amber-600" />
           <span>Requests &amp; Blockers</span>
         </button>
       </div>
 
       {/* MOMS 11-Parameter Filtration Control Panel */}
-      <div className="bg-card border border-border p-5 rounded-xl space-y-4 text-xs shadow-md">
+      <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-4 text-xs shadow-md">
         {/* Search Bar & Action Buttons */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
             <input
               type="text"
               placeholder="Search notes by subject, message, @mention, entity code, recipient, or author..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-700 focus:border-blue-500 rounded-xl pl-9 pr-8 py-2.5 text-white font-medium focus:outline-none transition-all placeholder:text-zinc-500"
+              className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl pl-9 pr-8 py-2.5 text-slate-900 font-medium focus:outline-none transition-all placeholder:text-slate-400"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-white"
+                className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-900"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -1174,13 +1171,13 @@ export default function CommunicationPage() {
 
           <div className="flex items-center gap-2 flex-wrap">
             {/* Classification Filter Switcher */}
-            <div className="flex items-center bg-zinc-900 border border-zinc-800 p-0.5 rounded-lg">
+            <div className="flex items-center bg-slate-50 border border-slate-200 p-0.5 rounded-lg">
               <button
                 onClick={() => setFilterEntryType('ALL')}
                 className={`px-3 py-1.5 rounded-md font-semibold text-xs transition-all ${
                   filterEntryType === 'ALL'
                     ? 'bg-blue-600 text-white shadow'
-                    : 'text-gray-400 hover:text-zinc-200'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 All Activity
@@ -1190,7 +1187,7 @@ export default function CommunicationPage() {
                 className={`px-3 py-1.5 rounded-md font-semibold text-xs transition-all ${
                   filterEntryType === 'COMMUNICATION'
                     ? 'bg-blue-600 text-white shadow'
-                    : 'text-gray-400 hover:text-zinc-200'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 Communications Only
@@ -1200,7 +1197,7 @@ export default function CommunicationPage() {
                 className={`px-3 py-1.5 rounded-md font-semibold text-xs transition-all ${
                   filterEntryType === 'OPEN_BLOCKERS'
                     ? 'bg-red-600 text-white shadow'
-                    : 'text-gray-400 hover:text-zinc-200'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 Open Blockers
@@ -1210,7 +1207,7 @@ export default function CommunicationPage() {
                 className={`px-3 py-1.5 rounded-md font-semibold text-xs transition-all ${
                   filterEntryType === 'REMARK'
                     ? 'bg-amber-600 text-white shadow'
-                    : 'text-gray-400 hover:text-zinc-200'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 Remarks Only
@@ -1221,11 +1218,11 @@ export default function CommunicationPage() {
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
               className={`px-3.5 py-2 rounded-lg font-semibold flex items-center gap-1.5 transition-colors border ${
                 showAdvancedFilters || activeFiltersCount > 0
-                  ? 'bg-purple-600/20 text-purple-300 border-purple-500/50'
-                  : 'bg-zinc-900 border-zinc-700 text-gray-300 hover:border-zinc-600'
+                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
               }`}
             >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-purple-400" />
+              <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600" />
               <span>Advanced Filters</span>
               {activeFiltersCount > 0 && (
                 <span className="w-4 h-4 rounded-full bg-purple-500 text-white font-bold text-[10px] flex items-center justify-center">
@@ -1237,7 +1234,7 @@ export default function CommunicationPage() {
             {(searchQuery || activeFiltersCount > 0) && (
               <button
                 onClick={resetAllFilters}
-                className="px-3 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-800/40 text-red-300 rounded-lg font-semibold flex items-center gap-1.5 transition-colors"
+                className="px-3 py-2 bg-rose-50 hover:bg-red-900/60 border border-rose-200 text-rose-700 rounded-lg font-semibold flex items-center gap-1.5 transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Reset Filters
               </button>
@@ -1246,7 +1243,7 @@ export default function CommunicationPage() {
         </div>
 
         {/* Entity Presets Bar */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-t border-zinc-800/70 pt-3 custom-scrollbar">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-t border-slate-200 pt-3 custom-scrollbar">
           {entityPresets.map((preset) => {
             const Icon = preset.icon;
             const active = selectedEntityType === preset.id;
@@ -1257,7 +1254,7 @@ export default function CommunicationPage() {
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all whitespace-nowrap text-xs border ${
                   active
                     ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/20 font-semibold'
-                    : 'bg-zinc-900/80 text-gray-400 hover:bg-zinc-800 hover:text-zinc-200 border-zinc-800'
+                    : 'bg-slate-50/80 text-slate-500 hover:bg-slate-100 hover:text-slate-800 border-slate-200'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -1269,15 +1266,15 @@ export default function CommunicationPage() {
 
         {/* Expandable Advanced Filters Drawer */}
         {showAdvancedFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 bg-zinc-900/60 border border-zinc-800 p-4 rounded-xl pt-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50/60 border border-slate-200 p-4 rounded-xl pt-3">
             <div className="space-y-1">
-              <label className="text-[11px] text-gray-400 font-semibold flex items-center gap-1">
-                <Tag className="w-3 h-3 text-purple-400" /> Operational Entity Type
+              <label className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                <Tag className="w-3 h-3 text-purple-600" /> Operational Entity Type
               </label>
               <select
                 value={selectedEntityType}
                 onChange={(e) => setSelectedEntityType(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-700 text-zinc-200 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
               >
                 <option value="ALL">All Entity Types</option>
                 <option value="PROJECT">Shoot Project</option>
@@ -1291,13 +1288,13 @@ export default function CommunicationPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] text-gray-400 font-semibold flex items-center gap-1">
-                <MessageSquare className="w-3 h-3 text-amber-400" /> Structured Category
+              <label className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                <MessageSquare className="w-3 h-3 text-amber-600" /> Structured Category
               </label>
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-700 text-zinc-200 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
               >
                 <option value="ALL">All Structured Categories</option>
                 {categories.map((cat) => (
@@ -1309,13 +1306,13 @@ export default function CommunicationPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] text-gray-400 font-semibold flex items-center gap-1">
-                <Film className="w-3.5 h-3.5 text-blue-400" /> Linked Project
+              <label className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                <Film className="w-3.5 h-3.5 text-blue-600" /> Linked Project
               </label>
               <select
                 value={selectedProject}
                 onChange={(e) => setSelectedProject(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-700 text-zinc-200 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
               >
                 <option value="ALL">All Shoot Projects</option>
                 {projectsList.map((p) => (
@@ -1327,13 +1324,13 @@ export default function CommunicationPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] text-gray-400 font-semibold flex items-center gap-1">
-                <User className="w-3 h-3 text-cyan-400" /> Sender / Author
+              <label className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                <User className="w-3 h-3 text-cyan-600" /> Sender / Author
               </label>
               <select
                 value={selectedSender}
                 onChange={(e) => setSelectedSender(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-700 text-zinc-200 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
               >
                 <option value="ALL">All Senders</option>
                 {usersList.map((u) => (
@@ -1345,22 +1342,22 @@ export default function CommunicationPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] text-gray-400 font-semibold flex items-center gap-1">
-                <Users className="w-3 h-3 text-purple-400" /> Recipient Filter (Search / Select Staff)
+              <label className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                <Users className="w-3 h-3 text-purple-600" /> Recipient Filter (Search / Select Staff)
               </label>
               <select
                 value={selectedRecipient}
                 onChange={(e) => setSelectedRecipient(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-700 text-zinc-200 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
               >
                 <option value="">All Recipients</option>
-                <option value="Media Manager">👑 Media Manager</option>
-                <option value="Technical Manager">🛠️ Technical Manager</option>
-                <option value="All Assigned Team Members">🌐 All Assigned Team Members</option>
+                <option value="Media Manager">Media Manager</option>
+                <option value="Technical Manager">Technical Manager</option>
+                <option value="All Assigned Team Members">All Assigned Team Members</option>
                 <optgroup label="All Staff Members">
                   {usersList.map((u) => (
                     <option key={u.id} value={u.name}>
-                      👤 {u.name} — {u.role.replace(/_/g, ' ')}
+                      {u.name} — {u.role.replace(/_/g, ' ')}
                     </option>
                   ))}
                 </optgroup>
@@ -1368,13 +1365,13 @@ export default function CommunicationPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] text-gray-400 font-semibold flex items-center gap-1">
-                <CheckSquare className="w-3 h-3 text-emerald-400" /> Delivery Status
+              <label className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                <CheckSquare className="w-3 h-3 text-emerald-600" /> Delivery Status
               </label>
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-700 text-zinc-200 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
               >
                 <option value="ALL">All Statuses</option>
                 <option value="SENT">Sent</option>
@@ -1385,14 +1382,14 @@ export default function CommunicationPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] text-gray-400 font-semibold flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-emerald-400" /> Creation Date
+              <label className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-emerald-600" /> Creation Date
               </label>
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-700 text-zinc-200 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-2.5 py-1.5 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
               />
             </div>
           </div>
@@ -1404,21 +1401,21 @@ export default function CommunicationPage() {
         {/* Left Column: Activity List & Search/Filter Feed (lg:col-span-5) */}
         <div className="lg:col-span-5 space-y-4">
           {/* MOMS Filtration Control Panel */}
-          <div className="bg-card border border-border p-4 rounded-2xl space-y-3 text-xs shadow-md">
+          <div className="bg-white border border-slate-200 p-4 rounded-2xl space-y-3 text-xs shadow-md">
             {/* Search Bar */}
             <div className="relative">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
               <input
                 type="text"
                 placeholder="Search communications, @mentions, code..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 focus:border-blue-500 rounded-xl pl-9 pr-8 py-2 text-white font-medium focus:outline-none transition-all placeholder:text-zinc-500"
+                className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl pl-9 pr-8 py-2 text-slate-900 font-medium focus:outline-none transition-all placeholder:text-slate-400"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-2.5 text-gray-400 hover:text-white"
+                  className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-900"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -1426,28 +1423,28 @@ export default function CommunicationPage() {
             </div>
 
             {/* Entry Classification Switcher */}
-            <div className="grid grid-cols-4 gap-1 bg-zinc-900 border border-zinc-800 p-1 rounded-xl text-[10px] font-semibold text-center">
+            <div className="grid grid-cols-4 gap-1 bg-slate-50 border border-slate-200 p-1 rounded-xl text-[10px] font-semibold text-center">
               <button
                 onClick={() => setFilterEntryType('ALL')}
-                className={`py-1 rounded-lg transition-all ${filterEntryType === 'ALL' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                className={`py-1 rounded-lg transition-all ${filterEntryType === 'ALL' ? 'bg-blue-600 text-white shadow' : 'text-slate-500 hover:text-slate-900'}`}
               >
                 All
               </button>
               <button
                 onClick={() => setFilterEntryType('COMMUNICATION')}
-                className={`py-1 rounded-lg transition-all ${filterEntryType === 'COMMUNICATION' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                className={`py-1 rounded-lg transition-all ${filterEntryType === 'COMMUNICATION' ? 'bg-blue-600 text-white shadow' : 'text-slate-500 hover:text-slate-900'}`}
               >
                 Comms
               </button>
               <button
                 onClick={() => setFilterEntryType('OPEN_BLOCKERS')}
-                className={`py-1 rounded-lg transition-all ${filterEntryType === 'OPEN_BLOCKERS' ? 'bg-red-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                className={`py-1 rounded-lg transition-all ${filterEntryType === 'OPEN_BLOCKERS' ? 'bg-red-600 text-white shadow' : 'text-slate-500 hover:text-slate-900'}`}
               >
                 Blockers
               </button>
               <button
                 onClick={() => setFilterEntryType('REMARK')}
-                className={`py-1 rounded-lg transition-all ${filterEntryType === 'REMARK' ? 'bg-amber-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                className={`py-1 rounded-lg transition-all ${filterEntryType === 'REMARK' ? 'bg-amber-600 text-white shadow' : 'text-slate-500 hover:text-slate-900'}`}
               >
                 Remarks
               </button>
@@ -1465,7 +1462,7 @@ export default function CommunicationPage() {
                     className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium transition-all whitespace-nowrap text-[11px] border ${
                       active
                         ? 'bg-blue-600 text-white border-blue-500 shadow-md font-semibold'
-                        : 'bg-zinc-900/80 text-gray-400 hover:bg-zinc-800 hover:text-zinc-200 border-zinc-800'
+                        : 'bg-slate-50/80 text-slate-500 hover:bg-slate-100 hover:text-slate-800 border-slate-200'
                     }`}
                   >
                     <Icon className="w-3 h-3" />
@@ -1510,7 +1507,7 @@ export default function CommunicationPage() {
 
               if (loading) {
                 return (
-                  <div className="p-8 text-center text-gray-400 bg-card border border-border rounded-2xl flex items-center justify-center gap-2">
+                  <div className="p-8 text-center text-slate-500 bg-white border border-slate-200 rounded-2xl flex items-center justify-center gap-2">
                     <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                     Loading communications...
                   </div>
@@ -1519,10 +1516,10 @@ export default function CommunicationPage() {
 
               if (displayed.length === 0) {
                 return (
-                  <div className="p-8 text-center bg-card border border-border rounded-2xl text-gray-400 space-y-2">
+                  <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl text-slate-500 space-y-2">
                     <MessageSquare className="w-8 h-8 text-gray-600 mx-auto" />
-                    <p className="text-xs font-semibold text-zinc-300">No operational entries found</p>
-                    <p className="text-[11px] text-gray-500">Try adjusting filters or view tabs.</p>
+                    <p className="text-xs font-semibold text-slate-700">No operational entries found</p>
+                    <p className="text-[11px] text-slate-400">Try adjusting filters or view tabs.</p>
                   </div>
                 );
               }
@@ -1549,12 +1546,12 @@ export default function CommunicationPage() {
                     }}
                     className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-2 relative ${
                       isSelected
-                        ? 'bg-blue-950/40 border-2 border-blue-500 shadow-xl shadow-blue-950/40'
+                        ? 'bg-blue-50 border-2 border-blue-500 shadow-xl shadow-blue-950/40'
                         : isBlockerOpen
-                        ? 'bg-red-950/20 border border-red-700/60 hover:border-red-500'
+                        ? 'bg-rose-50 border border-rose-300 hover:border-red-500'
                         : isUnread
-                        ? 'bg-blue-950/20 border border-blue-500/50 hover:border-blue-400'
-                        : 'bg-card border-border hover:border-zinc-700'
+                        ? 'bg-blue-50 border border-blue-200 hover:border-blue-400'
+                        : 'bg-white border-slate-200 hover:border-slate-200'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -1562,7 +1559,7 @@ export default function CommunicationPage() {
                         <span className={`text-[10px] px-2 py-0.5 rounded font-semibold border ${getEntityBadgeColor(comm.entityType)}`}>
                           {getEntityIcon(comm.entityType)} {comm.entityType?.replace('_', ' ')}
                         </span>
-                        <span className="font-mono text-[10px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded">
+                        <span className="font-mono text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
                           {comm.entityRef}
                         </span>
                       </div>
@@ -1573,11 +1570,11 @@ export default function CommunicationPage() {
                     </div>
 
                     <div>
-                      <h4 className="font-bold text-white text-xs line-clamp-1">{comm.subject || 'Operational Communication'}</h4>
-                      <p className="text-[11px] text-gray-400 line-clamp-2 mt-0.5 leading-relaxed">{comm.content}</p>
+                      <h4 className="font-bold text-slate-900 text-xs line-clamp-1">{comm.subject || 'Operational Communication'}</h4>
+                      <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-relaxed">{comm.content}</p>
                     </div>
 
-                    <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono pt-1 border-t border-zinc-800/60">
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-200">
                       <span className="truncate">From: {comm.sender?.name || 'Staff'}</span>
                       <span className="shrink-0">{new Date(comm.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
@@ -1621,10 +1618,10 @@ export default function CommunicationPage() {
 
             if (!activeComm) {
               return (
-                <div className="bg-card border border-border rounded-2xl p-12 text-center text-gray-400 space-y-3 min-h-[500px] flex flex-col items-center justify-center">
+                <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500 space-y-3 min-h-[500px] flex flex-col items-center justify-center">
                   <MessageSquare className="w-12 h-12 text-zinc-700" />
-                  <p className="text-sm font-semibold text-zinc-300">No communication thread selected</p>
-                  <p className="text-xs text-gray-500">Select an item from the left activity feed to view conversation details.</p>
+                  <p className="text-sm font-semibold text-slate-700">No communication thread selected</p>
+                  <p className="text-xs text-slate-400">Select an item from the left activity feed to view conversation details.</p>
                 </div>
               );
             }
@@ -1635,15 +1632,15 @@ export default function CommunicationPage() {
             const commAtts = activeComm.attachments || [];
 
             return (
-              <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[700px]">
+              <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[700px]">
                 {/* Chatbot Header */}
-                <div className="p-4 bg-zinc-950 border-b border-border space-y-2">
+                <div className="p-4 bg-slate-50 border-b border-slate-200 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className={`text-[11px] px-2.5 py-1 rounded-md font-semibold border ${getEntityBadgeColor(activeComm.entityType)}`}>
                         {getEntityIcon(activeComm.entityType)} {activeComm.entityType?.replace('_', ' ')}
                       </span>
-                      <span className="font-mono text-[11px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded border border-zinc-700">
+                      <span className="font-mono text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
                         {activeComm.entityRef}
                       </span>
                       <span className={`text-[10px] px-2 py-0.5 rounded border font-semibold ${getCategoryPill(activeComm.type)}`}>
@@ -1656,47 +1653,47 @@ export default function CommunicationPage() {
                       <button
                         type="button"
                         onClick={() => handleOpenTimeline(activeComm)}
-                        className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
                       >
-                        <Clock className="w-3.5 h-3.5 text-purple-400" /> Timeline
+                        <Clock className="w-3.5 h-3.5 text-purple-600" /> Timeline
                       </button>
 
                       {/* View Record Button */}
                       {activeComm.isEntityAvailable !== false ? (
                         <Link
                           href={getEntityLink(activeComm)}
-                          className="px-3 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                          className="px-3 py-1 bg-purple-50 hover:bg-purple-600/30 text-purple-700 border border-purple-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
                         >
-                          <ExternalLink className="w-3.5 h-3.5 text-purple-400" /> View Record
+                          <ExternalLink className="w-3.5 h-3.5 text-purple-600" /> View Record
                         </Link>
                       ) : (
-                        <span className="px-2.5 py-1 bg-red-950/60 text-red-300 border border-red-800 rounded-lg text-xs font-semibold flex items-center gap-1">
-                          <AlertCircle className="w-3.5 h-3.5 text-red-400" /> Unavailable
+                        <span className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> Unavailable
                         </span>
                       )}
                     </div>
                   </div>
 
                   <div>
-                    <h2 className="text-base font-bold text-white">{activeComm.subject || 'Operational Communication'}</h2>
-                    <div className="flex items-center gap-4 text-xs text-gray-400 mt-1">
-                      <span>From: <strong className="text-white">{activeComm.sender?.name || 'Staff'}</strong> ({activeComm.sender?.role || 'STAFF'})</span>
-                      {!isRemark && <span>To: <strong className="text-zinc-200">{activeComm.recipients || 'All Team'}</strong></span>}
+                    <h2 className="text-base font-bold text-slate-900">{activeComm.subject || 'Operational Communication'}</h2>
+                    <div className="flex items-center gap-4 text-xs text-slate-500 mt-1">
+                      <span>From: <strong className="text-slate-900">{activeComm.sender?.name || 'Staff'}</strong> ({activeComm.sender?.role || 'STAFF'})</span>
+                      {!isRemark && <span>To: <strong className="text-slate-800">{activeComm.recipients || 'All Team'}</strong></span>}
                     </div>
                   </div>
                 </div>
 
                 {/* Structured Blocker Panel if active blocker */}
                 {isBlocker && (
-                  <div className="p-3 bg-red-950/30 border-b border-red-800/40 text-xs grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div className="p-3 bg-rose-50 border-b border-rose-200 text-xs grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div>
-                      <span className="text-zinc-400 block">Reported By: <strong className="text-white">{activeComm.sender?.name}</strong></span>
-                      <span className="text-zinc-400 block">Assigned To: <strong className="text-purple-300">{activeComm.assignedTo?.name || activeComm.recipients}</strong></span>
+                      <span className="text-slate-500 block">Reported By: <strong className="text-slate-900">{activeComm.sender?.name}</strong></span>
+                      <span className="text-slate-500 block">Assigned To: <strong className="text-purple-700">{activeComm.assignedTo?.name || activeComm.recipients}</strong></span>
                     </div>
                     <div>
                       {isBlockerOpen ? (
                         <div className="flex items-center justify-between">
-                          <span className="text-red-400 font-bold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> OPEN BLOCKER</span>
+                          <span className="text-rose-600 font-bold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> OPEN BLOCKER</span>
                           <button
                             onClick={() => setResolvingBlockerId(activeComm.id)}
                             className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-xs"
@@ -1705,19 +1702,19 @@ export default function CommunicationPage() {
                           </button>
                         </div>
                       ) : (
-                        <span className="text-emerald-300 font-semibold block">Resolution: {activeComm.resolutionNotes}</span>
+                        <span className="text-emerald-700 font-semibold block">Resolution: {activeComm.resolutionNotes}</span>
                       )}
                     </div>
                   </div>
                 )}
 
                 {/* Chat Messages Stream (Bubbles) */}
-                <div className="flex-1 p-4 overflow-y-auto space-y-4 max-h-[500px] custom-scrollbar bg-zinc-950/40">
+                <div className="flex-1 p-4 overflow-y-auto space-y-4 max-h-[500px] custom-scrollbar bg-slate-50/40">
                   {/* Lead Message Bubble */}
                   <div className="flex justify-start">
-                    <div className="max-w-[85%] bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-xs p-4 space-y-2 text-zinc-200 shadow-md">
-                      <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono border-b border-zinc-800 pb-1.5">
-                        <span className="font-bold text-blue-400">{activeComm.sender?.name || 'Author'} ({activeComm.sender?.role || 'STAFF'})</span>
+                    <div className="max-w-[85%] bg-slate-50 border border-slate-200 rounded-2xl rounded-tl-xs p-4 space-y-2 text-slate-800 shadow-md">
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono border-b border-slate-200 pb-1.5">
+                        <span className="font-bold text-blue-600">{activeComm.sender?.name || 'Author'} ({activeComm.sender?.role || 'STAFF'})</span>
                         <span>{new Date(activeComm.createdAt).toLocaleDateString()} {new Date(activeComm.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
 
@@ -1726,8 +1723,8 @@ export default function CommunicationPage() {
                       </div>
 
                       {commAtts.length > 0 && (
-                        <div className="pt-2 border-t border-zinc-800 space-y-1.5">
-                          <span className="text-[10px] text-purple-400 font-bold uppercase block">Attachments ({commAtts.length}):</span>
+                        <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                          <span className="text-[10px] text-purple-600 font-bold uppercase block">Attachments ({commAtts.length}):</span>
                           <div className="grid grid-cols-1 gap-1.5">
                             {commAtts.map((att: any) => renderAttachmentItem(att))}
                           </div>
@@ -1746,12 +1743,12 @@ export default function CommunicationPage() {
                         <div
                           className={`max-w-[85%] p-3.5 rounded-2xl space-y-1.5 shadow-md text-xs ${
                             isOutgoing
-                              ? 'bg-blue-600/20 border border-blue-500/40 text-white rounded-tr-xs'
-                              : 'bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-tl-xs'
+                              ? 'bg-blue-50 border border-blue-200 text-white rounded-tr-xs'
+                              : 'bg-slate-50 border border-slate-200 text-slate-800 rounded-tl-xs'
                           }`}
                         >
-                          <div className="flex items-center justify-between text-[10px] font-mono text-gray-400 border-b border-zinc-800/60 pb-1">
-                            <span className={isOutgoing ? 'text-blue-300 font-bold' : 'text-purple-300 font-bold'}>
+                          <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 border-b border-slate-200 pb-1">
+                            <span className={isOutgoing ? 'text-blue-700 font-bold' : 'text-purple-700 font-bold'}>
                               {isOutgoing ? 'You' : reply.sender?.name || 'Team Member'}
                             </span>
                             <span>{new Date(reply.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -1760,7 +1757,7 @@ export default function CommunicationPage() {
                           <div className="whitespace-pre-wrap leading-relaxed">{renderContentWithMentions(reply.content)}</div>
 
                           {replyAtts.length > 0 && (
-                            <div className="pt-1.5 border-t border-zinc-800 space-y-1">
+                            <div className="pt-1.5 border-t border-slate-200 space-y-1">
                               {replyAtts.map((att: any) => renderAttachmentItem(att))}
                             </div>
                           )}
@@ -1772,17 +1769,17 @@ export default function CommunicationPage() {
 
                 {/* Bottom Chatbot Reply Input Bar */}
                 {!isRemark && (
-                  <div className="p-3 bg-zinc-950 border-t border-border space-y-2">
+                  <div className="p-3 bg-slate-50 border-t border-slate-200 space-y-2">
                     {/* Employee Mention Pills */}
                     {usersList.length > 0 && (
                       <div className="flex items-center gap-1.5 overflow-x-auto text-[10px] pb-1 font-mono">
-                        <span className="text-gray-500 font-bold">@Mention:</span>
+                        <span className="text-slate-400 font-bold">@Mention:</span>
                         {usersList.slice(0, 8).map((u) => (
                           <button
                             key={u.id}
                             type="button"
                             onClick={() => handleAppendReplyMention(u.name)}
-                            className="px-2 py-0.5 bg-zinc-900 hover:bg-blue-600/30 text-zinc-300 border border-zinc-700 rounded-full transition-colors"
+                            className="px-2 py-0.5 bg-slate-50 hover:bg-blue-600/30 text-slate-700 border border-slate-200 rounded-full transition-colors"
                           >
                             @{u.name.split(' ')[0]}
                           </button>
@@ -1802,12 +1799,12 @@ export default function CommunicationPage() {
                           }
                         }}
                         placeholder={`Reply to ${activeComm.sender?.name || 'this thread'}... (use @name to tag)`}
-                        className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-zinc-200 text-xs focus:outline-none focus:border-blue-500 placeholder-zinc-500 font-medium"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 text-xs focus:outline-none focus:border-blue-500 focus:bg-white placeholder-slate-400 font-medium"
                       />
                       <button
                         type="button"
                         onClick={() => setShowAttachSubModal(true)}
-                        className="p-2.5 bg-zinc-900 hover:bg-zinc-800 text-purple-400 border border-zinc-700 rounded-xl transition-colors"
+                        className="p-2.5 bg-slate-50 hover:bg-slate-100 text-purple-600 border border-slate-200 rounded-xl transition-colors"
                         title="Attach File"
                       >
                         <Paperclip className="w-4 h-4" />
@@ -1831,15 +1828,15 @@ export default function CommunicationPage() {
 
       {/* Log Operational Entry Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-card border border-border rounded-xl w-full max-w-lg p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-thin">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <Plus className="w-4 h-4 text-blue-400" /> Log Operational Activity Entry
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-thin">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Plus className="w-4 h-4 text-blue-600" /> Log Operational Activity Entry
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-slate-500 hover:text-slate-900 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1847,8 +1844,8 @@ export default function CommunicationPage() {
 
             <form onSubmit={handlePostNote} className="space-y-3.5">
               {/* Entry Type Toggle */}
-              <div className="flex items-center justify-between bg-zinc-900 border border-zinc-800 p-2 rounded-lg">
-                <span className="text-[11px] text-gray-300 font-semibold">Entry Classification:</span>
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2 rounded-lg">
+                <span className="text-[11px] text-slate-700 font-semibold">Entry Classification:</span>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
@@ -1856,7 +1853,7 @@ export default function CommunicationPage() {
                     className={`px-3 py-1 rounded text-[11px] font-semibold transition-all ${
                       modalEntryMode === 'COMMUNICATION'
                         ? 'bg-blue-600 text-white shadow'
-                        : 'bg-zinc-800 text-gray-400 hover:text-zinc-200'
+                        : 'bg-slate-100 text-slate-500 hover:text-slate-800'
                     }`}
                   >
                     Communication
@@ -1867,7 +1864,7 @@ export default function CommunicationPage() {
                     className={`px-3 py-1 rounded text-[11px] font-semibold transition-all ${
                       modalEntryMode === 'REMARK'
                         ? 'bg-amber-600 text-white shadow'
-                        : 'bg-zinc-800 text-gray-400 hover:text-zinc-200'
+                        : 'bg-slate-100 text-slate-500 hover:text-slate-800'
                     }`}
                   >
                     Operational Remark
@@ -1877,7 +1874,7 @@ export default function CommunicationPage() {
 
               {/* Subject */}
               <div className="space-y-1">
-                <label className="text-[11px] text-gray-300 font-semibold">
+                <label className="text-[11px] text-slate-700 font-semibold">
                   1. {modalEntryMode === 'REMARK' ? 'Remark Subject:' : 'Communication Title:'}
                 </label>
                 <input
@@ -1886,7 +1883,7 @@ export default function CommunicationPage() {
                   placeholder={modalEntryMode === 'REMARK' ? 'Operational remark headline...' : 'Communication update title...'}
                   value={modalSubject}
                   onChange={(e) => setModalSubject(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-zinc-200 text-xs focus:outline-none focus:border-blue-500 placeholder-zinc-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-blue-500 focus:bg-white placeholder-slate-400"
                 />
               </div>
 
@@ -1894,11 +1891,11 @@ export default function CommunicationPage() {
               {modalEntryMode === 'COMMUNICATION' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   <div className="space-y-1">
-                    <label className="text-[11px] text-gray-300 font-semibold">2. Category:</label>
+                    <label className="text-[11px] text-slate-700 font-semibold">2. Category:</label>
                     <select
                       value={modalCategory}
                       onChange={(e) => setModalCategory(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-zinc-200 text-xs focus:outline-none focus:border-blue-500 font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 text-xs focus:outline-none focus:border-blue-500 focus:bg-white font-semibold"
                     >
                       {categories.map((cat) => (
                         <option key={cat.key} value={cat.key}>
@@ -1910,13 +1907,13 @@ export default function CommunicationPage() {
 
                   {modalCategory === 'BLOCKER' || modalCategory === 'ISSUE_REPORT' ? (
                     <div className="space-y-1">
-                      <label className="text-[11px] text-red-400 font-semibold flex items-center gap-1">
+                      <label className="text-[11px] text-rose-600 font-semibold flex items-center gap-1">
                         <AlertTriangle className="w-3.5 h-3.5" /> Blocker Reason Category:
                       </label>
                       <select
                         value={modalBlockerReason}
                         onChange={(e) => setModalBlockerReason(e.target.value)}
-                        className="w-full bg-red-950/60 border border-red-700 text-red-200 text-xs font-semibold rounded-lg p-2 focus:outline-none"
+                        className="w-full bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold rounded-lg p-2 focus:outline-none"
                       >
                         <option value="WAITING_FOR_FILES">Waiting for files</option>
                         <option value="EQUIPMENT_UNAVAILABLE">Equipment unavailable</option>
@@ -1928,13 +1925,13 @@ export default function CommunicationPage() {
                     </div>
                   ) : modalCategory === 'APPROVAL_REQUEST' ? (
                     <div className="space-y-1">
-                      <label className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                      <label className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
                         <ShieldCheck className="w-3.5 h-3.5" /> Target Review Manager:
                       </label>
                       <select
                         value={modalTargetRole}
                         onChange={(e: any) => setModalTargetRole(e.target.value)}
-                        className="w-full bg-emerald-950/60 border border-emerald-700 text-emerald-200 text-xs font-semibold rounded-lg p-2 focus:outline-none"
+                        className="w-full bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-semibold rounded-lg p-2 focus:outline-none"
                       >
                         <option value="TECHNICAL_MANAGER">Technical Manager</option>
                         <option value="MEDIA_MANAGER">Media Manager</option>
@@ -1943,10 +1940,10 @@ export default function CommunicationPage() {
                   ) : (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-[11px] text-gray-300 font-semibold flex items-center gap-1">
-                          <Users className="w-3.5 h-3.5 text-purple-400" /> Recipient(s) (Select or Search Staff):
+                        <label className="text-[11px] text-slate-700 font-semibold flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5 text-purple-600" /> Recipient(s) (Select or Search Staff):
                         </label>
-                        <span className="text-[10px] text-purple-400 font-mono font-bold">
+                        <span className="text-[10px] text-purple-600 font-mono font-bold">
                           {usersList.length} Staff Members
                         </span>
                       </div>
@@ -1966,16 +1963,16 @@ export default function CommunicationPage() {
                             });
                           }
                         }}
-                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-zinc-200 text-xs focus:outline-none focus:border-blue-500 font-medium"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 text-xs focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
                       >
                         <option value="">-- Choose Preset or Select Staff Member --</option>
-                        <option value="ALL_TEAM">🌐 All Assigned Team Members</option>
-                        <option value="Media Manager">👑 Media Manager</option>
-                        <option value="Technical Manager">🛠️ Technical Manager</option>
+                        <option value="ALL_TEAM">All Assigned Team Members</option>
+                        <option value="Media Manager">Media Manager</option>
+                        <option value="Technical Manager">Technical Manager</option>
                         <optgroup label="All Staff Members">
                           {usersList.map((u) => (
                             <option key={u.id} value={`${u.name} (${u.role.replace(/_/g, ' ')})`}>
-                              👤 {u.name} — {u.role.replace(/_/g, ' ')} ({u.email})
+                              {u.name} — {u.role.replace(/_/g, ' ')} ({u.email})
                             </option>
                           ))}
                         </optgroup>
@@ -1989,13 +1986,13 @@ export default function CommunicationPage() {
                           placeholder="Selected recipients will appear here..."
                           value={modalRecipients}
                           onChange={(e) => setModalRecipients(e.target.value)}
-                          className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2 pr-12 text-zinc-200 text-xs focus:outline-none focus:border-blue-500 font-mono"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 pr-12 text-slate-800 text-xs focus:outline-none focus:border-blue-500 focus:bg-white font-mono"
                         />
                         {modalRecipients && (
                           <button
                             type="button"
                             onClick={() => setModalRecipients('')}
-                            className="absolute right-2 top-2 text-gray-400 hover:text-white text-[10px] font-bold bg-zinc-800 px-1.5 py-0.5 rounded"
+                            className="absolute right-2 top-2 text-slate-500 hover:text-slate-900 text-[10px] font-bold bg-slate-100 px-1.5 py-0.5 rounded"
                           >
                             Clear
                           </button>
@@ -2005,7 +2002,7 @@ export default function CommunicationPage() {
                       {/* All Staff Quick-Tag Pills */}
                       {usersList.length > 0 && (
                         <div className="space-y-1 pt-1">
-                          <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider block">
+                          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">
                             Quick Add Staff:
                           </span>
                           <div className="flex items-center gap-1 overflow-x-auto pb-1 custom-scrollbar">
@@ -2024,11 +2021,11 @@ export default function CommunicationPage() {
                                   }}
                                   className={`px-2 py-0.5 rounded text-[10px] transition-all whitespace-nowrap font-medium border ${
                                     isSelected
-                                      ? 'bg-purple-600/30 text-purple-200 border-purple-500 font-bold'
-                                      : 'bg-zinc-900 text-gray-300 hover:bg-purple-600/20 hover:text-purple-300 border-zinc-700'
+                                      ? 'bg-purple-100 text-purple-800 border-purple-300 font-bold'
+                                      : 'bg-slate-50 text-slate-700 hover:bg-purple-50 hover:text-purple-700 border-slate-200'
                                   }`}
                                 >
-                                  + {staff.name} <span className="text-[9px] text-gray-400">({staff.role.replace(/_/g, ' ')})</span>
+                                  + {staff.name} <span className="text-[9px] text-slate-500">({staff.role.replace(/_/g, ' ')})</span>
                                 </button>
                               );
                             })}
@@ -2040,26 +2037,26 @@ export default function CommunicationPage() {
                 </div>
               ) : (
                 <div className="space-y-1 opacity-60">
-                  <label className="text-[11px] text-gray-400 font-semibold">2. Recipient(s):</label>
+                  <label className="text-[11px] text-slate-500 font-semibold">2. Recipient(s):</label>
                   <input
                     type="text"
                     disabled
                     value="N/A (Operational Remark - No recipients required)"
-                    className="w-full bg-zinc-950 border border-zinc-800 text-zinc-500 rounded-lg p-2.5 text-xs cursor-not-allowed"
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-400 rounded-lg p-2.5 text-xs cursor-not-allowed"
                   />
                 </div>
               )}
 
               {/* Assigned To Employee Select for Blockers */}
               {modalEntryMode === 'COMMUNICATION' && (modalCategory === 'BLOCKER' || modalCategory === 'ISSUE_REPORT') && (
-                <div className="space-y-1 bg-red-950/20 p-2.5 rounded-lg border border-red-900/40">
-                  <label className="text-[11px] text-purple-300 font-semibold flex items-center gap-1">
-                    <UserCheck className="w-3.5 h-3.5 text-purple-400" /> Assigned To Employee (Mandatory Blocker Field):
+                <div className="space-y-1 bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+                  <label className="text-[11px] text-purple-700 font-semibold flex items-center gap-1">
+                    <UserCheck className="w-3.5 h-3.5 text-purple-600" /> Assigned To Employee (Mandatory Blocker Field):
                   </label>
                   <select
                     value={modalAssignedToId}
                     onChange={(e) => setModalAssignedToId(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 text-xs rounded-lg p-2 focus:outline-none focus:border-purple-500 font-semibold"
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-lg p-2 focus:outline-none focus:border-purple-500 focus:bg-white font-semibold"
                   >
                     <option value="">-- Select Assigned Staff Member --</option>
                     {usersList.map((u) => (
@@ -2074,11 +2071,11 @@ export default function CommunicationPage() {
               {/* Related Module & Record */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 <div className="space-y-1">
-                  <label className="text-[11px] text-gray-300 font-semibold">3. Related Module:</label>
+                  <label className="text-[11px] text-slate-700 font-semibold">3. Related Module:</label>
                   <select
                     value={modalType}
                     onChange={(e) => handleModalTypeChange(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-zinc-200 text-xs focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 text-xs focus:outline-none focus:border-blue-500 focus:bg-white"
                   >
                     <option value="PROJECT">Shoot Project</option>
                     <option value="SCRIPT">Script / Video Document</option>
@@ -2090,11 +2087,11 @@ export default function CommunicationPage() {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] text-gray-300 font-semibold">4. Linked Operational Record:</label>
+                  <label className="text-[11px] text-slate-700 font-semibold">4. Linked Operational Record:</label>
                   <select
                     value={modalEntityId}
                     onChange={(e) => setModalEntityId(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-zinc-200 text-xs focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 text-xs focus:outline-none focus:border-blue-500 focus:bg-white"
                   >
                     {entities[modalType] && entities[modalType].length > 0 ? (
                       entities[modalType].map((item: any) => (
@@ -2112,8 +2109,8 @@ export default function CommunicationPage() {
               {/* Quick Staff Mention Bar */}
               {usersList.length > 0 && (
                 <div className="space-y-1">
-                  <label className="text-[10px] text-gray-400 font-semibold uppercase flex items-center gap-1">
-                    <AtSign className="w-3 h-3 text-blue-400" /> Mention Employee:
+                  <label className="text-[10px] text-slate-500 font-semibold uppercase flex items-center gap-1">
+                    <AtSign className="w-3 h-3 text-blue-600" /> Mention Employee:
                   </label>
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
                     {usersList.map((staff) => (
@@ -2121,7 +2118,7 @@ export default function CommunicationPage() {
                         key={staff.id}
                         type="button"
                         onClick={() => handleAppendModalMention(staff.name)}
-                        className="px-2 py-0.5 bg-zinc-900 hover:bg-blue-600/20 hover:text-blue-300 border border-zinc-700 rounded text-gray-300 text-[10px] transition-colors whitespace-nowrap font-medium"
+                        className="px-2 py-0.5 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 border border-slate-200 rounded text-slate-700 text-[10px] transition-colors whitespace-nowrap font-medium"
                       >
                         @{staff.name.split(' ')[0]}
                       </button>
@@ -2132,14 +2129,14 @@ export default function CommunicationPage() {
 
               {/* Attachments list in modal */}
               {modalAttachments.length > 0 && (
-                <div className="flex items-center gap-2 flex-wrap bg-zinc-900 p-2 rounded-lg border border-zinc-800 text-[11px]">
-                  <span className="text-purple-400 font-semibold flex items-center gap-1">
+                <div className="flex items-center gap-2 flex-wrap bg-slate-50 p-2 rounded-lg border border-slate-200 text-[11px]">
+                  <span className="text-purple-600 font-semibold flex items-center gap-1">
                     <Paperclip className="w-3.5 h-3.5" /> Attachments ({modalAttachments.length}):
                   </span>
                   {modalAttachments.map((att, idx) => (
-                    <span key={idx} className="bg-zinc-800 text-zinc-200 px-2 py-0.5 rounded flex items-center gap-1 border border-zinc-700">
-                      <span className="text-purple-300 font-mono text-[10px]">[{att.fileType}]</span> {att.fileName}
-                      <X className="w-3 h-3 cursor-pointer hover:text-red-400 ml-1" onClick={() => setModalAttachments((prev) => prev.filter((_, i) => i !== idx))} />
+                    <span key={idx} className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded flex items-center gap-1 border border-slate-200">
+                      <span className="text-purple-700 font-mono text-[10px]">[{att.fileType}]</span> {att.fileName}
+                      <X className="w-3 h-3 cursor-pointer hover:text-rose-600 ml-1" onClick={() => setModalAttachments((prev) => prev.filter((_, i) => i !== idx))} />
                     </span>
                   ))}
                 </div>
@@ -2148,13 +2145,13 @@ export default function CommunicationPage() {
               {/* Communication Message */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] text-gray-300 font-semibold">
+                  <label className="text-[11px] text-slate-700 font-semibold">
                     {modalEntryMode === 'REMARK' ? '5. Remark Content:' : '5. Message Body:'}
                   </label>
                   <button
                     type="button"
                     onClick={() => setShowAttachSubModal(true)}
-                    className="text-purple-400 hover:text-purple-300 text-[11px] flex items-center gap-1 font-semibold"
+                    className="text-purple-600 hover:text-purple-700 text-[11px] flex items-center gap-1 font-semibold"
                   >
                     <Paperclip className="w-3 h-3" /> Attach File
                   </button>
@@ -2173,16 +2170,16 @@ export default function CommunicationPage() {
                       ? `Type approval request to ${modalTargetRole === 'MEDIA_MANAGER' ? 'Media Manager' : 'Technical Manager'}...`
                       : 'Type communication message body...'
                   }
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-zinc-200 text-xs focus:outline-none focus:border-blue-500 placeholder-zinc-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-blue-500 focus:bg-white placeholder-slate-400"
                 />
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-medium transition-colors"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors"
                 >
                   Cancel
                 </button>
@@ -2210,39 +2207,39 @@ export default function CommunicationPage() {
 
       {/* Blocker Resolution Modal */}
       {resolvingBlockerId && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-xl w-full max-w-md p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border pb-2.5">
-              <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-400" /> Resolve Operational Blocker
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-600" /> Resolve Operational Blocker
               </h3>
-              <button onClick={() => setResolvingBlockerId(null)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setResolvingBlockerId(null)} className="text-slate-500 hover:text-slate-900">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="space-y-3">
-              <p className="text-xs text-gray-300">
+              <p className="text-xs text-slate-700">
                 Provide resolution details to close this blocker. The reporting employee will be automatically notified.
               </p>
 
               <div className="space-y-1">
-                <label className="text-[11px] text-gray-300 font-semibold">Resolution Summary / Action Taken:</label>
+                <label className="text-[11px] text-slate-700 font-semibold">Resolution Summary / Action Taken:</label>
                 <textarea
                   rows={3}
                   placeholder="e.g. Files received from client, replaced faulty HDMI cable, camera equipment re-assigned..."
                   value={resolutionNotes}
                   onChange={(e) => setResolutionNotes(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-zinc-200 text-xs focus:outline-none focus:border-emerald-500 placeholder-zinc-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-emerald-500 focus:bg-white placeholder-slate-400"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setResolvingBlockerId(null)}
-                className="px-3.5 py-1.5 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 rounded-lg text-xs"
+                className="px-3.5 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs"
               >
                 Cancel
               </button>
@@ -2261,24 +2258,24 @@ export default function CommunicationPage() {
 
       {/* Attach Sub-Modal in Hub Modal */}
       {showAttachSubModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-xl w-full max-w-md p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border pb-2.5">
-              <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <Paperclip className="w-4 h-4 text-purple-400" /> Attach Media / Reference File
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <Paperclip className="w-4 h-4 text-purple-600" /> Attach Media / Reference File
               </h3>
-              <button onClick={() => setShowAttachSubModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowAttachSubModal(false)} className="text-slate-500 hover:text-slate-900">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="space-y-3">
               <div className="space-y-1">
-                <label className="text-[11px] text-gray-300 font-semibold">File Category:</label>
+                <label className="text-[11px] text-slate-700 font-semibold">File Category:</label>
                 <select
                   value={attachType}
                   onChange={(e) => setAttachType(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-zinc-200 text-xs focus:outline-none focus:border-purple-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 text-xs focus:outline-none focus:border-purple-500 focus:bg-white"
                 >
                   <option value="DOCUMENT">Document (PDF, DOCX, TXT)</option>
                   <option value="IMAGE">Image (PNG, JPG, WEBP)</option>
@@ -2289,33 +2286,33 @@ export default function CommunicationPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] text-gray-300 font-semibold">File Title / Display Name:</label>
+                <label className="text-[11px] text-slate-700 font-semibold">File Title / Display Name:</label>
                 <input
                   type="text"
                   placeholder="e.g. Export_Settings_v2.pdf, Location_Photo.jpg"
                   value={attachName}
                   onChange={(e) => setAttachName(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-zinc-200 text-xs focus:outline-none focus:border-purple-500 placeholder-zinc-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-purple-500 focus:bg-white placeholder-slate-400"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] text-gray-300 font-semibold">File URL / Storage Link:</label>
+                <label className="text-[11px] text-slate-700 font-semibold">File URL / Storage Link:</label>
                 <input
                   type="url"
                   placeholder="https://... or /uploads/..."
                   value={attachUrl}
                   onChange={(e) => setAttachUrl(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-zinc-200 text-xs focus:outline-none focus:border-purple-500 placeholder-zinc-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-purple-500 focus:bg-white placeholder-slate-400"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setShowAttachSubModal(false)}
-                className="px-3.5 py-1.5 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 rounded-lg text-xs"
+                className="px-3.5 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs"
               >
                 Cancel
               </button>
@@ -2334,42 +2331,42 @@ export default function CommunicationPage() {
 
       {/* Media Manager Custom Category Modal */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <Settings className="w-4 h-4 text-purple-400" /> Introduce Custom Communication Type
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Settings className="w-4 h-4 text-purple-600" /> Introduce Custom Communication Type
               </h2>
               <button
                 onClick={() => setIsCategoryModalOpen(false)}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-slate-500 hover:text-slate-900 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleAddCustomCategory} className="space-y-4">
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-slate-500">
                 As Media Manager, you can introduce additional custom communication types into the workspace system.
               </p>
 
               <div className="space-y-1">
-                <label className="text-[11px] text-gray-300 font-semibold">Category Display Name:</label>
+                <label className="text-[11px] text-slate-700 font-semibold">Category Display Name:</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Legal Clearance, Budget Approval..."
                   value={newCategoryLabel}
                   onChange={(e) => setNewCategoryLabel(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-zinc-200 text-xs focus:outline-none focus:border-purple-500 placeholder-zinc-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-purple-500 focus:bg-white placeholder-slate-400"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setIsCategoryModalOpen(false)}
-                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-medium transition-colors"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors"
                 >
                   Cancel
                 </button>
@@ -2389,33 +2386,33 @@ export default function CommunicationPage() {
 
       {/* Permanent Audit Timeline Modal */}
       {timelineComm && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-xl w-full max-w-lg p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border pb-3">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h2 className="text-base font-bold text-white flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-purple-400" /> Permanent Audit Timeline
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-purple-600" /> Permanent Audit Timeline
                 </h2>
-                <span className="text-xs text-gray-400">{timelineComm.subject || 'Operational Communication'}</span>
+                <span className="text-xs text-slate-500">{timelineComm.subject || 'Operational Communication'}</span>
               </div>
-              <button onClick={() => setTimelineComm(null)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setTimelineComm(null)} className="text-slate-500 hover:text-slate-900">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1 font-sans">
               {timelineLoading ? (
-                <p className="text-xs text-gray-400 italic">Loading audit timeline...</p>
+                <p className="text-xs text-slate-500 italic">Loading audit timeline...</p>
               ) : (timelineComm.events || []).length === 0 ? (
-                <p className="text-xs text-gray-400 italic">No timeline events recorded.</p>
+                <p className="text-xs text-slate-500 italic">No timeline events recorded.</p>
               ) : (
                 timelineComm.events.map((evt: any, idx: number) => (
-                  <div key={idx} className="p-3 bg-zinc-950 border border-zinc-800 rounded-lg flex items-center justify-between text-xs">
+                  <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs">
                     <div className="space-y-0.5">
-                      <span className="font-bold text-purple-300 block">{evt.action}</span>
-                      <span className="text-[11px] text-gray-400">User: {evt.user} {evt.role ? `(${evt.role.replace(/_/g, ' ')})` : ''}</span>
+                      <span className="font-bold text-purple-700 block">{evt.action}</span>
+                      <span className="text-[11px] text-slate-500">User: {evt.user} {evt.role ? `(${evt.role.replace(/_/g, ' ')})` : ''}</span>
                     </div>
-                    <span className="text-[10px] text-gray-500 font-mono shrink-0 ml-3">
+                    <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-3">
                       {new Date(evt.timestamp).toLocaleDateString()} {new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
@@ -2423,8 +2420,8 @@ export default function CommunicationPage() {
               )}
             </div>
 
-            <div className="pt-3 border-t border-border flex justify-end">
-              <button onClick={() => setTimelineComm(null)} className="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-semibold">
+            <div className="pt-3 border-t border-slate-200 flex justify-end">
+              <button onClick={() => setTimelineComm(null)} className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">
                 Close Timeline
               </button>
             </div>

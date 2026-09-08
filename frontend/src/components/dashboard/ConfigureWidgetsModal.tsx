@@ -119,53 +119,53 @@ export default function ConfigureWidgetsModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in text-xs">
-      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in text-xs">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-800 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900">
+        <div className="flex items-center justify-between p-5 border-b border-slate-200 bg-slate-50">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-600/20 border border-blue-500/30 rounded-xl text-blue-400">
+            <div className="p-2 bg-blue-50 border border-blue-200 rounded-xl text-blue-600">
               <Sliders className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white">Configure Dashboard Widgets</h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                <h2 className="text-base font-bold text-slate-900">Configure Dashboard Widgets</h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
                   Media Manager
                 </span>
               </div>
-              <p className="text-[11px] text-gray-400 mt-0.5">
+              <p className="text-[11px] text-slate-500 mt-0.5">
                 Customize which operational widgets appear on your dashboard and reorder them.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Stats & Category Filter Bar */}
-        <div className="px-5 py-3 bg-gray-950/60 border-b border-gray-800 flex items-center justify-between flex-wrap gap-2">
+        <div className="px-5 py-3 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1.5">
-            <span className="text-gray-400 font-semibold">Active:</span>
-            <span className="font-mono font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded">
+            <span className="text-slate-500 font-semibold">Active:</span>
+            <span className="font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
               {enabledCount} of {localWidgets.length} Widgets
             </span>
           </div>
 
           {/* Categories */}
-          <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 p-1 rounded-lg">
+          <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 p-1 rounded-lg">
             {(['ALL', 'OPERATIONAL', 'RESOURCE', 'PERFORMANCE', 'AUDIT'] as const).map((cat) => (
               <button
                 key={cat}
                 onClick={() => setActiveTab(cat)}
                 className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
                   activeTab === cat
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-400 hover:text-gray-200'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                 }`}
               >
                 {cat}
@@ -175,7 +175,7 @@ export default function ConfigureWidgetsModal({
         </div>
 
         {/* Widgets List */}
-        <div className="p-5 space-y-2.5 overflow-y-auto flex-1">
+        <div className="p-5 space-y-2.5 overflow-y-auto flex-1 bg-white">
           {filteredWidgets.map((widget) => {
             const originalIndex = localWidgets.findIndex((w) => w.id === widget.id);
             const IconComponent = ICON_MAP[widget.iconName] || Sliders;
@@ -187,8 +187,8 @@ export default function ConfigureWidgetsModal({
                 key={widget.id}
                 className={`p-3.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${
                   widget.enabled
-                    ? 'bg-gray-900/90 border-gray-700 hover:border-gray-600 shadow-sm'
-                    : 'bg-gray-950/50 border-gray-800/80 opacity-60'
+                    ? 'bg-slate-50/80 border-slate-200 hover:border-slate-300 shadow-xs'
+                    : 'bg-slate-50/40 border-slate-200 opacity-60'
                 }`}
               >
                 {/* Drag / Reorder Buttons */}
@@ -197,18 +197,18 @@ export default function ConfigureWidgetsModal({
                     onClick={() => handleMove(originalIndex, 'UP')}
                     disabled={isFirst}
                     title="Move Up"
-                    className="p-1 text-gray-400 hover:text-white disabled:opacity-20 hover:bg-gray-800 rounded transition-colors"
+                    className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-20 hover:bg-slate-200 rounded transition-colors"
                   >
                     <ArrowUp className="w-3.5 h-3.5" />
                   </button>
-                  <span className="text-[10px] font-mono font-bold text-gray-500">
+                  <span className="text-[10px] font-mono font-bold text-slate-400">
                     #{originalIndex + 1}
                   </span>
                   <button
                     onClick={() => handleMove(originalIndex, 'DOWN')}
                     disabled={isLast}
                     title="Move Down"
-                    className="p-1 text-gray-400 hover:text-white disabled:opacity-20 hover:bg-gray-800 rounded transition-colors"
+                    className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-20 hover:bg-slate-200 rounded transition-colors"
                   >
                     <ArrowDown className="w-3.5 h-3.5" />
                   </button>
@@ -219,8 +219,8 @@ export default function ConfigureWidgetsModal({
                   <div
                     className={`p-2.5 rounded-xl border shrink-0 ${
                       widget.enabled
-                        ? 'bg-blue-600/10 border-blue-500/30 text-blue-400'
-                        : 'bg-gray-800 border-gray-700 text-gray-500'
+                        ? 'bg-blue-50 border-blue-200 text-blue-600'
+                        : 'bg-slate-100 border-slate-200 text-slate-400'
                     }`}
                   >
                     <IconComponent className="w-4 h-4" />
@@ -228,12 +228,12 @@ export default function ConfigureWidgetsModal({
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-bold text-white text-xs">{widget.title}</h4>
-                      <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-400">
+                      <h4 className="font-bold text-slate-900 text-xs">{widget.title}</h4>
+                      <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600">
                         {widget.category}
                       </span>
                     </div>
-                    <p className="text-[11px] text-gray-400 truncate mt-0.5">
+                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
                       {widget.description}
                     </p>
                   </div>
@@ -243,13 +243,13 @@ export default function ConfigureWidgetsModal({
                 {widget.enabled && (
                   <div className="hidden sm:flex items-center gap-2">
                     {/* Size toggle */}
-                    <div className="flex items-center bg-gray-950 border border-gray-800 p-0.5 rounded-lg">
+                    <div className="flex items-center bg-slate-100 border border-slate-200 p-0.5 rounded-lg">
                       <button
                         onClick={() => handleSizeChange(widget.id, 'normal')}
                         className={`px-2 py-0.5 text-[10px] rounded font-semibold transition-colors ${
                           widget.size !== 'full'
-                            ? 'bg-gray-800 text-white'
-                            : 'text-gray-500 hover:text-gray-300'
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-500 hover:text-slate-800'
                         }`}
                       >
                         Standard
@@ -258,8 +258,8 @@ export default function ConfigureWidgetsModal({
                         onClick={() => handleSizeChange(widget.id, 'full')}
                         className={`px-2 py-0.5 text-[10px] rounded font-semibold transition-colors ${
                           widget.size === 'full'
-                            ? 'bg-gray-800 text-white'
-                            : 'text-gray-500 hover:text-gray-300'
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-500 hover:text-slate-800'
                         }`}
                       >
                         Full Width
@@ -271,7 +271,7 @@ export default function ConfigureWidgetsModal({
                       <select
                         value={widget.itemLimit}
                         onChange={(e) => handleLimitChange(widget.id, parseInt(e.target.value))}
-                        className="bg-gray-950 border border-gray-800 text-gray-300 text-[10px] rounded px-1.5 py-1 focus:outline-none focus:border-blue-500"
+                        className="bg-slate-50 border border-slate-200 text-slate-700 text-[10px] rounded px-1.5 py-1 focus:outline-none focus:border-blue-500"
                       >
                         <option value={3}>Top 3</option>
                         <option value={5}>Top 5</option>
@@ -286,8 +286,8 @@ export default function ConfigureWidgetsModal({
                   onClick={() => handleToggle(widget.id)}
                   className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 ${
                     widget.enabled
-                      ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-600/30'
-                      : 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700 hover:text-white'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                      : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200 hover:text-slate-700'
                   }`}
                 >
                   {widget.enabled ? (
@@ -306,10 +306,10 @@ export default function ConfigureWidgetsModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-800 bg-gray-950 flex items-center justify-between flex-wrap gap-2">
+        <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
           <button
             onClick={handleResetDefaults}
-            className="flex items-center gap-1.5 px-3 py-2 text-gray-400 hover:text-gray-200 border border-gray-800 hover:border-gray-700 rounded-lg text-xs font-semibold transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold bg-white transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" /> Reset to Defaults
           </button>
@@ -317,14 +317,14 @@ export default function ConfigureWidgetsModal({
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-semibold transition-colors"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50"
             >
               {saving ? (
                 'Saving...'

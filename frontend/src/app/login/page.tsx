@@ -33,47 +33,47 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-2xl p-8 space-y-6">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-xs p-8 space-y-6">
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold mx-auto shadow-lg shadow-blue-500/30">
+          <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-bold mx-auto shadow-xs">
             <Tv className="w-7 h-7" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">MOMS Platform</h1>
-          <p className="text-xs text-gray-400">Media Operations Management System — V1 MVP</p>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">MOMS Platform</h1>
+          <p className="text-xs text-slate-500">Media Operations Management System</p>
         </div>
 
         {error && (
-          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium text-center">
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium text-center">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-300 uppercase mb-1">Email Address</label>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Email Address</label>
             <div className="relative">
-              <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+              <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-700 text-sm text-gray-200 pl-9 pr-4 py-2.5 rounded-lg focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 pl-9 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white focus:bg-white transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-300 uppercase mb-1">Password</label>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Password</label>
             <div className="relative">
-              <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+              <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-700 text-sm text-gray-200 pl-9 pr-4 py-2.5 rounded-lg focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 pl-9 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white focus:bg-white transition-colors"
               />
             </div>
           </div>
@@ -81,7 +81,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm rounded-lg shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2"
+            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center gap-2"
           >
             {loading ? 'Authenticating...' : 'Sign In to Operations'}
             <ArrowRight className="w-4 h-4" />
@@ -89,9 +89,9 @@ export default function LoginPage() {
         </form>
 
         {/* Quick Fill Demo Credentials */}
-        <div className="pt-4 border-t border-border space-y-3">
-          <div className="flex items-center gap-1.5 text-xs text-gray-400 font-semibold">
-            <ShieldCheck className="w-4 h-4 text-blue-400" />
+        <div className="pt-4 border-t border-slate-100 space-y-3">
+          <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold">
+            <ShieldCheck className="w-4 h-4 text-blue-600" />
             <span>Select Demo Role Account (Password: Password123!)</span>
           </div>
 
@@ -99,46 +99,46 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => quickFill('media.manager@example.com')}
-              className="p-2 rounded-lg bg-purple-950/40 border border-purple-800/40 text-purple-300 text-left hover:border-purple-600 transition-colors"
+              className="p-2.5 rounded-xl bg-purple-50 hover:bg-purple-100/80 border border-purple-200 text-purple-900 text-left transition-colors"
             >
               <div className="font-bold">Media Manager</div>
-              <div className="text-[10px] text-gray-400">media.manager@...</div>
+              <div className="text-[10px] text-purple-600">media.manager@...</div>
             </button>
 
             <button
               type="button"
               onClick={() => quickFill('technical.manager@example.com')}
-              className="p-2 rounded-lg bg-cyan-950/40 border border-cyan-800/40 text-cyan-300 text-left hover:border-cyan-600 transition-colors"
+              className="p-2.5 rounded-xl bg-cyan-50 hover:bg-cyan-100/80 border border-cyan-200 text-cyan-900 text-left transition-colors"
             >
               <div className="font-bold">Tech Manager</div>
-              <div className="text-[10px] text-gray-400">technical.manager@...</div>
+              <div className="text-[10px] text-cyan-600">technical.manager@...</div>
             </button>
 
             <button
               type="button"
               onClick={() => quickFill('smm@example.com')}
-              className="p-2 rounded-lg bg-blue-950/40 border border-blue-800/40 text-blue-300 text-left hover:border-blue-600 transition-colors"
+              className="p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100/80 border border-blue-200 text-blue-900 text-left transition-colors"
             >
               <div className="font-bold">Social Media Mgr</div>
-              <div className="text-[10px] text-gray-400">smm@example.com</div>
+              <div className="text-[10px] text-blue-600">smm@example.com</div>
             </button>
 
             <button
               type="button"
               onClick={() => quickFill('marketing.manager@example.com')}
-              className="p-2 rounded-lg bg-amber-950/40 border border-amber-800/40 text-amber-300 text-left hover:border-amber-600 transition-colors"
+              className="p-2.5 rounded-xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200 text-amber-900 text-left transition-colors"
             >
               <div className="font-bold">Marketing Mgr (Client)</div>
-              <div className="text-[10px] text-gray-400">marketing.manager@...</div>
+              <div className="text-[10px] text-amber-600">marketing.manager@...</div>
             </button>
 
             <button
               type="button"
               onClick={() => quickFill('staff1@example.com')}
-              className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/40 text-emerald-300 text-left hover:border-emerald-600 transition-colors col-span-2"
+              className="p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-900 text-left transition-colors col-span-2"
             >
               <div className="font-bold">Staff: Ahmed Khan (Video Editor)</div>
-              <div className="text-[10px] text-gray-400">staff1@example.com</div>
+              <div className="text-[10px] text-emerald-600">staff1@example.com</div>
             </button>
           </div>
         </div>

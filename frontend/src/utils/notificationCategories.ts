@@ -28,112 +28,112 @@ export const NOTIFICATION_CATEGORIES: Record<NotificationCategoryCode, Notificat
     code: 'INFORMATION',
     label: 'Information',
     description: 'General operational updates, notes, and activity status logs',
-    colorClass: 'text-blue-400',
-    badgeClass: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+    colorClass: 'text-blue-700',
+    badgeClass: 'bg-blue-50 text-blue-800 border-blue-200',
     iconName: 'Info',
   },
   TASK_ASSIGNMENT: {
     code: 'TASK_ASSIGNMENT',
     label: 'Task Assignment',
     description: 'New task assignments and manager reassignments',
-    colorClass: 'text-cyan-400',
-    badgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+    colorClass: 'text-cyan-700',
+    badgeClass: 'bg-cyan-50 text-cyan-800 border-cyan-200',
     iconName: 'CheckSquare',
   },
   REMINDER: {
     code: 'REMINDER',
     label: 'Reminder',
     description: 'Scheduled follow-ups and operational action reminders',
-    colorClass: 'text-indigo-400',
-    badgeClass: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+    colorClass: 'text-indigo-700',
+    badgeClass: 'bg-indigo-50 text-indigo-800 border-indigo-200',
     iconName: 'Clock',
   },
   APPROVAL_REQUEST: {
     code: 'APPROVAL_REQUEST',
     label: 'Approval Request',
     description: 'Pending sign-off reviews routed to Media or Technical Managers',
-    colorClass: 'text-purple-400',
-    badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+    colorClass: 'text-purple-700',
+    badgeClass: 'bg-purple-50 text-purple-800 border-purple-200',
     iconName: 'FileCheck',
   },
   APPROVAL_COMPLETED: {
     code: 'APPROVAL_COMPLETED',
     label: 'Approval Completed',
     description: 'Final sign-off decisions (Approved or Rejected)',
-    colorClass: 'text-emerald-400',
-    badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    colorClass: 'text-emerald-700',
+    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
     iconName: 'CheckCircle',
   },
   REVISION_REQUEST: {
     code: 'REVISION_REQUEST',
     label: 'Revision Request',
     description: 'Client or editorial change requests on deliverables or scripts',
-    colorClass: 'text-amber-400',
-    badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+    colorClass: 'text-amber-700',
+    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
     iconName: 'RotateCcw',
   },
   DEADLINE_REMINDER: {
     code: 'DEADLINE_REMINDER',
     label: 'Deadline Reminder',
     description: 'Urgent notice for approaching due dates and timeline milestones',
-    colorClass: 'text-red-400',
-    badgeClass: 'bg-red-500/20 text-red-300 border-red-500/30',
+    colorClass: 'text-rose-700',
+    badgeClass: 'bg-rose-50 text-rose-800 border-rose-200',
     iconName: 'Calendar',
   },
   EQUIPMENT_REQUEST: {
     code: 'EQUIPMENT_REQUEST',
     label: 'Equipment Request',
     description: 'Field gear reservations and checkout requests from production crew',
-    colorClass: 'text-teal-400',
-    badgeClass: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+    colorClass: 'text-teal-700',
+    badgeClass: 'bg-teal-50 text-teal-800 border-teal-200',
     iconName: 'Camera',
   },
   EQUIPMENT_APPROVAL: {
     code: 'EQUIPMENT_APPROVAL',
     label: 'Equipment Approval',
     description: 'Equipment reservation approvals and checkout acknowledgements',
-    colorClass: 'text-teal-300',
-    badgeClass: 'bg-teal-950 text-teal-200 border-teal-800',
+    colorClass: 'text-teal-700',
+    badgeClass: 'bg-teal-50 text-teal-800 border-teal-200',
     iconName: 'ShieldCheck',
   },
   EQUIPMENT_RETURN_REMINDER: {
     code: 'EQUIPMENT_RETURN_REMINDER',
     label: 'Equipment Return Reminder',
     description: 'Scheduled gear return inspection and overdue return warnings',
-    colorClass: 'text-orange-400',
-    badgeClass: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+    colorClass: 'text-orange-700',
+    badgeClass: 'bg-orange-50 text-orange-800 border-orange-200',
     iconName: 'CornerDownLeft',
   },
   ATTENDANCE_REMINDER: {
     code: 'ATTENDANCE_REMINDER',
     label: 'Attendance Reminder',
     description: 'Daily check-in cutoff, late arrival notice, or absent logging',
-    colorClass: 'text-yellow-400',
-    badgeClass: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+    colorClass: 'text-amber-700',
+    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
     iconName: 'UserCheck',
   },
   ANNOUNCEMENT: {
     code: 'ANNOUNCEMENT',
     label: 'Announcement',
     description: 'Company-wide bulletins, office schedules, and studio alerts',
-    colorClass: 'text-purple-300',
-    badgeClass: 'bg-purple-950 text-purple-200 border-purple-800',
+    colorClass: 'text-purple-700',
+    badgeClass: 'bg-purple-50 text-purple-800 border-purple-200',
     iconName: 'Megaphone',
   },
   WARNING: {
     code: 'WARNING',
     label: 'Warning',
     description: 'Capacity overloads, equipment damage, or unresolved blockers',
-    colorClass: 'text-rose-400',
-    badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+    colorClass: 'text-rose-700',
+    badgeClass: 'bg-rose-50 text-rose-800 border-rose-200',
     iconName: 'AlertTriangle',
   },
   SYSTEM_NOTIFICATION: {
     code: 'SYSTEM_NOTIFICATION',
     label: 'System Notification',
     description: 'Platform maintenance, security policies, and configuration updates',
-    colorClass: 'text-slate-400',
-    badgeClass: 'bg-slate-800 text-slate-300 border-slate-700',
+    colorClass: 'text-slate-700',
+    badgeClass: 'bg-slate-100 text-slate-800 border-slate-200',
     iconName: 'Settings',
   },
 };
@@ -157,9 +157,9 @@ export const NOTIFICATION_PRIORITIES: Record<NotificationPriorityCode, Notificat
   CRITICAL: {
     code: 'CRITICAL',
     label: 'Critical',
-    badgeClass: 'bg-red-600 text-white font-black border-red-500 shadow-md shadow-red-900/50 animate-pulse',
-    cardBorderClass: 'border-red-600/80 hover:border-red-500 shadow-lg shadow-red-950/40 ring-1 ring-red-500/40',
-    cardBgClass: 'bg-red-950/30',
+    badgeClass: 'bg-rose-50 text-rose-800 font-extrabold border-rose-300 shadow-xs animate-pulse',
+    cardBorderClass: 'border-rose-300 hover:border-rose-400 shadow-sm',
+    cardBgClass: 'bg-rose-50/50',
     pulseIcon: true,
     glowEffect: true,
     weight: 4,
@@ -167,9 +167,9 @@ export const NOTIFICATION_PRIORITIES: Record<NotificationPriorityCode, Notificat
   HIGH: {
     code: 'HIGH',
     label: 'High',
-    badgeClass: 'bg-amber-500/20 text-amber-300 font-bold border-amber-500/40',
-    cardBorderClass: 'border-amber-500/50 hover:border-amber-400',
-    cardBgClass: 'bg-amber-950/15',
+    badgeClass: 'bg-amber-50 text-amber-800 font-bold border-amber-300 shadow-xs',
+    cardBorderClass: 'border-amber-200 hover:border-amber-300',
+    cardBgClass: 'bg-amber-50/40',
     pulseIcon: false,
     glowEffect: false,
     weight: 3,
@@ -177,9 +177,9 @@ export const NOTIFICATION_PRIORITIES: Record<NotificationPriorityCode, Notificat
   MEDIUM: {
     code: 'MEDIUM',
     label: 'Medium',
-    badgeClass: 'bg-blue-500/20 text-blue-300 font-medium border-blue-500/30',
-    cardBorderClass: 'border-gray-800 hover:border-blue-500/40',
-    cardBgClass: 'bg-gray-900/80',
+    badgeClass: 'bg-blue-50 text-blue-800 font-medium border-blue-200 shadow-xs',
+    cardBorderClass: 'border-slate-200 hover:border-blue-300',
+    cardBgClass: 'bg-white',
     pulseIcon: false,
     glowEffect: false,
     weight: 2,
@@ -187,9 +187,9 @@ export const NOTIFICATION_PRIORITIES: Record<NotificationPriorityCode, Notificat
   LOW: {
     code: 'LOW',
     label: 'Low',
-    badgeClass: 'bg-gray-800/80 text-gray-400 font-normal border-gray-700/60',
-    cardBorderClass: 'border-gray-850 hover:border-gray-700',
-    cardBgClass: 'bg-gray-950/50',
+    badgeClass: 'bg-slate-50 text-slate-700 font-normal border-slate-200',
+    cardBorderClass: 'border-slate-200 hover:border-slate-300',
+    cardBgClass: 'bg-white',
     pulseIcon: false,
     glowEffect: false,
     weight: 1,
@@ -288,4 +288,31 @@ export function getNotificationNavigationUrl(
     default:
       return '/dashboard';
   }
+}
+
+/**
+ * Format relative time (e.g. "Just now", "5m ago", "2h ago", "Yesterday", "3d ago")
+ */
+export function formatRelativeTime(dateInput?: string | Date | null): string {
+  if (!dateInput) return 'Recently';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return 'Recently';
+
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 45) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHour < 24) return `${diffHour}h ago`;
+  if (diffDay === 1) return 'Yesterday';
+  if (diffDay < 7) return `${diffDay}d ago`;
+
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
 }
