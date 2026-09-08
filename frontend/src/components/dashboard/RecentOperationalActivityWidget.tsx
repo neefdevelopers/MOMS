@@ -136,17 +136,17 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4.5 space-y-4 shadow-sm">
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-5 shadow-sm">
       {/* Widget Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 shrink-0">
-            <Activity className="w-4.5 h-4.5" />
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 shrink-0">
+            <Activity className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-900 tracking-wide flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-900 tracking-wide flex items-center gap-2.5">
               Recent Operational Activity
-              <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1 rounded-full">
                 {activities.length} Entries
               </span>
             </h3>
@@ -157,7 +157,7 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
           {onOpenHistoryModal && (
             <button
               onClick={onOpenHistoryModal}
-              className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1.5 transition-all shadow-xs"
+              className="text-xs font-bold px-4 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-2 transition-all shadow-xs"
             >
               <History className="w-3.5 h-3.5 text-emerald-600" />
               <span>Permanent Activity History</span>
@@ -167,7 +167,7 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
           <button
             onClick={loadActivities}
             disabled={loading}
-            className="p-1.5 text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all disabled:opacity-50"
+            className="p-2 text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all disabled:opacity-50"
             title="Refresh Feed"
           >
             <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -176,8 +176,8 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
       </div>
 
       {/* Filter Tabs & Search Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5">
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 max-w-full">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
           {(
             [
               { id: 'ALL', label: 'All Activity' },
@@ -193,7 +193,7 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
             <button
               key={tab.id}
               onClick={() => setSelectedCategory(tab.id as ActivityCategory)}
-              className={`text-[11px] font-bold px-2.5 py-1 rounded-lg whitespace-nowrap transition-all ${
+              className={`text-[11px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap transition-all ${
                 selectedCategory === tab.id
                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -204,20 +204,20 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
           ))}
         </div>
 
-        <form onSubmit={handleSearchSubmit} className="relative min-w-[160px]">
-          <Search className="w-3 h-3 text-slate-400 absolute left-2.5 top-2.5" />
+        <form onSubmit={handleSearchSubmit} className="relative min-w-[180px]">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search operational logs..."
-            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-[11px] rounded-lg pl-7 pr-2.5 py-1 outline-none focus:bg-white focus:border-emerald-500 transition-colors"
+            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-[11px] rounded-lg pl-8 pr-3 py-2 outline-none focus:bg-white focus:border-emerald-500 transition-colors"
           />
         </form>
       </div>
 
       {/* Activity Timeline List */}
-      <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
+      <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
         {loading ? (
           <div className="py-8 text-center text-xs text-slate-400 font-mono animate-pulse">
             Fetching recent operational activity history...
@@ -230,27 +230,27 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
             return (
               <div
                 key={item.id}
-                className="p-3 bg-slate-50/70 hover:bg-slate-50 border border-slate-200 rounded-xl transition-all flex items-start justify-between gap-3 group shadow-xs"
+                className="p-4 bg-slate-50/70 hover:bg-slate-50 border border-slate-200 rounded-xl transition-all flex items-start justify-between gap-4 group shadow-xs"
               >
-                <div className="flex items-start gap-3 flex-1 min-w-0">
+                <div className="flex items-start gap-3.5 flex-1 min-w-0">
                   {/* User Avatar / Initials */}
                   <div className="relative shrink-0 mt-0.5">
                     {item.user?.avatarUrl ? (
                       <img
                         src={item.user.avatarUrl}
                         alt={item.user.name}
-                        className="w-7 h-7 rounded-full object-cover border border-slate-200"
+                        className="w-8 h-8 rounded-full object-cover border border-slate-200"
                       />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] font-bold text-slate-700 uppercase">
+                      <div className="w-8 h-8 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] font-bold text-slate-700 uppercase">
                         {item.user?.name ? item.user.name.substring(0, 2) : 'OP'}
                       </div>
                     )}
                   </div>
 
                   {/* Body Content */}
-                  <div className="space-y-1 min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
+                  <div className="space-y-1.5 min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 flex-wrap">
                       <span className="text-xs font-bold text-slate-900 truncate max-w-[140px]">
                         {item.user?.name || 'Media Staff'}
                       </span>
@@ -265,13 +265,13 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
                       </span>
                     </div>
 
-                    <p className="text-xs text-slate-700 leading-snug break-words">
+                    <p className="text-xs text-slate-700 leading-relaxed break-words">
                       {item.description}
                     </p>
 
                     {/* Metadata Snapshot Pills if available */}
                     {item.metadata && (
-                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px] font-mono text-slate-600">
+                      <div className="flex flex-wrap items-center gap-2 pt-1 text-[10px] font-mono text-slate-600">
                         {item.metadata.status && (
                           <span className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-amber-700 font-semibold">
                             Status: {item.metadata.status}
@@ -313,7 +313,7 @@ export default function RecentOperationalActivityWidget({ onOpenHistoryModal }: 
 
       {/* Footer link to full history */}
       {onOpenHistoryModal && (
-        <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+        <div className="pt-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
           <span className="text-[11px] font-mono">Permanent audit history preserved indefinitely</span>
           <button
             onClick={onOpenHistoryModal}
