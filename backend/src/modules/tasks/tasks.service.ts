@@ -99,6 +99,17 @@ export class TasksService {
             brand: true,
             product: true,
             createdBy: { select: { id: true, name: true, role: true } },
+            calendarEvent: {
+              include: {
+                createdBy: { select: { id: true, name: true, role: true } },
+                assignedStaff: { select: { id: true, name: true, role: true } },
+              },
+            },
+            assignedTeam: {
+              include: {
+                user: { select: { id: true, name: true, role: true, avatarUrl: true } },
+              },
+            },
             equipmentReservations: {
               include: { equipment: true },
             },
@@ -127,6 +138,13 @@ export class TasksService {
             client: true,
             brand: true,
             product: true,
+            calendarEvent: {
+              include: {
+                createdBy: { select: { id: true, name: true, role: true } },
+                assignedStaff: { select: { id: true, name: true, role: true } },
+              },
+            },
+            deliverables: true,
             files: {
               include: { uploadedBy: { select: { id: true, name: true, role: true } } },
               orderBy: { createdAt: 'desc' },
@@ -218,12 +236,14 @@ export class TasksService {
     if (!tasks || !tasks.length) return tasks;
     for (const t of tasks) {
       let computed = t.sourceType || 'DIRECT_TASK';
-      if (t.sourceType === 'SCRIPT' || t.scriptId || t.script || t.taskType === 'SCRIPT') {
+      if (t.taskType === 'OTHER' || t.sourceType === 'DIRECT_TASK' || t.sourceType === 'OTHER') {
+        computed = 'DIRECT_TASK';
+      } else if (t.sourceType === 'SHOOT_PROJECT' || (t.taskType === 'PROJECT' && !t.scriptId && !t.graphicRequirementId) || (t.projectId && !t.scriptId && !t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'DIRECT_TASK' && t.sourceType !== 'OTHER' && t.taskType !== 'OTHER')) {
+        computed = 'SHOOT_PROJECT';
+      } else if (t.sourceType === 'SCRIPT' || t.scriptId || t.script || t.taskType === 'SCRIPT') {
         computed = 'SCRIPT';
       } else if (t.sourceType === 'GRAPHIC_REQUIREMENT' || t.graphicRequirementId || t.graphicRequirement || t.taskType === 'GRAPHIC_REQUIREMENT' || t.taskType === 'GRAPHIC') {
         computed = 'GRAPHIC_REQUIREMENT';
-      } else if (t.sourceType === 'SHOOT_PROJECT' || (t.taskType === 'PROJECT' && !t.scriptId && !t.graphicRequirementId)) {
-        computed = 'SHOOT_PROJECT';
       } else if (t.sourceType === 'CALENDAR_EVENT') {
         computed = 'CALENDAR_EVENT';
       } else {
@@ -333,6 +353,17 @@ export class TasksService {
           brand: true,
           product: true,
           createdBy: { select: { id: true, name: true, role: true, email: true } },
+          calendarEvent: {
+            include: {
+              createdBy: { select: { id: true, name: true, role: true } },
+              assignedStaff: { select: { id: true, name: true, role: true } },
+            },
+          },
+          assignedTeam: {
+            include: {
+              user: { select: { id: true, name: true, role: true, avatarUrl: true } },
+            },
+          },
           equipmentReservations: {
             include: { equipment: true },
           },
@@ -363,6 +394,13 @@ export class TasksService {
           client: true,
           brand: true,
           product: true,
+          calendarEvent: {
+            include: {
+              createdBy: { select: { id: true, name: true, role: true } },
+              assignedStaff: { select: { id: true, name: true, role: true } },
+            },
+          },
+          deliverables: true,
           files: {
             include: { uploadedBy: { select: { id: true, name: true, role: true } } },
             orderBy: { createdAt: 'desc' as const },
@@ -686,8 +724,64 @@ export class TasksService {
       });
     }
 
-    // 2. Resolve Script if provided or if parentEntityType is SCRIPT
-    if (data.parentEntityType === 'SCRIPT' || (inputScriptId && data.parentEntityType !== 'PROJECT' && data.parentEntityType !== 'GRAPHIC_REQ')) {
+    const isOtherType =
+      data.parentEntityType === 'NONE' ||
+      data.parentEntityType === 'OTHER' ||
+      data.taskType === 'OTHER' ||
+      data.sourceType === 'DIRECT_TASK';
+
+    // Determine target entity classification with strict Shoot priority
+    const isExplicitShoot =
+      !isOtherType &&
+      (data.parentEntityType === 'PROJECT' ||
+      (calendarEvent &&
+        (calendarEvent.eventSource === 'SHOOT' || calendarEvent.eventSource === 'PROJECT_SHOOT') &&
+        data.parentEntityType !== 'GRAPHIC_REQ' &&
+        data.parentEntityType !== 'SCRIPT'));
+
+    const isExplicitScript =
+      !isOtherType &&
+      !isExplicitShoot &&
+      (data.parentEntityType === 'SCRIPT' ||
+        (inputScriptId && data.parentEntityType !== 'PROJECT' && data.parentEntityType !== 'GRAPHIC_REQ'));
+
+    const isExplicitGraphicReq =
+      !isOtherType &&
+      !isExplicitShoot &&
+      !isExplicitScript &&
+      (data.parentEntityType === 'GRAPHIC_REQ' ||
+        (inputGraphicReqId && data.parentEntityType !== 'PROJECT') ||
+        (calendarEvent && calendarEvent.eventSource === 'GRAPHIC_REQUIREMENT'));
+
+    // 2. Resolve Shoot Project
+    if (isExplicitShoot) {
+      if (inputProjectId) {
+        project = await this.prisma.shootProject.findUnique({
+          where: { id: inputProjectId },
+          include: { client: true, brand: true, product: true },
+        });
+      }
+      if (!project && calendarEvent?.shootId) {
+        project = await this.prisma.shootProject.findUnique({
+          where: { id: calendarEvent.shootId },
+          include: { client: true, brand: true, product: true },
+        }).catch(() => null);
+      }
+      if (!project && calendarEvent?.shootProjects && calendarEvent.shootProjects.length > 0) {
+        project = calendarEvent.shootProjects[0];
+      }
+      if (!project && calendarEvent) {
+        project = await this.prisma.shootProject.findFirst({
+          where: { calendarEventId: calendarEvent.id },
+          include: { client: true, brand: true, product: true },
+        }).catch(() => null);
+      }
+      scriptId = null;
+      graphicReqId = null;
+    }
+
+    // 3. Resolve Script if provided or if parentEntityType is SCRIPT
+    if (isExplicitScript) {
       let script = inputScriptId
         ? await this.prisma.script.findUnique({
             where: { id: inputScriptId },
@@ -733,10 +827,11 @@ export class TasksService {
         scriptId = script.id;
         if (!project && script.project) project = script.project;
       }
+      graphicReqId = null;
     }
 
-    // 3. Resolve Graphic Requirement if provided
-    if (!scriptId && (data.parentEntityType === 'GRAPHIC_REQ' || (inputGraphicReqId && data.parentEntityType !== 'PROJECT'))) {
+    // 4. Resolve Graphic Requirement if provided
+    if (isExplicitGraphicReq) {
       const gReq = inputGraphicReqId
         ? await this.prisma.graphicRequirement.findUnique({
             where: { id: inputGraphicReqId },
@@ -745,44 +840,9 @@ export class TasksService {
         : null;
       if (gReq) {
         graphicReqId = gReq.id;
-        project = gReq.project;
+        if (!project) project = gReq.project;
       }
-    }
-
-    // 4. Resolve Shoot Project if inputProjectId matches a ShootProject
-    if (!project && inputProjectId) {
-      project = await this.prisma.shootProject.findUnique({
-        where: { id: inputProjectId },
-        include: { client: true, brand: true, product: true },
-      });
-    }
-
-    // 5. If inputProjectId or inputGraphicReqId was actually a CalendarEvent ID and not yet resolved
-    if (!calendarEvent && inputProjectId && !project) {
-      calendarEvent = await this.prisma.mediaCalendarEvent.findFirst({
-        where: { OR: [{ id: inputProjectId }, { eventId: inputProjectId }] },
-        include: { client: true, brand: true, product: true, shootProjects: true, graphicReqs: true },
-      });
-    }
-    if (!calendarEvent && inputGraphicReqId && !graphicReqId) {
-      calendarEvent = await this.prisma.mediaCalendarEvent.findFirst({
-        where: { OR: [{ id: inputGraphicReqId }, { eventId: inputGraphicReqId }] },
-        include: { client: true, brand: true, product: true, shootProjects: true, graphicReqs: true },
-      });
-    }
-
-    // 6. If calendarEvent found, attempt to link shootProject / graphicReq from it if not already found
-    if (calendarEvent) {
-      if (!project && calendarEvent.shootId) {
-        project = await this.prisma.shootProject.findUnique({
-          where: { id: calendarEvent.shootId },
-          include: { client: true, brand: true, product: true },
-        }).catch(() => null);
-      }
-      if (!project && calendarEvent.shootProjects && calendarEvent.shootProjects.length > 0) {
-        project = calendarEvent.shootProjects[0];
-      }
-      if (!graphicReqId && calendarEvent.graphicRequirementId) {
+      if (!graphicReqId && calendarEvent?.graphicRequirementId) {
         const g = await this.prisma.graphicRequirement.findUnique({
           where: { id: calendarEvent.graphicRequirementId },
           include: { project: true },
@@ -792,8 +852,36 @@ export class TasksService {
           if (!project) project = g.project;
         }
       }
-      if (!graphicReqId && calendarEvent.graphicReqs && calendarEvent.graphicReqs.length > 0) {
+      if (!graphicReqId && calendarEvent?.graphicReqs && calendarEvent.graphicReqs.length > 0) {
         graphicReqId = calendarEvent.graphicReqs[0].id;
+      }
+      scriptId = null;
+    }
+
+    // 5. Fallback Calendar Event resolution if not explicit
+    if (!isExplicitShoot && !isExplicitScript && !isExplicitGraphicReq) {
+      if (!project && inputProjectId) {
+        project = await this.prisma.shootProject.findUnique({
+          where: { id: inputProjectId },
+          include: { client: true, brand: true, product: true },
+        });
+      }
+      if (!calendarEvent && inputProjectId && !project) {
+        calendarEvent = await this.prisma.mediaCalendarEvent.findFirst({
+          where: { OR: [{ id: inputProjectId }, { eventId: inputProjectId }] },
+          include: { client: true, brand: true, product: true, shootProjects: true, graphicReqs: true },
+        });
+      }
+      if (calendarEvent) {
+        if (!project && calendarEvent.shootId) {
+          project = await this.prisma.shootProject.findUnique({
+            where: { id: calendarEvent.shootId },
+            include: { client: true, brand: true, product: true },
+          }).catch(() => null);
+        }
+        if (!project && calendarEvent.shootProjects && calendarEvent.shootProjects.length > 0) {
+          project = calendarEvent.shootProjects[0];
+        }
       }
     }
 
@@ -854,19 +942,29 @@ export class TasksService {
     let sourceType = 'DIRECT_TASK';
     let isMarketingApproved = true;
 
-    if (scriptId || data.scriptId || data.parentEntityType === 'SCRIPT') {
-      sourceType = 'SCRIPT';
-    } else if (graphicReqId || data.graphicRequirementId || data.parentEntityType === 'GRAPHIC_REQ') {
-      sourceType = 'GRAPHIC_REQUIREMENT';
-    } else if (data.parentEntityType === 'PROJECT') {
+    if (isOtherType) {
+      sourceType = 'DIRECT_TASK';
+    } else if (isExplicitShoot || data.parentEntityType === 'PROJECT') {
       sourceType = 'SHOOT_PROJECT';
+    } else if (isExplicitScript || scriptId || data.scriptId || data.parentEntityType === 'SCRIPT') {
+      sourceType = 'SCRIPT';
+    } else if (isExplicitGraphicReq || graphicReqId || data.graphicRequirementId || data.parentEntityType === 'GRAPHIC_REQ') {
+      sourceType = 'GRAPHIC_REQUIREMENT';
     } else if (calendarEvent || rawCalendarEventId) {
-      sourceType = 'CALENDAR_EVENT';
+      if (calendarEvent?.eventSource === 'SHOOT') {
+        sourceType = 'SHOOT_PROJECT';
+      } else if (calendarEvent?.eventSource === 'GRAPHIC_REQUIREMENT') {
+        sourceType = 'GRAPHIC_REQUIREMENT';
+      } else {
+        sourceType = 'CALENDAR_EVENT';
+      }
       if (calendarEvent) {
         isMarketingApproved =
           ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'TASK_ASSIGNED'].includes(calendarEvent.status) ||
           calendarEvent.approvalStatus === 'APPROVED';
       }
+    } else if (project && !isOtherType) {
+      sourceType = 'SHOOT_PROJECT';
     } else {
       sourceType = 'DIRECT_TASK';
     }
@@ -980,7 +1078,8 @@ export class TasksService {
         dueDate: new Date(data.dueDate || Date.now() + 86400000),
         estimatedHours: parseFloat(data.estimatedHours) || 2.0,
         status: initialTaskStatus,
-        sourceType: sourceType,
+        sourceType: isOtherType ? 'DIRECT_TASK' : sourceType,
+        taskType: isOtherType ? 'OTHER' : (data.taskType || (sourceType === 'SHOOT_PROJECT' ? 'PROJECT' : 'PRODUCTION_TASK')),
         remarks: data.remarks || null,
       },
     });

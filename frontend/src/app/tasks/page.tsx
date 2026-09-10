@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import Link from 'next/link';
-import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame, Clock, ArrowUpDown, ExternalLink, FileText, Eye, Check, ShieldCheck, Copy, MessageSquare, Send, Lock, Sparkles, Film, Link as LinkIcon, Camera, Layers } from 'lucide-react';
+import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame, Clock, ArrowUpDown, ExternalLink, FileText, Eye, Check, ShieldCheck, Copy, MessageSquare, Send, Lock, Sparkles, Film, Link as LinkIcon, Camera, Layers, MapPin, Compass, CloudSun, Users, Image as ImageIcon } from 'lucide-react';
 import { TableSortHeader, SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
@@ -42,6 +42,17 @@ const getTaskTypeInfo = (task: any) => {
     };
   }
 
+  // Explicit OTHER or DIRECT_TASK check takes priority over linked parent project
+  if (task.taskType === 'OTHER' || task.sourceType === 'DIRECT_TASK' || task.sourceType === 'OTHER') {
+    return {
+      type: 'OTHER',
+      label: 'Other Task',
+      shortLabel: 'Other',
+      badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
+      icon: Layers
+    };
+  }
+
   if (task.script || task.scriptId || task.sourceType === 'SCRIPT' || task.sourceType === 'SCRIPT_TASK' || task.taskType === 'SCRIPT') {
     return {
       type: 'SCRIPT',
@@ -62,7 +73,7 @@ const getTaskTypeInfo = (task: any) => {
     };
   }
 
-  if (task.sourceType === 'SHOOT_PROJECT' || task.taskType === 'PROJECT' || ((task.project || task.projectId) && !task.script && !task.scriptId && !task.graphicRequirement && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT')) {
+  if (task.sourceType === 'SHOOT_PROJECT' || task.taskType === 'PROJECT' || ((task.project || task.projectId) && !task.script && !task.scriptId && !task.graphicRequirement && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER')) {
     return {
       type: 'PROJECT',
       label: 'Shoot Project Task',
@@ -780,7 +791,7 @@ export default function TasksPage() {
     try {
       let query = '?';
       if (searchQuery.trim()) query += `search=${encodeURIComponent(searchQuery.trim())}&`;
-      if (statusFilter && statusFilter !== 'ALL') query += `status=${statusFilter}&`;
+      if (statusFilter && statusFilter !== 'ALL' && user?.role !== 'STAFF') query += `status=${statusFilter}&`;
       if (selectedClient) query += `clientId=${selectedClient}&`;
       if (selectedBrand) query += `brandId=${selectedBrand}&`;
       if (selectedProduct) query += `productId=${selectedProduct}&`;
@@ -920,13 +931,16 @@ export default function TasksPage() {
     e.preventDefault();
     setCreating(true);
     try {
+      const isOther = parentEntityType === 'NONE' || (parentEntityType as string) === 'OTHER';
       const payload: any = {
         title: taskTitle,
         description: taskDescription,
         priority: taskPriority,
         dueDate: taskDueDate || new Date(Date.now() + 86400000).toISOString(),
         estimatedHours: parseFloat(taskEstimatedHours) || 2.0,
-        parentEntityType: parentEntityType === 'NONE' ? 'NONE' : parentEntityType,
+        parentEntityType: isOther ? 'NONE' : parentEntityType,
+        taskType: isOther ? 'OTHER' : (parentEntityType === 'PROJECT' ? 'PROJECT' : (parentEntityType === 'SCRIPT' ? 'SCRIPT' : (parentEntityType === 'GRAPHIC_REQ' ? 'GRAPHIC_REQUIREMENT' : 'PRODUCTION_TASK'))),
+        sourceType: isOther ? 'DIRECT_TASK' : undefined,
         clientId: taskClientId || undefined,
         brandId: taskBrandId || undefined,
         productId: taskProductId || undefined,
@@ -1447,22 +1461,64 @@ export default function TasksPage() {
         </div>
 
         {/* Quick Status Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 border-t border-slate-200">
-          <span className="text-slate-500 font-bold text-[10px] uppercase mr-1">Status:</span>
-          {['ALL', 'PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'ON_HOLD', 'WAITING_FOR_REVIEW', 'COMPLETED', 'CANCELLED'].map((st) => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors whitespace-nowrap ${
-                statusFilter === st
-                  ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-600/30'
-                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-200'
-              }`}
-            >
-              {st === 'ALL' ? 'All Statuses' : st.replace(/_/g, ' ')}
-            </button>
-          ))}
-        </div>
+        {user?.role === 'STAFF' ? (
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 border-t border-slate-200">
+            <span className="text-slate-500 font-bold text-[10px] uppercase mr-1">Filter Tasks:</span>
+            {(() => {
+              const allCount = visibleTasks.length;
+              const acceptedCount = visibleTasks.filter((t) => {
+                const userAssignment = t.assignedEmployees?.find((a: any) => a.userId === user?.id || a.user?.id === user?.id);
+                return userAssignment?.acceptanceStatus === 'ACCEPTED' || t.status === 'ACCEPTED' || t.status === 'IN_PROGRESS' || t.status === 'COMPLETED';
+              }).length;
+              const pendingCount = visibleTasks.filter((t) => {
+                const userAssignment = t.assignedEmployees?.find((a: any) => a.userId === user?.id || a.user?.id === user?.id);
+                return userAssignment?.acceptanceStatus !== 'ACCEPTED' && t.status !== 'COMPLETED';
+              }).length;
+
+              const staffTabs = [
+                { id: 'ALL', label: 'All Tasks', count: allCount, activeClass: 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-600/30' },
+                { id: 'ACCEPTED', label: 'Accepted', count: acceptedCount, activeClass: 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-600/30' },
+                { id: 'PENDING', label: 'Pending', count: pendingCount, activeClass: 'bg-amber-500 border-amber-400 text-slate-950 shadow-md shadow-amber-500/30' },
+              ];
+
+              return staffTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setStatusFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                    statusFilter === tab.id
+                      ? tab.activeClass
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                    statusFilter === tab.id ? 'bg-black/20 text-inherit' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              ));
+            })()}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 border-t border-slate-200">
+            <span className="text-slate-500 font-bold text-[10px] uppercase mr-1">Status:</span>
+            {['ALL', 'PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'ON_HOLD', 'WAITING_FOR_REVIEW', 'COMPLETED', 'CANCELLED'].map((st) => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors whitespace-nowrap ${
+                  statusFilter === st
+                    ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-600/30'
+                    : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-200'
+                }`}
+              >
+                {st === 'ALL' ? 'All Statuses' : st.replace(/_/g, ' ')}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Active Filter Chips / Pills */}
         {(selectedClient || selectedBrand || selectedProduct || selectedProject || selectedEmployee || selectedPriority) && (
@@ -1680,7 +1736,18 @@ export default function TasksPage() {
               <tbody className="divide-y divide-gray-800/40 text-slate-800">
                 {(() => {
                   const filteredAndSorted = sortData(
-                    visibleTasks.filter((t) => statusFilter === 'ALL' || t.status === statusFilter),
+                    visibleTasks.filter((t) => {
+                      if (user?.role === 'STAFF') {
+                        const userAssignment = t.assignedEmployees?.find((a: any) => a.userId === user?.id || a.user?.id === user?.id);
+                        const isAccepted = userAssignment?.acceptanceStatus === 'ACCEPTED' || t.status === 'ACCEPTED' || t.status === 'IN_PROGRESS' || t.status === 'COMPLETED';
+                        const isPending = userAssignment?.acceptanceStatus !== 'ACCEPTED' && t.status !== 'COMPLETED';
+
+                        if (statusFilter === 'ACCEPTED') return isAccepted;
+                        if (statusFilter === 'PENDING') return isPending;
+                        return true;
+                      }
+                      return statusFilter === 'ALL' || t.status === statusFilter;
+                    }),
                     sortBy,
                     sortOrder
                   );
@@ -3739,286 +3806,614 @@ export default function TasksPage() {
                       )
                     )}
                   </div>
+                </div>
 
-                  {/* Footer Actions */}
-                  <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
-                    <button type="button" onClick={() => setInspectedTask(null)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg">Close</button>
-                    <button type="button" onClick={handleSaveScriptDetailsInTask} disabled={savingScript || isScriptEditingLocked} className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed">{savingScript ? 'Saving...' : isScriptEditingLocked ? 'Read Only' : 'Save Changes'}</button>
-                  </div>
+                {/* Footer Actions */}
+                <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
+                  <button type="button" onClick={() => setInspectedTask(null)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg">Close</button>
                 </div>
               </>
             );
-          })()
-        ) : (
-              /* STANDARD DIRECT / GENERAL TASK INSPECTOR UI */
-              <>
-                <div className="flex justify-between items-start border-b border-slate-200 pb-3">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-blue-600 font-bold text-xs block">Task ID: {inspectedTask.taskId}</span>
-                      {(() => {
-                        const typeInfo = getTaskTypeInfo(inspectedTask);
-                        const TypeIcon = typeInfo.icon;
-                        return (
-                          <span className={`px-2.5 py-0.5 rounded-full font-mono font-extrabold text-[10px] border flex items-center gap-1.5 shadow-xs ${typeInfo.badgeClass}`}>
-                            <TypeIcon className="w-3 h-3" />
-                            {typeInfo.label}
-                          </span>
-                        );
-                      })()}
+          })()) : (
+            /* STANDARD DIRECT / GENERAL TASK INSPECTOR UI */
+            (() => {
+                const linkedProject = inspectedTask.project || inspectedTask.script?.project || inspectedTask.graphicRequirement?.project;
+                const linkedCalEvent = inspectedTask.project?.calendarEvent || inspectedTask.graphicRequirement?.calendarEvent || inspectedTask.calendarEvent;
+                const linkedOutdoor = inspectedTask.project?.outdoorDetails || linkedProject?.outdoorDetails;
+                const linkedIndoor = inspectedTask.project?.indoorDetails || linkedProject?.indoorDetails;
+                const linkedEquipment = inspectedTask.project?.equipmentReservations || linkedProject?.equipmentReservations || [];
+                const linkedTeam = inspectedTask.project?.assignedTeam || linkedProject?.assignedTeam || [];
+                const clientObj = inspectedTask.client || linkedProject?.client || inspectedTask.graphicRequirement?.client || inspectedTask.script?.client;
+                const brandObj = inspectedTask.brand || linkedProject?.brand || inspectedTask.graphicRequirement?.brand || inspectedTask.script?.brand;
+                const productObj = inspectedTask.product || linkedProject?.product || inspectedTask.graphicRequirement?.product || inspectedTask.script?.product;
+                const createdByObj = inspectedTask.createdBy || inspectedTask.project?.createdBy || linkedCalEvent?.createdBy || inspectedTask.graphicRequirement?.createdBy;
+                const shootDateVal = inspectedTask.project?.shootDate || linkedCalEvent?.shootDate;
+                const callTimeVal = linkedOutdoor?.callTime || linkedIndoor?.reportingTime || linkedCalEvent?.startTime || inspectedTask.project?.reportingTime;
+                const wrapTimeVal = linkedOutdoor?.expectedWrapTime || linkedIndoor?.wrapUpTime || linkedCalEvent?.endTime || inspectedTask.project?.expectedWrapUpTime;
+                const formatVal = linkedCalEvent?.contentType || inspectedTask.graphicRequirement?.requirementType || inspectedTask.contentType;
+                const platformVal = linkedCalEvent?.platform || inspectedTask.platform;
+                const campaignVal = linkedCalEvent?.campaign || linkedProject?.campaign?.name || inspectedTask.campaign;
+                const talentVal = linkedProject?.influencerTalent || linkedCalEvent?.influencerTalent;
+                const creativeUrlVal = linkedCalEvent?.creativePreviewUrl || inspectedTask.creativePreviewUrl;
+                const notesVal = inspectedTask.project?.notes || linkedCalEvent?.productionNotes || inspectedTask.graphicRequirement?.remarks || inspectedTask.remarks;
+                const isOutdoor = (inspectedTask.project?.shootType === 'OUTDOOR' || Boolean(linkedOutdoor));
+
+                return (
+                  <>
+                    {/* Modal Header */}
+                    <div className="flex justify-between items-start border-b border-slate-200 pb-3">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-blue-600 font-bold text-xs block">Task ID: {inspectedTask.taskId}</span>
+                          {(() => {
+                            const typeInfo = getTaskTypeInfo(inspectedTask);
+                            const TypeIcon = typeInfo.icon;
+                            return (
+                              <span className={`px-2.5 py-0.5 rounded-full font-mono font-extrabold text-[10px] border flex items-center gap-1.5 shadow-xs ${typeInfo.badgeClass}`}>
+                                <TypeIcon className="w-3 h-3" />
+                                {typeInfo.label}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-900 mt-0.5">{inspectedTask.title}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          {Boolean(inspectedTask.revisionCount || inspectedTask.revisions?.length) && (
+                            <span className="font-mono text-[10px] text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
+                              Revisions: {inspectedTask.revisions?.length || inspectedTask.revisionCount || 0}
+                            </span>
+                          )}
+                          {canAssignRevision && (
+                            <button
+                              type="button"
+                              onClick={() => setRevisionModalTask(inspectedTask)}
+                              className="px-2.5 py-0.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow transition-colors"
+                            >
+                              <RotateCcw className="w-3 h-3" /> Request Revision
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {user?.role === 'TECHNICAL_MANAGER' && (
+                          <Link
+                            href="/approvals"
+                            className="px-2.5 py-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold rounded-lg text-[11px] flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition-all border border-cyan-400/40"
+                            title="Open Technical Manager Approval Session"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5 text-cyan-200" />
+                            <span>Go to Technical Manager Approval Session</span>
+                            <ArrowRight className="w-3.5 h-3.5 text-cyan-200" />
+                          </Link>
+                        )}
+                        <button
+                          onClick={() => setInspectedTask(null)}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-bold text-xs"
+                        >
+                          Close
+                        </button>
+                      </div>
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900 mt-0.5">{inspectedTask.title}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      {Boolean(inspectedTask.revisionCount || inspectedTask.revisions?.length) && (
-                        <span className="font-mono text-[10px] text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
-                          Revisions: {inspectedTask.revisions?.length || inspectedTask.revisionCount || 0}
-                        </span>
-                      )}
-                      {canAssignRevision && (
+
+                    {/* Pending Task Acceptance Banner */}
+                    {isPendingAcceptance && (
+                      <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-300 p-4 rounded-xl space-y-3 text-xs shadow-md animate-in fade-in duration-150">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="p-1.5 bg-purple-100 text-purple-700 rounded-lg">
+                              <Sparkles className="w-4 h-4 text-purple-600" />
+                            </span>
+                            <div>
+                              <h4 className="text-purple-950 font-black text-sm">
+                                {(inspectedTask.revisions?.length > 0 || (inspectedTask.revisionCount || 0) > 0) ? 'Task Revision Assigned — Acceptance Required' : 'Task Assigned — Acceptance Required'}
+                              </h4>
+                              <span className="text-[11px] text-purple-700 font-medium">
+                                Task Type: <strong>{getTaskTypeInfo(inspectedTask).label}</strong>
+                              </span>
+                            </div>
+                          </div>
+                          <span className="px-2.5 py-0.5 bg-purple-200 text-purple-900 border border-purple-300 rounded-full font-mono font-extrabold text-[10px]">
+                            {(inspectedTask.revisions?.length > 0 || (inspectedTask.revisionCount || 0) > 0) ? `Revision #${inspectedTask.revisionCount || inspectedTask.revisions?.length || 1}` : 'Pending Acceptance'}
+                          </span>
+                        </div>
+
+                        {inspectedTask.revisions && inspectedTask.revisions.length > 0 && (
+                          <div className="p-3 bg-white/80 border border-purple-200 rounded-lg space-y-1 text-slate-800">
+                            <div className="flex items-center justify-between text-[10px] text-purple-700 font-mono">
+                              <span>Requested by: <strong className="text-purple-950">{inspectedTask.revisions[0].requestedBy?.name || 'Manager'}</strong></span>
+                              <span>{new Date(inspectedTask.revisions[0].createdAt).toLocaleString()}</span>
+                            </div>
+                            <p className="text-xs text-slate-800 font-medium whitespace-pre-wrap">
+                              <strong className="text-purple-950">Revision Instructions:</strong> {inspectedTask.revisions[0].reason}
+                            </p>
+                          </div>
+                        )}
+
+                        <p className="text-slate-700 text-xs leading-relaxed font-medium">
+                          You are assigned to this task. Please inspect all event and production details below, then click <strong className="text-purple-950 font-bold">Accept Task Assignment</strong> to unlock work progress updates, deliverable uploads, and review actions.
+                        </p>
                         <button
                           type="button"
-                          onClick={() => setRevisionModalTask(inspectedTask)}
-                          className="px-2.5 py-0.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow transition-colors"
+                          onClick={() => handleAcknowledgeAcceptance(inspectedTask.id)}
+                          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg shadow-md hover:shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 text-xs"
                         >
-                          <RotateCcw className="w-3 h-3" /> Request Revision
+                          <Check className="w-4 h-4" /> Accept Task Assignment &amp; Start Work
                         </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {user?.role === 'TECHNICAL_MANAGER' && (
-                      <Link
-                        href="/approvals"
-                        className="px-2.5 py-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold rounded-lg text-[11px] flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition-all border border-cyan-400/40"
-                        title="Open Technical Manager Approval Session"
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 text-cyan-200" />
-                        <span>Go to Technical Manager Approval Session</span>
-                        <ArrowRight className="w-3.5 h-3.5 text-cyan-200" />
-                      </Link>
+                      </div>
                     )}
-                    <button
-                      onClick={() => setInspectedTask(null)}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-bold text-xs"
-                    >
-                      Close
-                    </button>
-                  </div>
-                </div>
 
-                {/* Linked Parent Event Banner for Separate Revision Task */}
-                {isTaskRevision(inspectedTask) && (
-                  <div className="bg-amber-50 border-2 border-amber-200 p-3 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs shadow-lg animate-in fade-in duration-150">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full font-mono font-extrabold text-[10px] flex items-center gap-1 animate-pulse">
-                        ON REVISION {inspectedTask.revisionCount ? `#${inspectedTask.revisionCount}` : (inspectedTask.revisions?.length ? `#${inspectedTask.revisions.length}` : '')}
-                      </span>
-                      <span className="text-slate-800 text-xs font-semibold">
-                        Parent Entity:{' '}
-                        <strong className="text-amber-800 font-bold">
-                          {inspectedTask.script?.name || inspectedTask.graphicRequirement?.name || inspectedTask.project?.name || inspectedTask.client?.name || 'Production Item'}
-                        </strong>
-                      </span>
-                    </div>
-                    <span className="px-2.5 py-0.5 bg-amber-900/60 text-amber-800 border border-amber-300 rounded font-mono text-[10px] font-bold">
-                      Work In-Place (No Duplication)
-                    </span>
-                  </div>
-                )}
-
-                {/* Pending Task Acceptance Banner */}
-                {isPendingAcceptance && (
-                  <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-300 p-4 rounded-xl space-y-3 text-xs shadow-md animate-in fade-in duration-150">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="p-1.5 bg-purple-100 text-purple-700 rounded-lg">
-                          <Sparkles className="w-4 h-4 text-purple-600" />
-                        </span>
-                        <div>
-                          <h4 className="text-purple-950 font-black text-sm">
-                            {(inspectedTask.revisions?.length > 0 || (inspectedTask.revisionCount || 0) > 0) ? 'Task Revision Assigned — Acceptance Required' : 'Task Assigned — Acceptance Required'}
-                          </h4>
-                          <span className="text-[11px] text-purple-700 font-medium">
-                            Task Type: <strong>{getTaskTypeInfo(inspectedTask).label}</strong>
+                    <div className="space-y-4">
+                      {/* SECTION 1: ORIGIN & CREATION ATTRIBUTION */}
+                      <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-blue-600" /> Bound Parent Entity &amp; Creation Origin
+                          </span>
+                          <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-blue-50 text-blue-700 border border-blue-200 uppercase font-mono">
+                            {inspectedTask.sourceType || 'SHOOT_PROJECT'}
                           </span>
                         </div>
-                      </div>
-                      <span className="px-2.5 py-0.5 bg-purple-200 text-purple-900 border border-purple-300 rounded-full font-mono font-extrabold text-[10px]">
-                        {(inspectedTask.revisions?.length > 0 || (inspectedTask.revisionCount || 0) > 0) ? `Revision #${inspectedTask.revisionCount || inspectedTask.revisions?.length || 1}` : 'Pending Acceptance'}
-                      </span>
-                    </div>
-                    
-                    {inspectedTask.revisions && inspectedTask.revisions.length > 0 && (
-                      <div className="p-3 bg-white/80 border border-purple-200 rounded-lg space-y-1 text-slate-800">
-                        <div className="flex items-center justify-between text-[10px] text-purple-700 font-mono">
-                          <span>Requested by: <strong className="text-purple-950">{inspectedTask.revisions[0].requestedBy?.name || 'Manager'}</strong></span>
-                          <span>{new Date(inspectedTask.revisions[0].createdAt).toLocaleString()}</span>
-                        </div>
-                        <p className="text-xs text-slate-800 font-medium whitespace-pre-wrap">
-                          <strong className="text-purple-950">Revision Instructions:</strong> {inspectedTask.revisions[0].reason}
-                        </p>
-                      </div>
-                    )}
-
-                    <p className="text-slate-700 text-xs leading-relaxed font-medium">
-                      You are assigned to this task. Please click <strong className="text-purple-950 font-bold">Accept Task Assignment</strong> below to unlock work progress updates, deliverable uploads, and review actions.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => handleAcknowledgeAcceptance(inspectedTask.id)}
-                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg shadow-md hover:shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 text-xs"
-                    >
-                      <Check className="w-4 h-4" /> Accept Task Assignment &amp; Start Work
-                    </button>
-                  </div>
-                )}
-
-                {/* Revision History & Previous Cycles */}
-                {inspectedTask.revisions && inspectedTask.revisions.length > 0 && (
-                  <div className="p-4 bg-slate-50 border border-amber-200 rounded-xl space-y-3 shadow-md">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                      <h4 className="font-bold text-amber-800 text-xs flex items-center gap-1.5">
-                        <RotateCcw className="w-3.5 h-3.5 text-amber-600" /> Revision History &amp; Cycles ({inspectedTask.revisions.length})
-                      </h4>
-                      <span className="text-[10px] font-mono text-slate-500">Total Cycles Recorded</span>
-                    </div>
-
-                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                      {inspectedTask.revisions.map((rev: any) => (
-                        <div key={rev.id} className="p-3 bg-slate-50/90 border border-slate-200 rounded-lg space-y-1.5 text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-amber-800 font-mono text-[11px]">
-                              Revision #{rev.revisionNumber}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Originating Parent Entity:</span>
+                            <span className="font-bold text-slate-900 text-xs">
+                              {inspectedTask.project?.projectId ? `[${inspectedTask.project.projectId}] ` : linkedCalEvent?.eventId ? `[${linkedCalEvent.eventId}] ` : inspectedTask.graphicRequirement?.requirementId ? `[${inspectedTask.graphicRequirement.requirementId}] ` : ''}
+                              {inspectedTask.project?.name || inspectedTask.graphicRequirement?.name || linkedCalEvent?.title || inspectedTask.title}
                             </span>
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold border ${
-                              rev.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                              rev.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                              'bg-amber-50 text-amber-800 border-amber-200'
+                          </div>
+                          {createdByObj && (
+                            <div className="text-right">
+                              <span className="text-[10px] text-slate-400 font-bold uppercase block">Created By:</span>
+                              <div className="flex items-center gap-1.5 justify-end">
+                                <User className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                                <strong className="text-slate-800">{createdByObj.name || 'Creator'}</strong>
+                                {createdByObj.role && (
+                                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200 uppercase">
+                                    {createdByObj.role.replace(/_/g, ' ')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* SECTION 2: CLIENT, BRAND, PRODUCT & MEDIA SPECS */}
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                          <Tag className="w-3.5 h-3.5 text-indigo-600" /> Client, Brand &amp; Content Specifications
+                        </span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Client Name</span>
+                            <strong className="text-slate-900 truncate block">{clientObj?.name || 'General Client'}</strong>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Brand</span>
+                            <strong className="text-slate-900 truncate block">{brandObj?.name || 'General Brand'}</strong>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Product</span>
+                            <p className="font-semibold text-slate-800 truncate">{productObj?.name || 'General Product'}</p>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Campaign</span>
+                            <p className="font-semibold text-slate-800 truncate">{campaignVal || 'Standard Campaign'}</p>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Format / Content Type</span>
+                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded font-bold text-amber-800 bg-amber-50 border border-amber-200 text-[11px]">
+                              {formatVal || 'Production Task'}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Target Platform</span>
+                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 text-[11px]">
+                              {platformVal || 'Instagram'}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Talent / Model</span>
+                            <p className="font-semibold text-slate-800 truncate">{talentVal || 'Not Specified'}</p>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Priority Level</span>
+                            <span className={`inline-block mt-0.5 px-2 py-0.5 rounded font-extrabold uppercase text-[10px] ${
+                              inspectedTask.priority === 'CRITICAL' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                              inspectedTask.priority === 'HIGH' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                              'bg-blue-50 text-blue-700 border border-blue-200'
                             }`}>
-                              {rev.status}
+                              {inspectedTask.priority || 'MEDIUM'} Priority
                             </span>
                           </div>
+                        </div>
+                      </div>
 
-                          <p className="text-slate-800 text-xs leading-relaxed font-medium">
-                            {rev.reason}
+                      {/* SECTION 3: SCHEDULE, TIMING & LOGISTICS (INDOOR & OUTDOOR) */}
+                      {(shootDateVal || callTimeVal || wrapTimeVal || inspectedTask.dueDate || linkedOutdoor || linkedIndoor || inspectedTask.project?.shootLocation) && (
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-blue-600" /> Schedule, Timing &amp; Operational Logistics
+                          </span>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase block">Shoot / Event Date</span>
+                              <strong className="text-slate-900 block">{shootDateVal ? new Date(shootDateVal).toLocaleDateString() : inspectedTask.dueDate ? new Date(inspectedTask.dueDate).toLocaleDateString() : 'N/A'}</strong>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase block">Call / Reporting Time</span>
+                              <strong className="text-blue-700 font-mono block">{callTimeVal || '09:00 AM'}</strong>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase block">Wrap / Completion Time</span>
+                              <strong className="text-blue-700 font-mono block">{wrapTimeVal || '05:00 PM'}</strong>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase block">Task Due Date</span>
+                              <strong className="text-amber-700 block">{inspectedTask.dueDate ? new Date(inspectedTask.dueDate).toLocaleDateString() : 'N/A'}</strong>
+                            </div>
+                          </div>
+
+                          {/* Logistics Location Cards */}
+                          {isOutdoor || linkedOutdoor ? (
+                            <div className="p-4 rounded-xl bg-purple-50/80 border border-purple-200 text-xs space-y-3">
+                              <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                                <span className="font-bold text-purple-900 flex items-center gap-1.5 uppercase text-[11px]">
+                                  <Compass className="w-4 h-4 text-purple-600" /> Outdoor On-Location Logistics
+                                </span>
+                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold border border-purple-200">
+                                  ON-LOCATION
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-800">
+                                <div>
+                                  <span className="text-[10px] font-bold text-purple-800 uppercase block">Exact Location Address</span>
+                                  <p className="font-semibold text-slate-900">{linkedOutdoor?.exactLocationAddress || linkedOutdoor?.locationAddress || inspectedTask.project?.shootLocation || 'Specified in brief'}</p>
+                                </div>
+
+                                <div>
+                                  <span className="text-[10px] font-bold text-purple-800 uppercase block">Location Access &amp; Parking</span>
+                                  <p className="text-slate-800">{linkedOutdoor?.locationAccessDetails || 'Standard Access'}</p>
+                                </div>
+
+                                <div>
+                                  <span className="text-[10px] font-bold text-purple-800 uppercase block">Location Contact Person</span>
+                                  <p className="text-slate-800">{linkedOutdoor?.locationContact || linkedOutdoor?.locationContactPerson || 'Contact not provided'}</p>
+                                </div>
+
+                                <div>
+                                  <span className="text-[10px] font-bold text-purple-800 uppercase block">Expected Weather Conditions</span>
+                                  <p className="font-semibold text-slate-900 flex items-center gap-1">
+                                    <CloudSun className="w-3.5 h-3.5 text-amber-600" />
+                                    {linkedOutdoor?.expectedWeatherConditions || linkedOutdoor?.weatherStatus || 'Sunny / Clear'}
+                                  </p>
+                                </div>
+
+                                {linkedOutdoor?.backupLocation && (
+                                  <div className="col-span-1 sm:col-span-2">
+                                    <span className="text-[10px] font-bold text-purple-800 uppercase block">Backup Weather Location</span>
+                                    <p className="text-slate-800">{linkedOutdoor.backupLocation}</p>
+                                  </div>
+                                )}
+
+                                {linkedOutdoor?.specialOutdoorRequirements && (
+                                  <div className="col-span-1 sm:col-span-2">
+                                    <span className="text-[10px] font-bold text-purple-800 uppercase block">Special Outdoor Notes &amp; Safety</span>
+                                    <p className="text-slate-800 italic bg-white/70 p-2.5 rounded-lg border border-purple-200">
+                                      &quot;{linkedOutdoor.specialOutdoorRequirements}&quot;
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2.5">
+                              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                                <span className="font-bold text-slate-900 flex items-center gap-1.5 uppercase text-[11px]">
+                                  <Building2 className="w-4 h-4 text-blue-600" /> Indoor Studio Details
+                                </span>
+                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                                  STUDIO FLOOR
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-800">
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Studio / Stage Location</span>
+                                  <p className="font-semibold text-slate-900">{linkedIndoor?.studioName || inspectedTask.project?.shootLocation || 'Main Studio Floor'}</p>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Studio Address</span>
+                                  <p className="text-slate-700">{linkedIndoor?.studioAddress || inspectedTask.project?.locationAddress || 'HQ Studio Facility'}</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* SECTION 4: ASSIGNED CREW & RESERVED EQUIPMENT */}
+                      {(linkedTeam.length > 0 || linkedEquipment.length > 0 || inspectedTask.assignedEmployees?.length > 0) && (
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-indigo-600" /> Assigned Crew &amp; Reserved Equipment
+                          </span>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {/* Crew Members */}
+                            <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 text-xs space-y-2">
+                              <span className="font-bold text-indigo-900 uppercase text-[10px] flex items-center gap-1">
+                                <Users className="w-3.5 h-3.5 text-indigo-600" /> Production Team &amp; Assigned Crew
+                              </span>
+                              <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                                {inspectedTask.assignedEmployees?.map((ae: any) => (
+                                  <div key={ae.id} className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-indigo-200">
+                                    <span className="font-semibold text-slate-900">{ae.user?.name || 'Staff Member'}</span>
+                                    <span className="text-[10px] font-mono text-indigo-700 uppercase bg-indigo-50 px-2 py-0.5 rounded">
+                                      {ae.user?.role?.replace(/_/g, ' ') || 'Assignee'}
+                                    </span>
+                                  </div>
+                                ))}
+                                {linkedTeam.map((tm: any) => (
+                                  <div key={tm.id} className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-indigo-200">
+                                    <span className="font-semibold text-slate-900">{tm.user?.name || 'Crew Member'}</span>
+                                    <span className="text-[10px] font-mono text-indigo-700 uppercase bg-indigo-50 px-2 py-0.5 rounded">
+                                      {tm.roleInProject || tm.user?.role?.replace(/_/g, ' ') || 'Crew'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Reserved Equipment */}
+                            <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200 text-xs space-y-2">
+                              <span className="font-bold text-purple-900 uppercase text-[10px] flex items-center gap-1">
+                                <Camera className="w-3.5 h-3.5 text-purple-600" /> Reserved Production Equipment ({linkedEquipment.length})
+                              </span>
+                              <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                                {linkedEquipment.map((res: any) => (
+                                  <div key={res.id} className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-purple-200">
+                                    <span className="font-semibold text-slate-900">{res.equipment?.name || 'Equipment'}</span>
+                                    <span className="text-[10px] font-mono text-purple-700 uppercase bg-purple-50 px-2 py-0.5 rounded">
+                                      {res.equipment?.category || res.status}
+                                    </span>
+                                  </div>
+                                ))}
+                                {linkedEquipment.length === 0 && (
+                                  <p className="text-slate-400 italic text-[11px] p-2">No equipment reserved for this task.</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SECTION 5: CREATIVE ASSETS & REFERENCE FILES */}
+                      {creativeUrlVal && (
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                            <ImageIcon className="w-3.5 h-3.5 text-blue-600" /> Creative Assets &amp; Reference Materials
+                          </span>
+                          <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="space-y-0.5 overflow-hidden">
+                                <strong className="text-slate-900 text-sm block truncate">
+                                  {linkedCalEvent?.creativeAssetName || 'Primary Creative Visual Asset'}
+                                </strong>
+                                <span className="text-xs font-mono text-indigo-700 truncate block">
+                                  {creativeUrlVal}
+                                </span>
+                              </div>
+                              <a
+                                href={creativeUrlVal.startsWith('http') ? creativeUrlVal : `https://${creativeUrlVal}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-sm transition-all"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" /> Open Asset Link
+                              </a>
+                            </div>
+                            {creativeUrlVal.match(/\.(jpeg|jpg|gif|png|webp)/i) && (
+                              <img
+                                src={creativeUrlVal}
+                                alt="Creative Preview"
+                                className="max-h-60 rounded-lg object-contain mx-auto border border-indigo-200 bg-white"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SECTION 6: GRAPHIC REQUIREMENT DELIVERABLES (IF APPLICABLE) */}
+                      {inspectedTask.graphicRequirement?.deliverables && inspectedTask.graphicRequirement.deliverables.length > 0 && (
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-amber-600" /> Graphic Requirement Deliverables ({inspectedTask.graphicRequirement.deliverables.length})
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {inspectedTask.graphicRequirement.deliverables.map((d: any) => (
+                              <div key={d.id} className="p-2.5 bg-slate-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs">
+                                <div>
+                                  <strong className="text-slate-900 block">{d.name || d.title || 'Deliverable Item'}</strong>
+                                  <span className="text-[10px] text-slate-500 font-mono">{d.format || d.type || 'Graphic'}</span>
+                                </div>
+                                <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold uppercase">
+                                  {d.status || 'PLANNED'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SECTION 7: TASK DESCRIPTION & PRODUCTION NOTES */}
+                      <div className="space-y-3">
+                        <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1.5">
+                          <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Task Description</span>
+                          <p className="text-slate-800 text-xs leading-relaxed font-normal whitespace-pre-wrap">{inspectedTask.description || 'No description provided.'}</p>
+                        </div>
+
+                        {notesVal && (
+                          <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1.5">
+                            <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Production Notes &amp; Special Instructions</span>
+                            <p className="text-slate-800 text-xs leading-relaxed font-normal whitespace-pre-wrap">{notesVal}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* SECTION 8: METRICS SUMMARY ROW */}
+                      <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 font-mono">
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-bold block uppercase">Priority</span>
+                            <strong className={`text-xs px-2 py-0.5 rounded inline-block mt-0.5 ${
+                              inspectedTask.priority === 'CRITICAL' ? 'bg-rose-50 text-rose-600 border border-rose-200' :
+                              inspectedTask.priority === 'HIGH' ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
+                            }`}>{inspectedTask.priority}</strong>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-bold block uppercase">Due Date</span>
+                            <strong className="text-slate-800 text-xs mt-0.5 block">{inspectedTask.dueDate ? new Date(inspectedTask.dueDate).toLocaleDateString() : 'N/A'}</strong>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-bold block uppercase">Estimated Hours</span>
+                            <strong className="text-emerald-600 text-xs mt-0.5 block">{inspectedTask.estimatedHours || 0}h</strong>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-bold block uppercase">Synchronized Status</span>
+                            <strong className="text-purple-700 text-xs mt-0.5 block">{inspectedTask.status?.replace(/_/g, ' ')}</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* SECTION 9: OPERATIONAL REMARKS & WORK LOGS */}
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                          <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                            <MessageSquare className="w-3.5 h-3.5 text-amber-600" /> Operational Remarks &amp; Work Logs
+                          </h4>
+                          <span className="text-[10px] text-slate-400 italic">Visible to all assigned staff &amp; managers</span>
+                        </div>
+
+                        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                          {(!inspectedTask?.remarksHistory || inspectedTask.remarksHistory.length === 0) ? (
+                            <p className="text-slate-400 italic text-[11px] p-2">No remarks yet. Add work notes below.</p>
+                          ) : (
+                            inspectedTask.remarksHistory.map((r: any, idx: number) => (
+                              <div key={r.id || idx} className="p-2 bg-white border border-slate-200 rounded text-[11px]">
+                                <div className="flex justify-between text-slate-500 font-mono text-[9px] mb-0.5">
+                                  <strong className="text-slate-800">{r.user?.name || r.name || 'Staff'}</strong>
+                                  <span>{r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</span>
+                                </div>
+                                <p className="text-slate-800 leading-relaxed">{r.message}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        {/* Add Remark Input */}
+                        <div className="flex items-end gap-2 pt-1 border-t border-slate-200">
+                          <textarea
+                            value={newRemarkText}
+                            onChange={(e) => setNewRemarkText(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddRemark(inspectedTask.id); } }}
+                            placeholder="Add an operational work note or status remark… (Enter to send)"
+                            rows={2}
+                            className="flex-1 bg-white border border-slate-200 text-slate-900 px-3 py-2 rounded-lg text-[11px] resize-none focus:border-amber-500 focus:outline-none placeholder-slate-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAddRemark(inspectedTask.id)}
+                            disabled={!newRemarkText.trim() || submittingRemark}
+                            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs disabled:opacity-40 flex items-center gap-1 h-[52px]"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            {submittingRemark ? '…' : 'Send'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* SECTION 10: COMPREHENSIVE TASK TIMELINE */}
+                      {(() => {
+                        const rawEvents = inspectedTask?.timeline || inspectedTask?.taskTimeline || [];
+                        const timelineEntries: TimelineEntry[] = rawEvents.map((t: any, idx: number) => ({
+                          id: t.id || `tt-${idx}`,
+                          createdAt: t.createdAt,
+                          action: t.event || t.action || 'TASK_UPDATED',
+                          user: t.user || t.triggeredBy,
+                          description: t.description || t.remarks || t.message,
+                          remarks: t.remarks,
+                        }));
+
+                        return (
+                          <TimelineView
+                            entries={timelineEntries}
+                            title="Task Activity Timeline &amp; Updations"
+                            order="desc"
+                            emptyMessage="No timeline updations recorded yet for this task."
+                          />
+                        );
+                      })()}
+
+                      {/* Technical Review Submission Action */}
+                      {!['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'PENDING_MARKETING_APPROVAL', 'APPROVED', 'COMPLETED'].includes(inspectedTask.status) && !isPendingAcceptance && (
+                        <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-2.5 shadow-lg">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-purple-700 text-xs flex items-center gap-1.5">
+                              Submit for Technical Review
+                            </span>
+                            <span className="text-[10px] bg-purple-50 text-purple-800 border border-purple-200 px-2 py-0.5 rounded font-mono font-bold">
+                              Status: {inspectedTask.status}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-700">
+                            Submit this task for Technical Review &amp; Approval to begin the manager review process.
                           </p>
-
-                          <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 border-t border-slate-200 pt-1.5 font-mono">
-                            <span>Requested by: <strong className="text-slate-700">{rev.requestedBy?.name || 'Manager'}</strong></span>
-                            {rev.assignedTo && <span>Assigned to: <strong className="text-purple-700">{rev.assignedTo?.name}</strong></span>}
-                            <span>{new Date(rev.createdAt).toLocaleString()}</span>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRequestTechnicalReview(inspectedTask.id)}
+                            className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-lg shadow-md transition-all flex items-center gap-2 text-xs"
+                          >
+                            Submit Task for Technical Review
+                          </button>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      )}
 
-                <div className="space-y-3">
-                  {/* Task Description */}
-                  <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-2">
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Task Description</span>
-                    <p className="text-slate-800 text-xs leading-relaxed font-normal">{inspectedTask.description || 'No description provided.'}</p>
-                  </div>
+                      {/* Modal Footer Actions */}
+                      <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                        {isPendingAcceptance ? (
+                          <button
+                            type="button"
+                            onClick={() => handleAcknowledgeAcceptance(inspectedTask.id)}
+                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg shadow-md hover:shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 text-xs"
+                          >
+                            <Check className="w-4 h-4" /> Accept Task Assignment &amp; Start Work
+                          </button>
+                        ) : <div />}
 
-                  {/* Metrics Summary Row */}
-                  <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-3">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 font-mono">
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold block uppercase">Priority</span>
-                        <strong className={`text-xs px-2 py-0.5 rounded inline-block mt-0.5 ${
-                          inspectedTask.priority === 'CRITICAL' ? 'bg-rose-50 text-rose-600 border border-rose-200' :
-                          inspectedTask.priority === 'HIGH' ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
-                        }`}>{inspectedTask.priority}</strong>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold block uppercase">Due Date</span>
-                        <strong className="text-slate-800 text-xs mt-0.5 block">{inspectedTask.dueDate ? new Date(inspectedTask.dueDate).toLocaleDateString() : 'N/A'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold block uppercase">Estimated Hours</span>
-                        <strong className="text-emerald-600 text-xs mt-0.5 block">{inspectedTask.estimatedHours || 0}h</strong>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold block uppercase">Synchronized Status</span>
-                        <strong className="text-purple-700 text-xs mt-0.5 block">{inspectedTask.status?.replace(/_/g, ' ')}</strong>
+                        <button
+                          onClick={() => setInspectedTask(null)}
+                          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-semibold text-xs"
+                        >
+                          Close Inspector
+                        </button>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Remarks & Logs */}
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
-                    <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Operational Remarks &amp; Work Logs</h4>
-                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                      {(inspectedTask?.remarksHistory || []).map((r: any, idx: number) => (
-                        <div key={r.id || idx} className="p-2 bg-slate-50 border border-slate-200 rounded text-[11px]">
-                          <div className="flex justify-between text-slate-500 font-mono text-[9px] mb-0.5">
-                            <span>{r.user?.name || r.name || 'Staff'}</span>
-                            <span>{r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</span>
-                          </div>
-                          <p className="text-slate-800">{r.message}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Comprehensive Task Timeline & Updations History */}
-                  {(() => {
-                    const rawEvents = inspectedTask?.timeline || inspectedTask?.taskTimeline || [];
-                    const timelineEntries: TimelineEntry[] = rawEvents.map((t: any, idx: number) => ({
-                      id: t.id || `tt-${idx}`,
-                      createdAt: t.createdAt,
-                      action: t.event || t.action || 'TASK_UPDATED',
-                      user: t.user || t.triggeredBy,
-                      description: t.description || t.remarks || t.message,
-                      remarks: t.remarks,
-                    }));
-
-                    return (
-                      <TimelineView
-                        entries={timelineEntries}
-                        title="Task Activity Timeline & Updations"
-                        order="desc"
-                        emptyMessage="No timeline updations recorded yet for this task."
-                      />
-                    );
-                  })()}
-
-                  {/* Technical Review Submission Action */}
-                  {!['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'PENDING_MARKETING_APPROVAL', 'APPROVED', 'COMPLETED'].includes(inspectedTask.status) && !isPendingAcceptance && (
-                    <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-2.5 shadow-lg">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-purple-700 text-xs flex items-center gap-1.5">
-                          Submit for Technical Review
-                        </span>
-                        <span className="text-[10px] bg-purple-50 text-purple-800 border border-purple-200 px-2 py-0.5 rounded font-mono font-bold">
-                          Status: {inspectedTask.status}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-700">
-                        Submit this task for Technical Review &amp; Approval to begin the manager review process.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => handleRequestTechnicalReview(inspectedTask.id)}
-                        className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-lg shadow-md transition-all flex items-center gap-2 text-xs"
-                      >
-                        Submit Task for Technical Review
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="flex justify-end pt-3 border-t border-slate-200">
-                    <button
-                      onClick={() => setInspectedTask(null)}
-                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-semibold"
-                    >
-                      Close Inspector
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
+                  </>
+                );
+              })())
+            }
           </div>
         </div>
       )}

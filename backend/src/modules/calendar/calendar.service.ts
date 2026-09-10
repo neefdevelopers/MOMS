@@ -97,8 +97,37 @@ export class CalendarService {
         client: true,
         brand: true,
         product: true,
-        graphicRequirement: { select: { id: true, requirementId: true, name: true, status: true, requirementType: true, priority: true, tasks: { select: { id: true, taskId: true, status: true, title: true } } } },
-        shoot: { select: { id: true, projectId: true, name: true, status: true, shootType: true, shootDate: true, priority: true, tasks: { select: { id: true, taskId: true, status: true, title: true } } } },
+        graphicRequirement: {
+          select: {
+            id: true,
+            requirementId: true,
+            name: true,
+            status: true,
+            requirementType: true,
+            priority: true,
+            objective: true,
+            description: true,
+            remarks: true,
+            deliverables: true,
+            tasks: { select: { id: true, taskId: true, status: true, title: true } },
+          },
+        },
+        shoot: {
+          select: {
+            id: true,
+            projectId: true,
+            name: true,
+            status: true,
+            shootType: true,
+            shootDate: true,
+            priority: true,
+            indoorDetails: true,
+            outdoorDetails: true,
+            equipmentReservations: { include: { equipment: true } },
+            assignedTeam: { include: { user: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } } } },
+            tasks: { select: { id: true, taskId: true, status: true, title: true } },
+          },
+        },
         createdBy: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         assignedStaff: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         approvalAssignedTo: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
@@ -114,6 +143,8 @@ export class CalendarService {
           include: {
             indoorDetails: true,
             outdoorDetails: true,
+            equipmentReservations: { include: { equipment: true } },
+            assignedTeam: { include: { user: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } } } },
             tasks: { select: { id: true, taskId: true, status: true, title: true } },
           },
         },
@@ -151,8 +182,36 @@ export class CalendarService {
         client: true,
         brand: true,
         product: true,
-        graphicRequirement: { select: { id: true, requirementId: true, name: true, status: true, requirementType: true, priority: true } },
-        shoot: { select: { id: true, projectId: true, name: true, status: true, shootType: true, shootDate: true, priority: true } },
+        graphicRequirement: {
+          select: {
+            id: true,
+            requirementId: true,
+            name: true,
+            status: true,
+            requirementType: true,
+            priority: true,
+            objective: true,
+            description: true,
+            remarks: true,
+            deliverables: true,
+            tasks: { select: { id: true, taskId: true, status: true, title: true } },
+          },
+        },
+        shoot: {
+          select: {
+            id: true,
+            projectId: true,
+            name: true,
+            status: true,
+            shootType: true,
+            shootDate: true,
+            priority: true,
+            indoorDetails: true,
+            outdoorDetails: true,
+            equipmentReservations: { include: { equipment: true } },
+            assignedTeam: { include: { user: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } } } },
+          },
+        },
         createdBy: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         assignedStaff: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         approvalAssignedTo: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
@@ -168,6 +227,8 @@ export class CalendarService {
           include: {
             indoorDetails: true,
             outdoorDetails: true,
+            equipmentReservations: { include: { equipment: true } },
+            assignedTeam: { include: { user: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } } } },
           },
         },
         editRequests: {
@@ -388,9 +449,14 @@ export class CalendarService {
           caption: data.caption || null,
           creativePreviewUrl: data.creativePreviewUrl || null,
           description: data.description || null,
-          shootType: data.shootType || ShootType.INDOOR,
           shootDate: new Date(data.shootDate || Date.now()),
-          clientApprovalDeadline: data.clientApprovalDeadline ? new Date(data.clientApprovalDeadline) : null,
+          clientApprovalDeadline: data.clientApprovalDeadline
+            ? new Date(data.clientApprovalDeadline)
+            : data.deadline
+            ? new Date(data.deadline)
+            : data.shootDate
+            ? new Date(data.shootDate)
+            : new Date(),
           influencerTalent: data.influencerTalent || null,
           priority: data.priority || Priority.MEDIUM,
           productionNotes: data.productionNotes || null,
@@ -524,6 +590,33 @@ export class CalendarService {
                 wrapUpTime: data.expectedWrapTime || data.endTime || '06:00 PM',
               },
             });
+          }
+
+          if (Array.isArray(data.equipmentIds) && data.equipmentIds.length > 0) {
+            for (const eqId of data.equipmentIds) {
+              await tx.equipmentReservation.create({
+                data: {
+                  projectId: newShoot.id,
+                  equipmentId: eqId,
+                  startDate: new Date(data.shootDate || Date.now()),
+                  endDate: new Date(data.deadline || data.clientApprovalDeadline || data.shootDate || Date.now()),
+                  reservedById: activeUserId,
+                  status: 'RESERVED',
+                },
+              }).catch(() => null);
+            }
+          }
+
+          if (Array.isArray(data.teamUserIds) && data.teamUserIds.length > 0) {
+            for (const uId of data.teamUserIds) {
+              await tx.projectAssignment.create({
+                data: {
+                  projectId: newShoot.id,
+                  userId: uId,
+                  roleInProject: 'CREW',
+                },
+              }).catch(() => null);
+            }
           }
 
           await tx.mediaCalendarEvent.update({
@@ -662,7 +755,11 @@ export class CalendarService {
     if (data.description !== undefined) updateData.description = data.description;
     if (data.shootType !== undefined) updateData.shootType = data.shootType;
     if (data.shootDate !== undefined) updateData.shootDate = new Date(data.shootDate);
-    if (data.clientApprovalDeadline !== undefined) updateData.clientApprovalDeadline = data.clientApprovalDeadline ? new Date(data.clientApprovalDeadline) : null;
+    if (data.clientApprovalDeadline !== undefined) {
+      updateData.clientApprovalDeadline = data.clientApprovalDeadline ? new Date(data.clientApprovalDeadline) : (data.deadline ? new Date(data.deadline) : null);
+    } else if (data.deadline !== undefined) {
+      updateData.clientApprovalDeadline = data.deadline ? new Date(data.deadline) : null;
+    }
     if (data.influencerTalent !== undefined) updateData.influencerTalent = data.influencerTalent;
     if (data.priority !== undefined) updateData.priority = data.priority;
     if (data.productionNotes !== undefined) updateData.productionNotes = data.productionNotes;
@@ -1197,6 +1294,12 @@ export class CalendarService {
     const prevDeadlineStr = event.clientApprovalDeadline
       ? new Date(event.clientApprovalDeadline).toISOString().split('T')[0]
       : 'Not Set';
+    const formattedNewDeadlineStr = newDeadline.toISOString().split('T')[0];
+
+    // If deadline has not changed, do nothing
+    if (prevDeadlineStr === formattedNewDeadlineStr) {
+      return event;
+    }
 
     await this.prisma.mediaCalendarEvent.update({
       where: { id },
@@ -1212,7 +1315,7 @@ export class CalendarService {
         action: 'DEADLINE_CHANGED',
         previousStatus: event.status,
         newStatus: event.status,
-        comment: `Deadline changed from '${prevDeadlineStr}' to '${newDeadlineStr}'. ${reason || ''}`.trim(),
+        comment: `Deadline changed from '${prevDeadlineStr}' to '${formattedNewDeadlineStr}'. ${reason || ''}`.trim(),
       },
     });
 
@@ -1222,8 +1325,8 @@ export class CalendarService {
         action: 'CALENDAR_EVENT_DEADLINE_CHANGED',
         entity: 'MediaCalendarEvent',
         entityId: event.id,
-        description: `${user.role} (${user.name}) updated deadline for event '${event.title}' from ${prevDeadlineStr} to ${newDeadlineStr}.`,
-        metadata: JSON.stringify({ eventId: event.eventId || event.id, prevDeadline: prevDeadlineStr, newDeadline: newDeadlineStr }),
+        description: `${user.role} (${user.name}) updated deadline for event '${event.title}' from ${prevDeadlineStr} to ${formattedNewDeadlineStr}.`,
+        metadata: JSON.stringify({ eventId: event.eventId || event.id, prevDeadline: prevDeadlineStr, newDeadline: formattedNewDeadlineStr }),
       },
     });
 
@@ -1244,6 +1347,11 @@ export class CalendarService {
 
     const prevPriority = event.priority;
     const formattedPriority = newPriority.toUpperCase() as Priority;
+
+    // If priority has not changed, do nothing
+    if (prevPriority === formattedPriority) {
+      return event;
+    }
 
     await this.prisma.mediaCalendarEvent.update({
       where: { id },
@@ -1325,32 +1433,36 @@ export class CalendarService {
         reviewedAt: new Date(),
       };
 
-      // Apply Client Deadline Edit if specified during review
+      // Apply Client Deadline Edit ONLY IF specified during review and ACTUALLY changed
       if (updatedDeadline && updatedDeadline.trim()) {
         const dDate = new Date(updatedDeadline);
         if (!isNaN(dDate.getTime())) {
-          eventUpdates.clientApprovalDeadline = dDate;
           const prevD = event.clientApprovalDeadline ? new Date(event.clientApprovalDeadline).toISOString().split('T')[0] : 'Not Set';
-          await tx.calendarApprovalHistory.create({
-            data: {
-              calendarEventId: event.id,
-              version: event.version,
-              userId: user.id,
-              role: user.role,
-              action: 'DEADLINE_CHANGED',
-              previousStatus: event.status,
-              newStatus: event.status,
-              comment: `Client updated deadline from '${prevD}' to '${updatedDeadline}'.`,
-            },
-          });
+          const newD = dDate.toISOString().split('T')[0];
+          if (prevD !== newD) {
+            eventUpdates.clientApprovalDeadline = dDate;
+            await tx.calendarApprovalHistory.create({
+              data: {
+                calendarEventId: event.id,
+                version: event.version,
+                userId: user.id,
+                role: user.role,
+                action: 'DEADLINE_CHANGED',
+                previousStatus: event.status,
+                newStatus: event.status,
+                comment: `Client updated deadline from '${prevD}' to '${newD}'.`,
+              },
+            });
+          }
         }
       }
 
-      // Apply Client Priority Edit if specified during review
+      // Apply Client Priority Edit ONLY IF specified during review and ACTUALLY changed
       if (updatedPriority && updatedPriority.trim()) {
         const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
-        if (validPriorities.includes(updatedPriority.toUpperCase())) {
-          eventUpdates.priority = updatedPriority.toUpperCase() as Priority;
+        const formattedP = updatedPriority.toUpperCase() as Priority;
+        if (validPriorities.includes(formattedP) && event.priority !== formattedP) {
+          eventUpdates.priority = formattedP;
           await tx.calendarApprovalHistory.create({
             data: {
               calendarEventId: event.id,
@@ -1360,7 +1472,7 @@ export class CalendarService {
               action: 'PRIORITY_CHANGED',
               previousStatus: event.status,
               newStatus: event.status,
-              comment: `Client updated priority from '${event.priority}' to '${updatedPriority.toUpperCase()}'.`,
+              comment: `Client updated priority from '${event.priority}' to '${formattedP}'.`,
             },
           });
         }

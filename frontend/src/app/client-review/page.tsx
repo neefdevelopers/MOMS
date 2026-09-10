@@ -34,6 +34,18 @@ import {
   Eye,
   User,
   AlertTriangle,
+  MapPin,
+  Camera,
+  Users,
+  CloudSun,
+  Phone,
+  Shield,
+  Edit,
+  Link as LinkIcon,
+  Compass,
+  Sparkles,
+  CheckSquare,
+  Tag,
 } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
@@ -155,14 +167,24 @@ export default function ClientReviewPage() {
 
     try {
       setSubmittingReview(true);
+      const payload: any = {
+        action: reviewModalAction,
+        comment: commentText.trim(),
+      };
+
+      const curDeadline = selectedEvent.clientApprovalDeadline
+        ? new Date(selectedEvent.clientApprovalDeadline).toISOString().split('T')[0]
+        : '';
+      if (editDeadline && editDeadline !== curDeadline) {
+        payload.deadline = editDeadline;
+      }
+      if (editPriority && editPriority !== (selectedEvent.priority || 'MEDIUM')) {
+        payload.priority = editPriority;
+      }
+
       await fetchApi(`/calendar/${selectedEvent.id}/client-review`, {
         method: 'POST',
-        body: JSON.stringify({
-          action: reviewModalAction,
-          comment: commentText.trim(),
-          deadline: editDeadline,
-          priority: editPriority,
-        }),
+        body: JSON.stringify(payload),
       });
 
       setReviewModalAction(null);
@@ -566,138 +588,396 @@ export default function ClientReviewPage() {
               </div>
             )}
 
-            {/* Event Source Details Tile */}
-            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-extrabold text-amber-600 uppercase tracking-wider block">Event Source</span>
-                <p className="font-bold text-slate-800 flex items-center gap-1.5 mt-0.5">
+            {/* Event Source & Type Header Banner */}
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-50 to-slate-50 border border-amber-200 text-xs flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold text-amber-700 uppercase tracking-wider block">
+                  Event Source &amp; Type:
+                </span>
+                <span className="font-bold text-slate-900 flex items-center gap-1.5">
                   {selectedEvent.eventSource === 'GRAPHIC_REQUIREMENT' || selectedEvent.graphicRequirementId ? (
                     <>
                       <FileText className="w-4 h-4 text-amber-600" />
                       <span>Graphic Requirement</span>
-                      {selectedEvent.graphicRequirement?.requirementId && (
-                        <span className="font-mono text-amber-800">({selectedEvent.graphicRequirement.requirementId})</span>
+                      {(selectedEvent.graphicRequirement?.requirementId || selectedEvent.eventId) && (
+                        <span className="font-mono text-amber-800 font-bold bg-amber-100/60 px-1.5 py-0.5 rounded border border-amber-200">
+                          {selectedEvent.graphicRequirement?.requirementId || selectedEvent.eventId}
+                        </span>
                       )}
                     </>
                   ) : (
                     <>
                       <Video className="w-4 h-4 text-blue-600" />
-                      <span>Shoot</span>
-                      {selectedEvent.shoot?.projectId && (
-                        <span className="font-mono text-blue-700">({selectedEvent.shoot.projectId})</span>
+                      <span>Shoot Project ({selectedEvent.shootType || 'INDOOR'})</span>
+                      {(selectedEvent.shoot?.projectId || selectedEvent.shootProjects?.[0]?.projectId || selectedEvent.eventId) && (
+                        <span className="font-mono text-blue-700 font-bold bg-blue-100/60 px-1.5 py-0.5 rounded border border-blue-200">
+                          {selectedEvent.shoot?.projectId || selectedEvent.shootProjects?.[0]?.projectId || selectedEvent.eventId}
+                        </span>
                       )}
                     </>
                   )}
-                </p>
-              </div>
-
-              {selectedEvent.graphicRequirementId && (
-                <span className="text-[10px] px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 font-bold border border-amber-200 font-mono">
-                  GR-LINKED
-                </span>
-              )}
-              {selectedEvent.shootId && (
-                <span className="text-[10px] px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold border border-blue-200 font-mono">
-                  SHOOT-LINKED
-                </span>
-              )}
-            </div>
-
-            {/* Clean Front Metadata Tiles Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50/60 border border-slate-200 text-xs">
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Client &amp; Brand</span>
-                <p className="font-bold text-slate-800 truncate">{selectedEvent.client?.name}</p>
-                <p className="text-slate-500 truncate">{selectedEvent.brand?.name}</p>
-              </div>
-
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Product &amp; Campaign</span>
-                <p className="font-bold text-slate-800 truncate">{selectedEvent.product?.name || 'General Post'}</p>
-                <p className="text-slate-500 truncate">{selectedEvent.campaign || 'N/A'}</p>
-              </div>
-
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Format &amp; Platform</span>
-                <p className="font-bold text-amber-600 truncate">{selectedEvent.contentType || 'Post'}</p>
-                <p className="text-slate-500 truncate">{selectedEvent.platform || 'Instagram'}</p>
-              </div>
-
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Review Deadline &amp; Priority</span>
-                <p className="font-bold text-slate-800 truncate">
-                  {editDeadline ? new Date(editDeadline).toLocaleDateString() : 'Not Set'}
-                </p>
-                <span className="inline-block mt-0.5 px-2 py-0.2 rounded text-[10px] font-black uppercase bg-amber-50 text-amber-600 border border-amber-200">
-                  {editPriority} Priority
                 </span>
               </div>
-            </div>
 
-            {/* Caption & Copywriting Preview Section */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-amber-600" />
-                  Proposed Social Copy / Caption
-                </h3>
-                {selectedEvent.caption && (
-                  <button
-                    onClick={handleCopyCaption}
-                    className="text-xs text-amber-600 hover:underline flex items-center gap-1 font-medium"
+              <div className="flex items-center gap-1.5">
+                {selectedEvent.shootProjects?.[0]?.id ? (
+                  <a
+                    href={`/projects/${selectedEvent.shootProjects[0].id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-[11px] border border-blue-200 flex items-center gap-1"
                   >
-                    {copiedCaption ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedCaption ? 'Copied!' : 'Copy Text'}
-                  </button>
-                )}
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">
-                {selectedEvent.caption || <span className="text-slate-400 italic">No copy provided for this event.</span>}
+                    <span>View Shoot Details</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                ) : selectedEvent.graphicRequirement?.id ? (
+                  <a
+                    href={`/graphic-reqs?reqId=${selectedEvent.graphicRequirement.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 font-bold text-[11px] border border-amber-200 flex items-center gap-1"
+                  >
+                    <span>View Requirement Details</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                ) : null}
               </div>
             </div>
 
-            {/* Creative Asset Preview Section */}
+            {/* SECTION 1: CLIENT, BRAND & CONTENT SPECIFICATIONS */}
             <div className="space-y-2">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <ImageIcon className="w-4 h-4 text-blue-600" />
-                Creative Asset Preview
-              </h3>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-amber-600" /> Section 1: Client, Brand &amp; Content Specifications
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50/70 border border-slate-200 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Client Name</span>
+                  <p className="font-bold text-slate-800 truncate">{selectedEvent.client?.name || 'N/A'}</p>
+                  <p className="text-[10px] text-slate-500 font-mono">{selectedEvent.client?.clientCode || ''}</p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Brand</span>
+                  <p className="font-bold text-slate-800 truncate">{selectedEvent.brand?.name || 'N/A'}</p>
+                  {selectedEvent.brand?.shortCode && (
+                    <span className="text-[9px] font-mono font-bold text-blue-700 bg-blue-50 px-1 py-0.2 rounded border border-blue-200">
+                      [{selectedEvent.brand.shortCode}]
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Product</span>
+                  <p className="font-bold text-slate-800 truncate">{selectedEvent.product?.name || 'General Product / Brand Post'}</p>
+                  {selectedEvent.product?.sku && (
+                    <p className="text-[10px] text-slate-500 font-mono">SKU: {selectedEvent.product.sku}</p>
+                  )}
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Campaign</span>
+                  <p className="font-bold text-slate-800 truncate">{selectedEvent.campaign || 'N/A'}</p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Format / Type</span>
+                  <span className="inline-block mt-0.5 px-2 py-0.5 rounded font-bold text-amber-700 bg-amber-50 border border-amber-200 text-[11px]">
+                    {selectedEvent.contentType || 'Post'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Target Platform</span>
+                  <span className="inline-block mt-0.5 px-2 py-0.5 rounded font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 text-[11px]">
+                    {selectedEvent.platform || 'Instagram'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Talent / Model</span>
+                  <p className="font-bold text-slate-800 truncate">
+                    {selectedEvent.influencerTalent || selectedEvent.shootProjects?.[0]?.influencerTalent || 'Not Specified'}
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Priority Level</span>
+                  <span className={`inline-block mt-0.5 px-2 py-0.5 rounded font-extrabold uppercase text-[10px] ${
+                    selectedEvent.priority === 'CRITICAL'
+                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                      : selectedEvent.priority === 'HIGH'
+                      ? 'bg-orange-50 text-orange-800 border border-orange-200'
+                      : 'bg-amber-50 text-amber-800 border border-amber-200'
+                  }`}>
+                    {selectedEvent.priority || 'MEDIUM'} Priority
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 2: SCHEDULE, TIMING & MILESTONES */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-blue-600" /> Section 2: Schedule, Timing &amp; Milestones
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50/70 border border-slate-200 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Shoot / Event Date</span>
+                  <p className="font-bold text-slate-900 text-sm">
+                    {selectedEvent.shootDate ? new Date(selectedEvent.shootDate).toLocaleDateString() : 'N/A'}
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Call / Reporting Time</span>
+                  <p className="font-bold text-blue-700 font-mono">
+                    {selectedEvent.shootProjects?.[0]?.outdoorDetails?.callTime ||
+                      selectedEvent.shootProjects?.[0]?.indoorDetails?.reportingTime ||
+                      selectedEvent.startTime ||
+                      '09:00 AM'}
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Wrap / Completion Time</span>
+                  <p className="font-bold text-blue-700 font-mono">
+                    {selectedEvent.shootProjects?.[0]?.outdoorDetails?.expectedWrapTime ||
+                      selectedEvent.shootProjects?.[0]?.indoorDetails?.wrapUpTime ||
+                      selectedEvent.endTime ||
+                      '05:00 PM'}
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Client Approval Deadline</span>
+                  <p className="font-bold text-amber-700">
+                    {selectedEvent.clientApprovalDeadline
+                      ? new Date(selectedEvent.clientApprovalDeadline).toLocaleDateString()
+                      : 'Set on Review'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 3: LOCATION & LOGISTICS (INDOOR & OUTDOOR) */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-purple-600" /> Section 3: Location &amp; Operational Logistics
+              </span>
+
+              {selectedEvent.shootType === 'OUTDOOR' || selectedEvent.shootProjects?.[0]?.outdoorDetails ? (
+                /* OUTDOOR LOGISTICS CARD */
+                <div className="p-4 rounded-xl bg-purple-50/80 border border-purple-200 text-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                    <span className="font-bold text-purple-900 flex items-center gap-1.5 uppercase text-[11px]">
+                      <Compass className="w-4 h-4 text-purple-600" /> Outdoor On-Location Logistics
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold border border-purple-200">
+                      ON-LOCATION
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-800">
+                    <div>
+                      <span className="text-[10px] font-bold text-purple-800 uppercase block">Exact Location Address</span>
+                      <p className="font-semibold text-slate-900">
+                        {selectedEvent.shootProjects?.[0]?.outdoorDetails?.exactLocationAddress ||
+                          selectedEvent.shootProjects?.[0]?.outdoorDetails?.locationAddress ||
+                          selectedEvent.location ||
+                          'Location address specified in brief'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-purple-800 uppercase block">Location Access &amp; Parking</span>
+                      <p className="text-slate-800">
+                        {selectedEvent.shootProjects?.[0]?.outdoorDetails?.locationAccessDetails || 'Standard Access'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-purple-800 uppercase block">Location Contact Person</span>
+                      <p className="text-slate-800">
+                        {selectedEvent.shootProjects?.[0]?.outdoorDetails?.locationContact ||
+                          selectedEvent.shootProjects?.[0]?.outdoorDetails?.locationContactPerson ||
+                          'Contact not provided'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-purple-800 uppercase block">Expected Weather Conditions</span>
+                      <p className="font-semibold text-slate-900 flex items-center gap-1">
+                        <CloudSun className="w-3.5 h-3.5 text-amber-600" />
+                        {selectedEvent.shootProjects?.[0]?.outdoorDetails?.expectedWeatherConditions ||
+                          selectedEvent.shootProjects?.[0]?.outdoorDetails?.weatherStatus ||
+                          'Sunny / Clear'}
+                      </p>
+                    </div>
+
+                    {selectedEvent.shootProjects?.[0]?.outdoorDetails?.backupLocation && (
+                      <div className="col-span-1 sm:col-span-2">
+                        <span className="text-[10px] font-bold text-purple-800 uppercase block">Backup Weather Location</span>
+                        <p className="text-slate-800">
+                          {selectedEvent.shootProjects[0].outdoorDetails.backupLocation}
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedEvent.shootProjects?.[0]?.outdoorDetails?.specialOutdoorRequirements && (
+                      <div className="col-span-1 sm:col-span-2">
+                        <span className="text-[10px] font-bold text-purple-800 uppercase block">Special Outdoor Notes &amp; Safety</span>
+                        <p className="text-slate-800 italic bg-white/70 p-2.5 rounded-lg border border-purple-200">
+                          "{selectedEvent.shootProjects[0].outdoorDetails.specialOutdoorRequirements}"
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* INDOOR LOGISTICS CARD */
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <span className="font-bold text-slate-900 flex items-center gap-1.5 uppercase text-[11px]">
+                      <Building2 className="w-4 h-4 text-blue-600" /> Indoor Studio Details
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                      STUDIO FLOOR
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-800">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Studio / Stage Location</span>
+                      <p className="font-semibold text-slate-900">
+                        {selectedEvent.shootProjects?.[0]?.indoorDetails?.studioName ||
+                          selectedEvent.location ||
+                          'Main Studio Floor'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Studio Address</span>
+                      <p className="text-slate-700">
+                        {selectedEvent.shootProjects?.[0]?.indoorDetails?.studioAddress ||
+                          selectedEvent.location ||
+                          'HQ Studio Facility'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 4: ASSIGNED CREW & RESERVED EQUIPMENT */}
+            {(selectedEvent.assignedStaff ||
+              selectedEvent.shootProjects?.[0]?.assignedTeam?.length > 0 ||
+              selectedEvent.shootProjects?.[0]?.equipmentReservations?.length > 0) && (
+              <div className="space-y-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-indigo-600" /> Section 4: Assigned Crew &amp; Reserved Equipment
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Crew Members */}
+                  <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 text-xs space-y-2">
+                    <span className="font-bold text-indigo-900 uppercase text-[10px] flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 text-indigo-600" /> Production Team &amp; Assigned Crew
+                    </span>
+                    <div className="space-y-1.5">
+                      {selectedEvent.assignedStaff && (
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-indigo-200">
+                          <span className="font-semibold text-slate-900">{selectedEvent.assignedStaff.name}</span>
+                          <span className="text-[10px] font-mono text-indigo-700 uppercase bg-indigo-50 px-2 py-0.5 rounded">
+                            {selectedEvent.assignedStaff.role?.replace(/_/g, ' ') || 'Lead Staff'}
+                          </span>
+                        </div>
+                      )}
+                      {selectedEvent.shootProjects?.[0]?.assignedTeam?.map((tm: any) => (
+                        <div key={tm.id} className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-indigo-200">
+                          <span className="font-semibold text-slate-900">{tm.user?.name || 'Crew Member'}</span>
+                          <span className="text-[10px] font-mono text-indigo-700 uppercase bg-indigo-50 px-2 py-0.5 rounded">
+                            {tm.roleInProject || tm.user?.role?.replace(/_/g, ' ') || 'Crew'}
+                          </span>
+                        </div>
+                      ))}
+                      {!selectedEvent.assignedStaff && (!selectedEvent.shootProjects?.[0]?.assignedTeam || selectedEvent.shootProjects[0].assignedTeam.length === 0) && (
+                        <p className="text-slate-400 italic text-[11px]">No crew members explicitly assigned.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Reserved Equipment */}
+                  <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200 text-xs space-y-2">
+                    <span className="font-bold text-purple-900 uppercase text-[10px] flex items-center gap-1">
+                      <Camera className="w-3.5 h-3.5 text-purple-600" /> Reserved Production Equipment
+                    </span>
+                    <div className="space-y-1.5">
+                      {selectedEvent.shootProjects?.[0]?.equipmentReservations?.map((res: any) => (
+                        <div key={res.id} className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-purple-200">
+                          <span className="font-semibold text-slate-900">{res.equipment?.name || 'Equipment'}</span>
+                          <span className="text-[10px] font-mono text-purple-700 uppercase bg-purple-50 px-2 py-0.5 rounded">
+                            {res.equipment?.category || res.status}
+                          </span>
+                        </div>
+                      ))}
+                      {(!selectedEvent.shootProjects?.[0]?.equipmentReservations || selectedEvent.shootProjects[0].equipmentReservations.length === 0) && (
+                        <p className="text-slate-400 italic text-[11px]">No equipment reserved for this event.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 5: CREATIVE ASSETS & REFERENCE FILES */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <ImageIcon className="w-3.5 h-3.5 text-blue-600" /> Section 5: Creative Asset &amp; Reference Files
+              </span>
 
               {selectedEvent.creativePreviewUrl ? (
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                  {selectedEvent.creativePreviewUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) ? (
+                <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-0.5 overflow-hidden">
+                      <strong className="text-slate-900 text-sm block truncate">
+                        {selectedEvent.creativeAssetName || 'Primary Creative Visual Asset'}
+                      </strong>
+                      <span className="text-xs font-mono text-indigo-700 truncate block">
+                        {selectedEvent.creativePreviewUrl}
+                      </span>
+                    </div>
+                    <a
+                      href={selectedEvent.creativePreviewUrl.startsWith('http') ? selectedEvent.creativePreviewUrl : `https://${selectedEvent.creativePreviewUrl}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-sm transition-all"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Open Asset Link
+                    </a>
+                  </div>
+
+                  {selectedEvent.creativePreviewUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) && (
                     <img
                       src={selectedEvent.creativePreviewUrl}
                       alt="Creative Preview"
-                      className="max-h-80 rounded-lg object-contain mx-auto border border-slate-200"
+                      className="max-h-80 rounded-lg object-contain mx-auto border border-indigo-200 bg-white"
                     />
-                  ) : (
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-slate-100 border border-slate-200">
-                      <span className="text-xs font-mono text-slate-700 truncate">{selectedEvent.creativePreviewUrl}</span>
-                      <a
-                        href={selectedEvent.creativePreviewUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-3 py-1 rounded bg-blue-600 text-white font-bold text-xs flex items-center gap-1"
-                      >
-                        View File <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
                   )}
                 </div>
               ) : (
-                <div className="p-6 rounded-xl bg-slate-50/60 border border-slate-200 text-center text-slate-400 text-xs">
-                  No creative visual file link attached yet.
+                <div className="p-4 rounded-xl bg-slate-50/60 border border-slate-200 text-center text-slate-400 text-xs">
+                  No external cloud asset link provided.
                 </div>
               )}
             </div>
 
-            {/* Production Notes */}
+            {/* SECTION 6: PRODUCTION NOTES & INSTRUCTIONS */}
             {selectedEvent.productionNotes && (
-              <div className="p-3.5 rounded-xl bg-slate-50/60 border border-slate-200 space-y-1 text-xs">
-                <span className="font-bold text-slate-500">Production &amp; Campaign Notes:</span>
-                <p className="text-slate-700">{selectedEvent.productionNotes}</p>
+              <div className="space-y-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-slate-600" /> Section 6: Production Notes &amp; Special Instructions
+                </span>
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap">
+                  {selectedEvent.productionNotes}
+                </div>
               </div>
             )}
 
@@ -759,14 +1039,14 @@ export default function ClientReviewPage() {
       {/* Decision Confirmation Modal Dialog */}
       {reviewModalAction && selectedEvent && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
                 {reviewModalAction === 'APPROVE' && <CheckCircle2 className="w-5 h-5 text-emerald-600" />}
                 {reviewModalAction === 'REQUEST_CHANGES' && <RotateCcw className="w-5 h-5 text-amber-600" />}
                 {reviewModalAction === 'REJECT' && <XCircle className="w-5 h-5 text-rose-600" />}
                 {reviewModalAction === 'APPROVE'
-                  ? 'Approve Calendar Event'
+                  ? 'Approve & Accept Calendar Event'
                   : reviewModalAction === 'REQUEST_CHANGES'
                   ? 'Request Content Changes'
                   : 'Reject Calendar Event'}
@@ -777,38 +1057,132 @@ export default function ClientReviewPage() {
               </button>
             </div>
 
-            {/* Editable Review Settings inside Decision Modal */}
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-              <div className="text-xs text-slate-700 space-y-0.5">
-                <p>
-                  <strong>Event:</strong> {selectedEvent.title} (v{selectedEvent.version})
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  Client: {selectedEvent.client?.name} • Brand: {selectedEvent.brand?.name}
-                </p>
+            {/* Complete Event Details Summary Card (Before Accepting) */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 uppercase">
+                    {selectedEvent.eventId || `EVT-${selectedEvent.id.substring(0, 6).toUpperCase()}`}
+                  </span>
+                  <span className="font-bold text-slate-900 text-sm ml-2">{selectedEvent.title}</span>
+                  <span className="text-slate-500 font-mono text-[10px] ml-1.5">(v{selectedEvent.version})</span>
+                </div>
+                <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-bold text-[10px] uppercase font-mono">
+                  {selectedEvent.eventSource || 'SHOOT'}
+                </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-slate-700">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Client &amp; Brand</span>
+                  <strong className="text-slate-900">{selectedEvent.client?.name}</strong>
+                  <span className="text-slate-500 block text-[11px]">{selectedEvent.brand?.name}</span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Product &amp; Campaign</span>
+                  <strong className="text-slate-900">{selectedEvent.product?.name || 'General Product'}</strong>
+                  <span className="text-slate-500 block text-[11px]">{selectedEvent.campaign || 'Standard'}</span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Format &amp; Platform</span>
+                  <span className="text-amber-700 font-bold">{selectedEvent.contentType || 'Post'}</span>
+                  <span className="text-slate-500 block text-[11px]">{selectedEvent.platform || 'Instagram'}</span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Shoot / Event Date</span>
+                  <strong className="text-slate-900">{selectedEvent.shootDate ? new Date(selectedEvent.shootDate).toLocaleDateString() : 'N/A'}</strong>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Call &amp; Wrap Times</span>
+                  <span className="font-mono text-blue-700 font-bold">
+                    {selectedEvent.shootProjects?.[0]?.outdoorDetails?.callTime || selectedEvent.shootProjects?.[0]?.indoorDetails?.reportingTime || selectedEvent.startTime || '09:00 AM'} - {selectedEvent.shootProjects?.[0]?.outdoorDetails?.expectedWrapTime || selectedEvent.shootProjects?.[0]?.indoorDetails?.wrapUpTime || selectedEvent.endTime || '05:00 PM'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Shoot Location</span>
+                  <span className="text-slate-900 font-medium truncate block">
+                    {selectedEvent.shootProjects?.[0]?.outdoorDetails?.exactLocationAddress || selectedEvent.shootProjects?.[0]?.indoorDetails?.studioName || selectedEvent.location || 'Studio HQ'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Outdoor Logistics Summary (if outdoor shoot) */}
+              {selectedEvent.shootProjects?.[0]?.outdoorDetails && (
+                <div className="p-2.5 rounded-lg bg-purple-50/80 border border-purple-200 text-[11px] space-y-1 text-purple-950">
+                  <div className="font-bold text-purple-900 uppercase text-[10px] flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-purple-600" /> Outdoor Logistics Summary
+                  </div>
+                  <div><strong>Address:</strong> {selectedEvent.shootProjects[0].outdoorDetails.exactLocationAddress || selectedEvent.shootProjects[0].outdoorDetails.locationAddress}</div>
+                  <div><strong>Access &amp; Contact:</strong> {selectedEvent.shootProjects[0].outdoorDetails.locationAccessDetails || 'Standard'} • {selectedEvent.shootProjects[0].outdoorDetails.locationContact || 'No contact specified'}</div>
+                  <div><strong>Weather:</strong> {selectedEvent.shootProjects[0].outdoorDetails.expectedWeatherConditions || 'Sunny / Clear'}</div>
+                </div>
+              )}
+
+              {/* Reserved Equipment & Assigned Staff Summary */}
+              {(selectedEvent.assignedStaff || selectedEvent.shootProjects?.[0]?.equipmentReservations?.length > 0) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-200 text-[11px]">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Lead Assigned Staff:</span>
+                    <strong className="text-slate-800">{selectedEvent.assignedStaff?.name || selectedEvent.createdBy?.name || 'Assigned Crew'}</strong>
+                  </div>
+                  {selectedEvent.shootProjects?.[0]?.equipmentReservations?.length > 0 && (
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Reserved Equipment:</span>
+                      <span className="text-purple-700 font-bold">{selectedEvent.shootProjects[0].equipmentReservations.map((r: any) => r.equipment?.name || 'Item').join(', ')}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Creative Asset Link */}
+              {selectedEvent.creativePreviewUrl && (
+                <div className="flex items-center justify-between p-2 bg-indigo-50/80 rounded-lg border border-indigo-200">
+                  <span className="text-[11px] font-mono text-indigo-900 truncate max-w-sm">
+                    {selectedEvent.creativeAssetName || selectedEvent.creativePreviewUrl}
+                  </span>
+                  <a
+                    href={selectedEvent.creativePreviewUrl.startsWith('http') ? selectedEvent.creativePreviewUrl : `https://${selectedEvent.creativePreviewUrl}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2 py-0.5 bg-indigo-600 text-white rounded font-bold text-[10px] flex items-center gap-1 shrink-0"
+                  >
+                    Open Asset <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Editable Review Settings inside Decision Modal */}
+            <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 space-y-3">
+              <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">
+                Final Approval Deadline &amp; Priority Overrides
+              </span>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">
                     Approval Deadline
                   </label>
                   <input
                     type="date"
                     value={editDeadline}
                     onChange={(e) => setEditDeadline(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white"
+                    className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                  <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">
                     Event Priority
                   </label>
                   <select
                     value={editPriority}
                     onChange={(e) => setEditPriority(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white"
+                    className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
                   >
                     <option value="LOW">LOW</option>
                     <option value="MEDIUM">MEDIUM</option>
@@ -822,11 +1196,11 @@ export default function ClientReviewPage() {
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700">
                 {reviewModalAction === 'APPROVE'
-                  ? 'Approval Note (Optional):'
+                  ? 'Sign-Off Approval Note (Optional):'
                   : 'Mandatory Client Feedback / Change Instructions:'}
               </label>
               <textarea
-                rows={3}
+                rows={2}
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 placeholder={
@@ -840,7 +1214,7 @@ export default function ClientReviewPage() {
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
               <button
                 onClick={() => setReviewModalAction(null)}
                 className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold"

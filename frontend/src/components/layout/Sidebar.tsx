@@ -61,9 +61,9 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
     items: [
       {
         name: 'Dashboard',
-        staffName: 'My Dashboard',
+        staffName: 'Dashboard',
         techName: 'Dashboard',
-        smmName: 'Social Media Dashboard',
+        smmName: 'Dashboard',
         clientName: 'Marketing Manager Portal',
         href: '/',
         icon: LayoutDashboard,
@@ -85,7 +85,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       },
       {
         name: 'Media Calendar',
-        staffName: 'My Calendar Work',
+        staffName: 'Media Calendar',
         techName: 'Calendar',
         smmName: 'Media Calendar',
         clientName: 'Calendar Schedule',
@@ -100,7 +100,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
     items: [
       {
         name: 'Projects',
-        staffName: 'Assigned Projects',
+        staffName: 'Projects',
         techName: 'Projects',
         smmName: 'Production Projects',
         clientName: 'Projects Overview',
@@ -118,7 +118,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       },
       {
         name: 'Graphic Requirements',
-        staffName: 'Assigned Graphic Reqs',
+        staffName: 'Graphic Requirements',
         techName: 'Graphic Requirements',
         smmName: 'Graphic Requirements',
         clientName: 'Graphic Requirements',
@@ -128,9 +128,9 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       },
       {
         name: 'Tasks',
-        staffName: 'My Tasks',
+        staffName: 'Tasks',
         techName: 'Tasks',
-        smmName: 'My Tasks',
+        smmName: 'Tasks',
         clientName: 'Operational Tasks',
         href: '/tasks',
         icon: CheckSquare,
@@ -145,8 +145,8 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       {
         name: 'Internal Communication',
         techName: 'Internal Communication',
-        staffName: 'My Communication',
-        smmName: 'My Communication',
+        staffName: 'Internal Communication',
+        smmName: 'Internal Communication',
         clientName: 'Client Communication',
         href: '/communication',
         icon: MessageSquare,
@@ -243,15 +243,15 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         roles: ['MARKETING_MANAGER', 'MEDIA_MANAGER'],
       },
       {
-        name: 'My Equipment',
+        name: 'Equipment',
         href: '/equipment/my',
         icon: Camera,
         roles: ['STAFF', 'SOCIAL_MEDIA_MANAGER'],
       },
       {
         name: 'Attendance',
-        staffName: 'My Attendance',
-        smmName: 'My Attendance',
+        staffName: 'Attendance',
+        smmName: 'Attendance',
         href: '/attendance',
         icon: UserCheck,
         roles: ['MEDIA_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER'],
@@ -269,7 +269,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       },
       {
         name: 'Reports & Analytics',
-        staffName: 'My Reports',
+        staffName: 'Reports & Analytics',
         techName: 'Reports & Analytics',
         clientName: 'Approval Reports',
         href: '/reports',
@@ -339,9 +339,9 @@ export function Sidebar() {
                 {userRole === 'MARKETING_MANAGER' && section.title === 'Overview'
                   ? 'Client Portal'
                   : userRole === 'MARKETING_MANAGER' && section.title === 'Operations & Assets'
-                  ? 'Assigned Client Data'
+                  ? 'Client Data'
                   : userRole === 'STAFF' && section.title === 'Overview'
-                  ? 'My Workspace'
+                  ? 'Workspace'
                   : section.title}
               </div>
 

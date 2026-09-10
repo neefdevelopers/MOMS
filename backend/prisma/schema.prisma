@@ -80,6 +80,7 @@ model User {
   assignedScriptDeliverables  ScriptDeliverable[]       @relation("ScriptDeliverableAssignedStaff")
   createdGraphicDeliverables  GraphicRequirementDeliverable[] @relation("GraphicDeliverableCreatedBy")
   assignedGraphicDeliverables GraphicRequirementDeliverable[] @relation("GraphicDeliverableAssignedStaff")
+  createdGraphicReqs          GraphicRequirement[]            @relation("GraphicReqCreator")
 }
 
 model Department {
@@ -522,10 +523,16 @@ model GraphicRequirement {
   estimatedCompletion DateTime?
   status             String           @default("DRAFT")
   revisionCount      Int              @default(0)
+  preTechnicalReviewStatus String?    @default("IN_PROGRESS")
+  technicalReviewRound     Int        @default(0)
   technicalReviewApproved Boolean     @default(false)
   mediaManagerApproved    Boolean     @default(false)
   clientConfirmed         Boolean     @default(false)
+  rejectionReason    String?
+  rejectedAt         DateTime?
   remarks            String?
+  createdById        String?
+  createdBy          User?            @relation("GraphicReqCreator", fields: [createdById], references: [id])
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
@@ -535,6 +542,7 @@ model GraphicRequirement {
   remarksHistory     GraphicRequirementRemark[]
   deliverables       GraphicRequirementDeliverable[]
   sourceForCalendarEvents MediaCalendarEvent[]     @relation("CalendarEventSourceGraphicReq")
+  approvals          Approval[]       @relation("GraphicReqApprovals")
 }
 
 model GraphicRequirementDeliverable {
@@ -884,6 +892,8 @@ model Approval {
   project       ShootProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scriptId      String?
   script        Script?       @relation("ScriptApprovals", fields: [scriptId], references: [id], onDelete: Cascade)
+  graphicRequirementId String?
+  graphicRequirement   GraphicRequirement? @relation("GraphicReqApprovals", fields: [graphicRequirementId], references: [id], onDelete: Cascade)
   entityType    String        @default("PROJECT") // PROJECT, SCRIPT, GRAPHIC_REQ, TASK, EQUIPMENT
   entityId      String?
   approvalType  String        @default("TECHNICAL_REVIEW") // TECHNICAL_REVIEW, MEDIA_MANAGER_REVIEW, MARKETING_MANAGER_REVIEW

@@ -296,66 +296,70 @@ export default function ProjectsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 p-6 rounded-xl">
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Film className="w-5 h-5 text-blue-600" /> Media Shoot Projects Directory
+            <Film className="w-5 h-5 text-blue-600" /> Shoot Projects
           </h1>
         </div>
 
-        <Link
-          href="/calendar"
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-blue-600/30 w-max"
-        >
-          <Calendar className="w-4 h-4" /> Schedule via Media Calendar
-        </Link>
+        {user?.role !== 'STAFF' && (
+          <Link
+            href="/calendar"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-blue-600/30 w-max"
+          >
+            <Calendar className="w-4 h-4" /> Schedule via Media Calendar
+          </Link>
+        )}
       </div>
 
       {/* User-Friendly 11-Parameter Filter Control Panel */}
       <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-4 text-xs shadow-md">
-        {/* Quick View Tab Pills */}
-        <div className="flex items-center gap-2 pb-1 border-b border-slate-200 flex-wrap">
-          <button
-            onClick={() => {
-              setSelectedStatus('');
-              setSelectedEmployee('');
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              !selectedStatus && !selectedEmployee
-                ? 'bg-blue-600 text-white shadow'
-                : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
-            }`}
-          >
-            All Project Shoots
-          </button>
-
-          <button
-            onClick={() => {
-              setSelectedStatus('PENDING_APPROVAL');
-              setSelectedEmployee('');
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              selectedStatus === 'PENDING_APPROVAL'
-                ? 'bg-amber-500 text-slate-950 shadow'
-                : 'bg-slate-50 text-amber-600 hover:text-slate-900 border border-slate-200'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" /> Pending Approval
-          </button>
-
-          {user?.id && (
+        {/* Quick View Tab Pills (Manager & Admin Scope Only) */}
+        {user?.role !== 'STAFF' && (
+          <div className="flex items-center gap-2 pb-1 border-b border-slate-200 flex-wrap">
             <button
               onClick={() => {
                 setSelectedStatus('');
-                setSelectedEmployee(user.id);
+                setSelectedEmployee('');
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                selectedEmployee === user.id
-                  ? 'bg-purple-600 text-white shadow'
-                  : 'bg-slate-50 text-purple-600 hover:text-slate-900 border border-slate-200'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                !selectedStatus && !selectedEmployee
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
               }`}
             >
-              <User className="w-3.5 h-3.5" /> My Project Shoots
+              All Project Shoots
             </button>
-          )}
-        </div>
+
+            <button
+              onClick={() => {
+                setSelectedStatus('PENDING_APPROVAL');
+                setSelectedEmployee('');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                selectedStatus === 'PENDING_APPROVAL'
+                  ? 'bg-amber-500 text-slate-950 shadow'
+                  : 'bg-slate-50 text-amber-600 hover:text-slate-900 border border-slate-200'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" /> Pending Approval
+            </button>
+
+            {user?.id && (
+              <button
+                onClick={() => {
+                  setSelectedStatus('');
+                  setSelectedEmployee(user.id);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  selectedEmployee === user.id
+                    ? 'bg-purple-600 text-white shadow'
+                    : 'bg-slate-50 text-purple-600 hover:text-slate-900 border border-slate-200'
+                }`}
+              >
+                <User className="w-3.5 h-3.5" /> My Project Shoots
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Top Primary Filter Row */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">

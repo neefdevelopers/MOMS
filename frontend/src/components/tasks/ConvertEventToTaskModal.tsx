@@ -491,28 +491,62 @@ export default function ConvertEventToTaskModal({
           </div>
 
           {/* Equipment Requirements / Allocation (For Shoot Projects Only) */}
-          {eventData.parentType === 'PROJECT' && (
-            <div>
-              <label className="block text-slate-700 font-bold mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Camera className="w-4 h-4 text-cyan-600" />
-                  <span>Equipment Allocation / Requirements (Optional)</span>
-                </span>
-                <span className="text-[10px] text-cyan-700 font-mono font-semibold">
-                  {selectedEquipmentIds.length} Selected
-                </span>
-              </label>
+          {eventData.parentType === 'PROJECT' && (() => {
+            const availableEquipmentList = equipmentList.filter((eq) => eq.availability === 'AVAILABLE');
+            const isNoEquipmentAvailable = equipmentList.length === 0 || availableEquipmentList.length === 0;
 
-              {loadingEquipment ? (
-                <div className="p-3 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
-                  Loading equipment inventory…
-                </div>
-              ) : (
-                <div className="space-y-1.5 max-h-40 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                  {equipmentList.length === 0 ? (
-                    <div className="text-slate-400 italic text-center py-2 text-[11px]">No equipment items found in inventory.</div>
-                  ) : (
-                    equipmentList.map((eq) => {
+            return (
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-cyan-600" />
+                    <span>Equipment Allocation / Requirements (Optional)</span>
+                  </span>
+                  <span className={`text-[10px] font-mono font-semibold ${
+                    isNoEquipmentAvailable ? 'text-amber-700' : 'text-cyan-700'
+                  }`}>
+                    {isNoEquipmentAvailable
+                      ? 'No Equipment Available'
+                      : `${selectedEquipmentIds.length} Selected (${availableEquipmentList.length} Available)`}
+                  </span>
+                </label>
+
+                {loadingEquipment ? (
+                  <div className="p-3 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
+                    Loading equipment inventory…
+                  </div>
+                ) : isNoEquipmentAvailable ? (
+                  <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl text-amber-900 space-y-1.5">
+                    <div className="flex items-center gap-2 font-bold text-xs">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>No Equipment Available</span>
+                    </div>
+                    <p className="text-[11px] text-amber-700">
+                      {equipmentList.length === 0
+                        ? 'No equipment items are currently registered in the inventory.'
+                        : 'All equipment items are currently reserved, under maintenance, or unavailable for allocation.'}
+                    </p>
+                    {equipmentList.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-amber-200 space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
+                        {equipmentList.map((eq) => (
+                          <div
+                            key={eq.id}
+                            className="flex items-center justify-between p-1.5 rounded-lg bg-white/80 border border-amber-200/60 text-[11px]"
+                          >
+                            <span className="text-slate-700 font-medium">
+                              {eq.name} <span className="font-mono text-[10px] text-slate-500">({eq.equipmentId})</span>
+                            </span>
+                            <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 uppercase">
+                              {eq.availability || 'UNAVAILABLE'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5 custom-scrollbar">
+                    {equipmentList.map((eq) => {
                       const isAvailable = eq.availability === 'AVAILABLE';
                       const isChecked = selectedEquipmentIds.includes(eq.id);
 
@@ -548,12 +582,12 @@ export default function ConvertEventToTaskModal({
                           </span>
                         </label>
                       );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Task Brief / Instructions */}
           <div>

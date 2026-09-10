@@ -191,44 +191,58 @@ export class GraphicReqsService {
       const tasks = item.tasks || [];
 
       const hasProducedDeliverables = deliverables.length > 0 || tasks.some((t: any) => Boolean(t.activeDeliverableUrl));
-      const allDeliverablesCompletedOrSubmitted = deliverables.length > 0 && deliverables.every((d: any) => d.status === 'COMPLETED' || d.status === 'SUBMITTED');
+      const hasTasks = tasks.length > 0;
+      const isTaskWaitingForReview = tasks.some((t: any) => t.status === 'WAITING_FOR_REVIEW' || t.status === 'WAITING_FOR_TECHNICAL_REVIEW');
       const isTaskInProgress = tasks.some((t: any) => t.status === 'IN_PROGRESS' || t.status === 'ACCEPTED');
       const isTaskAccepted = tasks.some((t: any) => t.status === 'ACCEPTED' || (t.assignedEmployees || []).some((e: any) => e.acceptanceStatus === 'ACCEPTED'));
-      const hasTasks = tasks.length > 0;
 
-      // 100% Automatic Status Progression based on actual staff work & deliverables
-      if (allDeliverablesCompletedOrSubmitted || item.status === 'COMPLETED' || (item.mediaManagerApproved && item.technicalReviewApproved)) {
-        computedStatus = item.clientConfirmed ? 'COMPLETED' : (item.status === 'COMPLETED' ? 'COMPLETED' : 'WAITING_FOR_CLIENT_CONFIRMATION');
-      } else if (hasProducedDeliverables) {
-        if (item.technicalReviewApproved) {
+      // If in revision or terminal cancelled/closed state, preserve status
+      if (item.status === 'CLOSED' || item.status === 'CANCELLED' || item.status === 'CLIENT_REVISION_REQUESTED' || item.status === 'REVISION_REQUESTED') {
+        computedStatus = item.status;
+      } else if (hasProducedDeliverables || isTaskWaitingForReview) {
+        // Must follow strict review gate: Technical Review -> Media Manager Review -> Client Confirmation -> Completed
+        if (item.technicalReviewApproved && item.mediaManagerApproved && item.clientConfirmed) {
+          computedStatus = 'COMPLETED';
+        } else if (item.technicalReviewApproved && item.mediaManagerApproved) {
+          computedStatus = 'WAITING_FOR_CLIENT_CONFIRMATION';
+        } else if (item.technicalReviewApproved) {
           computedStatus = 'WAITING_FOR_MEDIA_REVIEW';
         } else {
           computedStatus = 'WAITING_FOR_TECHNICAL_REVIEW';
         }
-      } else if (!REVIEW_AND_LOCKED_STATUSES.includes(item.status)) {
-        if (isTaskInProgress) {
-          computedStatus = 'IN_PROGRESS';
-        } else if (isTaskAccepted || hasTasks) {
-          computedStatus = 'TASK_ASSIGNED';
-        } else if (isCalApproved && (item.status === 'PENDING_MARKETING_APPROVAL' || item.status === 'DRAFT' || item.status === 'READY')) {
-          computedStatus = 'APPROVED';
+      } else if (isTaskInProgress) {
+        computedStatus = 'IN_PROGRESS';
+      } else if (isTaskAccepted || hasTasks) {
+        computedStatus = 'TASK_ASSIGNED';
+      } else if (isCalApproved && (item.status === 'PENDING_MARKETING_APPROVAL' || item.status === 'DRAFT' || item.status === 'READY')) {
+        computedStatus = 'APPROVED';
+      } else if (item.status === 'COMPLETED' && (!item.technicalReviewApproved || !item.mediaManagerApproved || !item.clientConfirmed)) {
+        // Correct any erroneously completed status
+        if (!item.technicalReviewApproved) {
+          computedStatus = hasProducedDeliverables ? 'WAITING_FOR_TECHNICAL_REVIEW' : 'IN_PROGRESS';
+        } else if (!item.mediaManagerApproved) {
+          computedStatus = 'WAITING_FOR_MEDIA_REVIEW';
+        } else if (!item.clientConfirmed) {
+          computedStatus = 'WAITING_FOR_CLIENT_CONFIRMATION';
         }
       }
 
       // Calculate automatic progress percentage
       let computedProgress = 10;
-      if (computedStatus === 'COMPLETED' || computedStatus === 'APPROVED') {
+      if (computedStatus === 'COMPLETED') {
         computedProgress = 100;
       } else if (computedStatus === 'WAITING_FOR_CLIENT_CONFIRMATION') {
         computedProgress = 95;
       } else if (computedStatus === 'WAITING_FOR_MEDIA_REVIEW') {
-        computedProgress = 90;
+        computedProgress = 85;
       } else if (computedStatus === 'WAITING_FOR_TECHNICAL_REVIEW') {
-        computedProgress = 75;
+        computedProgress = 70;
       } else if (computedStatus === 'IN_PROGRESS') {
         computedProgress = 45;
       } else if (computedStatus === 'TASK_ASSIGNED') {
         computedProgress = 25;
+      } else if (computedStatus === 'APPROVED') {
+        computedProgress = 15;
       }
 
       if (computedStatus !== item.status) {
@@ -244,17 +258,25 @@ export class GraphicReqsService {
       // Automatically update task completion percentages for associated tasks
       if (hasTasks) {
         for (const task of tasks) {
-          if (task.completionPercentage !== computedProgress && task.status !== 'COMPLETED') {
+          const taskStatus =
+            computedStatus === 'COMPLETED'
+              ? 'COMPLETED'
+              : (computedStatus === 'WAITING_FOR_TECHNICAL_REVIEW' || computedStatus === 'WAITING_FOR_MEDIA_REVIEW' || computedStatus === 'WAITING_FOR_CLIENT_CONFIRMATION')
+              ? 'WAITING_FOR_REVIEW'
+              : computedStatus === 'IN_PROGRESS'
+              ? 'IN_PROGRESS'
+              : task.status;
+
+          if (task.completionPercentage !== computedProgress || (computedStatus === 'COMPLETED' && task.status !== 'COMPLETED')) {
             await this.prisma.task.update({
               where: { id: task.id },
               data: {
                 completionPercentage: computedProgress,
-                ...(computedStatus === 'IN_PROGRESS' && { status: 'IN_PROGRESS' }),
-                ...(computedStatus === 'WAITING_FOR_TECHNICAL_REVIEW' && { status: 'WAITING_FOR_REVIEW' }),
-                ...(computedStatus === 'COMPLETED' && { status: 'COMPLETED', completionPercentage: 100 }),
+                status: taskStatus,
               },
             }).catch(() => null);
             task.completionPercentage = computedProgress;
+            task.status = taskStatus;
           }
         }
       }
@@ -619,12 +641,20 @@ export class GraphicReqsService {
       },
     });
 
-    // Advance associated tasks progress percentage to 75%
+    // Advance associated tasks and requirement status to WAITING_FOR_TECHNICAL_REVIEW
     await this.prisma.task.updateMany({
       where: { graphicRequirementId: id },
       data: {
-        completionPercentage: 75,
+        completionPercentage: 70,
         status: 'WAITING_FOR_REVIEW',
+      },
+    }).catch(() => null);
+
+    await this.prisma.graphicRequirement.update({
+      where: { id },
+      data: {
+        status: 'WAITING_FOR_TECHNICAL_REVIEW',
+        technicalReviewApproved: false,
       },
     }).catch(() => null);
 
@@ -760,6 +790,617 @@ export class GraphicReqsService {
     }).catch(() => null);
 
     return { success: true };
+  }
+
+  // ─── Helper: log a timeline entry ──────────────────────────
+  private async logTimeline(graphicReqId: string, event: string, description: string, userId?: string) {
+    await this.prisma.graphicRequirementTimeline.create({
+      data: { graphicRequirementId: graphicReqId, event, description, userId },
+    }).catch(() => null);
+  }
+
+  // ─── Helper: valid production statuses that can be returned-to ──
+  private isValidProductionStatus(status?: string | null): boolean {
+    return !!status && ['IN_PROGRESS', 'TASK_ASSIGNED', 'READY', 'APPROVED', 'IN_PRODUCTION'].includes(status);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  TECHNICAL REVIEW WORKFLOW (matches Script workflow exactly)
+  // ══════════════════════════════════════════════════════════════
+
+  /**
+   * Step 1: Submit for Technical Review
+   * Moves status → WAITING_FOR_TECHNICAL_REVIEW, increments round, creates PENDING Approval record.
+   */
+  async submitTechnicalReview(id: string, user: { id: string; name?: string; role: string }) {
+    const req = await this.findOne(id);
+
+    if (req.status === 'WAITING_FOR_TECHNICAL_REVIEW') {
+      return req; // Already waiting
+    }
+
+    const previousStatus = req.status;
+    let preTechStatus = 'IN_PROGRESS';
+    if (this.isValidProductionStatus(previousStatus)) {
+      preTechStatus = previousStatus;
+    } else if (this.isValidProductionStatus(req.preTechnicalReviewStatus)) {
+      preTechStatus = req.preTechnicalReviewStatus!;
+    }
+
+    const nextRound = (req.technicalReviewRound || 0) + 1;
+    const versionStr = `v${nextRound}`;
+
+    await this.prisma.graphicRequirement.update({
+      where: { id },
+      data: {
+        status: 'WAITING_FOR_TECHNICAL_REVIEW',
+        preTechnicalReviewStatus: preTechStatus,
+        technicalReviewRound: nextRound,
+        technicalReviewApproved: false,
+        mediaManagerApproved: false,
+        clientConfirmed: false,
+        remarks: req.remarks,
+      },
+    });
+
+    // Create Approval record for review history
+    await this.prisma.approval.create({
+      data: {
+        graphicRequirementId: id,
+        entityType: 'GRAPHIC_REQ',
+        entityId: id,
+        approvalType: 'TECHNICAL_REVIEW',
+        stage: 'TECHNICAL_REVIEW',
+        round: nextRound,
+        version: versionStr,
+        targetRole: 'TECHNICAL_MANAGER',
+        requestedById: user.id,
+        status: 'PENDING',
+        returnedStatus: preTechStatus,
+      },
+    });
+
+    await this.prisma.graphicRequirementRemark.create({
+      data: {
+        graphicRequirementId: id,
+        userId: user.id,
+        message: `🔄 Technical Review Requested – Round ${nextRound} by ${user.name || user.role} (Previous Status: ${preTechStatus}).`,
+      },
+    }).catch(() => null);
+
+    await this.logTimeline(
+      id,
+      'TECHNICAL_REVIEW_REQUESTED',
+      `Technical Review Requested – Round ${nextRound} (Previous Status: ${preTechStatus})`,
+      user.id,
+    );
+
+    // Notify Technical Managers
+    const techManagers = await this.prisma.user.findMany({
+      where: { role: { in: ['TECHNICAL_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+    });
+    if (techManagers.length > 0) {
+      await this.prisma.notification.createMany({
+        data: techManagers.map((tm) => ({
+          userId: tm.id,
+          title: `Graphic Req Technical Review – Round ${nextRound}`,
+          message: `Graphic Requirement "${req.requirementId}: ${req.name}" submitted for Technical Review (Round ${nextRound}).`,
+          type: 'INFO',
+          linkUrl: '/graphic-reqs',
+          eventType: 'TECHNICAL_REVIEW_REQUESTED',
+          entityType: 'GRAPHIC_REQ',
+          entityId: id,
+          entityCode: req.requirementId,
+        })),
+      }).catch(() => null);
+    }
+
+    return this.findOne(id);
+  }
+
+  /**
+   * Level 1: Technical Manager Review
+   * APPROVE → WAITING_FOR_MEDIA_REVIEW, technicalReviewApproved = true
+   * REJECT  → return to IN_PROGRESS, reset all approval flags
+   */
+  async reviewTechnical(
+    id: string,
+    user: { id: string; name?: string; role: string },
+    body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+  ) {
+    if (user.role !== 'TECHNICAL_MANAGER' && user.role !== 'ADMINISTRATOR' && user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only Technical Manager can review and decide on technical approvals.');
+    }
+
+    const { action, comment } = body;
+    const req = await this.findOne(id);
+
+    if (req.status !== 'WAITING_FOR_TECHNICAL_REVIEW') {
+      throw new BadRequestException('Graphic Requirement is not currently waiting for Technical Review.');
+    }
+
+    const currentRound = req.technicalReviewRound || 1;
+
+    if (action === 'APPROVE') {
+      await this.prisma.graphicRequirement.update({
+        where: { id },
+        data: {
+          status: 'WAITING_FOR_MEDIA_REVIEW',
+          technicalReviewApproved: true,
+        },
+      });
+
+      const activeApproval = await this.prisma.approval.findFirst({
+        where: { graphicRequirementId: id, stage: 'TECHNICAL_REVIEW', round: currentRound, status: 'PENDING' },
+      });
+
+      if (activeApproval) {
+        await this.prisma.approval.update({
+          where: { id: activeApproval.id },
+          data: {
+            status: 'APPROVED',
+            reviewerId: user.id,
+            remarks: comment || 'Technical Review Approved',
+            reviewedAt: new Date(),
+          },
+        });
+      } else {
+        await this.prisma.approval.create({
+          data: {
+            graphicRequirementId: id,
+            entityType: 'GRAPHIC_REQ',
+            entityId: id,
+            approvalType: 'TECHNICAL_REVIEW',
+            stage: 'TECHNICAL_REVIEW',
+            round: currentRound,
+            version: `v${currentRound}`,
+            targetRole: 'TECHNICAL_MANAGER',
+            requestedById: req.createdById,
+            reviewerId: user.id,
+            status: 'APPROVED',
+            remarks: comment || 'Technical Review Approved',
+            reviewedAt: new Date(),
+          },
+        });
+      }
+
+      await this.prisma.graphicRequirementRemark.create({
+        data: {
+          graphicRequirementId: id,
+          userId: user.id,
+          message: `✅ Technical Review APPROVED by Technical Manager ${user.name || ''}. Forwarded for Level 2: Media Manager Review.`,
+        },
+      }).catch(() => null);
+
+      await this.logTimeline(id, 'TECHNICAL_REVIEW_APPROVED', `Technical Review Approved by Technical Manager ${user.name || ''}`, user.id);
+
+      // Notify Media Managers
+      const mediaManagers = await this.prisma.user.findMany({
+        where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+      });
+      if (mediaManagers.length > 0) {
+        await this.prisma.notification.createMany({
+          data: mediaManagers.map((mm) => ({
+            userId: mm.id,
+            title: 'Graphic Req Pending Media Manager Review',
+            message: `Graphic Requirement "${req.requirementId}: ${req.name}" approved by Technical Manager – waiting for Media Manager Review.`,
+            type: 'INFO',
+            linkUrl: '/graphic-reqs',
+            eventType: 'MEDIA_REVIEW_REQUESTED',
+            entityType: 'GRAPHIC_REQ',
+            entityId: id,
+            entityCode: req.requirementId,
+          })),
+        }).catch(() => null);
+      }
+
+      return this.findOne(id);
+    } else {
+      // REJECT
+      if (!comment || !comment.trim()) {
+        throw new BadRequestException('Rejection reason is mandatory for rejecting Technical Review.');
+      }
+
+      const returnStatus = 'IN_PROGRESS';
+
+      await this.prisma.graphicRequirement.update({
+        where: { id },
+        data: {
+          status: returnStatus,
+          preTechnicalReviewStatus: 'IN_PROGRESS',
+          technicalReviewApproved: false,
+          mediaManagerApproved: false,
+          clientConfirmed: false,
+          rejectionReason: comment.trim(),
+          rejectedAt: new Date(),
+          remarks: `Technical Review Rejection Reason: ${comment.trim()}`,
+        },
+      });
+
+      const activeApproval = await this.prisma.approval.findFirst({
+        where: { graphicRequirementId: id, stage: 'TECHNICAL_REVIEW', round: currentRound, status: 'PENDING' },
+      });
+
+      if (activeApproval) {
+        await this.prisma.approval.update({
+          where: { id: activeApproval.id },
+          data: {
+            status: 'REJECTED',
+            reviewerId: user.id,
+            remarks: comment.trim(),
+            reviewedAt: new Date(),
+            returnedStatus: returnStatus,
+          },
+        });
+      } else {
+        await this.prisma.approval.create({
+          data: {
+            graphicRequirementId: id,
+            entityType: 'GRAPHIC_REQ',
+            entityId: id,
+            approvalType: 'TECHNICAL_REVIEW',
+            stage: 'TECHNICAL_REVIEW',
+            round: currentRound,
+            version: `v${currentRound}`,
+            targetRole: 'TECHNICAL_MANAGER',
+            requestedById: req.createdById,
+            reviewerId: user.id,
+            status: 'REJECTED',
+            remarks: comment.trim(),
+            returnedStatus: returnStatus,
+            reviewedAt: new Date(),
+          },
+        });
+      }
+
+      await this.prisma.graphicRequirementRemark.create({
+        data: {
+          graphicRequirementId: id,
+          userId: user.id,
+          message: `❌ Technical Review REJECTED by Technical Manager ${user.name || ''}: ${comment.trim()}. Returned to status: ${returnStatus}`,
+        },
+      }).catch(() => null);
+
+      await this.logTimeline(id, 'TECHNICAL_REVIEW_REJECTED', `Technical Review REJECTED by Technical Manager ${user.name || ''}: ${comment.trim()}. Returned to ${returnStatus}`, user.id);
+
+      if (req.createdById) {
+        await this.prisma.notification.create({
+          data: {
+            userId: req.createdById,
+            title: 'Technical Review Rejected',
+            message: `Graphic Requirement "${req.requirementId}: ${req.name}" Technical Review was rejected: ${comment.trim()}. Returned to ${returnStatus}.`,
+            type: 'WARNING',
+            linkUrl: '/graphic-reqs',
+            eventType: 'TECHNICAL_REVIEW_REJECTED',
+            entityType: 'GRAPHIC_REQ',
+            entityId: id,
+            entityCode: req.requirementId,
+          },
+        }).catch(() => null);
+      }
+
+      return this.findOne(id);
+    }
+  }
+
+  /**
+   * Level 2: Media Manager Review
+   * APPROVE → WAITING_FOR_CLIENT_CONFIRMATION, mediaManagerApproved = true
+   * REJECT  → return to preTechnicalReviewStatus, reset approval flags
+   */
+  async reviewMedia(
+    id: string,
+    user: { id: string; name?: string; role: string },
+    body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+  ) {
+    const { action, comment } = body;
+    const req = await this.findOne(id);
+
+    if (req.status !== 'WAITING_FOR_MEDIA_REVIEW') {
+      throw new BadRequestException('Graphic Requirement is not currently waiting for Media Manager Review.');
+    }
+
+    const currentRound = req.technicalReviewRound || 1;
+
+    if (action === 'APPROVE') {
+      await this.prisma.graphicRequirement.update({
+        where: { id },
+        data: {
+          status: 'WAITING_FOR_CLIENT_CONFIRMATION',
+          mediaManagerApproved: true,
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          graphicRequirementId: id,
+          entityType: 'GRAPHIC_REQ',
+          entityId: id,
+          approvalType: 'MEDIA_MANAGER_REVIEW',
+          stage: 'MEDIA_REVIEW',
+          round: currentRound,
+          version: `v${currentRound}`,
+          targetRole: 'MEDIA_MANAGER',
+          requestedById: req.createdById,
+          reviewerId: user.id,
+          status: 'APPROVED',
+          remarks: comment || 'Media Manager Review Approved',
+          reviewedAt: new Date(),
+        },
+      });
+
+      await this.prisma.graphicRequirementRemark.create({
+        data: {
+          graphicRequirementId: id,
+          userId: user.id,
+          message: `✅ Media Manager Review APPROVED by Media Manager ${user.name || ''}. Forwarded for Level 3: Marketing Manager / Client Confirmation.`,
+        },
+      }).catch(() => null);
+
+      await this.logTimeline(id, 'MEDIA_REVIEW_APPROVED', `Media Manager Review Approved by Media Manager ${user.name || ''}`, user.id);
+
+      // Notify Marketing Managers
+      const marketingManagers = await this.prisma.user.findMany({
+        where: { role: { in: ['MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+      });
+      if (marketingManagers.length > 0) {
+        await this.prisma.notification.createMany({
+          data: marketingManagers.map((mm) => ({
+            userId: mm.id,
+            title: 'Graphic Req Pending Client Confirmation',
+            message: `Graphic Requirement "${req.requirementId}: ${req.name}" approved by Media Manager – waiting for Marketing Manager / Client Confirmation.`,
+            type: 'INFO',
+            linkUrl: '/graphic-reqs',
+            eventType: 'CLIENT_CONFIRMATION_REQUESTED',
+            entityType: 'GRAPHIC_REQ',
+            entityId: id,
+            entityCode: req.requirementId,
+          })),
+        }).catch(() => null);
+      }
+
+      return this.findOne(id);
+    } else {
+      if (!comment || !comment.trim()) {
+        throw new BadRequestException('Rejection reason is mandatory for rejecting Media Manager Review.');
+      }
+
+      const returnStatus = this.isValidProductionStatus(req.preTechnicalReviewStatus)
+        ? req.preTechnicalReviewStatus!
+        : 'IN_PROGRESS';
+
+      await this.prisma.graphicRequirement.update({
+        where: { id },
+        data: {
+          status: returnStatus,
+          technicalReviewApproved: false,
+          mediaManagerApproved: false,
+          clientConfirmed: false,
+          rejectionReason: comment.trim(),
+          rejectedAt: new Date(),
+          remarks: `Media Manager Review Rejection Reason: ${comment.trim()}`,
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          graphicRequirementId: id,
+          entityType: 'GRAPHIC_REQ',
+          entityId: id,
+          approvalType: 'MEDIA_MANAGER_REVIEW',
+          stage: 'MEDIA_REVIEW',
+          round: currentRound,
+          version: `v${currentRound}`,
+          targetRole: 'MEDIA_MANAGER',
+          requestedById: req.createdById,
+          reviewerId: user.id,
+          status: 'REJECTED',
+          remarks: comment.trim(),
+          returnedStatus: returnStatus,
+          reviewedAt: new Date(),
+        },
+      });
+
+      await this.prisma.graphicRequirementRemark.create({
+        data: {
+          graphicRequirementId: id,
+          userId: user.id,
+          message: `❌ Media Manager Review REJECTED by Media Manager ${user.name || ''}: ${comment.trim()}. Returned to status: ${returnStatus}`,
+        },
+      }).catch(() => null);
+
+      await this.logTimeline(id, 'MEDIA_REVIEW_REJECTED', `Media Manager Review REJECTED by Media Manager ${user.name || ''}: ${comment.trim()}. Returned to ${returnStatus}`, user.id);
+
+      if (req.createdById) {
+        await this.prisma.notification.create({
+          data: {
+            userId: req.createdById,
+            title: 'Media Manager Review Rejected',
+            message: `Graphic Requirement "${req.requirementId}: ${req.name}" Media Review was rejected: ${comment.trim()}. Returned to ${returnStatus}.`,
+            type: 'WARNING',
+            linkUrl: '/graphic-reqs',
+            eventType: 'MEDIA_REVIEW_REJECTED',
+            entityType: 'GRAPHIC_REQ',
+            entityId: id,
+            entityCode: req.requirementId,
+          },
+        }).catch(() => null);
+      }
+
+      return this.findOne(id);
+    }
+  }
+
+  /**
+   * Level 3: Marketing Manager / Client Confirmation
+   * APPROVE → COMPLETED, clientConfirmed = true
+   * REJECT  → return to preTechnicalReviewStatus, reset all approval flags
+   */
+  async reviewClient(
+    id: string,
+    user: { id: string; name?: string; role: string },
+    body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+  ) {
+    const req = await this.findOne(id);
+
+    if (user.role !== 'MARKETING_MANAGER' && user.role !== 'ADMINISTRATOR' && user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only Marketing Manager can confirm client approval.');
+    }
+
+    if (req.status !== 'WAITING_FOR_CLIENT_CONFIRMATION') {
+      throw new BadRequestException('Graphic Requirement is not currently waiting for Client Confirmation.');
+    }
+
+    const { action, comment } = body;
+    const currentRound = req.technicalReviewRound || 1;
+
+    if (action === 'APPROVE') {
+      await this.prisma.graphicRequirement.update({
+        where: { id },
+        data: {
+          status: 'COMPLETED',
+          technicalReviewApproved: true,
+          mediaManagerApproved: true,
+          clientConfirmed: true,
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          graphicRequirementId: id,
+          entityType: 'GRAPHIC_REQ',
+          entityId: id,
+          approvalType: 'MARKETING_MANAGER_REVIEW',
+          stage: 'MARKETING_REVIEW',
+          round: currentRound,
+          version: `v${currentRound}`,
+          targetRole: 'MARKETING_MANAGER',
+          requestedById: req.createdById,
+          reviewerId: user.id,
+          status: 'APPROVED',
+          remarks: comment || 'Client Confirmation Approved',
+          reviewedAt: new Date(),
+        },
+      });
+
+      await this.prisma.graphicRequirementRemark.create({
+        data: {
+          graphicRequirementId: id,
+          userId: user.id,
+          message: `✅ Client Confirmation APPROVED by Marketing Manager ${user.name || ''}. Graphic Requirement marked as COMPLETED.`,
+        },
+      }).catch(() => null);
+
+      await this.logTimeline(id, 'CLIENT_CONFIRMATION_APPROVED', `Client Confirmation Approved by Marketing Manager ${user.name || ''}`, user.id);
+      await this.logTimeline(id, 'COMPLETED', `Graphic Requirement Completed — All 3 Approval Levels (Technical, Media, Client) Approved`, user.id);
+
+      // Complete associated tasks
+      await this.prisma.task.updateMany({
+        where: { graphicRequirementId: id },
+        data: { status: 'COMPLETED', completionPercentage: 100 },
+      }).catch(() => null);
+
+      if (req.createdById) {
+        await this.prisma.notification.create({
+          data: {
+            userId: req.createdById,
+            title: 'Graphic Requirement Completed',
+            message: `Graphic Requirement "${req.requirementId}: ${req.name}" received final Client Confirmation and is COMPLETED.`,
+            type: 'SUCCESS',
+            linkUrl: '/graphic-reqs',
+            eventType: 'GRAPHIC_REQ_COMPLETED',
+            entityType: 'GRAPHIC_REQ',
+            entityId: id,
+            entityCode: req.requirementId,
+          },
+        }).catch(() => null);
+      }
+
+      return this.findOne(id);
+    } else {
+      const reason = (comment || '').trim();
+      if (!reason) {
+        throw new BadRequestException('Rejection reason is mandatory for rejecting Client Confirmation.');
+      }
+
+      const returnStatus = this.isValidProductionStatus(req.preTechnicalReviewStatus)
+        ? req.preTechnicalReviewStatus!
+        : 'IN_PROGRESS';
+
+      await this.prisma.graphicRequirement.update({
+        where: { id },
+        data: {
+          status: returnStatus,
+          technicalReviewApproved: false,
+          mediaManagerApproved: false,
+          clientConfirmed: false,
+          rejectionReason: reason,
+          rejectedAt: new Date(),
+          remarks: `Client Confirmation Rejection Reason: ${reason}`,
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          graphicRequirementId: id,
+          entityType: 'GRAPHIC_REQ',
+          entityId: id,
+          approvalType: 'MARKETING_MANAGER_REVIEW',
+          stage: 'MARKETING_REVIEW',
+          round: currentRound,
+          version: `v${currentRound}`,
+          targetRole: 'MARKETING_MANAGER',
+          requestedById: req.createdById,
+          reviewerId: user.id,
+          status: 'REJECTED',
+          remarks: reason,
+          returnedStatus: returnStatus,
+          reviewedAt: new Date(),
+        },
+      });
+
+      await this.prisma.graphicRequirementRemark.create({
+        data: {
+          graphicRequirementId: id,
+          userId: user.id,
+          message: `❌ Client Confirmation REJECTED by Marketing Manager ${user.name || ''}: ${reason}. Returned to status: ${returnStatus}`,
+        },
+      }).catch(() => null);
+
+      await this.logTimeline(id, 'CLIENT_CONFIRMATION_REJECTED', `Client Confirmation REJECTED by Marketing Manager ${user.name || ''}: ${reason}. Returned to ${returnStatus}`, user.id);
+
+      if (req.createdById) {
+        await this.prisma.notification.create({
+          data: {
+            userId: req.createdById,
+            title: 'Client Confirmation Rejected',
+            message: `Graphic Requirement "${req.requirementId}: ${req.name}" Client Confirmation was rejected: ${reason}. Returned to ${returnStatus}.`,
+            type: 'WARNING',
+            linkUrl: '/graphic-reqs',
+            eventType: 'CLIENT_CONFIRMATION_REJECTED',
+            entityType: 'GRAPHIC_REQ',
+            entityId: id,
+            entityCode: req.requirementId,
+          },
+        }).catch(() => null);
+      }
+
+      return this.findOne(id);
+    }
+  }
+
+  /**
+   * Get review decision history (Approval records) for a Graphic Requirement
+   */
+  async getApprovals(id: string) {
+    return this.prisma.approval.findMany({
+      where: { graphicRequirementId: id, entityType: 'GRAPHIC_REQ' },
+      include: {
+        requestedBy: { select: { id: true, name: true, role: true } },
+        reviewer: { select: { id: true, name: true, role: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 }
 
