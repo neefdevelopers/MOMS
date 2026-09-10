@@ -21,33 +21,49 @@ export class CalendarService {
     if (brandId) where.brandId = brandId;
     if (shootType) where.shootType = shootType;
 
-    // Status filtering logic
-    if (status) {
-      if (
-        status === 'PENDING_CLIENT_APPROVAL' ||
-        status === 'PENDING_CLIENT_REVIEW' ||
-        status === 'PENDING' ||
-        status === 'PENDING_APPROVAL' ||
-        status === 'PENDING_MARKETING_APPROVAL'
-      ) {
-        where.status = {
-          in: [
-            'PENDING_CLIENT_APPROVAL',
-            'PENDING_CLIENT_REVIEW',
-            'PENDING_MARKETING_APPROVAL',
-            'WAITING_FOR_MARKETING_APPROVAL',
-            'DRAFT',
-            'CHANGES_REQUESTED',
-            'REVISION_REQUESTED',
-          ],
-        };
-      } else if (status === 'APPROVED' || status === 'CLIENT_APPROVED' || status === 'OPERATIONAL') {
-        where.status = {
-          in: ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'],
-        };
-      } else if (status !== 'ALL') {
-        where.status = status;
-      }
+    // Status filtering logic (Strict Approval Gate for Media Calendar)
+    if (status === 'OPERATIONAL' || status === 'APPROVED' || status === 'CLIENT_APPROVED' || forMainCalendar) {
+      where.status = {
+        in: [
+          'APPROVED',
+          'CLIENT_APPROVED',
+          'SCHEDULED',
+          'PUBLISHED',
+          'READY',
+          'OPERATIONAL',
+          'TASK_ASSIGNED',
+          'IN_PRODUCTION',
+          'WAITING_FOR_TECHNICAL_REVIEW',
+          'TECHNICAL_REVIEW',
+          'WAITING_FOR_MEDIA_REVIEW',
+          'MEDIA_MANAGER_REVIEW',
+          'WAITING_FOR_CLIENT_CONFIRMATION',
+          'COMPLETED',
+          'CLOSED',
+        ],
+      };
+      where.approvalStatus = { not: 'PENDING_MARKETING_APPROVAL' };
+    } else if (
+      status === 'PENDING_CLIENT_APPROVAL' ||
+      status === 'PENDING_CLIENT_REVIEW' ||
+      status === 'PENDING' ||
+      status === 'PENDING_APPROVAL' ||
+      status === 'PENDING_MARKETING_APPROVAL'
+    ) {
+      where.status = {
+        in: [
+          'PENDING_CLIENT_APPROVAL',
+          'PENDING_CLIENT_REVIEW',
+          'PENDING_MARKETING_APPROVAL',
+          'WAITING_FOR_MARKETING_APPROVAL',
+          'DRAFT',
+          'CHANGES_REQUESTED',
+          'REVISION_REQUESTED',
+          'REJECTED',
+        ],
+      };
+    } else if (status && status !== 'ALL') {
+      where.status = status;
     }
 
     // Client data isolation for MARKETING_MANAGER (Ensure full access to client approval events)
@@ -81,8 +97,8 @@ export class CalendarService {
         client: true,
         brand: true,
         product: true,
-        graphicRequirement: { select: { id: true, requirementId: true, name: true, status: true, requirementType: true, priority: true } },
-        shoot: { select: { id: true, projectId: true, name: true, status: true, shootType: true, shootDate: true, priority: true } },
+        graphicRequirement: { select: { id: true, requirementId: true, name: true, status: true, requirementType: true, priority: true, tasks: { select: { id: true, taskId: true, status: true, title: true } } } },
+        shoot: { select: { id: true, projectId: true, name: true, status: true, shootType: true, shootDate: true, priority: true, tasks: { select: { id: true, taskId: true, status: true, title: true } } } },
         createdBy: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         assignedStaff: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
         approvalAssignedTo: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
@@ -98,6 +114,7 @@ export class CalendarService {
           include: {
             indoorDetails: true,
             outdoorDetails: true,
+            tasks: { select: { id: true, taskId: true, status: true, title: true } },
           },
         },
         lastModifiedBy: { select: { id: true, name: true, role: true, email: true } },
@@ -344,18 +361,14 @@ export class CalendarService {
     const autoEventId = data.eventId || `CAL-${(count + 1).toString().padStart(6, '0')}`;
     
     // WORKFLOW RULE:
-    // Events scheduled by Marketing Manager are automatically approved (APPROVED) upon creation without needing client approval.
-    // Events scheduled by Social Media Manager require Marketing Manager approval (PENDING_MARKETING_APPROVAL).
-    // Events scheduled by Media Manager default to PENDING_CLIENT_APPROVAL.
-    const isMarketingManager = user?.role === 'MARKETING_MANAGER';
-    const isSocialMediaManager = user?.role === 'SOCIAL_MEDIA_MANAGER';
+    // Events scheduled by Marketing Manager or Administrator are automatically approved (APPROVED) upon creation.
+    // Events scheduled by Media Manager or Social Media Manager require Marketing Manager approval (PENDING_MARKETING_APPROVAL).
+    const isMarketingManager = user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMIN' || user?.role === 'ADMINISTRATOR';
     const initialStatus = data.saveAsDraft
       ? 'DRAFT'
       : isMarketingManager
       ? 'APPROVED'
-      : isSocialMediaManager
-      ? 'PENDING_MARKETING_APPROVAL'
-      : 'PENDING_CLIENT_APPROVAL';
+      : 'PENDING_MARKETING_APPROVAL';
 
     // Execute atomic creation in transaction
     const createdEvent = await this.prisma.$transaction(async (tx) => {
@@ -541,17 +554,13 @@ export class CalendarService {
           ? 'AUTO_APPROVED_CLIENT'
           : initialStatus === 'PENDING_MARKETING_APPROVAL'
           ? 'SUBMITTED_MARKETING_APPROVAL'
-          : initialStatus === 'PENDING_CLIENT_APPROVAL'
-          ? 'SUBMITTED'
           : 'CREATED';
 
       const historyComment =
         initialStatus === 'APPROVED'
           ? 'Created and automatically approved by Marketing Manager.'
           : initialStatus === 'PENDING_MARKETING_APPROVAL'
-          ? 'Scheduled by Social Media Manager and submitted for Marketing Manager approval.'
-          : initialStatus === 'PENDING_CLIENT_APPROVAL'
-          ? `Created from ${eventSource === 'GRAPHIC_REQUIREMENT' ? 'Graphic Requirement' : 'Shoot'} and submitted for client review.`
+          ? `Scheduled by ${user?.role ? user.role.replace(/_/g, ' ') : 'Media Manager'} and submitted for Marketing Manager approval.`
           : 'Created event draft.';
 
       await tx.calendarApprovalHistory.create({
@@ -560,7 +569,7 @@ export class CalendarService {
           revisionId: revision.id,
           version: 1,
           userId: activeUserId,
-          role: user?.role || 'SOCIAL_MEDIA_MANAGER',
+          role: user?.role || 'MEDIA_MANAGER',
           action: historyAction,
           previousStatus: 'NONE',
           newStatus: initialStatus,
@@ -594,11 +603,9 @@ export class CalendarService {
         [],
         'MARKETING_MANAGER',
         'New Calendar Event Requires Marketing Approval',
-        `Social Media Manager (${user?.name || 'User'}) scheduled calendar event '${createdEvent.title}' which requires Marketing Manager review & sign-off.`,
+        `${user?.role ? user.role.replace(/_/g, ' ') : 'Media Manager'} (${user?.name || 'User'}) scheduled calendar event '${createdEvent.title}' which requires Marketing Manager review & sign-off.`,
         createdEvent.id,
       );
-    } else if (initialStatus === 'PENDING_CLIENT_APPROVAL') {
-      await this.notifyClientReviewers(createdEvent.id, createdEvent.title, client.id, eventSource);
     }
 
     return this.findOne(createdEvent.id, user);
@@ -660,6 +667,56 @@ export class CalendarService {
     if (data.priority !== undefined) updateData.priority = data.priority;
     if (data.productionNotes !== undefined) updateData.productionNotes = data.productionNotes;
     if (data.status !== undefined) updateData.status = data.status;
+
+    const isRejectedResubmit = existing.status === 'REJECTED' && !data.saveAsDraft;
+    const shouldResubmit = isRejectedResubmit || data.resubmitForApproval === true;
+
+    if (shouldResubmit) {
+      const nextVersion = existing.version + 1;
+      updateData.status = 'PENDING_MARKETING_APPROVAL';
+      updateData.approvalStatus = 'PENDING_MARKETING_APPROVAL';
+      updateData.version = nextVersion;
+      updateData.submittedAt = new Date();
+      updateData.reviewedAt = null;
+
+      // Create Revision Snapshot
+      await this.prisma.calendarEventRevision.create({
+        data: {
+          calendarEventId: existing.id,
+          version: nextVersion,
+          title: updateData.title || existing.title,
+          caption: updateData.caption !== undefined ? updateData.caption : existing.caption,
+          contentType: updateData.contentType || existing.contentType,
+          platform: updateData.platform || existing.platform,
+          creativePreviewUrl: updateData.creativePreviewUrl !== undefined ? updateData.creativePreviewUrl : existing.creativePreviewUrl,
+          productionNotes: updateData.productionNotes !== undefined ? updateData.productionNotes : existing.productionNotes,
+          createdById: user?.id || existing.createdById,
+        },
+      });
+
+      // Record Approval History
+      await this.prisma.calendarApprovalHistory.create({
+        data: {
+          calendarEventId: existing.id,
+          version: nextVersion,
+          userId: user?.id,
+          role: user?.role || 'MEDIA_MANAGER',
+          action: 'RESUBMITTED_MARKETING_APPROVAL',
+          previousStatus: existing.status,
+          newStatus: 'PENDING_MARKETING_APPROVAL',
+          comment: data.recommitNote || 'Edited and re-submitted event for Marketing Manager approval.',
+        },
+      });
+
+      // Notify Marketing Manager
+      await this.sendNotification(
+        [],
+        'MARKETING_MANAGER',
+        'Rejected Calendar Event Revised & Re-submitted',
+        `${user?.role ? user.role.replace(/_/g, ' ') : 'Media Manager'} (${user?.name || 'User'}) updated rejected event '${updateData.title || existing.title}' (Version ${nextVersion}) and re-submitted for Marketing Manager approval.`,
+        id,
+      );
+    }
 
     const activeUserId = await this.resolveUserId(user);
     updateData.lastModifiedById = activeUserId;
@@ -1061,15 +1118,17 @@ export class CalendarService {
       throw new ForbiddenException('Marketing Manager is a Client Representative role and cannot submit events for approval.');
     }
 
-    if (event.status === 'PENDING_CLIENT_APPROVAL' || event.status === 'PENDING_CLIENT_REVIEW') {
-      throw new BadRequestException('Calendar event is already pending client approval.');
+    if (event.status === 'PENDING_CLIENT_APPROVAL' || event.status === 'PENDING_CLIENT_REVIEW' || event.status === 'PENDING_MARKETING_APPROVAL') {
+      throw new BadRequestException('Calendar event is already pending approval.');
     }
 
     let newVersion = event.version;
-    const isResubmission = event.status === 'CHANGES_REQUESTED';
+    const isResubmission = event.status === 'CHANGES_REQUESTED' || event.status === 'REJECTED';
     if (isResubmission) {
       newVersion = event.version + 1;
     }
+
+    const targetStatus = 'PENDING_MARKETING_APPROVAL';
 
     // Create a new version revision snapshot if resubmitting or first submission
     const revision = await this.prisma.calendarEventRevision.create({
@@ -1089,9 +1148,11 @@ export class CalendarService {
     await this.prisma.mediaCalendarEvent.update({
       where: { id },
       data: {
-        status: 'PENDING_CLIENT_APPROVAL',
+        status: targetStatus,
+        approvalStatus: targetStatus,
         version: newVersion,
         submittedAt: new Date(),
+        reviewedAt: null,
       },
     });
 
@@ -1103,14 +1164,20 @@ export class CalendarService {
         version: newVersion,
         userId: user.id,
         role: user.role,
-        action: isResubmission ? 'RESUBMITTED' : 'SUBMITTED',
+        action: isResubmission ? 'RESUBMITTED_MARKETING_APPROVAL' : 'SUBMITTED_MARKETING_APPROVAL',
         previousStatus: event.status,
-        newStatus: 'PENDING_CLIENT_APPROVAL',
-        comment: isResubmission ? `Resubmitted Version ${newVersion} after addressing client feedback.` : 'Submitted for client review.',
+        newStatus: targetStatus,
+        comment: isResubmission ? `Re-submitted Version ${newVersion} for Marketing Manager approval after revisions.` : 'Submitted for Marketing Manager review & approval.',
       },
     });
 
-    await this.notifyClientReviewers(event.id, event.title, event.clientId);
+    await this.sendNotification(
+      [],
+      'MARKETING_MANAGER',
+      'Calendar Event Submitted for Marketing Approval',
+      `${user?.role ? user.role.replace(/_/g, ' ') : 'Media Manager'} (${user?.name || 'User'}) submitted '${event.title}' (Version ${newVersion}) for Marketing Manager approval.`,
+      event.id,
+    );
 
     return this.findOne(event.id, user);
   }
@@ -1254,6 +1321,7 @@ export class CalendarService {
     return this.prisma.$transaction(async (tx) => {
       const eventUpdates: any = {
         status: newStatus,
+        approvalStatus: action === 'APPROVE' ? 'APPROVED' : action === 'REQUEST_CHANGES' ? 'CHANGES_REQUESTED' : 'REJECTED',
         reviewedAt: new Date(),
       };
 
@@ -1316,6 +1384,20 @@ export class CalendarService {
           status: targetGrStatus,
           clientConfirmed: action === 'APPROVE',
           mediaManagerApproved: action === 'APPROVE',
+        },
+      });
+
+      // Synchronize linked ShootProject status
+      const targetShootStatus = action === 'APPROVE' ? 'APPROVED' : action === 'REQUEST_CHANGES' ? 'CHANGES_REQUESTED' : 'REJECTED';
+      const shootId = event.shootId;
+      const shootWhere = shootId
+        ? { OR: [{ id: shootId }, { calendarEventId: event.id }] }
+        : { calendarEventId: event.id };
+
+      await tx.shootProject.updateMany({
+        where: shootWhere,
+        data: {
+          status: targetShootStatus,
         },
       });
 

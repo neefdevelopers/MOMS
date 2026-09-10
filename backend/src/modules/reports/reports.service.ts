@@ -197,7 +197,7 @@ export class ReportsService {
     });
     const myScripts = Array.from(myScriptsMap.values());
 
-    // 3. Assigned Graphic Requirements (ONLY after task is ACCEPTED by the assigned person)
+    // 3. Assigned Graphic Requirements
     const acceptedGraphicReqIds = acceptedTasks.map((t) => t.graphicRequirementId).filter(Boolean) as string[];
     const myGraphicRequirements = await this.prisma.graphicRequirement.findMany({
       where: {
@@ -205,6 +205,8 @@ export class ReportsService {
           { id: { in: acceptedGraphicReqIds } },
           { tasks: { some: { assignedEmployees: { some: { userId, acceptanceStatus: 'ACCEPTED' } } } } },
           { project: { createdById: userId } },
+          { project: { assignedTeam: { some: { userId } } } },
+          { calendarEvent: { createdById: userId } },
         ],
       },
       include: {
@@ -213,16 +215,19 @@ export class ReportsService {
       },
     });
 
-    // 4. Current Projects (ONLY after task is ACCEPTED by the assigned person or created by user)
+    // 4. Current Projects
     const acceptedProjectIdsFromTasks = acceptedTasks.map((t) => t.projectId).filter(Boolean) as string[];
     const myProjects = await this.prisma.shootProject.findMany({
       where: {
         status: { not: 'ARCHIVED' },
         OR: [
           { createdById: userId },
+          { assignedTeam: { some: { userId } } },
           { id: { in: acceptedProjectIdsFromTasks } },
           { tasks: { some: { assignedEmployees: { some: { userId, acceptanceStatus: 'ACCEPTED' } } } } },
           { scripts: { some: { scriptAssignments: { some: { userId } } } } },
+          { scripts: { some: { tasks: { some: { assignedEmployees: { some: { userId, acceptanceStatus: 'ACCEPTED' } } } } } } },
+          { graphicRequirements: { some: { tasks: { some: { assignedEmployees: { some: { userId, acceptanceStatus: 'ACCEPTED' } } } } } } },
         ],
       },
       include: {

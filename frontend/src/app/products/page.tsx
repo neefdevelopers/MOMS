@@ -152,7 +152,7 @@ function ProductsContent() {
             placeholder="Search by product name, code, category, notes, brand, client..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white"
           />
         </div>
 
@@ -162,7 +162,7 @@ function ProductsContent() {
             <select
               value={brandIdFilter}
               onChange={(e) => setBrandIdFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
             >
               <option value="">All Parent Brands</option>
               {(brands || []).map((b) => (
@@ -178,7 +178,7 @@ function ProductsContent() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
             >
               <option value="">All Statuses</option>
               <option value="ACTIVE">ACTIVE</option>
@@ -285,7 +285,7 @@ function ProductsContent() {
                   required
                   value={formData.brandId}
                   onChange={(e) => setFormData({ ...formData, brandId: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-semibold"
                 >
                   <option value="">Select Active Brand</option>
                   {activeBrands.map((b) => (
@@ -309,7 +309,7 @@ function ProductsContent() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Ojas Immunity Booster"
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                 />
               </div>
 
@@ -322,7 +322,7 @@ function ProductsContent() {
                   value={formData.productCode}
                   onChange={(e) => setFormData({ ...formData, productCode: e.target.value.toUpperCase() })}
                   placeholder="e.g. OJ"
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-mono font-bold uppercase"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-mono font-bold uppercase"
                 />
               </div>
 
@@ -333,7 +333,7 @@ function ProductsContent() {
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   placeholder="e.g. Supplements, Skincare"
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                 />
               </div>
 
@@ -342,7 +342,7 @@ function ProductsContent() {
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-semibold"
                 >
                   <option value="ACTIVE">ACTIVE (Can be used for shoots)</option>
                   <option value="INACTIVE">INACTIVE</option>
@@ -358,7 +358,7 @@ function ProductsContent() {
                 value={formData.internalNotes}
                 onChange={(e) => setFormData({ ...formData, internalNotes: e.target.value })}
                 placeholder="Product SKU details, target audience notes..."
-                className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
               ></textarea>
             </div>
 

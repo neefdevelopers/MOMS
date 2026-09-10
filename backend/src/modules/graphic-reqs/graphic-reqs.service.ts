@@ -310,8 +310,13 @@ export class GraphicReqsService {
       );
     }
 
-    const project = await this.prisma.shootProject.findUnique({
-      where: { id: data.projectId },
+    const project = await this.prisma.shootProject.findFirst({
+      where: {
+        OR: [
+          { id: data.projectId },
+          { projectId: data.projectId },
+        ],
+      },
       include: { client: true, brand: true, calendarEvent: true },
     });
     if (!project) throw new NotFoundException('Parent project not found');

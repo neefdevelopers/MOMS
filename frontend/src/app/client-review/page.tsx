@@ -73,7 +73,7 @@ export default function ClientReviewPage() {
   const loadClientData = async () => {
     try {
       const [resEvents, resReqs] = await Promise.all([
-        fetchApi('/calendar').catch(() => []),
+        fetchApi('/calendar?status=ALL').catch(() => []),
         fetchApi('/calendar/edit-requests/all?status=PENDING_MARKETING_APPROVAL').catch(() => []),
       ]);
       const rawEvents = Array.isArray(resEvents) ? resEvents : (resEvents?.data || resEvents?.events || resEvents?.items || []);
@@ -362,7 +362,7 @@ export default function ClientReviewPage() {
                       <span>•</span>
                       <span className="text-slate-700 font-medium truncate flex items-center gap-1">
                         <User className="w-3 h-3 text-amber-600 shrink-0" />
-                        {item.createdBy?.name || 'Social Media Manager'}
+                        {item.createdBy?.name || (item.createdByRole ? item.createdByRole.replace(/_/g, ' ') : 'Creator')}
                       </span>
                     </p>
                   </div>
@@ -472,8 +472,8 @@ export default function ClientReviewPage() {
                 <div>
                   <h2 className="text-xl font-black text-slate-900 tracking-tight">{selectedEvent.title}</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Created by <strong className="text-slate-800">{selectedEvent.createdBy?.name || 'Social Media Manager'}</strong> (
-                    {selectedEvent.createdBy?.role || 'Creator'})
+                    Created by <strong className="text-slate-800">{selectedEvent.createdBy?.name || (selectedEvent.createdByRole ? selectedEvent.createdByRole.replace(/_/g, ' ') : 'Creator')}</strong> (
+                    {selectedEvent.createdBy?.role ? selectedEvent.createdBy.role.replace(/_/g, ' ') : selectedEvent.createdByRole ? selectedEvent.createdByRole.replace(/_/g, ' ') : 'Creator'})
                   </p>
                 </div>
 
@@ -688,7 +688,7 @@ export default function ClientReviewPage() {
                 </div>
               ) : (
                 <div className="p-6 rounded-xl bg-slate-50/60 border border-slate-200 text-center text-slate-400 text-xs">
-                  Creative visual file link pending upload by Social Media Manager.
+                  No creative visual file link attached yet.
                 </div>
               )}
             </div>

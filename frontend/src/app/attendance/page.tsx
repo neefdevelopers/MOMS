@@ -296,7 +296,7 @@ export default function AttendancePage() {
                             placeholder="Add remarks..."
                             value={remarksState[r.userId] || ''}
                             onChange={(e) => setRemarksState({ ...remarksState, [r.userId]: e.target.value })}
-                            className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-white text-xs"
+                            className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-800 text-xs"
                           />
                           <button
                             onClick={() => setEditingRemarksUserId(null)}

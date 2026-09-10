@@ -15,15 +15,15 @@ import RevisionsTab from '@/components/revisions/RevisionsTab';
 import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
 import {
   Film,
+  Calendar,
   FileText,
   Palette,
   CheckSquare,
   Users,
   Camera,
   Upload,
+  CheckCircle,
   CheckCircle2,
-  FolderTree,
-  MessageSquare,
   Clock,
   ClipboardList,
   ShieldAlert,
@@ -36,6 +36,17 @@ import {
   RotateCcw,
   ShieldCheck,
   ArrowRight,
+  Play,
+  Video,
+  Link as LinkIcon,
+  ExternalLink,
+  Copy,
+  FileVideo,
+  UploadCloud,
+  Eye,
+  Send,
+  Sparkles,
+  AlertTriangle,
 } from 'lucide-react';
 
 export default function ProjectDetailPage() {
@@ -43,6 +54,7 @@ export default function ProjectDetailPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { setBreadcrumbs } = useBreadcrumbs();
+  const canCreateScript = Boolean(user && ['SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'].includes(user.role as string));
   const [project, setProject] = useState<any>(null);
   const [filesTree, setFilesTree] = useState<any>(null);
   const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -63,15 +75,29 @@ export default function ProjectDetailPage() {
   const [newScriptDuration, setNewScriptDuration] = useState('30s');
   const [newScriptPriority, setNewScriptPriority] = useState('MEDIUM');
   const [newScriptRemarks, setNewScriptRemarks] = useState('');
+
+  // Graphic Requirements Creation State
   const [newGraphicTitle, setNewGraphicTitle] = useState('');
+  const [newGraphicType, setNewGraphicType] = useState('Poster');
+  const [newGraphicObjective, setNewGraphicObjective] = useState('Campaign Brand Promotion');
+  const [newGraphicDescription, setNewGraphicDescription] = useState('');
+  const [newGraphicPriority, setNewGraphicPriority] = useState('MEDIUM');
+  const [newGraphicRemarks, setNewGraphicRemarks] = useState('');
+  const [isCreatingGraphic, setIsCreatingGraphic] = useState(false);
+
   const [showManageTeamModal, setShowManageTeamModal] = useState(false);
   const [showManageEquipmentModal, setShowManageEquipmentModal] = useState(false);
   const [showConvertTaskModal, setShowConvertTaskModal] = useState(false);
   const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [teamFilter, setTeamFilter] = useState<'ALL' | 'ACCEPTED' | 'PENDING'>('ALL');
 
   // Deliverables State
   const [deliverableName, setDeliverableName] = useState('');
   const [deliverableType, setDeliverableType] = useState('Video');
+  const [deliverableVideoUrl, setDeliverableVideoUrl] = useState('');
+  const [isSubmittingDeliverable, setIsSubmittingDeliverable] = useState(false);
+  const [copiedDeliverableId, setCopiedDeliverableId] = useState<string | null>(null);
+  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [linkedScriptId, setLinkedScriptId] = useState('');
   const [linkedGraphicReqId, setLinkedGraphicReqId] = useState('');
   const [showCreateDeliverableModal, setShowCreateDeliverableModal] = useState(false);
@@ -219,6 +245,12 @@ export default function ProjectDetailPage() {
   const handleCreateDeliverable = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!deliverableName.trim()) return;
+    if (!deliverableVideoUrl.trim()) {
+      alert('Please enter a valid video link or cloud storage URL.');
+      return;
+    }
+
+    setIsSubmittingDeliverable(true);
     try {
       await fetchApi('/files', {
         method: 'POST',
@@ -228,16 +260,40 @@ export default function ProjectDetailPage() {
           deliverableType,
           scriptId: linkedScriptId || undefined,
           graphicRequirementId: linkedGraphicReqId || undefined,
+          storagePath: deliverableVideoUrl.trim(),
         }),
       });
+
       setDeliverableName('');
+      setDeliverableVideoUrl('');
       setLinkedScriptId('');
       setLinkedGraphicReqId('');
       setShowCreateDeliverableModal(false);
       loadProject();
     } catch (err: any) {
-      alert(err.message || 'Failed to create deliverable');
+      alert(err.message || 'Failed to register deliverable');
+    } finally {
+      setIsSubmittingDeliverable(false);
     }
+  };
+
+  const getDeliverableLinkInfo = (url?: string) => {
+    if (!url) return null;
+    const lower = url.toLowerCase();
+    if (lower.includes('youtube.com') || lower.includes('youtu.be')) return { label: 'YouTube Video', color: 'bg-red-50 text-red-700 border-red-200' };
+    if (lower.includes('vimeo.com')) return { label: 'Vimeo Stream', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' };
+    if (lower.includes('drive.google.com')) return { label: 'Google Drive', color: 'bg-amber-50 text-amber-700 border-amber-200' };
+    if (lower.includes('frame.io')) return { label: 'Frame.io Review', color: 'bg-purple-50 text-purple-700 border-purple-200' };
+    if (lower.includes('dropbox.com')) return { label: 'Dropbox', color: 'bg-blue-50 text-blue-700 border-blue-200' };
+    if (lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.webm') || lower.includes('/video/')) return { label: 'Direct Video Stream', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    if (lower.startsWith('http')) return { label: 'Cloud Deliverable Link', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+    return { label: 'Stored File Asset', color: 'bg-slate-100 text-slate-700 border-slate-200' };
+  };
+
+  const copyDeliverableLink = (id: string, url: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedDeliverableId(id);
+    setTimeout(() => setCopiedDeliverableId(null), 2000);
   };
 
   const handleUploadFileMetadata = async (e: React.FormEvent) => {
@@ -307,6 +363,110 @@ export default function ProjectDetailPage() {
     }
   };
 
+  // ══════════════════════════════════════════════════════
+  // APPROVAL ENGINE ACTION HANDLERS (EXACT SCRIPT WORKFLOW)
+  // ══════════════════════════════════════════════════════
+  const [isProcessingApproval, setIsProcessingApproval] = useState(false);
+
+  const handleUpdateStatusToInProgress = async () => {
+    if (!project) return;
+    setIsProcessingApproval(true);
+    try {
+      await fetchApi(`/projects/${project.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'IN_PROGRESS' }),
+      });
+      alert('Project status updated to IN PROGRESS!');
+      loadProject();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update project status to IN PROGRESS');
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
+  const handleSubmitTechnicalReview = async () => {
+    if (!project) return;
+    setIsProcessingApproval(true);
+    try {
+      await fetchApi(`/projects/${project.id}/submit-technical`, { method: 'POST' });
+      alert('Shoot Project submitted for Technical Manager Review!');
+      loadProject();
+    } catch (err: any) {
+      alert(err.message || 'Failed to submit project for technical review');
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
+  const handleReviewTechnical = async (action: 'APPROVE' | 'REJECT', comment?: string) => {
+    if (!project) return;
+    setIsProcessingApproval(true);
+    try {
+      await fetchApi(`/projects/${project.id}/review-technical`, {
+        method: 'POST',
+        body: JSON.stringify({ action, comment: comment || (action === 'REJECT' ? 'Technical revisions required' : undefined) }),
+      });
+      alert(action === 'APPROVE' ? 'Technical Review Approved! Automatically forwarded for Media Manager Review.' : 'Technical Review returned for revisions.');
+      loadProject();
+    } catch (err: any) {
+      alert(err.message || 'Technical review action failed');
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
+  const handleReviewMedia = async (action: 'APPROVE' | 'REJECT', comment?: string) => {
+    if (!project) return;
+    setIsProcessingApproval(true);
+    try {
+      await fetchApi(`/projects/${project.id}/review-media`, {
+        method: 'POST',
+        body: JSON.stringify({ action, comment: comment || (action === 'REJECT' ? 'Media Manager revisions required' : undefined) }),
+      });
+      alert(action === 'APPROVE' ? 'Media Review Approved! Forwarded for Marketing Manager Approval.' : 'Media Review returned for revisions.');
+      loadProject();
+    } catch (err: any) {
+      alert(err.message || 'Media review action failed');
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
+  const handleReviewMarketing = async (action: 'APPROVE' | 'REJECT', comment?: string) => {
+    if (!project) return;
+    setIsProcessingApproval(true);
+    try {
+      await fetchApi(`/projects/${project.id}/review-marketing`, {
+        method: 'POST',
+        body: JSON.stringify({ action, comment: comment || (action === 'REJECT' ? 'Marketing revisions required' : undefined) }),
+      });
+      alert(action === 'APPROVE' ? 'Marketing Approval Granted! Ready for Client Sign-off.' : 'Marketing Approval returned for revisions.');
+      loadProject();
+    } catch (err: any) {
+      alert(err.message || 'Marketing review action failed');
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
+  const handleConfirmClient = async (action: 'CONFIRM' | 'REQUEST_CHANGES', comment?: string) => {
+    if (!project) return;
+    setIsProcessingApproval(true);
+    try {
+      await fetchApi(`/projects/${project.id}/confirm-client`, {
+        method: 'POST',
+        body: JSON.stringify({ action, comment }),
+      });
+      alert(action === 'CONFIRM' ? 'Client Sign-off Confirmed! Project is now Completed.' : 'Client revision request recorded.');
+      loadProject();
+    } catch (err: any) {
+      alert(err.message || 'Client confirmation action failed');
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
   if (loading) return <div className="p-8 text-center text-slate-500">Loading Project Workspace...</div>;
 
   if (accessDeniedError) {
@@ -339,8 +499,6 @@ export default function ProjectDetailPage() {
     'Equipment',
     'Deliverables',
     'Approvals',
-    'Files',
-    'Communication',
     'Timeline',
   ];
 
@@ -366,6 +524,12 @@ export default function ProjectDetailPage() {
     );
   }
 
+  const userPendingTask = user?.role === 'STAFF'
+    ? project?.tasks?.find((t: any) =>
+        t.assignedEmployees?.some((e: any) => (e.userId === user.id || e.user?.id === user.id) && e.acceptanceStatus !== 'ACCEPTED')
+      )
+    : null;
+
   return (
     <div className="space-y-6">
       {/* Back button */}
@@ -375,6 +539,31 @@ export default function ProjectDetailPage() {
       >
         <ArrowLeft className="w-4 h-4" /> Back to Projects List
       </button>
+
+      {/* Pending Task Acceptance Alert Banner */}
+      {userPendingTask && (
+        <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-300 p-4 rounded-xl space-y-2 text-xs shadow-md flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 bg-purple-100 text-purple-700 rounded-lg">
+              <Sparkles className="w-4 h-4 text-purple-600" />
+            </span>
+            <div>
+              <h4 className="text-purple-950 font-bold text-xs">
+                Task Assignment Acceptance Required
+              </h4>
+              <p className="text-slate-700 text-[11px]">
+                You are assigned to task <strong className="text-purple-950">{userPendingTask.taskId} ({userPendingTask.title})</strong> for this project. Please accept the task assignment to unlock full project work progress.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/tasks?taskId=${userPendingTask.id}`}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg shadow-md transition-all text-xs flex items-center gap-1.5 shrink-0"
+          >
+            <Check className="w-3.5 h-3.5" /> Accept Task Assignment
+          </Link>
+        </div>
+      )}
 
       {/* Top Header Card */}
       <div className="bg-white border border-slate-200 p-6 rounded-xl space-y-4">
@@ -404,61 +593,28 @@ export default function ProjectDetailPage() {
                 {project.shootType} SHOOT
               </span>
 
-              {/* Project Lifecycle Badge */}
+              {/* Current Status Tag */}
               <span
-                className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase border font-mono ${
-                  project.lifecycle === 'CLOSED'
-                    ? 'bg-rose-50 text-rose-700 border-rose-200'
-                    : project.lifecycle === 'ARCHIVED'
-                    ? 'bg-slate-100 text-slate-700 border-slate-300'
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                className={`text-[10px] font-bold px-3 py-0.5 rounded-full uppercase border font-mono tracking-wider ${
+                  project.status === 'IN_PROGRESS'
+                    ? 'bg-blue-50 text-blue-700 border-blue-300'
+                    : project.status === 'WAITING_FOR_TECHNICAL_REVIEW'
+                    ? 'bg-purple-50 text-purple-700 border-purple-300'
+                    : project.status === 'WAITING_FOR_MEDIA_REVIEW'
+                    ? 'bg-cyan-50 text-cyan-700 border-cyan-300'
+                    : project.status === 'WAITING_FOR_MARKETING_APPROVAL'
+                    ? 'bg-amber-50 text-amber-700 border-amber-300'
+                    : project.status === 'WAITING_FOR_CLIENT_CONFIRMATION'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                    : project.status === 'COMPLETED'
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-400 font-extrabold'
+                    : project.status === 'REVISION_REQUESTED' || project.status === 'CLIENT_REVISION_REQUESTED'
+                    ? 'bg-rose-50 text-rose-700 border-rose-300'
+                    : 'bg-slate-100 text-slate-700 border-slate-300'
                 }`}
               >
-                LIFECYCLE: {project.lifecycle || 'ACTIVE'}
+                {project.status.replace(/_/g, ' ')}
               </span>
-
-              {/* Interactive Operational Progress Status Selector */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-slate-500 font-semibold uppercase">Operational Status:</span>
-                <select
-                  value={project.status}
-                  onChange={(e) => handleStatusChange(e.target.value)}
-                  disabled={user?.role === 'MARKETING_MANAGER' && !['DRAFT', 'PLANNED'].includes(project.status)}
-                  className="text-[11px] font-bold px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-300 rounded-lg focus:outline-none focus:border-purple-500 focus:bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <option value="DRAFT">Draft</option>
-                  <option value="PLANNED">Planned</option>
-                  <option value="READY_FOR_PRODUCTION">Ready for Production</option>
-                  <option value="IN_PROGRESS">In Progress</option>
-                  <option value="WAITING_FOR_TECHNICAL_REVIEW">Waiting for Technical Review</option>
-                  <option value="WAITING_FOR_MEDIA_REVIEW">Waiting for Media Review</option>
-                  <option value="REVISION_REQUESTED">Revision Requested</option>
-                  <option value="WAITING_FOR_CLIENT_CONFIRMATION">Waiting for Client Confirmation</option>
-                  <option value="CLIENT_REVISION_REQUESTED">Client Revision Requested</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="CLOSED">Closed</option>
-                  <option value="ARCHIVED">Archived</option>
-                  <option value="CANCELLED">Cancelled</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={() => setShowRevisionModal(true)}
-                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-[11px] flex items-center gap-1 shadow transition-colors"
-                >
-                  <RotateCcw className="w-3 h-3" /> Request Revision
-                </button>
-                {user?.role === 'TECHNICAL_MANAGER' && (
-                  <Link
-                    href="/approvals"
-                    className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold rounded-lg text-[11px] flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition-all border border-cyan-400/40"
-                    title="Open Technical Manager Approval Session"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-cyan-200" />
-                    <span>Go to Technical Manager Approval Session</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-cyan-200" />
-                  </Link>
-                )}
-              </div>
             </div>
 
             <h1 className="text-2xl font-bold text-slate-900 leading-tight">{project.name}</h1>
@@ -499,7 +655,7 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {['APPROVED', 'READY_FOR_PRODUCTION'].includes(project.status) && (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+        {['APPROVED', 'READY_FOR_PRODUCTION'].includes(project.status) && (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (!project.tasks || project.tasks.length === 0) && (
           <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-purple-900 text-xs flex items-center justify-between font-medium">
             <span className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -554,19 +710,36 @@ export default function ProjectDetailPage() {
 
       {/* 12 Workspace Tabs */}
       <div className="flex border-b border-slate-200 overflow-x-auto gap-1 text-xs font-semibold">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-3.5 py-2.5 rounded-t-lg transition-colors whitespace-nowrap ${
-              activeTab === tab
-                ? 'bg-white text-blue-600 border-t-2 border-blue-500 font-bold border-x border-slate-200'
-                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50/50'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          let countBadge: number | null = null;
+          if (tab === 'Scripts') countBadge = project.scripts?.length || 0;
+          if (tab === 'Graphic Requirements') countBadge = project.graphicRequirements?.length || 0;
+          if (tab === 'Tasks') countBadge = project.tasks?.length || 0;
+          if (tab === 'Deliverables') countBadge = project.files?.length || 0;
+          if (tab === 'Equipment') countBadge = project.equipmentReservations?.length || 0;
+          if (tab === 'Revisions') countBadge = project.revisionCount || 0;
+
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-3.5 py-2.5 rounded-t-lg transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === tab
+                  ? 'bg-white text-blue-600 border-t-2 border-blue-500 font-bold border-x border-slate-200'
+                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50/50'
+              }`}
+            >
+              <span>{tab}</span>
+              {countBadge !== null && countBadge > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                  activeTab === tab ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {countBadge}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab Content Display */}
@@ -588,37 +761,351 @@ export default function ProjectDetailPage() {
 
         {activeTab === 'Overview' && (
           <div className="space-y-6 text-xs">
+            {/* In Progress Session / Execution & Status Controls */}
+            <div className="p-4 bg-gradient-to-r from-blue-50/90 via-indigo-50/40 to-blue-50/90 border border-blue-200 rounded-xl space-y-3 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/80 pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
+                    <Play className="w-4 h-4 fill-current text-blue-600" />
+                  </span>
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 text-xs">
+                      In Progress Session — Project Execution &amp; Workflow Status
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Manage active shoot production status and progress updates.
+                    </p>
+                  </div>
+                </div>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase border ${
+                  project.status === 'IN_PROGRESS'
+                    ? 'bg-blue-50 text-blue-700 border-blue-300'
+                    : 'bg-slate-100 text-slate-700 border-slate-300'
+                }`}>
+                  Status: {project.status.replace(/_/g, ' ')}
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                <p className="text-[11px] text-slate-700 leading-relaxed max-w-xl">
+                  {project.status === 'IN_PROGRESS'
+                    ? 'This project is currently IN PROGRESS. Assigned team members are actively filming, editing, and producing project assets.'
+                    : 'Advance this project to IN PROGRESS to mark shoot production as actively underway and unlock task progress updates.'}
+                </p>
+
+                <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                  {project.status !== 'IN_PROGRESS' && project.status !== 'COMPLETED' && project.status !== 'CLOSED' && (
+                    <button
+                      type="button"
+                      onClick={handleUpdateStatusToInProgress}
+                      disabled={isProcessingApproval}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      Update Status to IN PROGRESS
+                    </button>
+                  )}
+                  {project.status === 'IN_PROGRESS' && (
+                    <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                      Project Actively In Progress
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Core Shoot Project Details Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200 space-y-3">
-                <h3 className="font-bold text-slate-900 text-sm">Operational Information</h3>
-                <div className="space-y-2 text-slate-700">
-                  <div><span className="text-slate-500">Project ID:</span> <span className="font-mono text-blue-600 font-bold">{project.projectId}</span></div>
-                  <div><span className="text-slate-500">Project Name:</span> <span className="text-slate-900 font-bold">{project.name}</span></div>
-                  <div><span className="text-slate-500">Client:</span> <span className="text-slate-800 font-semibold">{project.client?.name}</span></div>
-                  <div><span className="text-slate-500">Brand:</span> <span className="text-purple-600 font-semibold">[{project.brand?.shortCode}] {project.brand?.name}</span></div>
-                  <div><span className="text-slate-500">Product:</span> <span className="text-emerald-600 font-semibold">{project.product?.name || 'N/A (General Shoot)'}</span></div>
-                  <div><span className="text-slate-500">Campaign:</span> {project.campaign?.name || project.campaignId || 'N/A'}</div>
-                  <div><span className="text-slate-500">Calendar Event:</span> {project.calendarEventId || 'N/A'}</div>
-                  <div><span className="text-slate-500">Priority:</span> <span className="font-bold text-amber-600">{project.priority}</span></div>
-                  <div><span className="text-slate-500">Project Lifecycle:</span> <span className="font-mono font-bold text-emerald-600">{project.lifecycle || 'ACTIVE'}</span></div>
-                  <div><span className="text-slate-500">Operational Progress Status:</span> <span className="font-bold text-blue-600">{project.status}</span></div>
-                  <div><span className="text-slate-500">Estimated Completion:</span> {project.estimatedCompletionDate ? new Date(project.estimatedCompletionDate).toLocaleDateString() : 'N/A'}</div>
-                  {project.notes && <div><span className="text-slate-500">Notes / Remarks:</span> <span className="italic text-slate-700">"{project.notes}"</span></div>}
+              {/* Card 1: Project Identity & Client Details */}
+              <div className="bg-slate-50/70 p-5 rounded-xl border border-slate-200 space-y-3.5">
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <Film className="w-4 h-4 text-blue-600" /> Project Identity & Client Info
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-700">
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Project ID</span>
+                    <span className="font-mono text-blue-600 font-bold text-xs">{project.projectId}</span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Project Name</span>
+                    <span className="text-slate-900 font-bold text-xs">{project.name}</span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Client</span>
+                    <span className="text-slate-800 font-semibold">{project.client?.name || 'N/A'}</span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Brand</span>
+                    <span className="text-purple-700 font-semibold">[{project.brand?.shortCode || 'N/A'}] {project.brand?.name}</span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Product (Optional)</span>
+                    <span className="text-emerald-700 font-semibold">{project.product?.name || 'None (General Shoot)'}</span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Campaign (Optional)</span>
+                    <span className="text-slate-800">{project.campaign?.name || project.campaignId || 'None (General Shoot)'}</span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Calendar Event</span>
+                    <span className="font-mono text-slate-800 font-semibold">{project.calendarEventId || project.sourceForCalendarEvents?.[0]?.eventId || 'None (Direct Project)'}</span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Estimated Completion Date</span>
+                    <span className="text-slate-800 font-semibold">
+                      {project.estimatedCompletionDate ? new Date(project.estimatedCompletionDate).toLocaleDateString() : 'Not Specified'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200 space-y-3">
-                <h3 className="font-bold text-slate-900 text-sm">Schedule & Location Logistics</h3>
-                <div className="space-y-2 text-slate-700">
-                  <div><span className="text-slate-500">Shoot Type:</span> <span className="font-bold text-slate-900">{project.shootType}</span></div>
-                  <div><span className="text-slate-500">Shoot Date:</span> <span className="text-slate-900 font-bold">{new Date(project.shootDate).toLocaleDateString()}</span></div>
-                  <div><span className="text-slate-400">Shoot Location:</span> {project.shootLocation}</div>
-                  <div><span className="text-slate-400">Location Category:</span> {project.locationCategory || 'Studio Bay'}</div>
-                  <div><span className="text-slate-400">Location Address:</span> {project.locationAddress || project.shootLocation}</div>
-                  <div><span className="text-slate-400">Location Contact:</span> {project.locationContactPerson || 'N/A'}</div>
-                  <div><span className="text-slate-400">Reporting Time:</span> {project.reportingTime || '09:00 AM'}</div>
-                  <div><span className="text-slate-400">Expected Wrap-up Time:</span> {project.expectedWrapUpTime || '06:00 PM'}</div>
-                  <div><span className="text-slate-400">Talent / Influencer:</span> {project.influencerTalent || 'N/A'}</div>
+              {/* Card 2: Schedule, Status & Priority Logistics */}
+              <div className="bg-slate-50/70 p-5 rounded-xl border border-slate-200 space-y-3.5">
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-emerald-600" /> Schedule, Status & Location
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-700">
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Current Status</span>
+                    <span className="font-bold text-blue-700">{project.status}</span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Project Priority</span>
+                    <span className={`font-bold px-2 py-0.5 rounded text-[10px] inline-block ${
+                      project.priority === 'CRITICAL' ? 'bg-rose-100 text-rose-800' :
+                      project.priority === 'HIGH' ? 'bg-amber-100 text-amber-800' :
+                      project.priority === 'MEDIUM' ? 'bg-blue-100 text-blue-800' :
+                      'bg-slate-100 text-slate-800'
+                    }`}>{project.priority}</span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Shoot Date</span>
+                    <span className="text-slate-900 font-bold">{new Date(project.shootDate).toLocaleDateString()}</span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Shoot Location</span>
+                    <span className="text-slate-900 font-semibold">{project.shootLocation}</span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Influencer / Talent</span>
+                    <span className="text-slate-800 font-semibold">{project.influencerTalent || 'None / Not Specified'}</span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Reporting & Wrap-up Time</span>
+                    <span className="text-slate-800">{project.reportingTime || '09:00 AM'} — {project.expectedWrapUpTime || '06:00 PM'}</span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg sm:col-span-2">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Location Address & Category</span>
+                    <span className="text-slate-800">{project.locationAddress || project.shootLocation} ({project.locationCategory || 'Studio Bay'})</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Notes Section */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+              <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-blue-600" /> Project Notes
+              </h4>
+              <p className="text-slate-700 text-xs italic bg-white p-3 rounded-lg border border-slate-200">
+                {project.notes ? `"${project.notes}"` : 'No operational notes or special remarks recorded for this project.'}
+              </p>
+            </div>
+
+            {/* Assigned Team & Required Equipment Quick Preview Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Assigned Team Summary Card */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h4 className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-600" /> Assigned Team ({project.assignedTeam?.length || 0})
+                  </h4>
+                  <button
+                    onClick={() => setActiveTab('Team')}
+                    className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
+                  >
+                    Manage Team <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+                {(!project.assignedTeam || project.assignedTeam.length === 0) ? (
+                  <p className="text-slate-500 text-xs py-2 italic text-center bg-white rounded-lg border border-slate-200">
+                    No team members assigned to this shoot project yet.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {project.assignedTeam.map((item: any) => (
+                      <div key={item.id || item.userId} className="p-2.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-slate-900 text-xs">{item.user?.name || 'Staff Member'}</div>
+                          <div className="text-[10px] text-slate-500">{item.user?.email}</div>
+                        </div>
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-blue-50 text-blue-700 border border-blue-200">
+                          {item.roleInProject || item.user?.role || 'Team Member'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Required Equipment Summary Card */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h4 className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-purple-600" /> Required Equipment ({project.equipmentReservations?.length || 0})
+                  </h4>
+                  <button
+                    onClick={() => setActiveTab('Equipment')}
+                    className="text-[11px] text-purple-600 hover:text-purple-800 font-semibold flex items-center gap-1"
+                  >
+                    View Gear <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+                {(!project.equipmentReservations || project.equipmentReservations.length === 0) ? (
+                  <p className="text-slate-500 text-xs py-2 italic text-center bg-white rounded-lg border border-slate-200">
+                    No equipment reserved for this shoot project yet.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {project.equipmentReservations.map((res: any) => (
+                      <div key={res.id} className="p-2.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between">
+                        <div className="truncate">
+                          <div className="font-bold text-slate-900 text-xs truncate">{res.equipment?.name || 'Equipment Gear'}</div>
+                          <div className="text-[10px] text-slate-500 truncate font-mono">[{res.equipment?.category}] {res.equipment?.brand} {res.equipment?.model}</div>
+                        </div>
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded ml-1 shrink-0 ${
+                          res.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          {res.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Project Requirements & Scope Session (Scripts & Graphic Requirements) */}
+            <div className="p-5 bg-gradient-to-br from-purple-50/70 via-indigo-50/30 to-blue-50/70 border border-purple-200 rounded-xl space-y-4 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-200/80 pb-3">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-purple-600" /> Project Requirements &amp; Creative Scope Session
+                  </h3>
+                  <p className="text-slate-500 text-[11px] mt-0.5">
+                    Scripts, Narration Storylines, and Graphic Requirements linked with this Shoot Project.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveTab('Scripts')}
+                    className="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-lg font-bold text-[11px] transition-colors flex items-center gap-1"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-purple-600" />
+                    Scripts ({project.scripts?.length || 0})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('Graphic Requirements')}
+                    className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg font-bold text-[11px] transition-colors flex items-center gap-1"
+                  >
+                    <Palette className="w-3.5 h-3.5 text-blue-600" />
+                    Graphics ({project.graphicRequirements?.length || 0})
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Linked Scripts Column */}
+                <div className="p-3.5 bg-white border border-purple-200/90 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-purple-100 pb-2">
+                    <span className="font-bold text-xs text-purple-950 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-purple-600" />
+                      Production Scripts ({project.scripts?.length || 0})
+                    </span>
+                    <button
+                      onClick={() => setActiveTab('Scripts')}
+                      className="text-[10px] text-purple-600 hover:text-purple-800 font-bold flex items-center gap-0.5"
+                    >
+                      View All <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {(!project.scripts || project.scripts.length === 0) ? (
+                    <div className="py-4 text-center text-slate-400 italic text-[11px]">
+                      No scripts linked to this shoot project yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {project.scripts.map((sc: any) => (
+                        <div
+                          key={sc.id}
+                          className="p-2 bg-slate-50/80 border border-slate-200 rounded-lg flex items-center justify-between gap-2 hover:bg-purple-50/40 transition-colors"
+                        >
+                          <div className="truncate">
+                            <span className="font-mono text-[10px] text-purple-700 font-bold mr-1.5">[{sc.scriptId}]</span>
+                            <span className="font-bold text-slate-900 text-xs truncate">{sc.name}</span>
+                            <div className="text-[10px] text-slate-500 font-mono">{sc.language || 'English'} • {sc.category || 'Script'}</div>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold font-mono uppercase shrink-0 border ${
+                            sc.status === 'APPROVED' || sc.status === 'COMPLETED'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                              : sc.status === 'IN_PROGRESS' || sc.status === 'IN_PRODUCTION'
+                              ? 'bg-blue-50 text-blue-700 border-blue-300'
+                              : 'bg-amber-50 text-amber-800 border-amber-300'
+                          }`}>
+                            {sc.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Linked Graphic Requirements Column */}
+                <div className="p-3.5 bg-white border border-blue-200/90 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-blue-100 pb-2">
+                    <span className="font-bold text-xs text-blue-950 flex items-center gap-1.5">
+                      <Palette className="w-3.5 h-3.5 text-blue-600" />
+                      Graphic Requirements ({project.graphicRequirements?.length || 0})
+                    </span>
+                    <button
+                      onClick={() => setActiveTab('Graphic Requirements')}
+                      className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-0.5"
+                    >
+                      View All <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {(!project.graphicRequirements || project.graphicRequirements.length === 0) ? (
+                    <div className="py-4 text-center text-slate-400 italic text-[11px]">
+                      No graphic requirements linked to this shoot project yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {project.graphicRequirements.map((gr: any) => (
+                        <div
+                          key={gr.id}
+                          className="p-2 bg-slate-50/80 border border-slate-200 rounded-lg flex items-center justify-between gap-2 hover:bg-blue-50/40 transition-colors"
+                        >
+                          <div className="truncate">
+                            <span className="font-mono text-[10px] text-blue-700 font-bold mr-1.5">[{gr.requirementId}]</span>
+                            <span className="font-bold text-slate-900 text-xs truncate">{gr.name}</span>
+                            <div className="text-[10px] text-slate-500">{gr.requirementType || 'Graphic Item'} • {gr.priority || 'MEDIUM'}</div>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold font-mono uppercase shrink-0 border ${
+                            gr.status === 'APPROVED' || gr.status === 'COMPLETED'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                              : gr.status === 'IN_PROGRESS'
+                              ? 'bg-blue-50 text-blue-700 border-blue-300'
+                              : 'bg-amber-50 text-amber-800 border-amber-300'
+                          }`}>
+                            {gr.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -786,178 +1273,191 @@ export default function ProjectDetailPage() {
               </div>
             </div>
 
-            {/* Full Script Creation Panel (All Fields Available) */}
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                try {
-                  await fetchApi('/scripts', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                      projectId: project.id,
-                      name: newScriptTitle.trim(), // blank uses auto formula
-                      language: newScriptLanguage || 'Malayalam (KL)',
-                      category: newScriptCategory || 'Advertisement',
-                      objective: newScriptObjective || 'Generate Sales',
-                      description: newScriptDescription,
-                      estimatedDuration: newScriptDuration || '30s',
-                      priority: newScriptPriority || 'MEDIUM',
-                      remarks: newScriptRemarks,
-                    }),
-                  });
-                  setNewScriptTitle('');
-                  setNewScriptDescription('');
-                  setNewScriptRemarks('');
-                  loadProject();
-                } catch (err: any) {
-                  alert(err.message || 'Failed to create script');
-                }
-              }}
-              className="p-5 bg-slate-50 border border-purple-200 rounded-xl space-y-4 shadow-md text-xs"
-            >
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                <h4 className="font-bold text-purple-700 text-xs flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-purple-600" /> Create New Production Script (All Fields)
-                </h4>
-                <span className="font-mono text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded">
-                  Format: BrandCode-Date-ProductCode-LanguageCode-Seq
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                {/* Purpose / Category */}
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Purpose / Category *</label>
-                  <select
-                    value={newScriptCategory}
-                    onChange={(e) => setNewScriptCategory(e.target.value)}
-                    className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
-                  >
-                    <option value="Advertisement">Advertisement</option>
-                    <option value="Awareness">Awareness</option>
-                    <option value="Educational">Educational</option>
-                    <option value="Promotional">Promotional</option>
-                    <option value="Testimonial">Testimonial</option>
-                    <option value="Product Demo">Product Demo</option>
-                    <option value="Festival Campaign">Festival Campaign</option>
-                    <option value="Social Media">Social Media</option>
-                    <option value="Branding">Branding</option>
-                    <option value="Other">Other</option>
-                  </select>
+            {/* Full Script Creation Panel (Restricted to Managers / Admins) */}
+            {canCreateScript ? (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  try {
+                    await fetchApi('/scripts', {
+                      method: 'POST',
+                      body: JSON.stringify({
+                        projectId: project.id,
+                        name: newScriptTitle.trim(), // blank uses auto formula
+                        language: newScriptLanguage || 'Malayalam (KL)',
+                        category: newScriptCategory || 'Advertisement',
+                        objective: newScriptObjective || 'Generate Sales',
+                        description: newScriptDescription,
+                        estimatedDuration: newScriptDuration || '30s',
+                        priority: newScriptPriority || 'MEDIUM',
+                        remarks: newScriptRemarks,
+                      }),
+                    });
+                    setNewScriptTitle('');
+                    setNewScriptDescription('');
+                    setNewScriptRemarks('');
+                    loadProject();
+                  } catch (err: any) {
+                    alert(err.message || 'Failed to create script');
+                  }
+                }}
+                className="p-5 bg-slate-50 border border-purple-200 rounded-xl space-y-4 shadow-md text-xs"
+              >
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h4 className="font-bold text-purple-700 text-xs flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-purple-600" /> Create New Production Script (All Fields)
+                  </h4>
+                  <span className="font-mono text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded">
+                    Format: BrandCode-Date-ProductCode-LanguageCode-Seq
+                  </span>
                 </div>
 
-                {/* Target Language */}
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Target Language *</label>
-                  <select
-                    value={newScriptLanguage}
-                    onChange={(e) => setNewScriptLanguage(e.target.value)}
-                    className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
-                  >
-                    <option value="Malayalam (KL)">Malayalam (KL)</option>
-                    <option value="English (EN)">English (EN)</option>
-                    <option value="Hindi (HI)">Hindi (HI)</option>
-                    <option value="Tamil (TN)">Tamil (TN)</option>
-                    <option value="Kannada (KA)">Kannada (KA)</option>
-                    <option value="Telugu (TE)">Telugu (TE)</option>
-                    <option value="Arabic (AR)">Arabic (AR)</option>
-                  </select>
-                </div>
-
-                {/* Strategic Objective */}
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Strategic Objective *</label>
-                  <select
-                    value={newScriptObjective}
-                    onChange={(e) => setNewScriptObjective(e.target.value)}
-                    className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
-                  >
-                    <option value="Generate Sales">Generate Sales</option>
-                    <option value="Increase Awareness">Increase Awareness</option>
-                    <option value="Launch Product">Launch Product</option>
-                    <option value="Customer Education">Customer Education</option>
-                    <option value="Engagement">Engagement</option>
-                    <option value="Retargeting">Retargeting</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-
-                {/* Duration & Priority */}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                  {/* Purpose / Category */}
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Duration</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 30s"
-                      value={newScriptDuration}
-                      onChange={(e) => setNewScriptDuration(e.target.value)}
-                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-2.5 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Priority</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Purpose / Category *</label>
                     <select
-                      value={newScriptPriority}
-                      onChange={(e) => setNewScriptPriority(e.target.value)}
-                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-2 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
+                      value={newScriptCategory}
+                      onChange={(e) => setNewScriptCategory(e.target.value)}
+                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
                     >
-                      <option value="LOW">LOW</option>
-                      <option value="MEDIUM">MEDIUM</option>
-                      <option value="HIGH">HIGH</option>
-                      <option value="CRITICAL">CRITICAL</option>
+                      <option value="Advertisement">Advertisement</option>
+                      <option value="Awareness">Awareness</option>
+                      <option value="Educational">Educational</option>
+                      <option value="Promotional">Promotional</option>
+                      <option value="Testimonial">Testimonial</option>
+                      <option value="Product Demo">Product Demo</option>
+                      <option value="Festival Campaign">Festival Campaign</option>
+                      <option value="Social Media">Social Media</option>
+                      <option value="Branding">Branding</option>
+                      <option value="Other">Other</option>
                     </select>
                   </div>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* Description & Storyline */}
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Script Storyline / Scenes Description</label>
-                  <textarea
-                    rows={2}
-                    placeholder="Enter narration dialogues, scene shots, visual requirements..."
-                    value={newScriptDescription}
-                    onChange={(e) => setNewScriptDescription(e.target.value)}
-                    className="w-full bg-slate-100 border border-slate-200 text-slate-800 p-2.5 rounded-lg focus:border-purple-500 focus:bg-white focus:outline-none"
-                  />
-                </div>
-
-                {/* Custom Title & Remarks */}
-                <div className="space-y-2">
+                  {/* Target Language */}
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Custom Title / Code (Optional)</label>
-                    <input
-                      type="text"
-                      placeholder="Leave blank for auto formula: DW-130726-OJ-KL-001"
-                      value={newScriptTitle}
-                      onChange={(e) => setNewScriptTitle(e.target.value)}
+                    <label className="block text-slate-700 font-semibold mb-1">Target Language *</label>
+                    <select
+                      value={newScriptLanguage}
+                      onChange={(e) => setNewScriptLanguage(e.target.value)}
                       className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
+                    >
+                      <option value="Malayalam (KL)">Malayalam (KL)</option>
+                      <option value="English (EN)">English (EN)</option>
+                      <option value="Hindi (HI)">Hindi (HI)</option>
+                      <option value="Tamil (TN)">Tamil (TN)</option>
+                      <option value="Kannada (KA)">Kannada (KA)</option>
+                      <option value="Telugu (TE)">Telugu (TE)</option>
+                      <option value="Arabic (AR)">Arabic (AR)</option>
+                    </select>
+                  </div>
+
+                  {/* Strategic Objective */}
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Strategic Objective *</label>
+                    <select
+                      value={newScriptObjective}
+                      onChange={(e) => setNewScriptObjective(e.target.value)}
+                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
+                    >
+                      <option value="Generate Sales">Generate Sales</option>
+                      <option value="Increase Awareness">Increase Awareness</option>
+                      <option value="Launch Product">Launch Product</option>
+                      <option value="Customer Education">Customer Education</option>
+                      <option value="Engagement">Engagement</option>
+                      <option value="Retargeting">Retargeting</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* Duration & Priority */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Duration</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 30s"
+                        value={newScriptDuration}
+                        onChange={(e) => setNewScriptDuration(e.target.value)}
+                        className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-2.5 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Priority</label>
+                      <select
+                        value={newScriptPriority}
+                        onChange={(e) => setNewScriptPriority(e.target.value)}
+                        className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-2 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
+                      >
+                        <option value="LOW">LOW</option>
+                        <option value="MEDIUM">MEDIUM</option>
+                        <option value="HIGH">HIGH</option>
+                        <option value="CRITICAL">CRITICAL</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Description & Storyline */}
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Script Storyline / Scenes Description</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Enter narration dialogues, scene shots, visual requirements..."
+                      value={newScriptDescription}
+                      onChange={(e) => setNewScriptDescription(e.target.value)}
+                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 p-2.5 rounded-lg focus:border-purple-500 focus:bg-white focus:outline-none"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Operational Remarks</label>
-                    <input
-                      type="text"
-                      placeholder="Enter props needed, location hints, actor notes..."
-                      value={newScriptRemarks}
-                      onChange={(e) => setNewScriptRemarks(e.target.value)}
-                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
-                    />
+                  {/* Custom Title & Remarks */}
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Custom Title / Code (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="Leave blank for auto formula: DW-130726-OJ-KL-001"
+                        value={newScriptTitle}
+                        onChange={(e) => setNewScriptTitle(e.target.value)}
+                        className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Operational Remarks</label>
+                      <input
+                        type="text"
+                        placeholder="Enter props needed, location hints, actor notes..."
+                        value={newScriptRemarks}
+                        onChange={(e) => setNewScriptRemarks(e.target.value)}
+                        className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex justify-end pt-1">
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-lg shadow-md shadow-purple-600/30 transition-colors flex items-center gap-1.5"
-                >
-                  <Plus className="w-4 h-4" /> Generate & Save Complete Script
-                </button>
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-lg shadow-md shadow-purple-600/30 transition-colors flex items-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" /> Generate & Save Complete Script
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs text-slate-600">
+                <div className="flex items-center gap-2.5">
+                  <ShieldAlert className="w-4 h-4 text-slate-400 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-slate-800">Script Creation Restricted</span>
+                    <p className="text-[11px] text-slate-500">Only Media Managers, Social Media Managers, and Marketing Managers have permission to author or create new scripts for this project.</p>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-slate-200 text-slate-600 font-mono">READ ONLY</span>
               </div>
-            </form>
+            )}
 
             {project.scripts?.length === 0 ? (
               <p className="text-slate-400 italic text-[11px] p-4 bg-slate-50/40 rounded-lg text-center">
@@ -1007,20 +1507,222 @@ export default function ProjectDetailPage() {
 
         {/* Tab 3: Graphic Requirements */}
         {activeTab === 'Graphic Requirements' && (
-          <div className="space-y-4 text-xs">
-            <h3 className="font-bold text-slate-900 text-sm">Graphic Requirements</h3>
-            {project.graphicRequirements?.length === 0 ? (
-              <p className="text-slate-400">No graphic requirements logged yet.</p>
+          <div className="space-y-6 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-blue-600" /> Linked Graphic Requirements ({project.graphicRequirements?.length || 0})
+                </h3>
+                <p className="text-slate-500 text-[11px] mt-0.5">
+                  Graphic design requirements, posters, thumbnails, and social creatives bound to this shoot project.
+                </p>
+              </div>
+              <Link
+                href="/graphic-reqs"
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs self-start sm:self-auto"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Graphic Requirements Directory
+              </Link>
+            </div>
+
+            {/* Graphic Requirement Creation Form */}
+            {canCreateScript && (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!newGraphicTitle.trim()) {
+                    alert('Graphic requirement title is required.');
+                    return;
+                  }
+                  setIsCreatingGraphic(true);
+                  try {
+                    await fetchApi('/graphic-reqs', {
+                      method: 'POST',
+                      body: JSON.stringify({
+                        projectId: project.id,
+                        name: newGraphicTitle.trim(),
+                        requirementType: newGraphicType || 'Poster',
+                        objective: newGraphicObjective.trim() || undefined,
+                        description: newGraphicDescription.trim() || undefined,
+                        priority: newGraphicPriority || 'MEDIUM',
+                        remarks: newGraphicRemarks.trim() || undefined,
+                        status: 'APPROVED',
+                      }),
+                    });
+                    setNewGraphicTitle('');
+                    setNewGraphicDescription('');
+                    setNewGraphicRemarks('');
+                    loadProject();
+                  } catch (err: any) {
+                    alert(err.message || 'Failed to create Graphic Requirement');
+                  } finally {
+                    setIsCreatingGraphic(false);
+                  }
+                }}
+                className="p-5 bg-gradient-to-r from-blue-50/60 via-slate-50 to-blue-50/60 border border-blue-200 rounded-xl space-y-4 shadow-sm text-xs"
+              >
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h4 className="font-bold text-blue-900 text-xs flex items-center gap-2">
+                    <Plus className="w-4 h-4 text-blue-600" /> Add Graphic Requirement to Project
+                  </h4>
+                  <span className="font-mono text-[10px] bg-blue-100 text-blue-800 border border-blue-300 px-2 py-0.5 rounded font-bold">
+                    Parent: {project.projectId}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Requirement Title *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Campaign Banner & Instagram Poster"
+                      value={newGraphicTitle}
+                      onChange={(e) => setNewGraphicTitle(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-slate-900 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Requirement Type *</label>
+                    <select
+                      value={newGraphicType}
+                      onChange={(e) => setNewGraphicType(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-slate-900 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="Poster">Poster</option>
+                      <option value="Instagram Post">Instagram Post</option>
+                      <option value="Thumbnail">Video Thumbnail</option>
+                      <option value="Story Graphic">Story Graphic</option>
+                      <option value="Banner">Web / Display Banner</option>
+                      <option value="Product Mockup">Product Mockup</option>
+                      <option value="Packaging Design">Packaging Design</option>
+                      <option value="Custom Graphic">Custom Graphic</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Priority</label>
+                    <select
+                      value={newGraphicPriority}
+                      onChange={(e) => setNewGraphicPriority(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-slate-900 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="LOW">LOW</option>
+                      <option value="MEDIUM">MEDIUM</option>
+                      <option value="HIGH">HIGH</option>
+                      <option value="CRITICAL">CRITICAL</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Objective / Goal</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Highlight promotional discount & brand logo"
+                      value={newGraphicObjective}
+                      onChange={(e) => setNewGraphicObjective(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-slate-900 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Description / Dimensions</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 1080x1350 vertical aspect ratio, high resolution export"
+                      value={newGraphicDescription}
+                      onChange={(e) => setNewGraphicDescription(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-slate-900 px-3 py-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    disabled={isCreatingGraphic}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs disabled:opacity-50"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {isCreatingGraphic ? 'Creating...' : 'Create Graphic Requirement'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* List of Graphic Requirements */}
+            {(!project.graphicRequirements || project.graphicRequirements.length === 0) ? (
+              <div className="p-12 text-center bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <Palette className="w-8 h-8 text-slate-400 mx-auto" />
+                <p className="font-bold text-slate-700">No Graphic Requirements linked to this shoot project.</p>
+                <p className="text-slate-400 text-[11px]">Use the form above to add graphic creative requirements.</p>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {project.graphicRequirements?.map((g: any) => (
-                  <div key={g.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                    <div className="flex justify-between font-mono font-bold text-purple-600">
-                      <span>{g.requirementId}</span>
-                      <span className="text-slate-500 text-xs">{g.requirementType}</span>
+                {project.graphicRequirements.map((g: any) => (
+                  <div
+                    key={g.id}
+                    className="p-4 bg-white border border-slate-200 hover:border-blue-300 rounded-xl space-y-3 shadow-2xs transition-all flex flex-col justify-between"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded text-xs">
+                            {g.requirementId}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            {g.requirementType}
+                          </span>
+                        </div>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono border ${
+                          g.status === 'APPROVED' || g.status === 'COMPLETED'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                            : g.status === 'IN_PROGRESS'
+                            ? 'bg-blue-50 text-blue-700 border-blue-300'
+                            : 'bg-amber-50 text-amber-800 border-amber-300'
+                        }`}>
+                          {g.status}
+                        </span>
+                      </div>
+
+                      <h4 className="font-bold text-slate-900 text-sm">{g.name}</h4>
+
+                      {g.objective && (
+                        <p className="text-slate-600 text-xs">
+                          <strong className="text-slate-800">Objective:</strong> {g.objective}
+                        </p>
+                      )}
+
+                      {g.description && (
+                        <p className="text-slate-500 text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-100">
+                          {g.description}
+                        </p>
+                      )}
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Priority: <strong className="text-slate-800">{g.priority || 'MEDIUM'}</strong></span>
+                        <span>Tasks: <strong className="text-blue-600">{g.tasks?.length || 0}</strong></span>
+                      </div>
                     </div>
-                    <h4 className="font-bold text-slate-900">{g.name}</h4>
-                    <p className="text-slate-500">{g.objective}</p>
+
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <Link
+                        href={`/graphic-reqs?inspectId=${g.id}`}
+                        className="text-blue-600 hover:text-blue-800 font-bold text-xs flex items-center gap-1"
+                      >
+                        Inspect Requirement <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                      <Link
+                        href={`/tasks`}
+                        className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded text-[11px] font-bold transition-colors"
+                      >
+                        View Tasks
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1047,108 +1749,331 @@ export default function ProjectDetailPage() {
         )}
 
         {/* Tab 5: Team */}
-        {activeTab === 'Team' && (
-          <div className="space-y-6 text-xs">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <Users className="w-4 h-4 text-blue-600" /> Assigned Team & Crew Members
-                </h3>
-                <p className="text-slate-500 text-[11px] mt-0.5">
-                  Staff assigned to this shoot project are granted workspace access.
-                </p>
-              </div>
+        {activeTab === 'Team' && (() => {
+          const assignedStaffMap = new Map<string, any>();
 
-              {['PENDING_MARKETING_APPROVAL', 'PLANNED', 'PENDING_CLIENT_APPROVAL'].includes(project.status) ? (
-                <span className="p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 font-semibold text-xs flex items-center gap-1">
-                  Waiting for Marketing Manager Approval — Staff assignment locked until approved.
-                </span>
-              ) : (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') ? (
-                <button
-                  onClick={() => setShowManageTeamModal(!showManageTeamModal)}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors flex items-center gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Manage Team Members
-                </button>
-              ) : null}
-            </div>
+          (project?.assignedTeam || []).forEach((item: any) => {
+            if (item.user) {
+              assignedStaffMap.set(item.user.id, {
+                user: item.user,
+                roleInProject: item.roleInProject,
+                assignedAt: item.assignedAt,
+                source: 'PROJECT_TEAM',
+              });
+            }
+          });
 
-            {/* Quick Manage Team Panel */}
-            {showManageTeamModal && (
-              <div className="p-4 bg-slate-50 border border-blue-200 rounded-xl space-y-3">
-                <h4 className="font-bold text-blue-700">Click staff members to assign or remove from this project:</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {allUsers.map((u) => {
-                    const isAssigned = project.assignedTeam?.some((t: any) => t.userId === u.id);
-                    return (
-                      <button
-                        key={u.id}
-                        onClick={() => handleToggleTeamUser(u.id)}
-                        className={`flex items-center justify-between p-2.5 rounded-lg border text-left transition-all ${
-                          isAssigned
-                            ? 'bg-blue-50 border-blue-500 text-blue-800 font-semibold'
-                            : 'bg-white border-slate-200 text-slate-500 hover:text-slate-900'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${
-                            isAssigned ? 'bg-blue-600' : 'bg-slate-200'
-                          }`}>
-                            {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
-                          </div>
-                          <div className="truncate">
-                            <div className="text-xs text-slate-800 truncate">{u.name}</div>
-                            <div className="text-[10px] text-slate-500 truncate">{u.employeeProfile?.designation || u.role}</div>
-                          </div>
-                        </div>
-                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-                          isAssigned ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'
-                        }`}>
-                          {isAssigned ? 'Assigned' : 'Add'}
-                        </span>
-                      </button>
-                    );
-                  })}
+          (project?.tasks || []).forEach((t: any) => {
+            (t.assignedEmployees || []).forEach((a: any) => {
+              if (a.user && !assignedStaffMap.has(a.user.id)) {
+                assignedStaffMap.set(a.user.id, {
+                  user: a.user,
+                  roleInProject: 'Task Assignee',
+                  assignedAt: a.assignedAt || t.createdAt,
+                  source: 'TASK_ASSIGNEE',
+                });
+              }
+            });
+          });
+
+          const allAssignedStaffList = Array.from(assignedStaffMap.values()).map((staffItem) => {
+            const uId = staffItem.user.id;
+            const userTasks = (project?.tasks || []).filter((t: any) =>
+              t.assignedEmployees?.some((a: any) => a.userId === uId)
+            );
+            const userAssignments = (project?.tasks || []).flatMap((t: any) =>
+              (t.assignedEmployees || []).filter((a: any) => a.userId === uId)
+            );
+            const hasAccepted =
+              userAssignments.some((a: any) => a.acceptanceStatus === 'ACCEPTED') ||
+              userTasks.some((t: any) => t.status === 'ACCEPTED' || t.status === 'IN_PROGRESS' || t.status === 'COMPLETED');
+
+            const acceptedAt = userAssignments.find((a: any) => a.acceptedAt)?.acceptedAt;
+
+            return {
+              ...staffItem,
+              tasks: userTasks,
+              isAccepted: hasAccepted,
+              acceptedAt,
+              status: hasAccepted ? 'ACCEPTED' : 'PENDING',
+            };
+          });
+
+          const totalAssignedStaffCount = allAssignedStaffList.length;
+          const acceptedStaffCount = allAssignedStaffList.filter((s) => s.isAccepted).length;
+          const pendingStaffCount = allAssignedStaffList.filter((s) => !s.isAccepted).length;
+
+          const filteredStaffList = allAssignedStaffList.filter((s) => {
+            if (teamFilter === 'ACCEPTED') return s.isAccepted;
+            if (teamFilter === 'PENDING') return !s.isAccepted;
+            return true;
+          });
+
+          return (
+            <div className="space-y-6 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-5 rounded-2xl shadow-xs">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-600" /> Project Assigned Staff &amp; Acceptance Status
+                  </h3>
+                  <p className="text-slate-500 text-[11px] mt-0.5">
+                    View staff assigned to this project, including who has accepted the assignment and whose acceptance is pending.
+                  </p>
                 </div>
-              </div>
-            )}
 
-            {/* Team List Grid */}
-            {project.assignedTeam?.length === 0 ? (
-              <div className="p-6 text-center bg-slate-50/50 border border-slate-200 rounded-xl text-slate-500">
-                No team members currently assigned to this project. Click "Manage Team Members" above to assign staff.
+                {['PENDING_MARKETING_APPROVAL', 'PLANNED', 'PENDING_CLIENT_APPROVAL'].includes(project.status) ? (
+                  <span className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 font-semibold text-xs flex items-center gap-1">
+                    Waiting for Marketing Approval — Staff assignment locked until approved.
+                  </span>
+                ) : (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') ? (
+                  <button
+                    onClick={() => setShowManageTeamModal(!showManageTeamModal)}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-md shadow-blue-600/20 flex items-center gap-1.5 text-xs shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Manage Assigned Staff
+                  </button>
+                ) : null}
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {project.assignedTeam?.map((assignment: any) => {
-                  const teamUser = assignment.user;
-                  const profile = teamUser?.employeeProfile;
-                  return (
-                    <div key={assignment.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 flex flex-col justify-between">
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-600/30 border border-blue-200 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
-                          {teamUser?.name ? teamUser.name.charAt(0).toUpperCase() : 'U'}
-                        </div>
-                        <div className="space-y-0.5 overflow-hidden">
-                          <h4 className="font-bold text-slate-900 text-sm truncate">{teamUser?.name}</h4>
-                          <p className="text-blue-600 text-xs font-semibold">{profile?.designation || teamUser?.role}</p>
-                          <p className="text-slate-500 text-[10px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded w-max">System Comm Only</p>
-                        </div>
-                      </div>
 
-                      {profile?.department && (
-                        <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
-                          <span>Department:</span>
-                          <span className="font-semibold text-slate-800">{profile.department.name}</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              {/* Quick Manage Team Panel */}
+              {showManageTeamModal && (
+                <div className="p-4 bg-slate-50 border border-blue-200 rounded-xl space-y-3">
+                  <h4 className="font-bold text-blue-700">Click staff members to assign or remove from this project:</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                    {allUsers.map((u) => {
+                      const isAssigned = project.assignedTeam?.some((t: any) => t.userId === u.id);
+                      return (
+                        <button
+                          key={u.id}
+                          onClick={() => handleToggleTeamUser(u.id)}
+                          className={`flex items-center justify-between p-2.5 rounded-lg border text-left transition-all ${
+                            isAssigned
+                              ? 'bg-blue-50 border-blue-500 text-blue-800 font-semibold'
+                              : 'bg-white border-slate-200 text-slate-500 hover:text-slate-900'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${
+                              isAssigned ? 'bg-blue-600' : 'bg-slate-200'
+                            }`}>
+                              {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
+                            </div>
+                            <div className="truncate">
+                              <div className="text-xs text-slate-800 truncate">{u.name}</div>
+                              <div className="text-[10px] text-slate-500 truncate">{u.employeeProfile?.designation || u.role}</div>
+                            </div>
+                          </div>
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                            isAssigned ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {isAssigned ? 'Assigned' : 'Add'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Status Counters & Filter Pills */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTeamFilter('ALL')}
+                  className={`p-3.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                    teamFilter === 'ALL'
+                      ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-400/20'
+                      : 'bg-white border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Assigned Staff</span>
+                    <span className="text-xl font-extrabold text-slate-900">{totalAssignedStaffCount}</span>
+                  </div>
+                  <Users className="w-5 h-5 text-blue-600" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTeamFilter('ACCEPTED')}
+                  className={`p-3.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                    teamFilter === 'ACCEPTED'
+                      ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-400/20'
+                      : 'bg-white border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div>
+                    <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Accepted</span>
+                    <span className="text-xl font-extrabold text-emerald-700">{acceptedStaffCount}</span>
+                  </div>
+                  <CheckCircle className="w-5 h-5 text-emerald-600" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTeamFilter('PENDING')}
+                  className={`p-3.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                    teamFilter === 'PENDING'
+                      ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/20'
+                      : 'bg-white border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div>
+                    <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">Pending Acceptance</span>
+                    <span className="text-xl font-extrabold text-amber-700">{pendingStaffCount}</span>
+                  </div>
+                  <Clock className="w-5 h-5 text-amber-600" />
+                </button>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* Assigned Project Staff & Acceptance Cards */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h4 className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-600" />
+                    Assigned Project Staff List ({filteredStaffList.length})
+                  </h4>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    Filter: {teamFilter === 'ALL' ? 'All Staff' : teamFilter === 'ACCEPTED' ? 'Accepted Only' : 'Pending Only'}
+                  </span>
+                </div>
+
+                {filteredStaffList.length === 0 ? (
+                  <div className="p-8 text-center bg-slate-50/50 border border-slate-200 rounded-2xl text-slate-500 space-y-2">
+                    <Users className="w-8 h-8 text-slate-400 mx-auto" />
+                    <p className="font-bold text-slate-700 text-xs">
+                      {totalAssignedStaffCount === 0
+                        ? 'No staff members currently assigned to this project.'
+                        : `No staff matching the "${teamFilter}" filter.`}
+                    </p>
+                    {totalAssignedStaffCount === 0 && (
+                      <p className="text-[11px] text-slate-400">Click "Manage Assigned Staff" above to assign shoot staff.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredStaffList.map((staffItem: any) => {
+                      const teamUser = staffItem.user;
+                      const profile = teamUser?.employeeProfile;
+                      const isAcc = staffItem.isAccepted;
+
+                      return (
+                        <div
+                          key={teamUser.id}
+                          className={`p-4 bg-white border rounded-2xl space-y-3 flex flex-col justify-between shadow-xs transition-all ${
+                            isAcc ? 'border-emerald-200 hover:border-emerald-300' : 'border-amber-200 hover:border-amber-300'
+                          }`}
+                        >
+                          <div className="space-y-2.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5">
+                                <div
+                                  className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                                    isAcc
+                                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                                      : 'bg-amber-50 border border-amber-200 text-amber-700'
+                                  }`}
+                                >
+                                  {teamUser?.name ? teamUser.name.charAt(0).toUpperCase() : 'S'}
+                                </div>
+                                <div className="overflow-hidden">
+                                  <h4 className="font-bold text-slate-900 text-xs truncate">{teamUser?.name}</h4>
+                                  <p className="text-slate-500 text-[10px] truncate">{teamUser?.email}</p>
+                                </div>
+                              </div>
+
+                              {/* Acceptance Status Badge */}
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase font-mono shrink-0 flex items-center gap-1 border ${
+                                  isAcc
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                    : 'bg-amber-50 text-amber-800 border-amber-300'
+                                }`}
+                              >
+                                {isAcc ? (
+                                  <>
+                                    <CheckCircle className="w-3 h-3 text-emerald-600" />
+                                    <span>Accepted</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Clock className="w-3 h-3 text-amber-600" />
+                                    <span>Pending</span>
+                                  </>
+                                )}
+                              </span>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px] text-slate-500">
+                              <div className="flex items-center justify-between">
+                                <span>Role / Position:</span>
+                                <strong className="text-slate-800">{profile?.designation || teamUser?.role || 'Staff'}</strong>
+                              </div>
+                              {profile?.department && (
+                                <div className="flex items-center justify-between">
+                                  <span>Department:</span>
+                                  <strong className="text-slate-700">{profile.department.name}</strong>
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between">
+                                <span>Acceptance State:</span>
+                                <strong className={isAcc ? 'text-emerald-700' : 'text-amber-700'}>
+                                  {isAcc
+                                    ? staffItem.acceptedAt
+                                      ? `Accepted (${new Date(staffItem.acceptedAt).toLocaleDateString()})`
+                                      : 'Accepted & Active'
+                                    : 'Pending Review & Acceptance'}
+                                </strong>
+                              </div>
+                            </div>
+
+                            {/* Assigned Tasks Summary for this Staff */}
+                            {staffItem.tasks?.length > 0 && (
+                              <div className="pt-2 border-t border-slate-100 space-y-1">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase block">
+                                  Assigned Shoot Tasks ({staffItem.tasks.length}):
+                                </span>
+                                <div className="space-y-1">
+                                  {staffItem.tasks.map((tsk: any) => (
+                                    <div key={tsk.id} className="p-1.5 bg-slate-50 rounded border border-slate-200 text-[10px] flex items-center justify-between">
+                                      <span className="font-mono text-blue-600 font-semibold truncate max-w-[140px]">
+                                        [{tsk.taskId}] {tsk.title}
+                                      </span>
+                                      <span
+                                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                          tsk.status === 'COMPLETED'
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : tsk.status === 'IN_PROGRESS' || tsk.status === 'ACCEPTED'
+                                            ? 'bg-blue-50 text-blue-700'
+                                            : 'bg-amber-50 text-amber-700'
+                                        }`}
+                                      >
+                                        {tsk.status}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                            <span className="text-slate-500">
+                              {staffItem.assignedAt ? `Assigned ${new Date(staffItem.assignedAt).toLocaleDateString()}` : 'Assigned to Project'}
+                            </span>
+                            <span className={isAcc ? 'text-emerald-700 font-bold' : 'text-amber-700 font-semibold'}>
+                              {isAcc ? '✓ Access Active' : '⏳ Pending Acceptance'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Tab 6: Equipment */}
         {activeTab === 'Equipment' && (
@@ -1178,9 +2103,19 @@ export default function ProjectDetailPage() {
 
             {/* Create Deliverable Modal Form */}
             {showCreateDeliverableModal && (
-              <form onSubmit={handleCreateDeliverable} className="p-4 bg-slate-50 border border-emerald-200 rounded-xl space-y-4">
-                <h4 className="font-bold text-emerald-700">Register New Deliverable File</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <form onSubmit={handleCreateDeliverable} className="p-5 bg-slate-50 border border-emerald-300 rounded-2xl space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <div>
+                    <h4 className="font-bold text-emerald-800 text-sm flex items-center gap-2">
+                      <Film className="w-4 h-4 text-emerald-600" /> Register New Deliverable / Video Asset
+                    </h4>
+                    <p className="text-slate-500 text-[11px] mt-0.5">
+                      Enter direct video links (YouTube, Google Drive, Vimeo, Frame.io, Dropbox, CDN streaming link).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                   <div>
                     <label className="block text-slate-700 font-semibold mb-1">Deliverable Type *</label>
                     <select
@@ -1188,13 +2123,16 @@ export default function ProjectDetailPage() {
                       onChange={(e) => setDeliverableType(e.target.value)}
                       className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none"
                     >
-                      <option value="Video">Video</option>
-                      <option value="Reel">Reel</option>
+                      <option value="Video">Video (Main Cut)</option>
+                      <option value="Reel">Reel / Short</option>
+                      <option value="Motion Graphic">Motion Graphic</option>
                       <option value="Poster">Poster</option>
                       <option value="Carousel">Carousel</option>
                       <option value="Story">Story</option>
-                      <option value="Motion Graphic">Motion Graphic</option>
                       <option value="Banner">Banner</option>
+                      <option value="Raw Footage">Raw Footage</option>
+                      <option value="Audio Track">Audio Track</option>
+                      <option value="Other">Other Deliverable</option>
                     </select>
                   </div>
 
@@ -1203,7 +2141,7 @@ export default function ProjectDetailPage() {
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Hero Product Intro Reel 4K"
+                      placeholder="e.g. Hero Brand Commercial 4K Master Cut"
                       value={deliverableName}
                       onChange={(e) => setDeliverableName(e.target.value)}
                       className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none"
@@ -1249,19 +2187,57 @@ export default function ProjectDetailPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2">
+                {/* Video URL / Cloud Storage Link Input */}
+                <div className="space-y-1.5 p-3.5 bg-white border border-slate-200 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-slate-800 font-bold text-xs flex items-center gap-1.5">
+                      <Video className="w-4 h-4 text-emerald-600" /> Video URL / Cloud Storage Link *
+                    </label>
+                    {deliverableVideoUrl.trim() && getDeliverableLinkInfo(deliverableVideoUrl) && (
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${getDeliverableLinkInfo(deliverableVideoUrl)?.color}`}>
+                        {getDeliverableLinkInfo(deliverableVideoUrl)?.label}
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="url"
+                      required
+                      placeholder="https://youtube.com/watch?v=... or https://drive.google.com/file/... or https://vimeo.com/... or https://cdn.moms.com/video.mp4"
+                      value={deliverableVideoUrl}
+                      onChange={(e) => setDeliverableVideoUrl(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-900 px-3.5 py-2.5 rounded-lg font-mono text-xs focus:border-emerald-500 focus:bg-white focus:outline-none pr-10"
+                    />
+                    <LinkIcon className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Paste YouTube, Vimeo, Google Drive, Frame.io, Dropbox, S3, or direct video streaming / download link.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-200">
                   <button
                     type="button"
                     onClick={() => setShowCreateDeliverableModal(false)}
-                    className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200"
+                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold shadow-md shadow-emerald-600/30"
+                    disabled={isSubmittingDeliverable}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg font-bold shadow-md shadow-emerald-600/30 transition-all flex items-center gap-1.5"
                   >
-                    Save Deliverable
+                    {isSubmittingDeliverable ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" /> Save Deliverable
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -1269,24 +2245,37 @@ export default function ProjectDetailPage() {
 
             {/* Deliverables Grid List */}
             {project.files?.length === 0 ? (
-              <div className="p-6 text-center bg-slate-50/50 border border-slate-200 rounded-xl text-slate-500">
-                No deliverables uploaded or registered yet for this project. Click "Register Deliverable" above.
+              <div className="p-8 text-center bg-slate-50/50 border border-slate-200 rounded-2xl text-slate-500 space-y-2">
+                <FileVideo className="w-8 h-8 text-slate-400 mx-auto" />
+                <p className="font-semibold text-slate-700">No deliverables or video links uploaded yet for this project.</p>
+                <p className="text-xs text-slate-400">Click "Register Deliverable" above to upload a video link or media asset.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {project.files?.map((f: any) => {
                   const linkedScript = project.scripts?.find((s: any) => s.id === f.scriptId);
                   const linkedGraphic = project.graphicRequirements?.find((g: any) => g.id === f.graphicRequirementId);
+                  const isUrl = f.storagePath && (f.storagePath.startsWith('http://') || f.storagePath.startsWith('https://'));
+                  const linkInfo = getDeliverableLinkInfo(f.storagePath);
+                  const isVideo = f.fileType?.includes('video') || linkInfo?.label?.includes('Video') || linkInfo?.label?.includes('Stream') || linkInfo?.label?.includes('YouTube') || linkInfo?.label?.includes('Vimeo');
 
                   return (
-                    <div key={f.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 flex flex-col justify-between">
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-start">
-                          <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-bold uppercase">
-                            {f.fileName.startsWith('[') ? f.fileName.split(']')[0].replace('[', '') : 'DELIVERABLE'}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            {(f.fileSize / (1024 * 1024)).toFixed(1)} MB
+                    <div key={f.id} className="p-4 bg-white border border-slate-200 hover:border-emerald-300 rounded-2xl space-y-3.5 flex flex-col justify-between shadow-xs transition-all">
+                      <div className="space-y-2.5">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-bold uppercase">
+                              {f.fileName.startsWith('[') ? f.fileName.split(']')[0].replace('[', '') : 'DELIVERABLE'}
+                            </span>
+                            {linkInfo && (
+                              <span className={`px-2 py-0.5 text-[9px] font-bold rounded border ${linkInfo.color}`}>
+                                {linkInfo.label}
+                              </span>
+                            )}
+                          </div>
+
+                          <span className="text-[10px] text-slate-500 font-mono shrink-0">
+                            {isUrl ? 'Cloud / URL' : `${(f.fileSize / (1024 * 1024)).toFixed(1)} MB`}
                           </span>
                         </div>
 
@@ -1294,16 +2283,75 @@ export default function ProjectDetailPage() {
                           {f.fileName.includes(']') ? f.fileName.split(']').slice(1).join(']').trim() : f.fileName}
                         </h4>
 
+                        {/* Storage Path & Video Link Display */}
+                        {f.storagePath && (
+                          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="font-bold text-slate-600 flex items-center gap-1">
+                                <LinkIcon className="w-3 h-3 text-slate-400" /> Deliverable Resource Link:
+                              </span>
+                              {isUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => copyDeliverableLink(f.id, f.storagePath)}
+                                  className="text-slate-500 hover:text-slate-800 font-semibold flex items-center gap-1 transition-colors"
+                                  title="Copy video link"
+                                >
+                                  {copiedDeliverableId === f.id ? (
+                                    <>
+                                      <Check className="w-3 h-3 text-emerald-600" />
+                                      <span className="text-emerald-600">Copied!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3 h-3" />
+                                      <span>Copy</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="font-mono text-[10px] text-slate-700 bg-white p-1.5 rounded border border-slate-200 truncate">
+                              {f.storagePath}
+                            </div>
+
+                            {/* Watch Video / Open Link Action Button */}
+                            {isUrl ? (
+                              <a
+                                href={f.storagePath}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full mt-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                              >
+                                {isVideo ? <Play className="w-3.5 h-3.5 fill-blue-600 text-blue-600" /> : <ExternalLink className="w-3.5 h-3.5 text-blue-600" />}
+                                <span>{isVideo ? 'Watch Video / Open Stream' : 'Open Deliverable Link'}</span>
+                                <ExternalLink className="w-3 h-3 text-blue-400 ml-0.5" />
+                              </a>
+                            ) : (
+                              <a
+                                href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${f.storagePath}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full mt-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>View / Download File Asset</span>
+                              </a>
+                            )}
+                          </div>
+                        )}
+
                         <div className="space-y-1 text-[11px] pt-1">
                           {linkedScript && (
-                            <div className="p-2 bg-blue-50 border border-blue-200 rounded text-blue-700 font-semibold flex items-center justify-between">
+                            <div className="p-2 bg-purple-50/70 border border-purple-200 rounded-lg text-purple-800 font-semibold flex items-center justify-between">
                               <span>Linked Script:</span>
                               <span className="font-mono text-slate-900">[{linkedScript.scriptId}] {linkedScript.name}</span>
                             </div>
                           )}
 
                           {linkedGraphic && (
-                            <div className="p-2 bg-purple-50 border border-purple-200 rounded text-purple-700 font-semibold flex items-center justify-between">
+                            <div className="p-2 bg-indigo-50/70 border border-indigo-200 rounded-lg text-indigo-800 font-semibold flex items-center justify-between">
                               <span>Linked Graphic Req:</span>
                               <span className="font-mono text-slate-900">[{linkedGraphic.requirementId}] {linkedGraphic.name}</span>
                             </div>
@@ -1315,9 +2363,9 @@ export default function ProjectDetailPage() {
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
+                      <div className="pt-2.5 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
                         <span>Uploaded by: <strong className="text-slate-700">{f.uploadedBy?.name || 'Manager'}</strong></span>
-                        <span className="text-emerald-600 font-bold">Active Ver.</span>
+                        <span className="text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">Active Ver.</span>
                       </div>
                     </div>
                   );
@@ -1330,54 +2378,424 @@ export default function ProjectDetailPage() {
         {/* Tab 8: Approvals */}
         {activeTab === 'Approvals' && (
           <div className="space-y-6 text-xs">
-            <h3 className="font-bold text-slate-900 text-sm">3-Stage Approval Engine Audit</h3>
-            <div className="space-y-4">
-              {project.approvals?.map((app: any) => (
-                <div key={app.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <div className="flex justify-between font-bold">
-                    <span className="text-blue-600">{app.approvalType}</span>
-                    <span className={app.status === 'APPROVED' ? 'text-emerald-600' : 'text-rose-600'}>{app.status}</span>
-                  </div>
-                  <p className="text-slate-500">Reviewer: {app.reviewer?.name} ({new Date(app.reviewedAt).toLocaleString()})</p>
-                  {app.remarks && <p className="text-slate-700 italic">"{app.remarks}"</p>}
-                </div>
-              ))}
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-blue-600" /> Multi-Stage Project Approval Engine
+                </h3>
+                <p className="text-slate-500 text-[11px] mt-0.5">
+                  Standardized 4-stage governance workflow: Technical Review → Media Review → Marketing Approval → Client Sign-off.
+                </p>
+              </div>
+              <span className="font-mono text-xs bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-lg font-bold">
+                Current Status: {project.status}
+              </span>
             </div>
-          </div>
-        )}
 
-        {/* Tab 9: Files Directory Tree */}
-        {activeTab === 'Files' && (
-          <div className="space-y-4 text-xs">
-            <h3 className="font-bold text-slate-900 text-sm">Structured File Storage Tree</h3>
-            <div className="space-y-3">
-              {filesTree?.folders?.map((folder: any) => (
-                <div key={folder.name} className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                  <div className="font-bold text-slate-800 flex items-center gap-2 mb-2">
-                    <FolderTree className="w-4 h-4 text-blue-600" /> {folder.name} ({folder.files?.length})
+            {/* 4-Stage Visual Workflow Stepper */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+              <h4 className="font-bold text-slate-800 text-xs">Approval Workflow Pipeline Stages</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Stage 1: Technical Review */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  project.status === 'WAITING_FOR_TECHNICAL_REVIEW'
+                    ? 'bg-purple-50 border-purple-400 ring-2 ring-purple-400/20'
+                    : ['WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status)
+                    ? 'bg-emerald-50 border-emerald-300'
+                    : 'bg-white border-slate-200'
+                }`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-xs text-slate-900">1. Technical Review</span>
+                    {['WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status) ? (
+                      <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    ) : project.status === 'WAITING_FOR_TECHNICAL_REVIEW' ? (
+                      <span className="w-2 h-2 rounded-full bg-purple-600 animate-ping" />
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-mono">Stage 1</span>
+                    )}
                   </div>
-                  {folder.files?.map((f: any) => (
-                    <div key={f.id} className="ml-6 text-slate-500 font-mono py-1 border-b border-slate-200">
-                      {f.fileName} ({(f.fileSize / 1048576).toFixed(1)}MB)
+                  <p className="text-[11px] text-slate-500">Technical Manager evaluation & gear/footage compliance</p>
+                </div>
+
+                {/* Stage 2: Media Review */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  project.status === 'WAITING_FOR_MEDIA_REVIEW'
+                    ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-400/20'
+                    : ['WAITING_FOR_MARKETING_APPROVAL', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status)
+                    ? 'bg-emerald-50 border-emerald-300'
+                    : 'bg-white border-slate-200'
+                }`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-xs text-slate-900">2. Media Review</span>
+                    {['WAITING_FOR_MARKETING_APPROVAL', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status) ? (
+                      <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    ) : project.status === 'WAITING_FOR_MEDIA_REVIEW' ? (
+                      <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-mono">Stage 2</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500">Media Manager creative check & story quality verification</p>
+                </div>
+
+                {/* Stage 3: Marketing Approval */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  project.status === 'WAITING_FOR_MARKETING_APPROVAL' || project.status === 'PENDING_APPROVAL' || project.status === 'PENDING_CLIENT_APPROVAL'
+                    ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/20'
+                    : ['WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status)
+                    ? 'bg-emerald-50 border-emerald-300'
+                    : 'bg-white border-slate-200'
+                }`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-xs text-slate-900">3. Marketing Approval</span>
+                    {['WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status) ? (
+                      <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    ) : project.status === 'WAITING_FOR_MARKETING_APPROVAL' || project.status === 'PENDING_APPROVAL' ? (
+                      <span className="w-2 h-2 rounded-full bg-amber-600 animate-ping" />
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-mono">Stage 3</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500">Marketing Manager campaign alignment & brand approval</p>
+                </div>
+
+                {/* Stage 4: Client Sign-off */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  project.status === 'WAITING_FOR_CLIENT_CONFIRMATION'
+                    ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-400/20'
+                    : project.status === 'COMPLETED'
+                    ? 'bg-emerald-100 border-emerald-500'
+                    : 'bg-white border-slate-200'
+                }`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-xs text-slate-900">4. Client Sign-off</span>
+                    {project.status === 'COMPLETED' ? (
+                      <CheckCircle className="w-4 h-4 text-emerald-700" />
+                    ) : project.status === 'WAITING_FOR_CLIENT_CONFIRMATION' ? (
+                      <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping" />
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-mono">Stage 4</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500">Client confirmation & official project sign-off completion</p>
+                </div>
+              </div>
+            </div>
+
+            {/* ══════════════════════════════════════════════════════
+                 1. TECHNICAL APPROVAL REQUEST SUBMISSION SESSION
+                 Allows staff/assigned team/creator to submit project for Technical Review
+            ══════════════════════════════════════════════════════ */}
+            <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3 shadow-xs">
+              <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                <h4 className="font-extrabold text-purple-900 text-xs flex items-center gap-2">
+                  <Send className="w-4 h-4 text-purple-600" /> Technical Approval Request Submission Session
+                </h4>
+                <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-2 py-0.5 rounded font-mono font-bold">
+                  Status: {project.status}
+                </span>
+              </div>
+
+              {project.status === 'WAITING_FOR_TECHNICAL_REVIEW' ? (
+                <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-lg space-y-1 text-blue-900">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs flex items-center gap-1.5 text-blue-800">
+                      <Clock className="w-4 h-4 text-blue-600" /> Technical Approval Request Submitted (Round #{(project.revisionCount || 0) + 1})
+                    </span>
+                    <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded font-mono font-bold">
+                      Under Technical Review
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-blue-700">
+                    This project has been submitted and is currently waiting for Technical Manager evaluation. Editing operational parameters is temporarily restricted.
+                  </p>
+                </div>
+              ) : ['WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status) ? (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg space-y-1 text-emerald-900">
+                  <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-800">
+                    <CheckCircle className="w-4 h-4 text-emerald-600" /> Technical Review Passed
+                  </span>
+                  <p className="text-[11px] text-emerald-700">
+                    This shoot project has successfully completed Level 1 Technical Review and is advancing through the manager approval pipeline.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-[11px] text-slate-700 leading-relaxed">
+                    {(project.revisionCount || 0) > 0 || project.notes?.includes('Revision')
+                      ? `This shoot project was returned for corrections. Ensure all deliverables, scripts, and production assets are up to date, then click below to submit for Technical Manager Approval (Round #${(project.revisionCount || 0) + 1}).`
+                      : 'Submit this shoot project with all registered video assets, deliverables, and gear allocations to initiate Level 1: Technical Manager Review & Approval.'}
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap pt-1">
+                    <button
+                      type="button"
+                      onClick={handleSubmitTechnicalReview}
+                      disabled={isProcessingApproval}
+                      className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-extrabold rounded-lg shadow-md shadow-purple-600/30 transition-all flex items-center gap-2 text-xs"
+                    >
+                      {isProcessingApproval ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" />
+                          {(project.revisionCount || 0) > 0
+                            ? `Submit Revised Project for Technical Approval (Round #${(project.revisionCount || 0) + 1})`
+                            : 'Request Technical Approval'}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ══════════════════════════════════════════════════════
+                 2. REVIEWER EVALUATION & DECISION PANELS
+            ══════════════════════════════════════════════════════ */}
+
+            {/* Technical Manager Action Panel (Level 1) */}
+            {project.status === 'WAITING_FOR_TECHNICAL_REVIEW' && (user?.role === 'TECHNICAL_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+              <div className="p-4 bg-purple-50 border border-purple-300 rounded-xl space-y-3 shadow-md animate-in fade-in duration-200">
+                <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                  <h4 className="font-bold text-purple-900 text-xs flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-purple-600" /> Technical Manager Evaluation Panel (Level 1)
+                  </h4>
+                  <span className="text-[10px] bg-purple-600 text-white px-2 py-0.5 rounded font-bold">
+                    Action Required
+                  </span>
+                </div>
+                <p className="text-[11px] text-purple-800">
+                  Evaluate equipment usage, footage technical parameters, audio/video specs, and deliverable streaming quality for this project.
+                </p>
+                <div className="flex items-center gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    disabled={isProcessingApproval}
+                    onClick={() => {
+                      const remarks = prompt('Enter approval notes (optional):') || '';
+                      handleReviewTechnical('APPROVE', remarks);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
+                  >
+                    <Check className="w-4 h-4" /> Approve Technical Review
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isProcessingApproval}
+                    onClick={() => {
+                      const comment = prompt('Enter mandatory rejection reason / revision required:');
+                      if (comment && comment.trim()) {
+                        handleReviewTechnical('REJECT', comment.trim());
+                      } else if (comment !== null) {
+                        alert('A revision reason is mandatory to reject technical review.');
+                      }
+                    }}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
+                  >
+                    <X className="w-4 h-4" /> Reject with Revisions
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Media Manager Action Panel (Level 2) */}
+            {project.status === 'WAITING_FOR_MEDIA_REVIEW' && (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+              <div className="p-4 bg-blue-50 border border-blue-300 rounded-xl space-y-3 shadow-md animate-in fade-in duration-200">
+                <div className="flex items-center justify-between border-b border-blue-200 pb-2">
+                  <h4 className="font-bold text-blue-900 text-xs flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-blue-600" /> Media Manager Evaluation Panel (Level 2)
+                  </h4>
+                  <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded font-bold">
+                    Action Required
+                  </span>
+                </div>
+                <p className="text-[11px] text-blue-800">
+                  Review creative direction, storyline fulfillment, graphic requirements, and overall production quality before advancing to Marketing Approval.
+                </p>
+                <div className="flex items-center gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    disabled={isProcessingApproval}
+                    onClick={() => {
+                      const remarks = prompt('Enter media approval notes (optional):') || '';
+                      handleReviewMedia('APPROVE', remarks);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
+                  >
+                    <Check className="w-4 h-4" /> Approve Media Review
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isProcessingApproval}
+                    onClick={() => {
+                      const comment = prompt('Enter mandatory media revision reason:');
+                      if (comment && comment.trim()) {
+                        handleReviewMedia('REJECT', comment.trim());
+                      } else if (comment !== null) {
+                        alert('A revision reason is mandatory to return for media revisions.');
+                      }
+                    }}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
+                  >
+                    <X className="w-4 h-4" /> Request Media Revisions
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Marketing Manager Action Panel (Level 3) */}
+            {(project.status === 'WAITING_FOR_MARKETING_APPROVAL' || project.status === 'PENDING_APPROVAL' || project.status === 'PENDING_CLIENT_APPROVAL') && (user?.role === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+              <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl space-y-3 shadow-md animate-in fade-in duration-200">
+                <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                  <h4 className="font-bold text-amber-900 text-xs flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-amber-600" /> Marketing Manager Approval Panel (Level 3)
+                  </h4>
+                  <span className="text-[10px] bg-amber-600 text-white px-2 py-0.5 rounded font-bold">
+                    Action Required
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-800">
+                  Verify campaign alignment, brand integrity, and messaging compliance. Approval advances project to Client Confirmation.
+                </p>
+                <div className="flex items-center gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    disabled={isProcessingApproval}
+                    onClick={() => {
+                      const remarks = prompt('Enter marketing approval notes (optional):') || '';
+                      handleReviewMarketing('APPROVE', remarks);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
+                  >
+                    <Check className="w-4 h-4" /> Grant Marketing Approval
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isProcessingApproval}
+                    onClick={() => {
+                      const comment = prompt('Enter reason for returning project:');
+                      if (comment && comment.trim()) {
+                        handleReviewMarketing('REJECT', comment.trim());
+                      }
+                    }}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
+                  >
+                    <X className="w-4 h-4" /> Reject / Request Changes
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Client Sign-off Panel (Level 4) */}
+            {project.status === 'WAITING_FOR_CLIENT_CONFIRMATION' && (
+              <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl space-y-3 shadow-md animate-in fade-in duration-200">
+                <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
+                  <h4 className="font-bold text-emerald-900 text-xs flex items-center gap-2">
+                    <CheckSquare className="w-4 h-4 text-emerald-600" /> Client Sign-off &amp; Confirmation Panel (Level 4)
+                  </h4>
+                  <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded font-bold">
+                    Final Sign-off
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-800">
+                  Record client review sign-off or log client requested revisions to complete project closure.
+                </p>
+                <div className="flex items-center gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    disabled={isProcessingApproval}
+                    onClick={() => {
+                      const notes = prompt('Enter client confirmation reference notes (optional):') || 'Client confirmed and approved all shoot deliverables.';
+                      handleConfirmClient('CONFIRM', notes);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
+                  >
+                    <Check className="w-4 h-4" /> Confirm Client Sign-off (Complete Project)
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isProcessingApproval}
+                    onClick={() => {
+                      const comment = prompt('Enter client requested revisions / feedback:');
+                      if (comment && comment.trim()) {
+                        handleConfirmClient('REQUEST_CHANGES', comment.trim());
+                      }
+                    }}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
+                  >
+                    <RotateCcw className="w-4 h-4" /> Request Client Revisions
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════
+                 3. APPROVAL DECISION HISTORY & AUDIT LOG
+            ══════════════════════════════════════════════════════ */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <h4 className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-blue-600" /> Approval Decision History &amp; Audit Trail
+                </h4>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  {project.approvals?.length || 0} Records
+                </span>
+              </div>
+
+              {(!project.approvals || project.approvals.length === 0) ? (
+                <div className="p-6 text-center bg-white border border-slate-200 rounded-xl space-y-1 text-slate-500">
+                  <ShieldAlert className="w-6 h-6 text-slate-400 mx-auto" />
+                  <p className="font-semibold text-slate-700 text-xs">No formal approval decisions recorded yet.</p>
+                  <p className="text-[11px] text-slate-400">Click "Request Technical Approval" above to start the review process.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {project.approvals.map((app: any) => (
+                    <div key={app.id} className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-1.5 shadow-xs">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 text-xs">{app.approvalType}</span>
+                          {app.round && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-slate-100 text-slate-700 rounded border border-slate-200">
+                              Round {app.round}
+                            </span>
+                          )}
+                        </div>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                          app.status === 'APPROVED'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : app.status === 'REJECTED'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {app.status}
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] text-slate-500 flex items-center gap-3 flex-wrap">
+                        <span>Reviewer: <strong className="text-slate-700">{app.reviewer?.name || 'Manager'}</strong> ({app.reviewer?.role || app.targetRole || 'Reviewer'})</span>
+                        <span>•</span>
+                        <span>{new Date(app.reviewedAt || app.createdAt).toLocaleString()}</span>
+                      </div>
+
+                      {app.remarks && (
+                        <p className="text-xs text-slate-700 italic bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                          "{app.remarks}"
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
 
-        {/* Tab 10: Communication & Operational Remarks */}
-        {activeTab === 'Communication' && (
-          <ActivityCommunicationThread
-            entityType="PROJECT"
-            entityId={project.id}
-            entityName={project.name}
-            entityRef={project.projectId}
-            projectId={project.id}
-            title="Project Activity Communications"
-          />
-        )}
+
 
         {/* Tab 11: Timeline */}
         {activeTab === 'Timeline' && (

@@ -186,7 +186,7 @@ export default function EquipmentMaintenancePage() {
                     required
                     value={form.equipmentId}
                     onChange={(e) => setForm({ ...form, equipmentId: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                   >
                     <option value="">Select Equipment Item</option>
                     {equipmentList.map((eq) => (
@@ -203,7 +203,7 @@ export default function EquipmentMaintenancePage() {
                     <select
                       value={form.maintenanceType}
                       onChange={(e) => setForm({ ...form, maintenanceType: e.target.value })}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                     >
                       <option value="ROUTINE_SERVICE">ROUTINE_SERVICE</option>
                       <option value="REPAIR">REPAIR</option>
@@ -219,7 +219,7 @@ export default function EquipmentMaintenancePage() {
                       required
                       value={form.performedBy}
                       onChange={(e) => setForm({ ...form, performedBy: e.target.value })}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                       placeholder="e.g. Sony Service Center"
                     />
                   </div>
@@ -232,7 +232,7 @@ export default function EquipmentMaintenancePage() {
                       type="date"
                       value={form.scheduledDate}
                       onChange={(e) => setForm({ ...form, scheduledDate: e.target.value })}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                     />
                   </div>
 
@@ -243,7 +243,7 @@ export default function EquipmentMaintenancePage() {
                       step="0.01"
                       value={form.cost}
                       onChange={(e) => setForm({ ...form, cost: e.target.value })}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                       placeholder="150.00"
                     />
                   </div>
@@ -255,7 +255,7 @@ export default function EquipmentMaintenancePage() {
                     rows={2}
                     value={form.notes}
                     onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                     placeholder="e.g. Sensor cleaning & firmware update"
                   />
                 </div>

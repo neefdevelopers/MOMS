@@ -1602,7 +1602,7 @@ export default function ScriptsPage() {
                     disabled={isEditingLocked}
                     onChange={(e) => setEditRemarks(e.target.value)}
                     placeholder="Enter operational remarks..."
-                    className="w-full bg-slate-100 border border-slate-200 text-white px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -1721,7 +1721,7 @@ export default function ScriptsPage() {
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddRemark(); } }}
                     placeholder="Add a remark… (Enter to submit, Shift+Enter for new line)"
                     rows={2}
-                    className="flex-1 bg-slate-50 border border-slate-200 text-white px-3 py-2 rounded-lg text-[11px] resize-none focus:border-amber-500 focus:bg-white focus:outline-none placeholder-slate-400"
+                    className="flex-1 bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg text-[11px] resize-none focus:border-amber-500 focus:bg-white focus:outline-none placeholder-slate-400"
                   />
                   <button
                     onClick={handleAddRemark}
@@ -1755,7 +1755,7 @@ export default function ScriptsPage() {
                       value={selectedUploadCategory}
                       disabled={isEditingLocked}
                       onChange={(e) => setSelectedUploadCategory(e.target.value)}
-                      className="bg-slate-50 border border-purple-200 text-white px-3 py-2 rounded-lg text-xs font-semibold focus:outline-none focus:border-purple-500 focus:bg-white shadow-inner disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="bg-slate-50 border border-purple-200 text-slate-800 px-3 py-2 rounded-lg text-xs font-semibold focus:outline-none focus:border-purple-500 focus:bg-white shadow-inner disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value="SCRIPT_DOCUMENT">1. Script Document</option>
                       <option value="REFERENCE_IMAGE">2. Reference Images</option>
@@ -1771,7 +1771,7 @@ export default function ScriptsPage() {
                       disabled={isEditingLocked}
                       onChange={(e) => setNewLinkName(e.target.value)}
                       placeholder="Link name (e.g. Final Script v3)"
-                      className="flex-1 min-w-[150px] bg-slate-50 border border-slate-200 text-white px-3 py-2 rounded-lg text-xs focus:border-purple-500 focus:bg-white focus:outline-none placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 min-w-[150px] bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg text-xs focus:border-purple-500 focus:bg-white focus:outline-none placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <input
                       type="url"
@@ -1779,7 +1779,7 @@ export default function ScriptsPage() {
                       disabled={isEditingLocked}
                       onChange={(e) => setNewLinkUrl(e.target.value)}
                       placeholder="https://drive.google.com/..."
-                      className="flex-1 min-w-[180px] bg-slate-50 border border-slate-200 text-white px-3 py-2 rounded-lg text-xs focus:border-purple-500 focus:bg-white focus:outline-none placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 min-w-[180px] bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg text-xs focus:border-purple-500 focus:bg-white focus:outline-none placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <button
                       disabled={isEditingLocked || addingLink || !newLinkName.trim() || !newLinkUrl.trim()}
@@ -2283,7 +2283,7 @@ export default function ScriptsPage() {
                 <select
                   value={newProjectId}
                   onChange={(e) => setNewProjectId(e.target.value)}
-                  className="w-full bg-slate-100 border border-slate-200 text-white px-3 py-2 rounded-lg"
+                  className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg"
                   required
                 >
                   {projectsList.map((p) => (
@@ -2302,7 +2302,7 @@ export default function ScriptsPage() {
                   placeholder="Leave blank for BrandCode-Date-ProductCode-Seq"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  className="w-full bg-slate-100 border border-slate-200 text-white px-3 py-2 rounded-lg"
+                  className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg"
                 />
               </div>
 
@@ -2312,7 +2312,7 @@ export default function ScriptsPage() {
                 <select
                   value={newLanguage}
                   onChange={(e) => setNewLanguage(e.target.value)}
-                  className="w-full bg-slate-100 border border-slate-200 text-white px-3 py-2 rounded-lg"
+                  className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg"
                 >
                   <option value="Malayalam (KL)">Malayalam (KL)</option>
                   <option value="English (EN)">English (EN)</option>
@@ -2330,7 +2330,7 @@ export default function ScriptsPage() {
                 <select
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
-                  className="w-full bg-slate-100 border border-slate-200 text-white px-3 py-2 rounded-lg"
+                  className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg"
                 >
                   <option value="Advertisement">Advertisement</option>
                   <option value="Awareness">Awareness</option>
@@ -2351,7 +2351,7 @@ export default function ScriptsPage() {
                 <select
                   value={newObjective}
                   onChange={(e) => setNewObjective(e.target.value)}
-                  className="w-full bg-slate-100 border border-slate-200 text-white px-3 py-2 rounded-lg"
+                  className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg"
                 >
                   <option value="Generate Sales">Generate Sales</option>
                   <option value="Increase Awareness">Increase Awareness</option>
@@ -2371,7 +2371,7 @@ export default function ScriptsPage() {
                   placeholder="e.g. 30s, 60s"
                   value={newDuration}
                   onChange={(e) => setNewDuration(e.target.value)}
-                  className="w-full bg-slate-100 border border-slate-200 text-white px-3 py-2 rounded-lg"
+                  className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg"
                 />
               </div>
 
@@ -2381,7 +2381,7 @@ export default function ScriptsPage() {
                 <select
                   value={newPriority}
                   onChange={(e) => setNewPriority(e.target.value)}
-                  className="w-full bg-slate-100 border border-slate-200 text-white px-3 py-2 rounded-lg"
+                  className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg"
                 >
                   <option value="LOW">LOW</option>
                   <option value="MEDIUM">MEDIUM</option>
@@ -2396,7 +2396,7 @@ export default function ScriptsPage() {
                 <select
                   value={newStatus}
                   onChange={(e) => setNewStatus(e.target.value)}
-                  className="w-full bg-slate-100 border border-slate-200 text-white px-3 py-2 rounded-lg"
+                  className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg"
                 >
                   <option value="DRAFT">Draft</option>
                   <option value="READY">Ready</option>
@@ -2466,7 +2466,7 @@ export default function ScriptsPage() {
                 placeholder="Operational notes, props needed, location hints..."
                 value={newRemarks}
                 onChange={(e) => setNewRemarks(e.target.value)}
-                className="w-full bg-slate-100 border border-slate-200 text-white px-3 py-2 rounded-lg"
+                className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg"
               />
             </div>
 
@@ -2541,7 +2541,7 @@ export default function ScriptsPage() {
                   placeholder={`Enter full scene narration, voiceover dialogues, shots...\n\nExample:\n[Scene 1 - Studio Intro]\nVisual: Smooth pan over hero product\nVoiceover (VO): Experience the next generation of performance...\n\n[Scene 2 - Feature Callout]\nVisual: Macro shot of premium finish`}
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
-                  className="w-full flex-1 bg-slate-50 border border-purple-200 text-white p-4 rounded-xl text-xs font-mono focus:outline-none focus:border-purple-400 leading-relaxed shadow-inner break-words [overflow-wrap:anywhere] resize-none"
+                  className="w-full flex-1 bg-slate-50 border border-purple-200 text-slate-800 p-4 rounded-xl text-xs font-mono focus:outline-none focus:border-purple-400 leading-relaxed shadow-inner break-words [overflow-wrap:anywhere] resize-none"
                 />
               ) : (
                 <div className="bg-slate-50 border border-purple-200 p-4 rounded-xl flex-1 max-h-[55vh] overflow-y-auto custom-scrollbar break-words [overflow-wrap:anywhere]">
@@ -2621,7 +2621,7 @@ export default function ScriptsPage() {
               <button
                 type="button"
                 onClick={() => setViewingScriptDescription(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-white font-bold rounded-xl text-xs transition-all"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-all"
               >
                 Close Popup
               </button>

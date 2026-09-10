@@ -1004,7 +1004,7 @@ export default function GraphicReqsPage() {
                       setSelectedClient(e.target.value);
                       setSelectedBrand('');
                     }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-purple-500 focus:bg-white font-medium"
                   >
                     <option value="">All Clients</option>
                     {clientsList.map((c) => (
@@ -1015,7 +1015,7 @@ export default function GraphicReqsPage() {
                   <select
                     value={selectedBrand}
                     onChange={(e) => setSelectedBrand(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-purple-500 focus:bg-white font-medium"
                   >
                     <option value="">All Brands</option>
                     {brandsList
@@ -1028,7 +1028,7 @@ export default function GraphicReqsPage() {
                   <select
                     value={selectedProduct}
                     onChange={(e) => setSelectedProduct(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-purple-500 focus:bg-white font-medium"
                   >
                     <option value="">All Products</option>
                     {productsList.map((p) => (
@@ -1047,7 +1047,7 @@ export default function GraphicReqsPage() {
                   <select
                     value={selectedProject}
                     onChange={(e) => setSelectedProject(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
                   >
                     <option value="">All Parent Projects</option>
                     {projectsList.map((p) => (
@@ -1058,7 +1058,7 @@ export default function GraphicReqsPage() {
                   <select
                     value={selectedEmployee}
                     onChange={(e) => setSelectedEmployee(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
                   >
                     <option value="">All Assigned Employees</option>
                     {usersList.map((u) => (
@@ -1077,7 +1077,7 @@ export default function GraphicReqsPage() {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
                   >
                     <option value="ALL">All Requirement Statuses</option>
                     {GRAPHIC_REQUIREMENT_STATUSES.map((s) => (
@@ -1088,7 +1088,7 @@ export default function GraphicReqsPage() {
                   <select
                     value={selectedType}
                     onChange={(e) => setSelectedType(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
                   >
                     <option value="">All Asset Types</option>
                     {availableTypes.map((t) => (
@@ -1099,7 +1099,7 @@ export default function GraphicReqsPage() {
                   <select
                     value={selectedPriority}
                     onChange={(e) => setSelectedPriority(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
                   >
                     <option value="">All Priorities</option>
                     <option value="LOW">LOW Priority</option>
@@ -1123,7 +1123,7 @@ export default function GraphicReqsPage() {
                     type="date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-teal-500 font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-teal-500 font-medium text-xs"
                   />
                 </div>
                 <div>
@@ -1133,7 +1133,7 @@ export default function GraphicReqsPage() {
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
                     min={dateFrom || undefined}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-teal-500 font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-teal-500 font-medium text-xs"
                   />
                 </div>
               </div>
@@ -1344,7 +1344,7 @@ export default function GraphicReqsPage() {
                     required
                     value={selectedProjectId}
                     onChange={(e) => setSelectedProjectId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-white font-medium text-xs focus:outline-none focus:border-amber-500 focus:bg-white transition-colors"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 font-medium text-xs focus:outline-none focus:border-amber-500 focus:bg-white transition-colors"
                   >
                     <option value="">-- Select Parent Shoot Project --</option>
                     {projectsList.map((p) => (
@@ -1398,7 +1398,7 @@ export default function GraphicReqsPage() {
                     <select
                       value={reqStatus}
                       onChange={(e) => setReqStatus(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white font-medium text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 font-medium text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
                     >
                       {GRAPHIC_REQUIREMENT_STATUSES.map((s) => (
                         <option key={s.value} value={s.value}>{s.label}</option>
@@ -1411,7 +1411,7 @@ export default function GraphicReqsPage() {
                     <select
                       value={priority}
                       onChange={(e) => setPriority(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white font-medium text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 font-medium text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
                     >
                       <option value="LOW">LOW</option>
                       <option value="MEDIUM">MEDIUM</option>
@@ -1429,7 +1429,7 @@ export default function GraphicReqsPage() {
                     placeholder="e.g. DW Ojas Launch Reel Thumbnail & Social Feed Banner"
                     value={reqName}
                     onChange={(e) => setReqName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
                   />
                 </div>
 
@@ -1454,7 +1454,7 @@ export default function GraphicReqsPage() {
                           placeholder="e.g. 3D Render..."
                           value={customTypeName}
                           onChange={(e) => setCustomTypeName(e.target.value)}
-                          className="w-full bg-slate-50 border border-amber-500 rounded-lg p-2 text-white text-xs focus:outline-none"
+                          className="w-full bg-slate-50 border border-amber-500 rounded-lg p-2 text-slate-800 text-xs focus:outline-none"
                         />
                         <button
                           type="button"
@@ -1468,7 +1468,7 @@ export default function GraphicReqsPage() {
                       <select
                         value={reqType}
                         onChange={(e) => setReqType(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white font-medium text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 font-medium text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
                       >
                         {availableTypes.map((t) => (
                           <option key={t} value={t}>{t}</option>
@@ -1482,7 +1482,7 @@ export default function GraphicReqsPage() {
                     <select
                       value={selectedProductId}
                       onChange={(e) => setSelectedProductId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white font-medium text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 font-medium text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
                     >
                       <option value="">-- Choose Product --</option>
                       {productsList.map((p) => (
@@ -1498,7 +1498,7 @@ export default function GraphicReqsPage() {
                       placeholder="e.g. Festival Mega Sale 2026"
                       value={selectedCampaignId}
                       onChange={(e) => setSelectedCampaignId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
                     />
                   </div>
                 </div>
@@ -1558,7 +1558,7 @@ export default function GraphicReqsPage() {
                       type="date"
                       value={estimatedCompletion}
                       onChange={(e) => setEstimatedCompletion(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white font-medium text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 font-medium text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
                     />
                   </div>
 
@@ -1585,7 +1585,7 @@ export default function GraphicReqsPage() {
                     placeholder="e.g. Promote 10% discount code with clean green aesthetic"
                     value={objective}
                     onChange={(e) => setObjective(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
                   />
                 </div>
 
@@ -1596,7 +1596,7 @@ export default function GraphicReqsPage() {
                     placeholder="Specific dimensions, brand color hex codes, text copy, or background composition guidelines..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500 focus:bg-white leading-relaxed"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 text-xs focus:outline-none focus:border-amber-500 focus:bg-white leading-relaxed"
                   />
                 </div>
 
@@ -1607,7 +1607,7 @@ export default function GraphicReqsPage() {
                     placeholder="Additional production notes or designer feedback instructions..."
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
                   />
                 </div>
               </div>
@@ -1845,7 +1845,7 @@ export default function GraphicReqsPage() {
                     className={`w-full font-bold text-xs p-1.5 rounded border focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${getStatusBadge(inspectedReq.status)}`}
                   >
                     {GRAPHIC_REQUIREMENT_STATUSES.map((s) => (
-                      <option key={s.value} value={s.value} className="bg-slate-50 text-white font-normal">
+                      <option key={s.value} value={s.value} className="bg-slate-50 text-slate-800 font-normal">
                         {s.label}
                       </option>
                     ))}
@@ -1885,7 +1885,7 @@ export default function GraphicReqsPage() {
                                   <select
                                     value={assignStaffUserId}
                                     onChange={(e) => setAssignStaffUserId(e.target.value)}
-                                    className="bg-slate-50 border border-slate-200 text-white px-2 py-1 rounded text-xs focus:outline-none"
+                                    className="bg-slate-50 border border-slate-200 text-slate-800 px-2 py-1 rounded text-xs focus:outline-none"
                                   >
                                     <option value="">-- Select Staff Member --</option>
                                     {usersList.map((u) => (
@@ -2313,7 +2313,7 @@ export default function GraphicReqsPage() {
                     placeholder="Type remark message (Visible to staff & managers, stored permanently)..."
                     value={remarkInput}
                     onChange={(e) => setRemarkInput(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-white text-xs focus:outline-none focus:border-purple-500 focus:bg-white leading-relaxed"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-purple-500 focus:bg-white leading-relaxed"
                   />
                   <div className="flex justify-between items-center">
                     <span className="text-[9px] text-slate-400 italic">
@@ -2335,7 +2335,7 @@ export default function GraphicReqsPage() {
             <div className="flex justify-end pt-2 border-t border-slate-200">
               <button
                 onClick={() => setInspectedReq(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-white font-bold rounded-lg text-xs"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg text-xs"
               >
                 Close Inspector
               </button>
@@ -2374,7 +2374,7 @@ export default function GraphicReqsPage() {
                   placeholder="e.g. Instagram Post 1080x1080, Facebook Banner..."
                   value={delName}
                   onChange={(e) => setDelName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 text-xs focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
                 />
               </div>
 
@@ -2384,7 +2384,7 @@ export default function GraphicReqsPage() {
                   <select
                     value={delType}
                     onChange={(e) => setDelType(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 text-xs focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
                   >
                     {AVAILABLE_DELIVERABLE_FORMATS.map((f) => (
                       <option key={f.name} value={f.name}>{f.name}</option>
@@ -2417,7 +2417,7 @@ export default function GraphicReqsPage() {
                   placeholder="Brief description of this produced deliverable output..."
                   value={delDesc}
                   onChange={(e) => setDelDesc(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
                 />
               </div>
 
@@ -2426,7 +2426,7 @@ export default function GraphicReqsPage() {
                 <input
                   type="file"
                   onChange={(e) => setDelFile(e.target.files?.[0] || null)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-white text-xs file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-gray-950 hover:file:bg-amber-400"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-800 text-xs file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-gray-950 hover:file:bg-amber-400"
                 />
                 {editingDeliverable?.fileUrl && !delFile && (
                   <div className="mt-1 text-[10px] text-emerald-600 truncate">
@@ -2442,7 +2442,7 @@ export default function GraphicReqsPage() {
                   placeholder="Feedback or production notes..."
                   value={delRemarks}
                   onChange={(e) => setDelRemarks(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
                 />
               </div>
             </div>

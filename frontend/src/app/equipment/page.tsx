@@ -559,7 +559,7 @@ export default function EquipmentPage() {
               key={cat}
               onClick={() => setCategoryFilter(cat)}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors whitespace-nowrap ${
-                categoryFilter === cat ? 'bg-cyan-600 border-cyan-500 text-white' : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-200'
+                categoryFilter === cat ? 'bg-cyan-600 border-cyan-500 text-slate-800' : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-200'
               }`}
             >
               {cat === 'ALL' ? 'All Categories' : cat}

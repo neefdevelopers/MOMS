@@ -154,7 +154,7 @@ function BrandsContent() {
             placeholder="Search by brand name, short code, industry, description, client..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white"
           />
         </div>
 
@@ -164,7 +164,7 @@ function BrandsContent() {
             <select
               value={clientIdFilter}
               onChange={(e) => setClientIdFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
             >
               <option value="">All Parent Clients</option>
               {clients.map((c) => (
@@ -180,7 +180,7 @@ function BrandsContent() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
             >
               <option value="">All Statuses</option>
               <option value="ACTIVE">ACTIVE</option>
@@ -264,7 +264,7 @@ function BrandsContent() {
                   required
                   value={formData.clientId}
                   onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-semibold"
                 >
                   <option value="">Select Active Client</option>
                   {activeClients.map((c) => (
@@ -288,7 +288,7 @@ function BrandsContent() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Dhaara Wellness"
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                 />
               </div>
 
@@ -301,7 +301,7 @@ function BrandsContent() {
                   value={formData.shortCode}
                   onChange={(e) => setFormData({ ...formData, shortCode: e.target.value.toUpperCase() })}
                   placeholder="e.g. DW"
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-mono font-bold uppercase"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-mono font-bold uppercase"
                 />
               </div>
 
@@ -312,7 +312,7 @@ function BrandsContent() {
                   value={formData.industry}
                   onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
                   placeholder="e.g. Health & Skincare"
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                 />
               </div>
 
@@ -323,7 +323,7 @@ function BrandsContent() {
                   value={formData.logoUrl}
                   onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
                   placeholder="https://..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                 />
               </div>
 
@@ -340,7 +340,7 @@ function BrandsContent() {
                     type="text"
                     value={formData.primaryColor}
                     onChange={(e) => setFormData({ ...formData, primaryColor: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-mono"
                   />
                 </div>
               </div>
@@ -351,7 +351,7 @@ function BrandsContent() {
               <select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
+                className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-semibold"
               >
                 <option value="ACTIVE">ACTIVE (Can create new projects)</option>
                 <option value="INACTIVE">INACTIVE</option>
@@ -366,7 +366,7 @@ function BrandsContent() {
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Brand story, guidelines, positioning..."
-                className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
               ></textarea>
             </div>
 

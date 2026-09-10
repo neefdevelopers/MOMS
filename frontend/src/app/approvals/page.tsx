@@ -484,7 +484,7 @@ export default function ApprovalsPage() {
                   placeholder="Search item, code, deliverable..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 text-white pl-9 pr-8 py-2 rounded-xl text-xs focus:outline-none focus:border-cyan-500 focus:bg-white"
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-800 pl-9 pr-8 py-2 rounded-xl text-xs focus:outline-none focus:border-cyan-500 focus:bg-white"
                 />
                 {searchQuery && (
                   <button
@@ -916,7 +916,7 @@ export default function ApprovalsPage() {
                           <select
                             value={clientDecision}
                             onChange={(e) => setClientDecision(e.target.value)}
-                            className="bg-slate-50 border border-slate-200 text-white p-2 rounded text-xs"
+                            className="bg-slate-50 border border-slate-200 text-slate-800 p-2 rounded text-xs"
                           >
                             <option value="APPROVED">Approved by Client</option>
                             <option value="REVISION_REQUESTED">Revision Requested</option>
@@ -926,7 +926,7 @@ export default function ApprovalsPage() {
                           <select
                             value={commMethod}
                             onChange={(e) => setCommMethod(e.target.value)}
-                            className="bg-slate-50 border border-slate-200 text-white p-2 rounded text-xs"
+                            className="bg-slate-50 border border-slate-200 text-slate-800 p-2 rounded text-xs"
                           >
                             <option value="WhatsApp">WhatsApp Message</option>
                             <option value="Email">Email Communication</option>

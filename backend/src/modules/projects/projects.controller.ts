@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ProjectsService } from './projects.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -58,9 +58,15 @@ export class ProjectsController {
     return this.projectsService.create(data, userId);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Put(':id')
   update(@Param('id') id: string, @Body() data: any, @CurrentUser('id') userId: string) {
+    return this.projectsService.update(id, data, userId);
+  }
+
+  @Roles(Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Patch(':id')
+  patchUpdate(@Param('id') id: string, @Body() data: any, @CurrentUser('id') userId: string) {
     return this.projectsService.update(id, data, userId);
   }
 
@@ -68,5 +74,46 @@ export class ProjectsController {
   @Post(':id/archive')
   archive(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.projectsService.archive(id, userId);
+  }
+
+  @Post(':id/submit-technical')
+  submitTechnicalReview(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.projectsService.submitTechnicalReview(id, user);
+  }
+
+  @Post(':id/review-technical')
+  reviewTechnical(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+  ) {
+    return this.projectsService.reviewTechnical(id, user, body);
+  }
+
+  @Post(':id/review-media')
+  reviewMedia(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+  ) {
+    return this.projectsService.reviewMedia(id, user, body);
+  }
+
+  @Post(':id/review-marketing')
+  reviewMarketing(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+  ) {
+    return this.projectsService.reviewMarketing(id, user, body);
+  }
+
+  @Post(':id/confirm-client')
+  confirmClient(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() body: { action: 'CONFIRM' | 'REQUEST_CHANGES'; comment?: string },
+  ) {
+    return this.projectsService.confirmClient(id, user, body);
   }
 }

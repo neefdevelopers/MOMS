@@ -158,7 +158,7 @@ export default function EquipmentDamagePage() {
                 <select
                   value={repairStatus}
                   onChange={(e) => setRepairStatus(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                 >
                   <option value="PENDING">PENDING</option>
                   <option value="IN_REPAIR">IN_REPAIR</option>
@@ -173,7 +173,7 @@ export default function EquipmentDamagePage() {
                   rows={3}
                   value={repairNotes}
                   onChange={(e) => setRepairNotes(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                   placeholder="e.g. Replaced front element glass and re-calibrated autofocus motor."
                 />
               </div>

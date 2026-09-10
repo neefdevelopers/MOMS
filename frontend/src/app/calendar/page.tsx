@@ -3,10 +3,63 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck, FileText, User, ChevronLeft, ChevronRight, ArrowUpDown, MapPin, Eye, Zap } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck, FileText, User, ChevronLeft, ChevronRight, ArrowUpDown, MapPin, Eye, Zap, CheckCircle2, Link as LinkIcon, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
 import { TimelineView, TimelineEntry } from '@/components/common/TimelineView';
+
+const APPROVED_CALENDAR_STATUSES = [
+  'APPROVED',
+  'CLIENT_APPROVED',
+  'SCHEDULED',
+  'PUBLISHED',
+  'READY',
+  'OPERATIONAL',
+  'TASK_ASSIGNED',
+  'IN_PRODUCTION',
+  'WAITING_FOR_TECHNICAL_REVIEW',
+  'TECHNICAL_REVIEW',
+  'WAITING_FOR_MEDIA_REVIEW',
+  'MEDIA_MANAGER_REVIEW',
+  'WAITING_FOR_CLIENT_CONFIRMATION',
+  'COMPLETED',
+  'CLOSED',
+];
+
+const UNAPPROVED_CALENDAR_STATUSES = [
+  'PENDING_MARKETING_APPROVAL',
+  'PENDING_APPROVAL',
+  'PENDING_CLIENT_APPROVAL',
+  'PENDING_CLIENT_REVIEW',
+  'WAITING_FOR_MARKETING_APPROVAL',
+  'DRAFT',
+  'CHANGES_REQUESTED',
+  'REVISION_REQUESTED',
+  'REJECTED',
+];
+
+const isSameCalendarDate = (dateVal: any, targetYear: number, targetMonth: number, targetDay: number): boolean => {
+  if (!dateVal) return false;
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return false;
+
+  // 1. Local date match
+  if (d.getFullYear() === targetYear && d.getMonth() === targetMonth && d.getDate() === targetDay) {
+    return true;
+  }
+  // 2. UTC date match (handles ISO date-only strings like 2026-09-08 stored at UTC midnight)
+  if (d.getUTCFullYear() === targetYear && d.getUTCMonth() === targetMonth && d.getUTCDate() === targetDay) {
+    return true;
+  }
+  // 3. String prefix match (YYYY-MM-DD)
+  if (typeof dateVal === 'string') {
+    const targetStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+    if (dateVal.startsWith(targetStr)) {
+      return true;
+    }
+  }
+  return false;
+};
 
 export default function CalendarPage() {
   const { user } = useAuth();
@@ -58,6 +111,50 @@ export default function CalendarPage() {
     });
   };
 
+  const isEventConvertedToTask = (eventItem: any) => {
+    if (!eventItem) return false;
+    const taskAssignedStatuses = [
+      'TASK_ASSIGNED',
+      'IN_PRODUCTION',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+      'COMPLETED',
+      'CLOSED',
+    ];
+    if (taskAssignedStatuses.includes(eventItem.status)) return true;
+    if (eventItem.shootProjects?.[0] && taskAssignedStatuses.includes(eventItem.shootProjects[0].status)) return true;
+    if (eventItem.shoot && taskAssignedStatuses.includes(eventItem.shoot.status)) return true;
+    if (eventItem.graphicRequirement && taskAssignedStatuses.includes(eventItem.graphicRequirement.status)) return true;
+    if (eventItem.tasks && eventItem.tasks.length > 0) return true;
+    if (eventItem.shootProjects?.[0]?.tasks && eventItem.shootProjects[0].tasks.length > 0) return true;
+    if (eventItem.shoot?.tasks && eventItem.shoot.tasks.length > 0) return true;
+    if (eventItem.graphicRequirement?.tasks && eventItem.graphicRequirement.tasks.length > 0) return true;
+    return false;
+  };
+
+  const canConvertToTask = (eventItem: any) => {
+    if (!eventItem) return false;
+    const role = user?.role;
+    const isMediaOrAdmin = role === 'MEDIA_MANAGER' || (role as string) === 'ADMIN' || (role as string) === 'ADMINISTRATOR';
+    if (!isMediaOrAdmin) return false;
+    if (isEventConvertedToTask(eventItem)) return false;
+
+    // Check if event is marketing approved or ready
+    const approvedStatuses = ['APPROVED', 'READY', 'APPROVED_BY_MARKETING', 'CLIENT_APPROVED'];
+    const isApproved =
+      approvedStatuses.includes(eventItem.status) ||
+      eventItem.approvalStatus === 'APPROVED' ||
+      eventItem.isApproved === true ||
+      (eventItem.shootProjects?.[0] && approvedStatuses.includes(eventItem.shootProjects[0].status)) ||
+      (eventItem.shoot && approvedStatuses.includes(eventItem.shoot.status)) ||
+      (eventItem.graphicRequirement && approvedStatuses.includes(eventItem.graphicRequirement.status));
+
+    return Boolean(isApproved);
+  };
+
   const toggleEquipment = (eqId: string) => {
     setFormData((prev) => {
       const exists = prev.equipmentIds.includes(eqId);
@@ -85,6 +182,7 @@ export default function CalendarPage() {
     contentType: 'Post',
     platform: 'Instagram',
     caption: '',
+    creativeAssetName: '',
     creativePreviewUrl: '',
     shootType: 'INDOOR',
     shootDate: new Date().toISOString().split('T')[0],
@@ -171,20 +269,14 @@ export default function CalendarPage() {
     }
   };
 
-  const loadData = async (overrideStatus?: string) => {
+  const loadData = async () => {
     try {
-      let url = '/calendar';
-      const params = new URLSearchParams();
-      if (clientIdFilter) params.append('clientId', clientIdFilter);
-      if (brandIdFilter) params.append('brandId', brandIdFilter);
-      if (shootTypeFilter) params.append('shootType', shootTypeFilter);
-      
-      const activeStatus = overrideStatus !== undefined ? overrideStatus : statusFilter;
-      if (activeStatus && activeStatus !== 'ALL') params.append('status', activeStatus);
-      if (params.toString()) url += `?${params.toString()}`;
-
+      setLoading(true);
       const [resEvents, resClients, resBrands, resProducts, resUsers, resEq, resGr, resProj] = await Promise.all([
-        fetchApi(url),
+        fetchApi('/calendar?status=ALL', { skipCache: true }).catch((err) => {
+          console.error('Failed to fetch /calendar:', err);
+          return [];
+        }),
         fetchApi('/clients').catch(() => []),
         fetchApi('/brands').catch(() => []),
         fetchApi('/products').catch(() => []),
@@ -225,7 +317,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     loadData();
-  }, [clientIdFilter, brandIdFilter, shootTypeFilter, statusFilter]);
+  }, []);
 
   // Cascading Selection Handlers (Client -> Brand -> Product)
   const handleClientChange = (cId: string) => {
@@ -372,8 +464,7 @@ export default function CalendarPage() {
 
     try {
       if (editingEvent) {
-        const APPROVED_STATUSES = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'];
-        const isApproved = APPROVED_STATUSES.includes(editingEvent.status);
+        const isApproved = APPROVED_CALENDAR_STATUSES.includes(editingEvent.status);
 
         if (isApproved && user?.role !== 'MARKETING_MANAGER' && (user?.role as string) !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
           await fetchApi(`/calendar/${editingEvent.id}/edit-request`, {
@@ -409,7 +500,7 @@ export default function CalendarPage() {
 
 
   const openEdit = (eventItem: any) => {
-    const isApproved = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(eventItem.status);
+    const isApproved = APPROVED_CALENDAR_STATUSES.includes(eventItem.status);
     const hasPendingEditRequest = (
       (eventItem.editRequests && eventItem.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL')) ||
       Boolean(eventItem.editRequestedById)
@@ -439,6 +530,7 @@ export default function CalendarPage() {
       contentType: eventItem.contentType || 'Post',
       platform: eventItem.platform || 'Instagram',
       caption: eventItem.caption || '',
+      creativeAssetName: eventItem.creativeAssetName || '',
       creativePreviewUrl: eventItem.creativePreviewUrl || '',
       shootType: eventItem.shootType || 'INDOOR',
       shootDate: eventItem.shootDate ? new Date(eventItem.shootDate).toISOString().split('T')[0] : '',
@@ -490,6 +582,7 @@ export default function CalendarPage() {
       contentType: 'Post',
       platform: 'Instagram',
       caption: '',
+      creativeAssetName: '',
       creativePreviewUrl: '',
       shootType: 'INDOOR',
       shootDate: new Date().toISOString().split('T')[0],
@@ -617,63 +710,49 @@ export default function CalendarPage() {
 
   const filteredEvents = events
     .filter((evt) => {
-      const isApproved = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(evt.status);
-      const isMyCreatedEvent = Boolean(
-        user?.id && (evt.createdById === user.id || evt.createdBy?.id === user.id)
-      );
+      const isApproved = APPROVED_CALENDAR_STATUSES.includes(evt.status) && evt.approvalStatus !== 'PENDING_MARKETING_APPROVAL';
+      const isPendingMarketing = evt.status === 'PENDING_MARKETING_APPROVAL' || evt.approvalStatus === 'PENDING_MARKETING_APPROVAL' || evt.status === 'WAITING_FOR_MARKETING_APPROVAL';
+      const isPendingClient = evt.status === 'PENDING_CLIENT_APPROVAL' || evt.status === 'PENDING_CLIENT_REVIEW';
+      const isRejected = evt.status === 'REJECTED' || evt.approvalStatus === 'REJECTED';
+      const isDraft = evt.status === 'DRAFT';
+      const isChangesRequested = evt.status === 'CHANGES_REQUESTED' || evt.status === 'REVISION_REQUESTED';
+      const isPendingAny = isPendingMarketing || isPendingClient || isRejected || isDraft || isChangesRequested || UNAPPROVED_CALENDAR_STATUSES.includes(evt.status);
 
-      const canViewUnapproved =
-        isMyCreatedEvent ||
-        user?.role === 'MARKETING_MANAGER' ||
-        user?.role === 'MEDIA_MANAGER' ||
-        user?.role === 'SOCIAL_MEDIA_MANAGER' ||
-        user?.role === 'ADMINISTRATOR' ||
-        (user?.role as string) === 'ADMIN';
-
-      // Business Rule: Unapproved/pending events are ONLY shown to authorized roles or the creator
-      if (!isApproved && !canViewUnapproved) {
-        return false;
-      }
-
-      if (statusFilter === 'OPERATIONAL') {
-        if (!isApproved && !isMyCreatedEvent) {
+      // Status Filter Gating:
+      // 1. Default Operational Calendar (Approved Only): Pending / unapproved / rejected events are strictly hidden
+      if (!statusFilter || statusFilter === 'OPERATIONAL' || statusFilter === 'APPROVED' || statusFilter === 'CLIENT_APPROVED') {
+        if (!isApproved || isPendingAny) {
           return false;
         }
-      } else if (
-        statusFilter === 'PENDING_APPROVAL' ||
-        statusFilter === 'PENDING_CLIENT_APPROVAL' ||
-        statusFilter === 'PENDING_CLIENT_REVIEW' ||
-        statusFilter === 'PENDING_MARKETING_APPROVAL'
-      ) {
-        const isPending = [
-          'PENDING_MARKETING_APPROVAL',
-          'WAITING_FOR_MARKETING_APPROVAL',
-          'PENDING_CLIENT_APPROVAL',
-          'PENDING_CLIENT_REVIEW',
-          'PENDING_APPROVAL',
-          'DRAFT',
-          'CHANGES_REQUESTED',
-        ].includes(evt.status);
-
-        if (statusFilter === 'PENDING_MARKETING_APPROVAL') {
-          if (evt.status !== 'PENDING_MARKETING_APPROVAL' && evt.status !== 'WAITING_FOR_MARKETING_APPROVAL') return false;
-        } else if (statusFilter === 'PENDING_CLIENT_APPROVAL' || statusFilter === 'PENDING_CLIENT_REVIEW') {
-          if (
-            evt.status !== 'PENDING_CLIENT_APPROVAL' &&
-            evt.status !== 'PENDING_CLIENT_REVIEW' &&
-            evt.status !== 'PENDING_MARKETING_APPROVAL' &&
-            evt.status !== 'WAITING_FOR_MARKETING_APPROVAL'
-          )
-            return false;
-        } else if (!isPending) {
+      } else if (statusFilter === 'PENDING_APPROVAL') {
+        // 2. Pending Approvals & Review tab / filter: Show all pending approval events (including REJECTED)
+        if (!isPendingAny) {
           return false;
         }
-
-        if (!canViewUnapproved) {
+      } else if (statusFilter === 'PENDING_MARKETING_APPROVAL') {
+        if (!isPendingMarketing) {
           return false;
         }
-      } else if (statusFilter !== 'ALL' && statusFilter !== '' && evt.status !== statusFilter) {
-        return false;
+      } else if (statusFilter === 'PENDING_CLIENT_APPROVAL' || statusFilter === 'PENDING_CLIENT_REVIEW') {
+        if (!isPendingClient) {
+          return false;
+        }
+      } else if (statusFilter === 'CHANGES_REQUESTED') {
+        if (evt.status !== 'CHANGES_REQUESTED' && evt.status !== 'REVISION_REQUESTED') {
+          return false;
+        }
+      } else if (statusFilter === 'DRAFT') {
+        if (evt.status !== 'DRAFT') {
+          return false;
+        }
+      } else if (statusFilter === 'REJECTED') {
+        if (evt.status !== 'REJECTED' && evt.status !== 'CANCELLED' && evt.approvalStatus !== 'REJECTED') {
+          return false;
+        }
+      } else if (statusFilter !== 'ALL') {
+        if (evt.status !== statusFilter) {
+          return false;
+        }
       }
 
       if (searchQuery.trim()) {
@@ -689,15 +768,38 @@ export default function CalendarPage() {
       if (shootTypeFilter && evt.shootType !== shootTypeFilter) return false;
       if (eventSourceFilter && evt.eventSource !== eventSourceFilter) return false;
       if (priorityFilter && evt.priority !== priorityFilter) return false;
-      if (dateFilter && (!evt.shootDate || !evt.shootDate.startsWith(dateFilter))) return false;
+      if (dateFilter) {
+        const eventDateVal = evt.shootDate || evt.clientApprovalDeadline || evt.createdAt;
+        if (!eventDateVal) return false;
+        const [dYear, dMonth, dDay] = dateFilter.split('-').map(Number);
+        if (!isSameCalendarDate(eventDateVal, dYear, dMonth - 1, dDay)) {
+          return false;
+        }
+      }
 
       // View Mode Date Range Filter (Month / Week / Day)
-      if (viewMode !== 'all' && evt.shootDate) {
-        const evtDate = new Date(evt.shootDate);
-        const { start, end } = getPeriodRange(viewMode, currentDate);
-        if (start && end) {
-          if (evtDate < start || evtDate > end) {
-            return false;
+      if (viewMode !== 'all') {
+        const eventDateVal = evt.shootDate || evt.clientApprovalDeadline || evt.createdAt;
+        if (eventDateVal) {
+          const evtDate = new Date(eventDateVal);
+          const { start, end } = getPeriodRange(viewMode, currentDate);
+          if (start && end) {
+            const time = evtDate.getTime();
+            if (time < start.getTime() || time > end.getTime()) {
+              // Also check if the event matches the current period in UTC or local
+              const localYear = evtDate.getFullYear();
+              const localMonth = evtDate.getMonth();
+              const utcYear = evtDate.getUTCFullYear();
+              const utcMonth = evtDate.getUTCMonth();
+              const refYear = currentDate.getFullYear();
+              const refMonth = currentDate.getMonth();
+
+              if (viewMode === 'month' && ((localYear === refYear && localMonth === refMonth) || (utcYear === refYear && utcMonth === refMonth))) {
+                // Keep event in month
+              } else {
+                return false;
+              }
+            }
           }
         }
       }
@@ -705,8 +807,10 @@ export default function CalendarPage() {
       return true;
     })
     .sort((a, b) => {
-      const timeA = a.shootDate ? new Date(a.shootDate).getTime() : 0;
-      const timeB = b.shootDate ? new Date(b.shootDate).getTime() : 0;
+      const dateA = a.shootDate || a.clientApprovalDeadline || a.createdAt;
+      const dateB = b.shootDate || b.clientApprovalDeadline || b.createdAt;
+      const timeA = dateA ? new Date(dateA).getTime() : 0;
+      const timeB = dateB ? new Date(dateB).getTime() : 0;
       if (timeA !== timeB) {
         return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
       }
@@ -820,12 +924,18 @@ export default function CalendarPage() {
                 statusFilter === 'PENDING_APPROVAL' ||
                 statusFilter === 'PENDING_CLIENT_APPROVAL' ||
                 statusFilter === 'PENDING_MARKETING_APPROVAL' ||
-                statusFilter === 'PENDING_CLIENT_REVIEW'
+                statusFilter === 'PENDING_CLIENT_REVIEW' ||
+                statusFilter === 'REJECTED'
                   ? 'bg-amber-500 text-slate-950 shadow'
                   : 'bg-slate-50 text-amber-600 hover:text-slate-900 border border-slate-200'
               }`}
             >
               <Clock className="w-3.5 h-3.5" /> Pending Approvals
+              {events.filter((e) => UNAPPROVED_CALENDAR_STATUSES.includes(e.status) || e.approvalStatus === 'PENDING_MARKETING_APPROVAL' || e.status === 'PENDING_MARKETING_APPROVAL' || e.status === 'PENDING_CLIENT_APPROVAL' || e.status === 'REJECTED' || e.approvalStatus === 'REJECTED').length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-600 text-white text-[10px] font-mono font-bold ml-1">
+                  {events.filter((e) => UNAPPROVED_CALENDAR_STATUSES.includes(e.status) || e.approvalStatus === 'PENDING_MARKETING_APPROVAL' || e.status === 'PENDING_MARKETING_APPROVAL' || e.status === 'PENDING_CLIENT_APPROVAL' || e.status === 'REJECTED' || e.approvalStatus === 'REJECTED').length}
+                </span>
+              )}
             </button>
           )}
 
@@ -968,7 +1078,7 @@ export default function CalendarPage() {
                       setClientIdFilter(e.target.value);
                       setBrandIdFilter('');
                     }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 focus:bg-white font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-purple-500 focus:bg-white font-medium text-xs"
                   >
                     <option value="">All Clients</option>
                     {clients.map((c) => (
@@ -979,7 +1089,7 @@ export default function CalendarPage() {
                   <select
                     value={brandIdFilter}
                     onChange={(e) => setBrandIdFilter(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 focus:bg-white font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-purple-500 focus:bg-white font-medium text-xs"
                   >
                     <option value="">All Brands</option>
                     {brands
@@ -1000,7 +1110,7 @@ export default function CalendarPage() {
                   <select
                     value={shootTypeFilter}
                     onChange={(e) => setShootTypeFilter(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500 focus:bg-white font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-cyan-500 focus:bg-white font-medium text-xs"
                   >
                     <option value="">All Shoot Locations (Indoor &amp; Outdoor)</option>
                     <option value="INDOOR">Indoor Studio Shoot</option>
@@ -1010,7 +1120,7 @@ export default function CalendarPage() {
                   <select
                     value={eventSourceFilter}
                     onChange={(e) => setEventSourceFilter(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500 focus:bg-white font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-cyan-500 focus:bg-white font-medium text-xs"
                   >
                     <option value="">All Requirements &amp; Sources</option>
                     <option value="GRAPHIC_REQUIREMENT">Graphic Requirements Only</option>
@@ -1028,7 +1138,7 @@ export default function CalendarPage() {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white font-medium text-xs"
                   >
                     <option value="">Operational Calendar (Approved Only)</option>
                     <option value="PENDING_APPROVAL">All Pending Approvals</option>
@@ -1051,7 +1161,7 @@ export default function CalendarPage() {
                   <select
                     value={priorityFilter}
                     onChange={(e) => setPriorityFilter(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 focus:bg-white font-medium text-xs"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white font-medium text-xs"
                   >
                     <option value="">All Priorities</option>
                     <option value="LOW">LOW Priority</option>
@@ -1064,7 +1174,7 @@ export default function CalendarPage() {
                     type="date"
                     value={dateFilter}
                     onChange={(e) => setDateFilter(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white font-medium focus:outline-none focus:border-amber-500 focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-medium focus:outline-none focus:border-amber-500 focus:bg-white"
                   />
                 </div>
               </div>
@@ -1141,7 +1251,9 @@ export default function CalendarPage() {
               }
 
               const dayEvents = isCurrentMonth
-                ? filteredEvents.filter((evt) => evt.shootDate && evt.shootDate.startsWith(cellDateStr))
+                ? filteredEvents.filter((evt) =>
+                    isSameCalendarDate(evt.shootDate || evt.clientApprovalDeadline || evt.createdAt, year, month, dayNum)
+                  )
                 : [];
 
               const isToday = isCurrentMonth && cellDateStr === todayStr;
@@ -1180,6 +1292,8 @@ export default function CalendarPage() {
                   <div className="space-y-1 overflow-y-auto max-h-[90px] custom-scrollbar flex-1">
                     {dayEvents.map((evt) => {
                       const hasPendingEdit = evt.editRequests && evt.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL');
+                      const isRejected = evt.status === 'REJECTED' || evt.approvalStatus === 'REJECTED';
+                      const isPending = UNAPPROVED_CALENDAR_STATUSES.includes(evt.status) || evt.approvalStatus === 'PENDING_MARKETING_APPROVAL';
                       return (
                         <div
                           key={evt.id}
@@ -1187,15 +1301,23 @@ export default function CalendarPage() {
                           className={`p-1.5 rounded text-[10px] font-semibold border cursor-pointer truncate transition-all shadow-xs flex items-center justify-between gap-1 ${
                             hasPendingEdit
                               ? 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse'
+                              : isRejected
+                              ? 'bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100 font-bold'
+                              : isPending
+                              ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
                               : evt.shootType === 'INDOOR'
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                               : 'bg-purple-50 text-purple-800 border-purple-300 hover:bg-purple-100'
                           }`}
-                          title={`${evt.title} (${evt.client?.name || ''})`}
+                          title={`${evt.title} (${evt.client?.name || ''}) - Status: ${evt.status}`}
                         >
                           <span className="truncate flex items-center gap-1 font-sans">
                             {hasPendingEdit && <span className="inline-block w-2 h-2 rounded-full bg-amber-500" title="Waiting for Edit Approval" />}
-                            <span className="font-bold font-mono">[{evt.brand?.shortCode || 'EVT'}]</span> {evt.title}
+                            {!hasPendingEdit && isRejected && <span className="inline-block w-2 h-2 rounded-full bg-rose-600" title="Rejected by Marketing Manager" />}
+                            {!hasPendingEdit && !isRejected && isPending && <span className="inline-block w-2 h-2 rounded-full bg-amber-500" title="Pending Approval" />}
+                            <span className="font-bold font-mono">[{evt.brand?.shortCode || 'EVT'}]</span>
+                            {isRejected && <span className="text-rose-700 font-bold">[REJECTED]</span>}
+                            <span>{evt.title}</span>
                           </span>
                         </div>
                       );
@@ -1228,8 +1350,13 @@ export default function CalendarPage() {
                 const dd = String(dayDate.getDate()).padStart(2, '0');
                 const dayStr = `${yyyy}-${mm}-${dd}`;
 
-                const dayEvents = filteredEvents.filter(
-                  (evt) => evt.shootDate && evt.shootDate.startsWith(dayStr)
+                const dayEvents = filteredEvents.filter((evt) =>
+                  isSameCalendarDate(
+                    evt.shootDate || evt.clientApprovalDeadline || evt.createdAt,
+                    dayDate.getFullYear(),
+                    dayDate.getMonth(),
+                    dayDate.getDate()
+                  )
                 );
                 const isToday = dayStr === todayStr;
 
@@ -1256,6 +1383,8 @@ export default function CalendarPage() {
                     <div className="space-y-2 overflow-y-auto max-h-[250px] custom-scrollbar flex-1">
                       {dayEvents.map((evt) => {
                         const hasPendingEdit = evt.editRequests && evt.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL');
+                        const isRejected = evt.status === 'REJECTED' || evt.approvalStatus === 'REJECTED';
+                        const isPending = UNAPPROVED_CALENDAR_STATUSES.includes(evt.status) || evt.approvalStatus === 'PENDING_MARKETING_APPROVAL';
                         return (
                           <div
                             key={evt.id}
@@ -1263,6 +1392,10 @@ export default function CalendarPage() {
                             className={`p-2 rounded-lg text-xs font-semibold border cursor-pointer space-y-1 transition-all shadow-xs ${
                               hasPendingEdit
                                 ? 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse'
+                                : isRejected
+                                ? 'bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100'
+                                : isPending
+                                ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
                                 : evt.shootType === 'INDOOR'
                                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                                 : 'bg-purple-50 text-purple-800 border-purple-300 hover:bg-purple-100'
@@ -1270,7 +1403,13 @@ export default function CalendarPage() {
                           >
                             <div className="flex items-center justify-between text-[10px] font-mono">
                               <span className="font-bold">[{evt.brand?.shortCode || 'EVT'}]</span>
-                              {hasPendingEdit && <span className="text-amber-700 font-bold" title="Waiting for Edit Approval">PENDING</span>}
+                              {hasPendingEdit ? (
+                                <span className="text-amber-700 font-bold" title="Waiting for Edit Approval">PENDING EDIT</span>
+                              ) : isRejected ? (
+                                <span className="text-rose-700 font-bold px-1.5 py-0.2 bg-rose-100 rounded border border-rose-200" title="Rejected by Marketing Manager">REJECTED</span>
+                              ) : isPending ? (
+                                <span className="text-amber-700 font-bold" title="Pending Approval">PENDING</span>
+                              ) : null}
                             </div>
                             <div className="font-bold text-slate-900 line-clamp-1">{evt.title}</div>
                             <div className="text-[10px] text-slate-700 truncate">{evt.client?.name}</div>
@@ -1321,6 +1460,18 @@ export default function CalendarPage() {
                     <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 uppercase flex items-center gap-1 animate-pulse">
                       <AlertTriangle className="w-3 h-3 text-amber-600" /> WAITING FOR EDITING APPROVAL
                     </span>
+                  ) : eventItem.status === 'REJECTED' || eventItem.approvalStatus === 'REJECTED' ? (
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300 uppercase flex items-center gap-1">
+                      <XCircle className="w-3 h-3 text-rose-600" /> REJECTED BY MARKETING MANAGER
+                    </span>
+                  ) : eventItem.status === 'PENDING_MARKETING_APPROVAL' || eventItem.approvalStatus === 'PENDING_MARKETING_APPROVAL' || eventItem.status === 'WAITING_FOR_MARKETING_APPROVAL' ? (
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 uppercase flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-amber-600" /> PENDING MARKETING APPROVAL
+                    </span>
+                  ) : eventItem.status === 'PENDING_CLIENT_APPROVAL' || eventItem.status === 'PENDING_CLIENT_REVIEW' ? (
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-orange-100 text-orange-900 border border-orange-300 uppercase flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-orange-600" /> PENDING CLIENT APPROVAL
+                    </span>
                   ) : (
                     <span
                       className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${
@@ -1336,7 +1487,7 @@ export default function CalendarPage() {
               <div>
                 <h3 
                   onClick={() => setViewModalEvent(eventItem)}
-                  className="text-sm font-bold text-white line-clamp-1 hover:text-blue-600 cursor-pointer transition-colors"
+                  className="text-sm font-bold text-slate-900 line-clamp-1 hover:text-blue-600 cursor-pointer transition-colors"
                   title="Click to view full Event Details"
                 >
                   {eventItem.title}
@@ -1345,6 +1496,30 @@ export default function CalendarPage() {
                   {eventItem.client?.name} • <span className="text-blue-600 font-bold">[{eventItem.brand?.shortCode}]</span> {eventItem.brand?.name}
                 </p>
               </div>
+
+              {/* Rejection Card Alert Banner */}
+              {(eventItem.status === 'REJECTED' || eventItem.approvalStatus === 'REJECTED') && (
+                <div 
+                  onClick={() => setViewModalEvent(eventItem)}
+                  className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl space-y-1 cursor-pointer hover:border-rose-300 transition-all text-xs"
+                  title="Click to view rejection details and feedback"
+                >
+                  <div className="flex items-center gap-1.5 font-bold text-rose-900 text-[11px]">
+                    <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                    <span>Rejected by Marketing Manager</span>
+                  </div>
+                  {(() => {
+                    const rejectHist = Array.isArray(eventItem.approvalHistory)
+                      ? eventItem.approvalHistory.find((ah: any) => ah.action === 'REJECT' || ah.action === 'OVERRIDE_REJECT' || ah.newStatus === 'REJECTED')
+                      : null;
+                    return rejectHist?.comment ? (
+                      <p className="text-[10px] text-rose-800 italic pl-5 line-clamp-2">Feedback: "{rejectHist.comment}"</p>
+                    ) : (
+                      <p className="text-[10px] text-rose-700 pl-5">Event was rejected. You can edit and re-submit for review.</p>
+                    );
+                  })()}
+                </div>
+              )}
 
               {/* Waiting for Edit Approval Card Alert Banner */}
               {eventItem.editRequests && eventItem.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL') && (
@@ -1471,11 +1646,7 @@ export default function CalendarPage() {
 
                 {(user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && eventItem.status !== 'CANCELLED' && (
                   <div className="flex gap-1.5 flex-wrap items-center">
-                    {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
-                      ['APPROVED', 'READY', 'APPROVED_BY_MARKETING'].includes(eventItem.status) ||
-                      eventItem.shootProjects?.[0]?.status === 'APPROVED' ||
-                      eventItem.graphicRequirement?.status === 'READY'
-                    ) && (
+                    {canConvertToTask(eventItem) && (
                       <button
                         onClick={() => setConvertModalEvent(eventItem)}
                         className="px-2 py-0.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow-sm"
@@ -1483,6 +1654,32 @@ export default function CalendarPage() {
                       >
                         Convert to Task
                       </button>
+                    )}
+                    {isEventConvertedToTask(eventItem) && (
+                      <span
+                        className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold rounded text-[10px] flex items-center gap-1"
+                        title="Task already created and assigned"
+                      >
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Task Assigned
+                      </span>
+                    )}
+                    {(eventItem.status === 'REJECTED' || eventItem.approvalStatus === 'REJECTED') && (
+                      <>
+                        <button
+                          onClick={() => openEdit(eventItem)}
+                          className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded text-[10px] flex items-center gap-1 shadow-sm"
+                          title="Edit rejected event details and re-submit for Marketing Manager approval"
+                        >
+                          <Edit className="w-3 h-3" /> Edit &amp; Re-submit
+                        </button>
+                        <button
+                          onClick={() => handleSubmitForApproval(eventItem.id)}
+                          className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow-sm"
+                          title="Directly re-submit event for Marketing Manager approval"
+                        >
+                          <Send className="w-3 h-3" /> Re-submit
+                        </button>
+                      </>
                     )}
                     {(eventItem.status === 'DRAFT' || eventItem.status === 'CHANGES_REQUESTED') && (
                       <button
@@ -1498,18 +1695,20 @@ export default function CalendarPage() {
                     >
                       <Eye className="w-3 h-3" /> Details
                     </button>
-                    <button
-                      onClick={() => openEdit(eventItem)}
-                      className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[10px] flex items-center gap-1"
-                    >
-                      <Edit className="w-3 h-3" /> Edit
-                    </button>
+                    {!(eventItem.status === 'REJECTED' || eventItem.approvalStatus === 'REJECTED') && (
+                      <button
+                        onClick={() => openEdit(eventItem)}
+                        className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[10px] flex items-center gap-1"
+                      >
+                        <Edit className="w-3 h-3" /> Edit
+                      </button>
+                    )}
                   </div>
                 )}
 
                 {user?.role === 'MARKETING_MANAGER' && (
                   <div className="flex gap-1.5 flex-wrap items-center">
-                    {['PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'DRAFT'].includes(eventItem.status) ? (
+                    {['PENDING_MARKETING_APPROVAL', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'DRAFT', 'CHANGES_REQUESTED'].includes(eventItem.status) || eventItem.approvalStatus === 'PENDING_MARKETING_APPROVAL' ? (
                       <>
                         <button
                           onClick={() => openClientEdit(eventItem)}
@@ -1518,7 +1717,7 @@ export default function CalendarPage() {
                           <Clock className="w-3 h-3" /> Edit Deadline &amp; Priority
                         </button>
                         <Link
-                          href="/client-review"
+                          href={`/client-review?eventId=${eventItem.id}`}
                           className="px-2.5 py-1 bg-purple-50 hover:bg-purple-600/30 text-purple-700 border border-purple-200 rounded font-bold text-[10px] flex items-center gap-1"
                         >
                           <ShieldCheck className="w-3 h-3" /> Review Portal
@@ -1566,13 +1765,36 @@ export default function CalendarPage() {
               <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs">
                 <div className="flex items-center gap-2 text-blue-800 font-medium">
                   <User className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span>Event Created By: <strong className="text-blue-900 font-bold">{editingEvent.createdBy?.name || 'Social Media Manager'}</strong></span>
+                  <span>Event Created By: <strong className="text-blue-900 font-bold">{editingEvent.createdBy?.name || (editingEvent.createdByRole ? editingEvent.createdByRole.replace(/_/g, ' ') : 'Creator')}</strong></span>
                 </div>
-                {editingEvent.createdBy?.role && (
+                {(editingEvent.createdBy?.role || editingEvent.createdByRole) && (
                   <span className="px-2 py-0.5 bg-blue-100 border border-blue-200 text-blue-800 rounded font-mono text-[10px] font-bold uppercase">
-                    {editingEvent.createdBy.role.replace(/_/g, ' ')}
+                    {(editingEvent.createdBy?.role || editingEvent.createdByRole).replace(/_/g, ' ')}
                   </span>
                 )}
+              </div>
+            )}
+
+            {/* Rejected Event Re-submission Alert Banner */}
+            {editingEvent && (editingEvent.status === 'REJECTED' || editingEvent.approvalStatus === 'REJECTED') && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl space-y-2 text-xs">
+                <div className="flex items-center gap-2 font-bold text-rose-900">
+                  <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>Editing Rejected Event — Will Re-submit for Marketing Manager Approval</span>
+                </div>
+                {(() => {
+                  const rejectHistory = Array.isArray(editingEvent.approvalHistory)
+                    ? editingEvent.approvalHistory.find((ah: any) => ah.action === 'REJECT' || ah.action === 'OVERRIDE_REJECT' || ah.newStatus === 'REJECTED')
+                    : null;
+                  return rejectHistory?.comment ? (
+                    <p className="text-[11px] text-rose-800 bg-white/80 p-2.5 rounded-lg border border-rose-200 italic">
+                      <strong>Marketing Manager Feedback:</strong> "{rejectHistory.comment}"
+                    </p>
+                  ) : null;
+                })()}
+                <p className="text-[11px] text-rose-800 leading-relaxed">
+                  Update the fields below to address the review feedback. Saving this event will automatically update details and re-submit it for Marketing Manager approval.
+                </p>
               </div>
             )}
 
@@ -1690,7 +1912,7 @@ export default function CalendarPage() {
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     placeholder={formData.eventSource === 'SHOOT' ? 'e.g. Summer Collection Outdoor Shoot' : 'e.g. Product Banner Graphic'}
-                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-medium"
                   />
                 </div>
 
@@ -1700,7 +1922,7 @@ export default function CalendarPage() {
                     required
                     value={formData.clientId}
                     onChange={(e) => handleClientChange(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
+                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-semibold"
                   >
                     <option value="">Select Active Client</option>
                     {activeClients.map((c) => (
@@ -1715,7 +1937,7 @@ export default function CalendarPage() {
                     required
                     value={formData.brandId}
                     onChange={(e) => handleBrandChange(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
+                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-semibold"
                   >
                     <option value="">Select Active Brand</option>
                     {filteredBrands.map((b) => (
@@ -1729,7 +1951,7 @@ export default function CalendarPage() {
                   <select
                     value={formData.productId}
                     onChange={(e) => setFormData({ ...formData, productId: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                   >
                     <option value="">None / General Shoot</option>
                     {filteredProducts.map((p) => (
@@ -1745,7 +1967,7 @@ export default function CalendarPage() {
                     value={formData.campaign}
                     onChange={(e) => setFormData({ ...formData, campaign: e.target.value })}
                     placeholder="e.g. Q3 Launch Campaign"
-                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                   />
                 </div>
 
@@ -1755,7 +1977,7 @@ export default function CalendarPage() {
                     <select
                       value={formData.projectId}
                       onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-white font-medium"
+                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-slate-800 font-medium"
                     >
                       <option value="">-- Independent Graphic Requirement (No Parent Project) --</option>
                       {shootProjectsList.map((p) => (
@@ -1788,7 +2010,7 @@ export default function CalendarPage() {
                       required
                       value={formData.contentType}
                       onChange={(e) => setFormData({ ...formData, contentType: e.target.value })}
-                      className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-white font-bold"
+                      className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-slate-800 font-bold"
                     >
                       <option value="Poster">Poster</option>
                       <option value="Carousel">Carousel Post</option>
@@ -1809,7 +2031,7 @@ export default function CalendarPage() {
                       required
                       value={formData.platform}
                       onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
-                      className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-white font-bold"
+                      className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-slate-800 font-bold"
                     >
                       <option value="Instagram">Instagram</option>
                       <option value="Facebook">Facebook</option>
@@ -1828,7 +2050,7 @@ export default function CalendarPage() {
                       required
                       value={formData.priority}
                       onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-semibold"
                     >
                       <option value="LOW">Low</option>
                       <option value="MEDIUM">Medium</option>
@@ -1844,7 +2066,7 @@ export default function CalendarPage() {
                       required
                       value={formData.clientApprovalDeadline}
                       onChange={(e) => setFormData({ ...formData, clientApprovalDeadline: e.target.value, deadline: e.target.value, shootDate: e.target.value })}
-                      className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-white font-bold"
+                      className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-slate-800 font-bold"
                     />
                   </div>
 
@@ -1856,19 +2078,8 @@ export default function CalendarPage() {
                       value={formData.caption}
                       onChange={(e) => setFormData({ ...formData, caption: e.target.value })}
                       placeholder="e.g. Promote summer sale discount with vibrant product showcase"
-                      className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-white font-medium"
+                      className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-slate-800 font-medium"
                     />
-                  </div>
-
-                  <div className="col-span-3">
-                    <label className="text-slate-700 font-semibold block mb-1">Detailed Specifications &amp; Copy (Optional)</label>
-                    <textarea
-                      rows={2}
-                      value={formData.productionNotes}
-                      onChange={(e) => setFormData({ ...formData, productionNotes: e.target.value })}
-                      placeholder="Specify dimensions (e.g. 1080x1350px), exact headline copy, color palette, brand guidelines..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
-                    ></textarea>
                   </div>
 
                   <div className="col-span-3">
@@ -1878,7 +2089,7 @@ export default function CalendarPage() {
                       value={formData.remarks}
                       onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
                       placeholder="Enter any permanent remarks, references, or special instructions..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                     ></textarea>
                   </div>
                 </div>
@@ -1949,7 +2160,7 @@ export default function CalendarPage() {
                       required
                       value={formData.shootType}
                       onChange={(e) => setFormData({ ...formData, shootType: e.target.value })}
-                      className="w-full bg-slate-50 border border-blue-200 rounded p-2 text-white font-bold"
+                      className="w-full bg-slate-50 border border-blue-200 rounded p-2 text-slate-800 font-bold"
                     >
                       <option value="INDOOR">Indoor Shoot</option>
                       <option value="OUTDOOR">Outdoor Shoot</option>
@@ -1963,7 +2174,7 @@ export default function CalendarPage() {
                       required
                       value={formData.shootDate}
                       onChange={(e) => setFormData({ ...formData, shootDate: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-semibold"
                     />
                   </div>
 
@@ -1974,7 +2185,7 @@ export default function CalendarPage() {
                       required
                       value={formData.deadline}
                       onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-semibold"
                     />
                   </div>
 
@@ -1986,7 +2197,7 @@ export default function CalendarPage() {
                       value={formData.location}
                       onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                       placeholder="e.g. Main Studio Floor or Kozhikode Beach"
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                     />
                   </div>
 
@@ -1995,7 +2206,7 @@ export default function CalendarPage() {
                     <select
                       value={formData.locationCategory}
                       onChange={(e) => setFormData({ ...formData, locationCategory: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-semibold"
                     >
                       <option value="Studio Bay">Studio Bay</option>
                       <option value="Main Studio Floor">Main Studio Floor</option>
@@ -2013,7 +2224,7 @@ export default function CalendarPage() {
                       value={formData.callTime || formData.startTime}
                       onChange={(e) => setFormData({ ...formData, callTime: e.target.value, startTime: e.target.value })}
                       placeholder="09:00 AM"
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-mono"
                     />
                   </div>
 
@@ -2025,7 +2236,7 @@ export default function CalendarPage() {
                       value={formData.expectedWrapTime || formData.endTime}
                       onChange={(e) => setFormData({ ...formData, expectedWrapTime: e.target.value, endTime: e.target.value })}
                       placeholder="06:00 PM"
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-mono"
                     />
                   </div>
 
@@ -2037,7 +2248,7 @@ export default function CalendarPage() {
                       value={formData.influencerTalent}
                       onChange={(e) => setFormData({ ...formData, influencerTalent: e.target.value })}
                       placeholder="e.g. Model Name / Talent Contact"
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                     />
                   </div>
 
@@ -2046,7 +2257,7 @@ export default function CalendarPage() {
                     <select
                       value={formData.priority}
                       onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-semibold"
                     >
                       <option value="LOW">Low</option>
                       <option value="MEDIUM">Medium</option>
@@ -2062,7 +2273,7 @@ export default function CalendarPage() {
                       value={formData.productionNotes}
                       onChange={(e) => setFormData({ ...formData, productionNotes: e.target.value })}
                       placeholder="Enter production brief, shot list notes, client instructions..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-medium"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-medium"
                     ></textarea>
                   </div>
                 </div>
@@ -2092,7 +2303,7 @@ export default function CalendarPage() {
                       value={formData.exactLocationAddress}
                       onChange={(e) => setFormData({ ...formData, exactLocationAddress: e.target.value })}
                       placeholder="e.g. Kozhikode Beach, Kozhikode, Kerala"
-                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-white font-medium"
+                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-slate-800 font-medium"
                     />
                   </div>
 
@@ -2104,7 +2315,7 @@ export default function CalendarPage() {
                       value={formData.locationAccessDetails}
                       onChange={(e) => setFormData({ ...formData, locationAccessDetails: e.target.value })}
                       placeholder="e.g. Parking availability, entry point, road access, restricted access notes..."
-                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-slate-800"
                     ></textarea>
                   </div>
 
@@ -2115,7 +2326,7 @@ export default function CalendarPage() {
                       value={formData.locationContact}
                       onChange={(e) => setFormData({ ...formData, locationContact: e.target.value })}
                       placeholder="Contact Name / Phone / Manager"
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                     />
                   </div>
 
@@ -2125,7 +2336,7 @@ export default function CalendarPage() {
                       required
                       value={formData.permitRequired}
                       onChange={(e) => setFormData({ ...formData, permitRequired: e.target.value })}
-                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-white font-bold"
+                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-slate-800 font-bold"
                     >
                       <option value="NO">NO</option>
                       <option value="YES">YES</option>
@@ -2139,7 +2350,7 @@ export default function CalendarPage() {
                         required
                         value={formData.permitStatus}
                         onChange={(e) => setFormData({ ...formData, permitStatus: e.target.value })}
-                        className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-white font-bold"
+                        className="w-full bg-slate-50 border border-amber-200 rounded p-2 text-slate-800 font-bold"
                       >
                         <option value="Not Applied">Not Applied</option>
                         <option value="Applied">Applied</option>
@@ -2155,7 +2366,7 @@ export default function CalendarPage() {
                     <select
                       value={formData.expectedWeatherConditions}
                       onChange={(e) => setFormData({ ...formData, expectedWeatherConditions: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-semibold"
                     >
                       <option value="Sunny">Sunny</option>
                       <option value="Cloudy">Cloudy</option>
@@ -2172,7 +2383,7 @@ export default function CalendarPage() {
                       value={formData.backupLocation}
                       onChange={(e) => setFormData({ ...formData, backupLocation: e.target.value })}
                       placeholder="e.g. Indoor Studio 4"
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                     />
                   </div>
 
@@ -2184,7 +2395,7 @@ export default function CalendarPage() {
                       value={formData.callTime}
                       onChange={(e) => setFormData({ ...formData, callTime: e.target.value })}
                       placeholder="07:00 AM"
-                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-white font-mono"
+                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-slate-800 font-mono"
                     />
                   </div>
 
@@ -2196,7 +2407,7 @@ export default function CalendarPage() {
                       value={formData.expectedWrapTime}
                       onChange={(e) => setFormData({ ...formData, expectedWrapTime: e.target.value })}
                       placeholder="05:00 PM"
-                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-white font-mono"
+                      className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-slate-800 font-mono"
                     />
                   </div>
 
@@ -2207,7 +2418,7 @@ export default function CalendarPage() {
                       value={formData.specialOutdoorRequirements}
                       onChange={(e) => setFormData({ ...formData, specialOutdoorRequirements: e.target.value })}
                       placeholder="Power, tents, transport, safety gear, drone permissions..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                     ></textarea>
                   </div>
                 </div>
@@ -2215,6 +2426,83 @@ export default function CalendarPage() {
             )}
 
 
+
+            {/* SECTION: CREATIVE ASSETS & REFERENCE FILES (Link & Name Method) */}
+            <div className="space-y-3 bg-slate-50/70 p-4 rounded-xl border border-slate-200 text-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <LinkIcon className="w-4 h-4 text-indigo-600" /> Creative Assets &amp; Reference Files (File Name &amp; Link Method)
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 text-indigo-800">
+                  Cloud / URL Reference
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-800 font-bold block mb-1">Creative Asset / File Name</label>
+                  <input
+                    type="text"
+                    value={formData.creativeAssetName || ''}
+                    onChange={(e) => setFormData({ ...formData, creativeAssetName: e.target.value })}
+                    placeholder="e.g. Summer_Sale_Main_Creative_v1 or Campaign_Assets_Drive"
+                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-800 font-bold block mb-1">Asset Link / File URL (Cloud / Web Link)</label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="url"
+                      value={formData.creativePreviewUrl || ''}
+                      onChange={(e) => setFormData({ ...formData, creativePreviewUrl: e.target.value })}
+                      placeholder="https://drive.google.com/... or https://figma.com/..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-mono text-xs"
+                    />
+                    {formData.creativePreviewUrl && (
+                      <a
+                        href={formData.creativePreviewUrl.startsWith('http') ? formData.creativePreviewUrl : `https://${formData.creativePreviewUrl}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-bold text-xs flex items-center gap-1 shrink-0"
+                        title="Test and open link in new tab"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Test</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Preview Card if URL is provided */}
+              {formData.creativePreviewUrl && (
+                <div className="p-3 bg-indigo-50/60 border border-indigo-200 rounded-lg flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5 overflow-hidden">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center justify-center shrink-0">
+                      <LinkIcon className="w-4 h-4" />
+                    </div>
+                    <div className="truncate">
+                      <strong className="text-slate-900 block truncate">
+                        {formData.creativeAssetName || 'Creative Asset Reference'}
+                      </strong>
+                      <span className="text-[11px] font-mono text-indigo-700 truncate block">
+                        {formData.creativePreviewUrl}
+                      </span>
+                    </div>
+                  </div>
+                  <a
+                    href={formData.creativePreviewUrl.startsWith('http') ? formData.creativePreviewUrl : `https://${formData.creativePreviewUrl}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 shrink-0"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Open Asset
+                  </a>
+                </div>
+              )}
+            </div>
 
             {/* NOTES */}
             <div className="space-y-2 bg-slate-50/50 p-4 rounded-xl border border-slate-200">
@@ -2224,7 +2512,7 @@ export default function CalendarPage() {
                 value={formData.productionNotes}
                 onChange={(e) => setFormData({ ...formData, productionNotes: e.target.value })}
                 placeholder="Additional information or instructions for the project shoot..."
-                className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
               ></textarea>
             </div>
 
@@ -2245,14 +2533,18 @@ export default function CalendarPage() {
                 className={`px-4 py-2 text-white rounded font-semibold transition-all ${
                   editingEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN')
                     ? 'bg-amber-600 hover:bg-amber-500 shadow-lg shadow-amber-600/30 font-bold'
+                    : (editingEvent && (editingEvent.status === 'REJECTED' || editingEvent.approvalStatus === 'REJECTED'))
+                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/30 font-extrabold'
                     : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/30'
                 }`}
               >
                 {editingEvent
                   ? ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN')
                     ? 'Submit Edit Request'
+                    : (editingEvent.status === 'REJECTED' || editingEvent.approvalStatus === 'REJECTED')
+                    ? 'Save & Re-submit for Marketing Approval'
                     : 'Save Event'
-                  : user?.role === 'SOCIAL_MEDIA_MANAGER'
+                  : user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MEDIA_MANAGER'
                   ? 'Schedule Event (Requires Marketing Approval)'
                   : 'Schedule Event'}
               </button>
@@ -2289,9 +2581,9 @@ export default function CalendarPage() {
               </p>
               <div className="text-slate-500 text-[11px] flex items-center gap-1 pt-1 border-t border-slate-200">
                 <User className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span>Created by: <strong className="text-slate-800">{clientEditEvent.createdBy?.name || 'Social Media Manager'}</strong></span>
-                {clientEditEvent.createdBy?.role && (
-                  <span className="text-[9px] font-mono text-slate-500">({clientEditEvent.createdBy.role.replace(/_/g, ' ')})</span>
+                <span>Created by: <strong className="text-slate-800">{clientEditEvent.createdBy?.name || (clientEditEvent.createdByRole ? clientEditEvent.createdByRole.replace(/_/g, ' ') : 'Creator')}</strong></span>
+                {(clientEditEvent.createdBy?.role || clientEditEvent.createdByRole) && (
+                  <span className="text-[9px] font-mono text-slate-500">({(clientEditEvent.createdBy?.role || clientEditEvent.createdByRole).replace(/_/g, ' ')})</span>
                 )}
               </div>
             </div>
@@ -2305,7 +2597,7 @@ export default function CalendarPage() {
                   type="date"
                   value={clientDeadline}
                   onChange={(e) => setClientDeadline(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-white font-semibold focus:outline-none focus:border-amber-500 focus:bg-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-semibold focus:outline-none focus:border-amber-500 focus:bg-white"
                 />
               </div>
 
@@ -2316,7 +2608,7 @@ export default function CalendarPage() {
                 <select
                   value={clientPriority}
                   onChange={(e) => setClientPriority(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-white font-bold focus:outline-none focus:border-amber-500 focus:bg-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-bold focus:outline-none focus:border-amber-500 focus:bg-white"
                 >
                   <option value="LOW">LOW Priority</option>
                   <option value="MEDIUM">MEDIUM Priority</option>
@@ -2332,7 +2624,7 @@ export default function CalendarPage() {
                   placeholder="e.g. Accelerated launch timeline requested by client..."
                   value={clientReason}
                   onChange={(e) => setClientReason(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-white placeholder-slate-400"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 placeholder-slate-400"
                 />
               </div>
             </div>
@@ -2366,24 +2658,36 @@ export default function CalendarPage() {
         isOpen={!!convertModalEvent}
         onClose={() => setConvertModalEvent(null)}
         onSuccess={() => {
-          // reload events
-          fetchApi('/calendar').then((res) => setEvents(Array.isArray(res) ? res : []));
+          loadData();
         }}
         eventData={
           convertModalEvent
-            ? {
-                title: convertModalEvent.title || '',
-                parentType: (convertModalEvent.graphicRequirement?.id || convertModalEvent.graphicRequirementId || convertModalEvent.eventSource === 'GRAPHIC_REQUIREMENT') ? 'GRAPHIC_REQ' : 'PROJECT',
-                parentId: convertModalEvent.graphicRequirement?.id || convertModalEvent.graphicRequirementId || convertModalEvent.shootProjects?.[0]?.id || convertModalEvent.shootId || convertModalEvent.id,
-                parentCode: convertModalEvent.graphicRequirement?.requirementId || convertModalEvent.shootProjects?.[0]?.projectId || convertModalEvent.eventId || convertModalEvent.id,
-                clientId: convertModalEvent.clientId,
-                brandId: convertModalEvent.brandId,
-                productId: convertModalEvent.productId,
-                priority: convertModalEvent.priority,
-                dueDate: convertModalEvent.clientApprovalDeadline || convertModalEvent.shootDate,
-                notes: convertModalEvent.productionNotes,
-                createdBy: convertModalEvent.createdBy,
-              }
+            ? (() => {
+                const isScript = Boolean(convertModalEvent.script?.id || convertModalEvent.scriptId || convertModalEvent.eventSource === 'SCRIPT');
+                const isGraphicReq = Boolean(convertModalEvent.graphicRequirement?.id || convertModalEvent.graphicRequirementId || convertModalEvent.eventSource === 'GRAPHIC_REQUIREMENT');
+                return {
+                  title: convertModalEvent.title || '',
+                  parentType: (isScript ? 'SCRIPT' : isGraphicReq ? 'GRAPHIC_REQ' : 'PROJECT') as 'PROJECT' | 'GRAPHIC_REQ' | 'SCRIPT',
+                  parentId: isScript
+                    ? (convertModalEvent.script?.id || convertModalEvent.scriptId || '')
+                    : isGraphicReq
+                    ? (convertModalEvent.graphicRequirement?.id || convertModalEvent.graphicRequirementId || '')
+                    : (convertModalEvent.shootProjects?.[0]?.id || convertModalEvent.shootId || ''),
+                  parentCode: isScript
+                    ? (convertModalEvent.script?.scriptId || convertModalEvent.eventId || '')
+                    : isGraphicReq
+                    ? (convertModalEvent.graphicRequirement?.requirementId || convertModalEvent.eventId || '')
+                    : (convertModalEvent.shootProjects?.[0]?.projectId || convertModalEvent.eventId || ''),
+                  calendarEventId: convertModalEvent.id,
+                  clientId: convertModalEvent.clientId,
+                  brandId: convertModalEvent.brandId,
+                  productId: convertModalEvent.productId,
+                  priority: convertModalEvent.priority,
+                  dueDate: convertModalEvent.clientApprovalDeadline || convertModalEvent.shootDate,
+                  notes: convertModalEvent.productionNotes,
+                  createdBy: convertModalEvent.createdBy,
+                };
+              })()
             : null
         }
       />
@@ -2402,6 +2706,18 @@ export default function CalendarPage() {
                   {viewModalEvent.editRequests && viewModalEvent.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL') ? (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 uppercase flex items-center gap-1 animate-pulse">
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> WAITING FOR EDITING APPROVAL
+                    </span>
+                  ) : viewModalEvent.status === 'REJECTED' || viewModalEvent.approvalStatus === 'REJECTED' ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300 uppercase flex items-center gap-1">
+                      <XCircle className="w-3.5 h-3.5 text-rose-600" /> REJECTED BY MARKETING MANAGER
+                    </span>
+                  ) : viewModalEvent.status === 'PENDING_MARKETING_APPROVAL' || viewModalEvent.approvalStatus === 'PENDING_MARKETING_APPROVAL' || viewModalEvent.status === 'WAITING_FOR_MARKETING_APPROVAL' ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 uppercase flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-amber-600" /> PENDING MARKETING APPROVAL
+                    </span>
+                  ) : viewModalEvent.status === 'PENDING_CLIENT_APPROVAL' || viewModalEvent.status === 'PENDING_CLIENT_REVIEW' ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-100 text-orange-900 border border-orange-300 uppercase flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-orange-600" /> PENDING CLIENT APPROVAL
                     </span>
                   ) : (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
@@ -2425,28 +2741,73 @@ export default function CalendarPage() {
               </button>
             </div>
 
+            {/* Rejection Feedback Box with Re-submission Actions */}
+            {(viewModalEvent.status === 'REJECTED' || viewModalEvent.approvalStatus === 'REJECTED') && (
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-3">
+                <div className="flex items-center gap-2 text-rose-900 font-bold text-sm">
+                  <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>Event Rejected by Marketing Manager</span>
+                </div>
+                {(() => {
+                  const rejectHistory = Array.isArray(viewModalEvent.approvalHistory)
+                    ? viewModalEvent.approvalHistory.find((ah: any) => ah.action === 'REJECT' || ah.action === 'OVERRIDE_REJECT' || ah.newStatus === 'REJECTED')
+                    : null;
+                  return rejectHistory?.comment ? (
+                    <div className="text-xs text-rose-900 pl-6 space-y-1">
+                      <p className="font-semibold text-rose-800">Marketing Manager Feedback / Reason:</p>
+                      <p className="italic bg-white/80 p-3 rounded-lg border border-rose-200 text-rose-950">"{rejectHistory.comment}"</p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-rose-700 pl-6">This event was rejected by the Marketing Manager. Please revise the event and re-submit.</p>
+                  );
+                })()}
+                <div className="pt-1 pl-6 flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => {
+                      const evt = viewModalEvent;
+                      setViewModalEvent(null);
+                      openEdit(evt);
+                    }}
+                    className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-lg text-xs flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Edit className="w-3.5 h-3.5" /> Edit &amp; Re-submit for Approval
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const id = viewModalEvent.id;
+                      setViewModalEvent(null);
+                      await handleSubmitForApproval(id);
+                    }}
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Send className="w-3.5 h-3.5" /> Direct Re-submit
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* CREATOR INFORMATION HIGHLIGHT BOX */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-blue-950/70 via-indigo-950/50 to-gray-950 border border-blue-200 flex items-center justify-between shadow-lg">
+            <div className="p-4 rounded-xl bg-blue-50/80 border border-blue-200 flex items-center justify-between shadow-xs">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+                <div className="w-10 h-10 rounded-full bg-white border border-blue-200 flex items-center justify-center text-blue-600 shrink-0 shadow-xs">
                   <User className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-blue-600 block">Created By (Event Owner)</span>
-                  <span className="text-sm font-bold text-slate-900">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-blue-700 block">Created By (Event Owner)</span>
+                  <span className="text-sm font-bold text-slate-900 block">
                     {viewModalEvent.createdBy?.name || (viewModalEvent.createdByRole ? viewModalEvent.createdByRole.replace(/_/g, ' ') : 'Media Operations Team')}
                   </span>
                   {viewModalEvent.createdBy?.email && (
-                    <span className="text-xs text-slate-500 block">{viewModalEvent.createdBy.email}</span>
+                    <span className="text-xs text-slate-600 block">{viewModalEvent.createdBy.email}</span>
                   )}
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-[9px] font-mono px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200 uppercase font-bold block mb-1">
+                <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-white text-blue-800 border border-blue-200 uppercase font-bold block mb-1 shadow-xs">
                   {viewModalEvent.createdBy?.role ? viewModalEvent.createdBy.role.replace(/_/g, ' ') : viewModalEvent.createdByRole ? viewModalEvent.createdByRole.replace(/_/g, ' ') : 'CREATOR'}
                 </span>
                 {viewModalEvent.createdAt && (
-                  <span className="text-[10px] text-slate-500 font-mono">
+                  <span className="text-[10px] text-slate-600 font-mono">
                     Created: {new Date(viewModalEvent.createdAt).toLocaleDateString()}
                   </span>
                 )}
@@ -2533,6 +2894,38 @@ export default function CalendarPage() {
                     </div>
                   );
                 })()}
+              </div>
+            )}
+
+            {/* CREATIVE ASSETS & REFERENCE FILES CARD */}
+            {viewModalEvent.creativePreviewUrl && (
+              <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 text-xs">
+                <div className="flex items-center justify-between border-b border-indigo-200 pb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-800 flex items-center gap-1.5">
+                    <LinkIcon className="w-4 h-4 text-indigo-600" /> Attached Creative Asset &amp; Reference File
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold">
+                    File Reference
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  <div className="space-y-0.5 overflow-hidden">
+                    <span className="text-slate-900 font-bold text-sm block truncate">
+                      {viewModalEvent.creativeAssetName || 'Primary Creative Asset'}
+                    </span>
+                    <span className="text-indigo-700 font-mono text-xs truncate block">
+                      {viewModalEvent.creativePreviewUrl}
+                    </span>
+                  </div>
+                  <a
+                    href={viewModalEvent.creativePreviewUrl.startsWith('http') ? viewModalEvent.creativePreviewUrl : `https://${viewModalEvent.creativePreviewUrl}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shrink-0 shadow-sm transition-all"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Open Asset Link
+                  </a>
+                </div>
               </div>
             )}
 
@@ -2634,19 +3027,50 @@ export default function CalendarPage() {
 
             {/* Modal Actions Footer */}
             <div className="flex items-center justify-between border-t border-slate-200 pt-4">
-              <button
-                onClick={() => { setViewModalEvent(null); setConvertModalEvent(viewModalEvent); }}
-                className="px-3.5 py-2 bg-purple-50 hover:bg-purple-900/80 border border-purple-200 text-purple-700 rounded-xl text-xs font-bold flex items-center gap-1.5"
-              >
-                <Zap className="w-3.5 h-3.5 text-purple-600" /> Convert to Task
-              </button>
+              <div>
+                {canConvertToTask(viewModalEvent) && (
+                  <button
+                    onClick={() => { setViewModalEvent(null); setConvertModalEvent(viewModalEvent); }}
+                    className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Zap className="w-3.5 h-3.5" /> Convert to Task
+                  </button>
+                )}
+                {isEventConvertedToTask(viewModalEvent) && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Task Assigned &amp; In Production</span>
+                  </div>
+                )}
+              </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => { setViewModalEvent(null); openEdit(viewModalEvent); }}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-white rounded-xl text-xs font-bold flex items-center gap-1.5"
-                >
-                  <Edit className="w-3.5 h-3.5" /> Edit Event
-                </button>
+                {(viewModalEvent.status === 'REJECTED' || viewModalEvent.approvalStatus === 'REJECTED') ? (
+                  <>
+                    <button
+                      onClick={async () => {
+                        const id = viewModalEvent.id;
+                        setViewModalEvent(null);
+                        await handleSubmitForApproval(id);
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                    >
+                      <Send className="w-3.5 h-3.5" /> Re-submit for Approval
+                    </button>
+                    <button
+                      onClick={() => { setViewModalEvent(null); openEdit(viewModalEvent); }}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                    >
+                      <Edit className="w-3.5 h-3.5" /> Edit &amp; Re-submit Event
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => { setViewModalEvent(null); openEdit(viewModalEvent); }}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Edit className="w-3.5 h-3.5" /> Edit Event
+                  </button>
+                )}
                 <button
                   onClick={() => setViewModalEvent(null)}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold"

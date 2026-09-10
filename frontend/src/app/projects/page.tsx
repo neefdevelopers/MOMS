@@ -524,7 +524,7 @@ export default function ProjectsPage() {
                   <select
                     value={selectedBrand}
                     onChange={(e) => setSelectedBrand(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-purple-500 focus:bg-white font-medium"
                   >
                     <option value="">All Brands</option>
                     {(brands || []).map((b) => (
@@ -537,7 +537,7 @@ export default function ProjectsPage() {
                   <select
                     value={selectedProduct}
                     onChange={(e) => setSelectedProduct(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-purple-500 focus:bg-white font-medium"
                   >
                     <option value="">All Products</option>
                     {(products || []).map((p) => (
@@ -558,7 +558,7 @@ export default function ProjectsPage() {
                   <select
                     value={selectedMediaManager}
                     onChange={(e) => setSelectedMediaManager(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
                   >
                     <option value="">All Media Managers</option>
                     {(usersList || [])
@@ -573,7 +573,7 @@ export default function ProjectsPage() {
                   <select
                     value={selectedTechManager}
                     onChange={(e) => setSelectedTechManager(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
                   >
                     <option value="">All Tech Managers</option>
                     {(usersList || [])
@@ -588,7 +588,7 @@ export default function ProjectsPage() {
                   <select
                     value={selectedEmployee}
                     onChange={(e) => setSelectedEmployee(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
                   >
                     <option value="">All Assigned Staff</option>
                     {(usersList || []).map((u) => (
@@ -609,7 +609,7 @@ export default function ProjectsPage() {
                   <select
                     value={selectedStatus}
                     onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
                   >
                     <option value="">All Operational Statuses</option>
                     <option value="DRAFT">Draft</option>
@@ -629,7 +629,7 @@ export default function ProjectsPage() {
                   <select
                     value={selectedPriority}
                     onChange={(e) => setSelectedPriority(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white font-medium"
                   >
                     <option value="">All Priorities</option>
                     <option value="LOW">Priority: LOW</option>
@@ -643,14 +643,14 @@ export default function ProjectsPage() {
                       type="date"
                       value={selectedDate}
                       onChange={(e) => setSelectedDate(e.target.value)}
-                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-white focus:outline-none focus:border-amber-500 focus:bg-white font-mono text-[11px]"
+                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white font-mono text-[11px]"
                     />
                     <input
                       type="text"
                       placeholder="Location..."
                       value={selectedLocation}
                       onChange={(e) => setSelectedLocation(e.target.value)}
-                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-white focus:outline-none focus:border-amber-500 focus:bg-white text-[11px]"
+                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white text-[11px]"
                     />
                   </div>
                 </div>
@@ -685,11 +685,32 @@ export default function ProjectsPage() {
             if (!isAllowedForTech) return false;
           }
 
-          const UNAPPROVED_STATUSES = ['PENDING_MARKETING_APPROVAL', 'PENDING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'DRAFT', 'CHANGES_REQUESTED', 'REVISION_REQUESTED', 'PLANNED'];
-          const isUnapproved = UNAPPROVED_STATUSES.includes(proj.status) || Boolean(proj.calendarEvent && UNAPPROVED_STATUSES.includes(proj.calendarEvent.status));
+          // Creator check
           const isCreator = Boolean(user?.id && (proj.createdById === user.id || proj.calendarEvent?.createdById === user.id));
 
-          if (isUnapproved && !isCreator && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'MEDIA_MANAGER' && user?.role !== 'SOCIAL_MEDIA_MANAGER' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN') {
+          // Assignment check (For STAFF, must be accepted task assignment or direct team assignment)
+          const isAssigned = Boolean(
+            user?.id && (
+              (Array.isArray(proj.assignedTeam) && proj.assignedTeam.some((t: any) => t.userId === user.id || t.user?.id === user.id)) ||
+              (Array.isArray(proj.tasks) && proj.tasks.some((t: any) =>
+                (user?.role !== 'STAFF' && t.assignedToId === user.id) ||
+                (Array.isArray(t.assignedEmployees) && t.assignedEmployees.some((e: any) =>
+                  (e.userId === user.id || e.user?.id === user.id) && (user?.role !== 'STAFF' || e.acceptanceStatus === 'ACCEPTED')
+                ))
+              ))
+            )
+          );
+
+          const isManagerOrAdmin = ['MARKETING_MANAGER', 'MEDIA_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'].includes(user?.role as string);
+
+          if (isCreator || isAssigned || isManagerOrAdmin) {
+            return true;
+          }
+
+          const UNAPPROVED_STATUSES = ['PENDING_MARKETING_APPROVAL', 'PENDING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'DRAFT', 'CHANGES_REQUESTED', 'REVISION_REQUESTED'];
+          const isUnapproved = UNAPPROVED_STATUSES.includes(proj.status) || Boolean(proj.calendarEvent && UNAPPROVED_STATUSES.includes(proj.calendarEvent.status));
+
+          if (isUnapproved) {
             return false;
           }
           return true;
@@ -1210,14 +1231,44 @@ export default function ProjectsPage() {
                 <div className="space-y-2 border-t border-slate-200 pt-3">
                   <div className="flex items-center justify-between">
                     <label className="text-slate-700 font-semibold flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-blue-600" /> Crew Assignment
+                      <Users className="w-4 h-4 text-blue-600" /> Assign Team Members
                     </label>
-                    <span className="text-[11px] text-amber-600 font-bold">
-                      Not Assigned
+                    <span className="text-[11px] text-slate-500 font-mono">
+                      {selectedTeamUserIds.length} selected
                     </span>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg text-[11px] text-slate-500">
-                    Shoot Project will be created as <strong className="text-amber-800">Not Assigned</strong>. Crew and staff assignment is specified when scheduling the Media Calendar Event.
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
+                    {usersList.length === 0 ? (
+                      <div className="text-slate-400 text-[11px] col-span-2 text-center py-2">No team members found.</div>
+                    ) : (
+                      usersList.map((u) => {
+                        const isSelected = selectedTeamUserIds.includes(u.id);
+                        return (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedTeamUserIds(selectedTeamUserIds.filter((id) => id !== u.id));
+                              } else {
+                                setSelectedTeamUserIds([...selectedTeamUserIds, u.id]);
+                              }
+                            }}
+                            className={`flex items-center justify-between p-2 rounded-lg text-left transition-all border ${
+                              isSelected
+                                ? 'bg-blue-50 border-blue-500 text-blue-800'
+                                : 'bg-white border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="truncate">
+                              <div className="font-semibold text-xs text-slate-900 leading-none truncate">{u.name}</div>
+                              <div className="text-[10px] text-slate-500 truncate font-mono">{u.role}</div>
+                            </div>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-1" />}
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
 

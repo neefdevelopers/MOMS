@@ -219,7 +219,7 @@ function ClientsContent() {
             placeholder="Search by Client Name, Company, Contact Person, Email, Mobile..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white"
           />
         </div>
 
@@ -228,7 +228,7 @@ function ClientsContent() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white w-full sm:w-auto"
+            className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white w-full sm:w-auto"
           >
             <option value="">All Statuses</option>
             <option value="ACTIVE">ACTIVE</option>
@@ -406,7 +406,7 @@ function ClientsContent() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. ABC Healthcare"
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                 />
               </div>
 
@@ -418,7 +418,7 @@ function ClientsContent() {
                   value={formData.companyName}
                   onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                   placeholder="e.g. ABC Healthcare Pvt Ltd"
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                 />
               </div>
 
@@ -430,7 +430,7 @@ function ClientsContent() {
                   value={formData.contactPerson}
                   onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
                   placeholder="e.g. Dr. Suresh Mehta"
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                 />
               </div>
 
@@ -443,7 +443,7 @@ function ClientsContent() {
                   value={formData.mobile}
                   onChange={handleMobileChange}
                   placeholder="e.g. 9876543210"
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-mono"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-mono"
                 />
               </div>
 
@@ -455,7 +455,7 @@ function ClientsContent() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="e.g. contact@abchealthcare.com"
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                 />
               </div>
 
@@ -464,7 +464,7 @@ function ClientsContent() {
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-semibold"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-semibold"
                 >
                   <option value="ACTIVE">ACTIVE (Can receive projects)</option>
                   <option value="ON_HOLD">ON HOLD (Temporarily paused)</option>
@@ -480,7 +480,7 @@ function ClientsContent() {
                   value={formData.gstNumber}
                   onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value })}
                   placeholder="e.g. 27AAAAA0000A1Z5"
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                 />
               </div>
 
@@ -491,7 +491,7 @@ function ClientsContent() {
                   value={formData.website}
                   onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                   placeholder="https://..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                 />
               </div>
 
@@ -501,7 +501,7 @@ function ClientsContent() {
                   type="date"
                   value={formData.onboardingDate}
                   onChange={(e) => setFormData({ ...formData, onboardingDate: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white font-mono"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-mono"
                 />
               </div>
             </div>
@@ -512,7 +512,7 @@ function ClientsContent() {
                 rows={2}
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
               ></textarea>
             </div>
 
@@ -523,7 +523,7 @@ function ClientsContent() {
                 value={formData.internalNotes}
                 onChange={(e) => setFormData({ ...formData, internalNotes: e.target.value })}
                 placeholder="Operational notes, retainer scope, contract highlights..."
-                className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-white"
+                className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
               ></textarea>
             </div>
 

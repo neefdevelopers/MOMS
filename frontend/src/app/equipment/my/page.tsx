@@ -302,7 +302,7 @@ export default function MyEquipmentPage() {
                   required
                   value={requestForm.projectId}
                   onChange={(e) => setRequestForm({ ...requestForm, projectId: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 focus:bg-white font-medium"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white font-medium"
                 >
                   <option value="">Select Shoot Project...</option>
                   {myProjects.map((p) => (
@@ -319,7 +319,7 @@ export default function MyEquipmentPage() {
                   required
                   value={requestForm.equipmentId}
                   onChange={(e) => setRequestForm({ ...requestForm, equipmentId: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 focus:bg-white font-medium"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white font-medium"
                 >
                   <option value="">Select Equipment...</option>
                   {availableEquipment.map((eq) => (
@@ -338,7 +338,7 @@ export default function MyEquipmentPage() {
                     required
                     value={requestForm.requiredDate}
                     onChange={(e) => setRequestForm({ ...requestForm, requiredDate: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 focus:bg-white font-mono"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white font-mono"
                   />
                 </div>
 
@@ -349,7 +349,7 @@ export default function MyEquipmentPage() {
                     required
                     value={requestForm.expectedReturnDate}
                     onChange={(e) => setRequestForm({ ...requestForm, expectedReturnDate: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 focus:bg-white font-mono"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white font-mono"
                   />
                 </div>
               </div>
@@ -361,7 +361,7 @@ export default function MyEquipmentPage() {
                   rows={2}
                   value={requestForm.purpose}
                   onChange={(e) => setRequestForm({ ...requestForm, purpose: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 focus:bg-white"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white"
                   placeholder="e.g. Primary camera body for outdoor shoot B-roll recording"
                 />
               </div>
@@ -372,7 +372,7 @@ export default function MyEquipmentPage() {
                   type="text"
                   value={requestForm.remarks}
                   onChange={(e) => setRequestForm({ ...requestForm, remarks: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 focus:bg-white"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white"
                   placeholder="Additional notes or accessories required"
                 />
               </div>

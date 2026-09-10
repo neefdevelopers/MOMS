@@ -83,8 +83,8 @@ export class EquipmentController {
     return this.equipmentService.getMyEquipment(userId);
   }
 
-  // ─── Equipment Reservation — Media Manager, Technical Manager & Administrator ───────
-  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  // ─── Equipment Reservation / Request — Media Manager, Technical Manager, Staff & Administrator ───────
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR, Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MARKETING_MANAGER)
   @Post(':id/reserve')
   reserve(
     @Param('id') id: string,

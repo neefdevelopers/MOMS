@@ -2,7 +2,25 @@
 
 import React, { useState, useEffect } from 'react';
 import { fetchApi } from '@/lib/api';
-import { X, CheckSquare, Clock, AlertCircle, Plus, Users, Calendar as CalendarIcon, Camera, User } from 'lucide-react';
+import {
+  X,
+  CheckSquare,
+  Clock,
+  AlertCircle,
+  Plus,
+  Users,
+  Calendar as CalendarIcon,
+  Camera,
+  User,
+  FileText,
+  Link as LinkIcon,
+  ExternalLink,
+  Film,
+  Video,
+  FileVideo,
+  Sparkles,
+  Eye,
+} from 'lucide-react';
 
 interface ConvertEventToTaskModalProps {
   isOpen: boolean;
@@ -10,9 +28,10 @@ interface ConvertEventToTaskModalProps {
   onSuccess?: () => void;
   eventData: {
     title: string;
-    parentType: 'PROJECT' | 'GRAPHIC_REQ';
+    parentType: 'PROJECT' | 'GRAPHIC_REQ' | 'SCRIPT';
     parentId: string;
     parentCode?: string;
+    calendarEventId?: string;
     clientId?: string;
     brandId?: string;
     productId?: string;
@@ -41,6 +60,10 @@ export default function ConvertEventToTaskModal({
   const [assignedStaffIds, setAssignedStaffIds] = useState<string[]>([]);
   const [staffUsersList, setStaffUsersList] = useState<any[]>([]);
   const [loadingStaff, setLoadingStaff] = useState(false);
+
+  // Script Full Assets Details
+  const [scriptDetails, setScriptDetails] = useState<any | null>(null);
+  const [loadingScriptDetails, setLoadingScriptDetails] = useState(false);
 
   // Equipment selection for Shoot Projects
   const [equipmentList, setEquipmentList] = useState<any[]>([]);
@@ -79,6 +102,22 @@ export default function ConvertEventToTaskModal({
           setLoadingStaff(false);
           setLoadingEquipment(false);
         });
+
+      // If parent is SCRIPT, load full script assets
+      if (eventData.parentType === 'SCRIPT' && eventData.parentId) {
+        setLoadingScriptDetails(true);
+        fetchApi(`/scripts/${eventData.parentId}`)
+          .then((res) => {
+            setScriptDetails(res);
+            if (res?.description && !eventData.notes) {
+              setTaskDescription(res.description);
+            }
+          })
+          .catch(() => setScriptDetails(null))
+          .finally(() => setLoadingScriptDetails(false));
+      } else {
+        setScriptDetails(null);
+      }
     }
   }, [isOpen, eventData]);
 
@@ -114,12 +153,16 @@ export default function ConvertEventToTaskModal({
         clientId: validClientId,
         brandId: validBrandId,
         productId: validProductId,
+        calendarEventId: eventData.calendarEventId || undefined,
+        parentEntityType: eventData.parentType,
       };
 
       if (eventData.parentType === 'PROJECT' && validParentId) {
         payload.projectId = validParentId;
       } else if (eventData.parentType === 'GRAPHIC_REQ' && validParentId) {
         payload.graphicRequirementId = validParentId;
+      } else if (eventData.parentType === 'SCRIPT' && validParentId) {
+        payload.scriptId = validParentId;
       }
 
       await fetchApi('/tasks', {
@@ -162,7 +205,7 @@ export default function ConvertEventToTaskModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white border border-slate-200 rounded-2xl w-full max-w-xl p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto shadow-xl relative text-left"
+        className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto shadow-xl relative text-left"
       >
         {/* Modal Header */}
         <div className="flex justify-between items-start border-b border-slate-100 pb-3">
@@ -172,7 +215,11 @@ export default function ConvertEventToTaskModal({
                 TASK CONVERSION MODAL
               </span>
               <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-slate-100 border border-slate-200 text-slate-700">
-                {eventData.parentType === 'PROJECT' ? 'Shoot Project' : 'Graphic Requirement'}
+                {eventData.parentType === 'PROJECT'
+                  ? 'Shoot Project'
+                  : eventData.parentType === 'SCRIPT'
+                  ? 'Script & Storyline'
+                  : 'Graphic Requirement'}
               </span>
             </div>
             <h3 className="text-base font-bold text-slate-900 mt-1">
@@ -195,6 +242,123 @@ export default function ConvertEventToTaskModal({
           </div>
         )}
 
+        {/* ══════════════════════════════════════════════════════════
+            ASSETS PREVIEW SESSION (FOR SCRIPT TASK CONVERSION)
+        ══════════════════════════════════════════════════════════ */}
+        {eventData.parentType === 'SCRIPT' && (
+          <div className="p-4 bg-gradient-to-br from-purple-50/70 via-blue-50/40 to-slate-50 border border-purple-200 rounded-2xl space-y-3 shadow-xs">
+            <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
+              <h4 className="font-extrabold text-xs text-purple-900 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                Script Assets &amp; Storyline Preview Session
+              </h4>
+              <span className="text-[10px] font-mono font-bold bg-purple-100 text-purple-800 px-2 py-0.5 rounded border border-purple-300">
+                {scriptDetails?.scriptId || eventData.parentCode || 'SCRIPT ASSETS'}
+              </span>
+            </div>
+
+            {loadingScriptDetails ? (
+              <div className="p-4 text-center text-slate-400 italic text-xs">
+                Loading script assets and reference materials…
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Script Storyline Narration Box */}
+                {(scriptDetails?.description || eventData.notes) && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-purple-950 uppercase tracking-wider block">
+                      Storyline / Script Narration:
+                    </span>
+                    <div className="p-3 bg-white/90 border border-purple-200/80 rounded-xl text-xs text-slate-800 leading-relaxed max-h-32 overflow-y-auto whitespace-pre-wrap font-sans shadow-2xs">
+                      {scriptDetails?.description || eventData.notes}
+                    </div>
+                  </div>
+                )}
+
+                {/* Script Reference Attachment Links */}
+                {scriptDetails?.attachmentLinks && scriptDetails.attachmentLinks.length > 0 && (
+                  <div className="space-y-1.5 pt-1 border-t border-purple-200/60">
+                    <span className="text-[10px] font-bold text-purple-950 uppercase tracking-wider block">
+                      Attached Reference Documents &amp; External Assets ({scriptDetails.attachmentLinks.length}):
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {scriptDetails.attachmentLinks.map((link: any) => (
+                        <a
+                          key={link.id}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2.5 bg-white border border-purple-200 hover:border-purple-400 hover:shadow-xs rounded-xl flex items-center justify-between text-[11px] text-purple-900 transition-all group"
+                        >
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <LinkIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                            <div className="truncate">
+                              <span className="font-bold block truncate group-hover:text-purple-700">{link.name}</span>
+                              <span className="text-[9px] text-slate-500 font-mono">{link.attachmentCategory?.replace(/_/g, ' ')}</span>
+                            </div>
+                          </div>
+                          <ExternalLink className="w-3.5 h-3.5 text-purple-400 group-hover:text-purple-600 shrink-0" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Script Planned Deliverables */}
+                {scriptDetails?.deliverables && scriptDetails.deliverables.length > 0 && (
+                  <div className="space-y-1.5 pt-1 border-t border-purple-200/60">
+                    <span className="text-[10px] font-bold text-purple-950 uppercase tracking-wider block">
+                      Planned Deliverables &amp; Output Specs ({scriptDetails.deliverables.length}):
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {scriptDetails.deliverables.map((del: any) => (
+                        <div key={del.id} className="p-2.5 bg-white border border-purple-200 rounded-xl flex items-center justify-between text-[11px]">
+                          <div className="flex items-center gap-2">
+                            <Film className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <div>
+                              <strong className="text-slate-900 block">{del.name || del.title || 'Deliverable'}</strong>
+                              <span className="text-[10px] text-slate-500 font-mono">{del.type} • {del.duration || '30s'}</span>
+                            </div>
+                          </div>
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 uppercase">
+                            {del.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Attached Files Tree */}
+                {scriptDetails?.files && scriptDetails.files.length > 0 && (
+                  <div className="space-y-1.5 pt-1 border-t border-purple-200/60">
+                    <span className="text-[10px] font-bold text-purple-950 uppercase tracking-wider block">
+                      Attached Media Assets &amp; Files ({scriptDetails.files.length}):
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {scriptDetails.files.map((f: any) => (
+                        <a
+                          key={f.id}
+                          href={f.storagePath?.startsWith('http') ? f.storagePath : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${f.storagePath}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2.5 bg-white border border-slate-200 hover:border-emerald-300 rounded-xl flex items-center justify-between text-[11px] transition-all group"
+                        >
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <FileText className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span className="truncate font-semibold text-slate-800 group-hover:text-emerald-700">{f.fileName}</span>
+                          </div>
+                          <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Parent Entity Read-Only Box */}
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
@@ -205,7 +369,7 @@ export default function ConvertEventToTaskModal({
             {eventData.createdBy && (
               <div className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-1.5 border-t border-slate-200">
                 <User className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                <span>Created by: <strong className="text-slate-800">{eventData.createdBy.name || 'Social Media Manager'}</strong></span>
+                <span>Created by: <strong className="text-slate-800">{eventData.createdBy.name || (eventData.createdBy.role ? eventData.createdBy.role.replace(/_/g, ' ') : 'Creator')}</strong></span>
                 {eventData.createdBy.role && (
                   <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200 uppercase">
                     {eventData.createdBy.role.replace(/_/g, ' ')}
@@ -223,7 +387,7 @@ export default function ConvertEventToTaskModal({
               required
               value={taskTitle}
               onChange={(e) => setTaskTitle(e.target.value)}
-              placeholder="e.g. Key Visual Design & Typography Layout"
+              placeholder="e.g. Script Narration Production & Storyboarding"
               className="w-full bg-slate-50 border border-purple-200 rounded-xl p-2.5 text-slate-900 font-semibold focus:outline-none focus:border-purple-500 focus:bg-white transition-colors"
             />
           </div>
@@ -326,68 +490,70 @@ export default function ConvertEventToTaskModal({
             )}
           </div>
 
-          {/* Equipment Requirements / Allocation */}
-          <div>
-            <label className="block text-slate-700 font-bold mb-1 flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <Camera className="w-4 h-4 text-cyan-600" />
-                <span>Equipment Allocation / Requirements (Optional)</span>
-              </span>
-              <span className="text-[10px] text-cyan-700 font-mono font-semibold">
-                {selectedEquipmentIds.length} Selected
-              </span>
-            </label>
+          {/* Equipment Requirements / Allocation (For Shoot Projects Only) */}
+          {eventData.parentType === 'PROJECT' && (
+            <div>
+              <label className="block text-slate-700 font-bold mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Camera className="w-4 h-4 text-cyan-600" />
+                  <span>Equipment Allocation / Requirements (Optional)</span>
+                </span>
+                <span className="text-[10px] text-cyan-700 font-mono font-semibold">
+                  {selectedEquipmentIds.length} Selected
+                </span>
+              </label>
 
-            {loadingEquipment ? (
-              <div className="p-3 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
-                Loading equipment inventory…
-              </div>
-            ) : (
-              <div className="space-y-1.5 max-h-40 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                {equipmentList.length === 0 ? (
-                  <div className="text-slate-400 italic text-center py-2 text-[11px]">No equipment items found in inventory.</div>
-                ) : (
-                  equipmentList.map((eq) => {
-                    const isAvailable = eq.availability === 'AVAILABLE';
-                    const isChecked = selectedEquipmentIds.includes(eq.id);
+              {loadingEquipment ? (
+                <div className="p-3 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
+                  Loading equipment inventory…
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+                  {equipmentList.length === 0 ? (
+                    <div className="text-slate-400 italic text-center py-2 text-[11px]">No equipment items found in inventory.</div>
+                  ) : (
+                    equipmentList.map((eq) => {
+                      const isAvailable = eq.availability === 'AVAILABLE';
+                      const isChecked = selectedEquipmentIds.includes(eq.id);
 
-                    return (
-                      <label
-                        key={eq.id}
-                        className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
-                          isChecked
-                            ? 'bg-cyan-50 border-cyan-300 text-cyan-900 font-bold'
-                            : isAvailable
-                            ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer'
-                            : 'bg-slate-100 border-slate-200 text-slate-400 opacity-50 cursor-not-allowed'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <input
-                            type="checkbox"
-                            disabled={!isAvailable}
-                            checked={isChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) setSelectedEquipmentIds([...selectedEquipmentIds, eq.id]);
-                              else setSelectedEquipmentIds(selectedEquipmentIds.filter((id) => id !== eq.id));
-                            }}
-                            className="w-4 h-4 accent-cyan-600 cursor-pointer disabled:cursor-not-allowed"
-                          />
-                          <span className="truncate font-medium">{eq.name} <span className="font-mono text-[10px] text-slate-500">({eq.equipmentId})</span></span>
-                        </div>
+                      return (
+                        <label
+                          key={eq.id}
+                          className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
+                            isChecked
+                              ? 'bg-cyan-50 border-cyan-300 text-cyan-900 font-bold'
+                              : isAvailable
+                              ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer'
+                              : 'bg-slate-100 border-slate-200 text-slate-400 opacity-50 cursor-not-allowed'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <input
+                              type="checkbox"
+                              disabled={!isAvailable}
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelectedEquipmentIds([...selectedEquipmentIds, eq.id]);
+                                else setSelectedEquipmentIds(selectedEquipmentIds.filter((id) => id !== eq.id));
+                              }}
+                              className="w-4 h-4 accent-cyan-600 cursor-pointer disabled:cursor-not-allowed"
+                            />
+                            <span className="truncate font-medium">{eq.name} <span className="font-mono text-[10px] text-slate-500">({eq.equipmentId})</span></span>
+                          </div>
 
-                        <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase border ${
-                          isAvailable ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
-                        }`}>
-                          {isAvailable ? 'AVAILABLE' : `${eq.availability} - UNAVAILABLE`}
-                        </span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
-            )}
-          </div>
+                          <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase border ${
+                            isAvailable ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}>
+                            {isAvailable ? 'AVAILABLE' : `${eq.availability} - UNAVAILABLE`}
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Task Brief / Instructions */}
           <div>

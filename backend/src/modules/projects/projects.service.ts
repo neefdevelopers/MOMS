@@ -26,6 +26,8 @@ export class ProjectsService {
     createdBy?: string;
   }) {
     const where: any = {};
+    const andConditions: any[] = [];
+
     if (params.clientId) where.clientId = params.clientId;
     if (params.brandId) where.brandId = params.brandId;
     if (params.productId) where.productId = params.productId;
@@ -37,36 +39,35 @@ export class ProjectsService {
       } else if (params.shootType === 'SHOOT') {
         where.shootType = { in: ['INDOOR', 'OUTDOOR'] };
       } else if (params.shootType === 'GRAPHIC_REQ' || params.shootType === 'GRAPHIC_REQUIREMENT') {
-        const graphicCondition = {
+        andConditions.push({
           OR: [
             { graphicRequirements: { some: {} } },
             { calendarEvent: { eventSource: 'GRAPHIC_REQUIREMENT' } },
           ],
-        };
-        if (where.AND) {
-          where.AND = Array.isArray(where.AND) ? [...where.AND, graphicCondition] : [where.AND, graphicCondition];
-        } else {
-          where.AND = [graphicCondition];
-        }
+        });
       }
     }
     if (params.priority) where.priority = params.priority;
 
     if (params.createdBy) {
-      where.OR = [
-        { createdById: params.createdBy },
-        { calendarEvent: { createdById: params.createdBy } },
-      ];
+      andConditions.push({
+        OR: [
+          { createdById: params.createdBy },
+          { calendarEvent: { createdById: params.createdBy } },
+        ],
+      });
     }
 
     if (params.archived) {
       where.status = ProjectStatus.ARCHIVED;
     } else if (params.status === 'PENDING_APPROVAL' || params.status === 'PENDING') {
-      where.OR = [
-        { status: 'PENDING_CLIENT_APPROVAL' },
-        { status: 'PLANNED' },
-        { calendarEvent: { status: { in: ['PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW'] } } },
-      ];
+      andConditions.push({
+        OR: [
+          { status: 'PENDING_CLIENT_APPROVAL' },
+          { status: 'PLANNED' },
+          { calendarEvent: { status: { in: ['PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW'] } } },
+        ],
+      });
     } else if (params.status && params.status !== 'ALL') {
       where.status = params.status;
     } else {
@@ -93,9 +94,12 @@ export class ProjectsService {
     }
 
     if (params.assignedUserId) {
-      where.assignedTeam = {
-        some: { userId: params.assignedUserId },
-      };
+      andConditions.push({
+        OR: [
+          { assignedTeam: { some: { userId: params.assignedUserId } } },
+          { tasks: { some: { assignedEmployees: { some: { userId: params.assignedUserId } } } } },
+        ],
+      });
     }
 
     if (params.location?.trim()) {
@@ -104,35 +108,41 @@ export class ProjectsService {
 
     if (params.search?.trim()) {
       const q = params.search.trim();
-      where.OR = [
-        { name: { contains: q } },
-        { projectId: { contains: q } },
-        { shootLocation: { contains: q } },
-        { locationAddress: { contains: q } },
-        { influencerTalent: { contains: q } },
-        { shootType: { contains: q } },
-        { client: { name: { contains: q } } },
-        { brand: { name: { contains: q } } },
-        { brand: { shortCode: { contains: q } } },
-        { product: { name: { contains: q } } },
-        { campaign: { name: { contains: q } } },
-        { assignedTeam: { some: { user: { name: { contains: q } } } } },
-      ];
+      andConditions.push({
+        OR: [
+          { name: { contains: q } },
+          { projectId: { contains: q } },
+          { shootLocation: { contains: q } },
+          { locationAddress: { contains: q } },
+          { influencerTalent: { contains: q } },
+          { shootType: { contains: q } },
+          { client: { name: { contains: q } } },
+          { brand: { name: { contains: q } } },
+          { brand: { shortCode: { contains: q } } },
+          { product: { name: { contains: q } } },
+          { campaign: { name: { contains: q } } },
+          { assignedTeam: { some: { user: { name: { contains: q } } } } },
+        ],
+      });
     }
 
-    // Role filtering for STAFF: only projects they are assigned to (with accepted task)
+    // Role filtering for STAFF: only projects they are assigned to, have tasks for, or created
     if (params.role === 'STAFF' && params.userId) {
-      where.OR = [
-        { createdById: params.userId },
-        { assignedTeam: { some: { userId: params.userId } } },
-        { tasks: { some: { assignedEmployees: { some: { userId: params.userId, acceptanceStatus: 'ACCEPTED' } } } } },
-        { scripts: { some: { scriptAssignments: { some: { userId: params.userId } } } } },
-      ];
+      andConditions.push({
+        OR: [
+          { createdById: params.userId },
+          { assignedTeam: { some: { userId: params.userId } } },
+          { tasks: { some: { assignedEmployees: { some: { userId: params.userId, acceptanceStatus: 'ACCEPTED' } } } } },
+          { scripts: { some: { scriptAssignments: { some: { userId: params.userId } } } } },
+          { scripts: { some: { tasks: { some: { assignedEmployees: { some: { userId: params.userId, acceptanceStatus: 'ACCEPTED' } } } } } } },
+          { graphicRequirements: { some: { tasks: { some: { assignedEmployees: { some: { userId: params.userId, acceptanceStatus: 'ACCEPTED' } } } } } } },
+        ],
+      });
     }
 
     // CRITICAL BUSINESS RULE:
     // Content creation and approval roles (SOCIAL_MEDIA_MANAGER, MEDIA_MANAGER, MARKETING_MANAGER, ADMIN) can view pending projects in their sessions.
-    // Execution roles (TECHNICAL_MANAGER, STAFF, etc.) can ONLY view projects once approved by Marketing Manager (or if created by themselves).
+    // Execution roles (TECHNICAL_MANAGER, STAFF, etc.) can ONLY view projects once approved by Marketing Manager (or if created by themselves or assigned).
     const APPROVED_CALENDAR_STATUSES = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'];
     const CREATOR_AND_APPROVER_ROLES = ['SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMIN', 'ADMINISTRATOR'];
 
@@ -144,15 +154,16 @@ export class ProjectsService {
           { calendarEvent: { createdById: params.userId } },
           { createdById: params.userId },
           { assignedTeam: { some: { userId: params.userId } } },
-          { tasks: { some: { assignedEmployees: { some: { userId: params.userId } } } } },
+          { tasks: { some: { assignedEmployees: { some: { userId: params.userId, acceptanceStatus: 'ACCEPTED' } } } } },
+          { graphicRequirements: { some: { tasks: { some: { assignedEmployees: { some: { userId: params.userId, acceptanceStatus: 'ACCEPTED' } } } } } } },
         ],
       };
 
-      if (where.AND) {
-        where.AND = Array.isArray(where.AND) ? [...where.AND, eventVisibilityFilter] : [where.AND, eventVisibilityFilter];
-      } else {
-        where.AND = [eventVisibilityFilter];
-      }
+      andConditions.push(eventVisibilityFilter);
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const rawProjects = await this.prisma.shootProject.findMany({
@@ -166,6 +177,9 @@ export class ProjectsService {
         indoorDetails: true,
         outdoorDetails: true,
         assignedTeam: { include: { user: true } },
+        tasks: { include: { assignedEmployees: { include: { user: true } } } },
+        scripts: { include: { scriptAssignments: true } },
+        graphicRequirements: { include: { tasks: { include: { assignedEmployees: true } } } },
         _count: {
           select: {
             tasks: true,
@@ -197,8 +211,23 @@ export class ProjectsService {
       indoorDetails: true,
       outdoorDetails: true,
       assignedTeam: { include: { user: { include: { employeeProfile: { include: { department: true } } } } } },
-      scripts: { include: { tasks: true, files: true } },
-      graphicRequirements: { include: { tasks: true, files: true } },
+      scripts: {
+        include: {
+          tasks: { include: { assignedEmployees: { include: { user: true } } } },
+          files: true,
+          scriptAssignments: { include: { user: true } },
+          createdBy: { select: { id: true, name: true, role: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' as const },
+      },
+      graphicRequirements: {
+        include: {
+          tasks: { include: { assignedEmployees: { include: { user: true } } } },
+          files: true,
+          deliverables: true,
+        },
+        orderBy: { createdAt: 'desc' as const },
+      },
       tasks: { include: { assignedEmployees: { include: { user: true } } } },
       approvals: { include: { reviewer: true }, orderBy: { reviewedAt: 'desc' as const } },
       clientConfirmations: { orderBy: { createdAt: 'desc' as const } },
@@ -227,6 +256,50 @@ export class ProjectsService {
     }
 
     if (!project) throw new NotFoundException('Project not found');
+
+    // Also fetch any scripts or graphic requirements linked via project code or calendar event
+    const [extraScripts, extraGraphicReqs] = await Promise.all([
+      this.prisma.script.findMany({
+        where: {
+          OR: [
+            { projectId: project.id },
+            { projectId: project.projectId },
+          ],
+        },
+        include: {
+          tasks: { include: { assignedEmployees: { include: { user: true } } } },
+          files: true,
+          scriptAssignments: { include: { user: true } },
+          createdBy: { select: { id: true, name: true, role: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }).catch(() => []),
+      this.prisma.graphicRequirement.findMany({
+        where: {
+          OR: [
+            { projectId: project.id },
+            { projectId: project.projectId },
+            ...(project.calendarEventId ? [{ calendarEventId: project.calendarEventId }] : []),
+          ],
+        },
+        include: {
+          tasks: { include: { assignedEmployees: { include: { user: true } } } },
+          files: true,
+          deliverables: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }).catch(() => []),
+    ]);
+
+    const scriptMap = new Map<string, any>();
+    (project.scripts || []).forEach((s: any) => scriptMap.set(s.id, s));
+    extraScripts.forEach((s: any) => scriptMap.set(s.id, s));
+    project.scripts = Array.from(scriptMap.values());
+
+    const grMap = new Map<string, any>();
+    (project.graphicRequirements || []).forEach((g: any) => grMap.set(g.id, g));
+    extraGraphicReqs.forEach((g: any) => grMap.set(g.id, g));
+    project.graphicRequirements = Array.from(grMap.values());
 
     if (currentUser && currentUser.id && currentUser.role) {
       if (!canUserViewProject(currentUser, project)) {
@@ -828,5 +901,564 @@ export class ProjectsService {
     });
 
     return updated;
+  }
+
+  async submitTechnicalReview(projectId: string, user: { id: string; name?: string; role: string }) {
+    const project = await this.findOne(projectId, user);
+    if (!project) throw new NotFoundException('Project not found');
+
+    if (project.status === 'WAITING_FOR_TECHNICAL_REVIEW') {
+      return project;
+    }
+
+    const previousStatus = project.status;
+    const currentRound = (project.revisionCount || 0) + 1;
+    const versionStr = `v${currentRound}`;
+
+    const updated = await this.prisma.shootProject.update({
+      where: { id: projectId },
+      data: {
+        status: 'WAITING_FOR_TECHNICAL_REVIEW',
+      },
+    });
+
+    await this.prisma.approval.create({
+      data: {
+        projectId: project.id,
+        entityType: 'PROJECT',
+        entityId: project.id,
+        approvalType: 'TECHNICAL_REVIEW',
+        stage: 'TECHNICAL_REVIEW',
+        round: currentRound,
+        version: versionStr,
+        targetRole: 'TECHNICAL_MANAGER',
+        requestedById: user.id,
+        status: 'PENDING',
+        returnedStatus: previousStatus,
+      },
+    });
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action: 'TECHNICAL_REVIEW_REQUESTED',
+        entity: 'ShootProject',
+        entityId: projectId,
+        description: `Technical Review Requested – Round ${currentRound} by ${user.name || user.role} (Previous Status: ${previousStatus})`,
+      },
+    });
+
+    const techManagers = await this.prisma.user.findMany({
+      where: { role: { in: ['TECHNICAL_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+    });
+
+    if (techManagers.length > 0) {
+      await this.prisma.notification.createMany({
+        data: techManagers.map((tm) => ({
+          userId: tm.id,
+          title: `Project Technical Review Requested – Round ${currentRound}`,
+          message: `Shoot Project "${project.projectId}: ${project.name}" was submitted for Technical Review (Round ${currentRound}).`,
+          type: 'INFO',
+          linkUrl: `/projects/${project.id}`,
+          eventType: 'TECHNICAL_REVIEW_REQUESTED',
+          entityType: 'PROJECT',
+          entityId: project.id,
+          entityCode: project.projectId,
+        })),
+      }).catch(() => null);
+    }
+
+    return this.findOne(projectId, user);
+  }
+
+  async reviewTechnical(
+    projectId: string,
+    user: { id: string; name?: string; role: string },
+    body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+  ) {
+    if (user.role !== 'TECHNICAL_MANAGER' && user.role !== 'ADMINISTRATOR' && user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only Technical Manager can review and decide on technical approvals.');
+    }
+
+    const { action, comment } = body;
+    const project = await this.findOne(projectId, user);
+    if (!project) throw new NotFoundException('Project not found');
+
+    if (project.status !== 'WAITING_FOR_TECHNICAL_REVIEW') {
+      throw new BadRequestException('Project is not currently waiting for Technical Review.');
+    }
+
+    const currentRound = (project.revisionCount || 0) + 1;
+
+    if (action === 'APPROVE') {
+      const updated = await this.prisma.shootProject.update({
+        where: { id: projectId },
+        data: {
+          status: 'WAITING_FOR_MEDIA_REVIEW',
+        },
+      });
+
+      const activeApproval = await this.prisma.approval.findFirst({
+        where: { projectId, stage: 'TECHNICAL_REVIEW', status: 'PENDING' },
+      });
+
+      if (activeApproval) {
+        await this.prisma.approval.update({
+          where: { id: activeApproval.id },
+          data: {
+            status: 'APPROVED',
+            reviewerId: user.id,
+            remarks: comment || 'Technical Review Approved',
+            reviewedAt: new Date(),
+          },
+        });
+      } else {
+        await this.prisma.approval.create({
+          data: {
+            projectId: project.id,
+            entityType: 'PROJECT',
+            entityId: project.id,
+            approvalType: 'TECHNICAL_REVIEW',
+            stage: 'TECHNICAL_REVIEW',
+            round: currentRound,
+            version: `v${currentRound}`,
+            targetRole: 'TECHNICAL_MANAGER',
+            requestedById: project.createdById,
+            reviewerId: user.id,
+            status: 'APPROVED',
+            remarks: comment || 'Technical Review Approved',
+            reviewedAt: new Date(),
+          },
+        });
+      }
+
+      await this.prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          action: 'TECHNICAL_REVIEW_APPROVED',
+          entity: 'ShootProject',
+          entityId: projectId,
+          description: `Technical Review Approved by Technical Manager ${user.name || ''}`,
+        },
+      });
+
+      const mediaManagers = await this.prisma.user.findMany({
+        where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+      });
+
+      if (mediaManagers.length > 0) {
+        await this.prisma.notification.createMany({
+          data: mediaManagers.map((mm) => ({
+            userId: mm.id,
+            title: 'Project Pending Media Manager Review',
+            message: `Shoot Project "${project.projectId}: ${project.name}" was approved by Technical Manager and is waiting for Media Manager Review.`,
+            type: 'INFO',
+            linkUrl: `/projects/${project.id}`,
+            eventType: 'MEDIA_REVIEW_REQUESTED',
+            entityType: 'PROJECT',
+            entityId: project.id,
+            entityCode: project.projectId,
+          })),
+        }).catch(() => null);
+      }
+
+      return this.findOne(projectId, user);
+    } else {
+      if (!comment || !comment.trim()) {
+        throw new BadRequestException('Rejection reason is mandatory for rejecting Technical Review.');
+      }
+
+      const returnStatus = 'IN_PROGRESS';
+      const updated = await this.prisma.shootProject.update({
+        where: { id: projectId },
+        data: {
+          status: returnStatus,
+          revisionCount: { increment: 1 },
+          notes: `Technical Review Revision: ${comment.trim()}`,
+        },
+      });
+
+      const activeApproval = await this.prisma.approval.findFirst({
+        where: { projectId, stage: 'TECHNICAL_REVIEW', status: 'PENDING' },
+      });
+
+      if (activeApproval) {
+        await this.prisma.approval.update({
+          where: { id: activeApproval.id },
+          data: {
+            status: 'REJECTED',
+            reviewerId: user.id,
+            remarks: comment.trim(),
+            reviewedAt: new Date(),
+            returnedStatus: returnStatus,
+          },
+        });
+      } else {
+        await this.prisma.approval.create({
+          data: {
+            projectId: project.id,
+            entityType: 'PROJECT',
+            entityId: project.id,
+            approvalType: 'TECHNICAL_REVIEW',
+            stage: 'TECHNICAL_REVIEW',
+            round: currentRound,
+            version: `v${currentRound}`,
+            targetRole: 'TECHNICAL_MANAGER',
+            requestedById: project.createdById,
+            reviewerId: user.id,
+            status: 'REJECTED',
+            remarks: comment.trim(),
+            returnedStatus: returnStatus,
+            reviewedAt: new Date(),
+          },
+        });
+      }
+
+      await this.prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          action: 'TECHNICAL_REVIEW_REJECTED',
+          entity: 'ShootProject',
+          entityId: projectId,
+          description: `Technical Review REJECTED by Technical Manager ${user.name || ''}: ${comment.trim()}. Returned to ${returnStatus}`,
+        },
+      });
+
+      if (project.createdById) {
+        await this.prisma.notification.create({
+          data: {
+            userId: project.createdById,
+            title: 'Project Technical Review Rejected',
+            message: `Shoot Project "${project.projectId}: ${project.name}" Technical Review was rejected by Technical Manager: ${comment.trim()}. Returned to ${returnStatus}.`,
+            type: 'WARNING',
+            linkUrl: `/projects/${project.id}`,
+            eventType: 'TECHNICAL_REVIEW_REJECTED',
+            entityType: 'PROJECT',
+            entityId: project.id,
+            entityCode: project.projectId,
+          },
+        }).catch(() => null);
+      }
+
+      return this.findOne(projectId, user);
+    }
+  }
+
+  async reviewMedia(
+    projectId: string,
+    user: { id: string; name?: string; role: string },
+    body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+  ) {
+    const { action, comment } = body;
+    const project = await this.findOne(projectId, user);
+    if (!project) throw new NotFoundException('Project not found');
+
+    if (project.status !== 'WAITING_FOR_MEDIA_REVIEW') {
+      throw new BadRequestException('Project is not currently waiting for Media Manager Review.');
+    }
+
+    const currentRound = (project.revisionCount || 0) + 1;
+
+    if (action === 'APPROVE') {
+      const updated = await this.prisma.shootProject.update({
+        where: { id: projectId },
+        data: {
+          status: 'WAITING_FOR_MARKETING_APPROVAL',
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          projectId: project.id,
+          entityType: 'PROJECT',
+          entityId: project.id,
+          approvalType: 'MEDIA_MANAGER_REVIEW',
+          stage: 'MEDIA_REVIEW',
+          round: currentRound,
+          version: `v${currentRound}`,
+          targetRole: 'MEDIA_MANAGER',
+          requestedById: project.createdById,
+          reviewerId: user.id,
+          status: 'APPROVED',
+          remarks: comment || 'Media Manager Review Approved',
+          reviewedAt: new Date(),
+        },
+      });
+
+      await this.prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          action: 'MEDIA_REVIEW_APPROVED',
+          entity: 'ShootProject',
+          entityId: projectId,
+          description: `Media Manager Review Approved by Media Manager ${user.name || ''}`,
+        },
+      });
+
+      const marketingManagers = await this.prisma.user.findMany({
+        where: { role: { in: ['MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+      });
+
+      if (marketingManagers.length > 0) {
+        await this.prisma.notification.createMany({
+          data: marketingManagers.map((mm) => ({
+            userId: mm.id,
+            title: 'Project Pending Marketing Manager Approval',
+            message: `Shoot Project "${project.projectId}: ${project.name}" was approved by Media Manager and is waiting for Marketing Manager Approval.`,
+            type: 'INFO',
+            linkUrl: `/projects/${project.id}`,
+            eventType: 'MARKETING_APPROVAL_REQUESTED',
+            entityType: 'PROJECT',
+            entityId: project.id,
+            entityCode: project.projectId,
+          })),
+        }).catch(() => null);
+      }
+
+      return this.findOne(projectId, user);
+    } else {
+      if (!comment || !comment.trim()) {
+        throw new BadRequestException('Rejection reason is mandatory for returning project.');
+      }
+
+      const returnStatus = 'IN_PROGRESS';
+      const updated = await this.prisma.shootProject.update({
+        where: { id: projectId },
+        data: {
+          status: returnStatus,
+          revisionCount: { increment: 1 },
+          notes: `Media Manager Revision: ${comment.trim()}`,
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          projectId: project.id,
+          entityType: 'PROJECT',
+          entityId: project.id,
+          approvalType: 'MEDIA_MANAGER_REVIEW',
+          stage: 'MEDIA_REVIEW',
+          round: currentRound,
+          version: `v${currentRound}`,
+          targetRole: 'MEDIA_MANAGER',
+          requestedById: project.createdById,
+          reviewerId: user.id,
+          status: 'REJECTED',
+          remarks: comment.trim(),
+          returnedStatus: returnStatus,
+          reviewedAt: new Date(),
+        },
+      });
+
+      await this.prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          action: 'MEDIA_REVIEW_REJECTED',
+          entity: 'ShootProject',
+          entityId: projectId,
+          description: `Media Manager Review REJECTED by ${user.name || ''}: ${comment.trim()}. Returned to ${returnStatus}`,
+        },
+      });
+
+      return this.findOne(projectId, user);
+    }
+  }
+
+  async reviewMarketing(
+    projectId: string,
+    user: { id: string; name?: string; role: string },
+    body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+  ) {
+    const { action, comment } = body;
+    const project = await this.findOne(projectId, user);
+    if (!project) throw new NotFoundException('Project not found');
+
+    if (project.status !== 'WAITING_FOR_MARKETING_APPROVAL' && project.status !== 'PENDING_APPROVAL' && project.status !== 'PENDING_CLIENT_APPROVAL') {
+      throw new BadRequestException('Project is not currently waiting for Marketing Approval.');
+    }
+
+    const currentRound = (project.revisionCount || 0) + 1;
+
+    if (action === 'APPROVE') {
+      const updated = await this.prisma.shootProject.update({
+        where: { id: projectId },
+        data: {
+          status: 'WAITING_FOR_CLIENT_CONFIRMATION',
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          projectId: project.id,
+          entityType: 'PROJECT',
+          entityId: project.id,
+          approvalType: 'MARKETING_MANAGER_APPROVAL',
+          stage: 'MARKETING_APPROVAL',
+          round: currentRound,
+          version: `v${currentRound}`,
+          targetRole: 'MARKETING_MANAGER',
+          requestedById: project.createdById,
+          reviewerId: user.id,
+          status: 'APPROVED',
+          remarks: comment || 'Marketing Manager Approval Granted',
+          reviewedAt: new Date(),
+        },
+      });
+
+      await this.prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          action: 'MARKETING_APPROVAL_GRANTED',
+          entity: 'ShootProject',
+          entityId: projectId,
+          description: `Marketing Manager Approval Granted by ${user.name || ''}`,
+        },
+      });
+
+      return this.findOne(projectId, user);
+    } else {
+      if (!comment || !comment.trim()) {
+        throw new BadRequestException('Rejection reason is mandatory for rejecting marketing approval.');
+      }
+
+      const returnStatus = 'IN_PROGRESS';
+      const updated = await this.prisma.shootProject.update({
+        where: { id: projectId },
+        data: {
+          status: returnStatus,
+          revisionCount: { increment: 1 },
+          notes: `Marketing Manager Revision: ${comment.trim()}`,
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          projectId: project.id,
+          entityType: 'PROJECT',
+          entityId: project.id,
+          approvalType: 'MARKETING_MANAGER_APPROVAL',
+          stage: 'MARKETING_APPROVAL',
+          round: currentRound,
+          version: `v${currentRound}`,
+          targetRole: 'MARKETING_MANAGER',
+          requestedById: project.createdById,
+          reviewerId: user.id,
+          status: 'REJECTED',
+          remarks: comment.trim(),
+          returnedStatus: returnStatus,
+          reviewedAt: new Date(),
+        },
+      });
+
+      return this.findOne(projectId, user);
+    }
+  }
+
+  async confirmClient(
+    projectId: string,
+    user: { id: string; name?: string; role: string },
+    body: { action: 'CONFIRM' | 'REQUEST_CHANGES'; comment?: string },
+  ) {
+    const { action, comment } = body;
+    const project = await this.findOne(projectId, user);
+    if (!project) throw new NotFoundException('Project not found');
+
+    const currentRound = (project.revisionCount || 0) + 1;
+
+    if (action === 'CONFIRM') {
+      const updated = await this.prisma.shootProject.update({
+        where: { id: projectId },
+        data: {
+          status: 'COMPLETED',
+          progressPercentage: 100,
+        },
+      });
+
+      await this.prisma.clientConfirmation.create({
+        data: {
+          projectId: project.id,
+          decision: 'APPROVED',
+          communicationMethod: 'DIRECT_SYSTEM_CONFIRMATION',
+          remarks: comment || 'Client confirmed and approved all shoot deliverables.',
+          recordedBy: user.name || user.role || 'Client Representative',
+          decisionDate: new Date(),
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          projectId: project.id,
+          entityType: 'PROJECT',
+          entityId: project.id,
+          approvalType: 'CLIENT_SIGN_OFF',
+          stage: 'CLIENT_CONFIRMATION',
+          round: currentRound,
+          version: `v${currentRound}`,
+          targetRole: 'CLIENT',
+          requestedById: project.createdById,
+          reviewerId: user.id,
+          status: 'APPROVED',
+          remarks: comment || 'Client Final Sign-off Confirmed',
+          reviewedAt: new Date(),
+        },
+      });
+
+      await this.prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          action: 'CLIENT_CONFIRMATION_RECORDED',
+          entity: 'ShootProject',
+          entityId: projectId,
+          description: `Client Final Sign-off Confirmed by ${user.name || ''}`,
+        },
+      });
+
+      return this.findOne(projectId, user);
+    } else {
+      if (!comment || !comment.trim()) {
+        throw new BadRequestException('Changes requested notes are mandatory.');
+      }
+
+      const returnStatus = 'CLIENT_REVISION_REQUESTED';
+      const updated = await this.prisma.shootProject.update({
+        where: { id: projectId },
+        data: {
+          status: returnStatus,
+          revisionCount: { increment: 1 },
+          notes: `Client Revision Requested: ${comment.trim()}`,
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          projectId: project.id,
+          entityType: 'PROJECT',
+          entityId: project.id,
+          approvalType: 'CLIENT_SIGN_OFF',
+          stage: 'CLIENT_CONFIRMATION',
+          round: currentRound,
+          version: `v${currentRound}`,
+          targetRole: 'CLIENT',
+          requestedById: project.createdById,
+          reviewerId: user.id,
+          status: 'REJECTED',
+          remarks: comment.trim(),
+          returnedStatus: returnStatus,
+          reviewedAt: new Date(),
+        },
+      });
+
+      await this.prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          action: 'CLIENT_REVISION_REQUESTED',
+          entity: 'ShootProject',
+          entityId: projectId,
+          description: `Client requested revisions: ${comment.trim()}`,
+        },
+      });
+
+      return this.findOne(projectId, user);
+    }
   }
 }

@@ -121,7 +121,7 @@ export default function CreateEquipmentPage() {
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. Sony A7 IV Cinema Body"
               />
             </div>
@@ -137,7 +137,7 @@ export default function CreateEquipmentPage() {
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 list="category-options"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. Camera Body, Lens, Lighting, Audio, Drone"
               />
               <datalist id="category-options">
@@ -163,7 +163,7 @@ export default function CreateEquipmentPage() {
                 required
                 value={form.brand}
                 onChange={(e) => setForm({ ...form, brand: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. Sony, Canon, RED, Aputure, DJI"
               />
             </div>
@@ -178,7 +178,7 @@ export default function CreateEquipmentPage() {
                 required
                 value={form.model}
                 onChange={(e) => setForm({ ...form, model: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. Alpha 7 IV, 24-70mm f/2.8 GM II"
               />
             </div>
@@ -193,7 +193,7 @@ export default function CreateEquipmentPage() {
                 required
                 value={form.serialNumber}
                 onChange={(e) => setForm({ ...form, serialNumber: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. SN-89240189"
               />
             </div>
@@ -207,7 +207,7 @@ export default function CreateEquipmentPage() {
                 type="date"
                 value={form.purchaseDate}
                 onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
               />
             </div>
 
@@ -221,7 +221,7 @@ export default function CreateEquipmentPage() {
                 step="0.01"
                 value={form.purchaseCost}
                 onChange={(e) => setForm({ ...form, purchaseCost: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. 2499.00"
               />
             </div>
@@ -234,7 +234,7 @@ export default function CreateEquipmentPage() {
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
               >
                 <option value="AVAILABLE">AVAILABLE</option>
                 <option value="RESERVED">RESERVED</option>
@@ -257,7 +257,7 @@ export default function CreateEquipmentPage() {
                 required
                 value={form.storageLocation}
                 onChange={(e) => setForm({ ...form, storageLocation: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
                 placeholder="e.g. Studio A - Shelf 2B"
               />
             </div>
@@ -272,7 +272,7 @@ export default function CreateEquipmentPage() {
               rows={3}
               value={form.internalNotes}
               onChange={(e) => setForm({ ...form, internalNotes: e.target.value })}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 focus:bg-white"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white"
               placeholder="e.g. Includes original Sony FE 24-70mm lens, 2x NP-FZ100 batteries, dual charger, and Pelican case."
             />
           </div>

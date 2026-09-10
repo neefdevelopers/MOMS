@@ -774,7 +774,7 @@ function ActivityContent() {
                   setShowChannelsModal(false);
                   setTestResult(null);
                 }}
-                className="bg-slate-100 hover:bg-slate-200 text-white px-4 py-1.5 rounded-lg font-semibold transition-colors"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-1.5 rounded-lg font-semibold transition-colors"
               >
                 Close Hub
               </button>

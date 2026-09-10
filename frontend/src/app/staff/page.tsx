@@ -374,7 +374,7 @@ function StaffContent() {
               placeholder="Search employee records by Name, Code (e.g. EMP-000001), Email, Designation, Dept, Skill, Status..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl pl-9 pr-8 py-2.5 text-white font-medium focus:outline-none transition-all placeholder:text-slate-400"
+              className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl pl-9 pr-8 py-2.5 text-slate-800 font-medium focus:outline-none transition-all placeholder:text-slate-400"
             />
             {searchQuery && (
               <button onClick={() => setSearchQuery('')} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-900">
@@ -462,7 +462,7 @@ function StaffContent() {
               <select
                 value={deptFilter}
                 onChange={(e) => setDeptFilter(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-white font-medium focus:border-purple-500 focus:bg-white focus:outline-none text-xs"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 font-medium focus:border-purple-500 focus:bg-white focus:outline-none text-xs"
               >
                 <option value="ALL">All Departments</option>
                 <option value="Video Production">Video Production</option>
@@ -481,7 +481,7 @@ function StaffContent() {
               <select
                 value={designationFilter}
                 onChange={(e) => setDesignationFilter(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-white font-medium focus:border-blue-500 focus:bg-white focus:outline-none text-xs"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 font-medium focus:border-blue-500 focus:bg-white focus:outline-none text-xs"
               >
                 <option value="ALL">All Designations</option>
                 <option value="Video Editor">Video Editor</option>
@@ -502,7 +502,7 @@ function StaffContent() {
               <select
                 value={skillFilter}
                 onChange={(e) => setSkillFilter(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-white font-medium focus:border-pink-500 focus:outline-none text-xs"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 font-medium focus:border-pink-500 focus:outline-none text-xs"
               >
                 <option value="ALL">All Skills &amp; Capabilities</option>
                 <option value="Video Editing">Video Editing</option>
@@ -525,7 +525,7 @@ function StaffContent() {
               <select
                 value={attendanceFilter}
                 onChange={(e) => setAttendanceFilter(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-white font-medium focus:border-cyan-500 focus:bg-white focus:outline-none text-xs"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 font-medium focus:border-cyan-500 focus:bg-white focus:outline-none text-xs"
               >
                 <option value="ALL">All Attendance Statuses</option>
                 <option value="PRESENT">PRESENT</option>
@@ -544,7 +544,7 @@ function StaffContent() {
               <select
                 value={availabilityFilter}
                 onChange={(e) => setAvailabilityFilter(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-white font-medium focus:border-emerald-500 focus:bg-white focus:outline-none text-xs"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 font-medium focus:border-emerald-500 focus:bg-white focus:outline-none text-xs"
               >
                 <option value="ALL">All Availability States</option>
                 <option value="Available">Available</option>
@@ -562,7 +562,7 @@ function StaffContent() {
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-white font-medium focus:border-amber-500 focus:bg-white focus:outline-none text-xs"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 font-medium focus:border-amber-500 focus:bg-white focus:outline-none text-xs"
               >
                 <option value="ALL">All System Roles</option>
                 <option value="MEDIA_MANAGER">Media Manager</option>

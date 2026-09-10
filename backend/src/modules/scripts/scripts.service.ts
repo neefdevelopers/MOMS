@@ -411,8 +411,13 @@ export class ScriptsService {
   }
 
   async generateFormattedScriptName(projectId: string, language?: string) {
-    const project = await this.prisma.shootProject.findUnique({
-      where: { id: projectId },
+    const project = await this.prisma.shootProject.findFirst({
+      where: {
+        OR: [
+          { id: projectId },
+          { projectId: projectId },
+        ],
+      },
       include: { brand: true, product: true },
     });
     if (!project) throw new NotFoundException('Parent project not found');
@@ -446,7 +451,7 @@ export class ScriptsService {
     else if (langStr.includes('arabic') || langStr.includes('ar')) languageCode = 'AR';
 
     // 5. Sequence Number (001, 002...)
-    const scriptCount = await this.prisma.script.count({ where: { projectId } });
+    const scriptCount = await this.prisma.script.count({ where: { projectId: project.id } });
     const seq = (scriptCount + 1).toString().padStart(3, '0');
 
     const formattedName = formatPattern
@@ -460,10 +465,21 @@ export class ScriptsService {
   }
 
   async create(data: any) {
-    const project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
+    if (data.createdByRole === 'STAFF' || data.createdByRole === 'TECHNICAL_MANAGER') {
+      throw new ForbiddenException('Staff members do not have permission to create scripts.');
+    }
+
+    const project = await this.prisma.shootProject.findFirst({
+      where: {
+        OR: [
+          { id: data.projectId },
+          { projectId: data.projectId },
+        ],
+      },
+    });
     if (!project) throw new NotFoundException('Parent project not found');
 
-    const { formattedName } = await this.generateFormattedScriptName(data.projectId, data.language);
+    const { formattedName } = await this.generateFormattedScriptName(project.id, data.language);
     const finalScriptName = data.name?.trim() ? data.name.trim() : formattedName;
 
     const count = await this.prisma.script.count();

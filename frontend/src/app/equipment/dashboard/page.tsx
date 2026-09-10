@@ -224,7 +224,7 @@ export default function EquipmentDashboardPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <Link
                     href="/equipment"
-                    className="p-3 bg-slate-50/70 hover:bg-slate-100 rounded-xl border border-slate-200 hover:border-blue-200 text-xs font-bold text-white flex items-center gap-2 transition-all"
+                    className="p-3 bg-slate-50/70 hover:bg-slate-100 rounded-xl border border-slate-200 hover:border-blue-200 text-xs font-bold text-slate-800 flex items-center gap-2 transition-all"
                   >
                     <Camera className="w-4 h-4 text-blue-600 shrink-0" />
                     All Master Inventory
@@ -232,7 +232,7 @@ export default function EquipmentDashboardPage() {
 
                   <Link
                     href="/equipment/create"
-                    className="p-3 bg-slate-50/70 hover:bg-slate-100 rounded-xl border border-slate-200 hover:border-emerald-200 text-xs font-bold text-white flex items-center gap-2 transition-all"
+                    className="p-3 bg-slate-50/70 hover:bg-slate-100 rounded-xl border border-slate-200 hover:border-emerald-200 text-xs font-bold text-slate-800 flex items-center gap-2 transition-all"
                   >
                     <PlusCircle className="w-4 h-4 text-emerald-600 shrink-0" />
                     Create New Equipment
@@ -240,7 +240,7 @@ export default function EquipmentDashboardPage() {
 
                   <Link
                     href="/equipment/monitoring"
-                    className="p-3 bg-slate-50/70 hover:bg-slate-100 rounded-xl border border-slate-200 hover:border-cyan-200 text-xs font-bold text-white flex items-center gap-2 transition-all"
+                    className="p-3 bg-slate-50/70 hover:bg-slate-100 rounded-xl border border-slate-200 hover:border-cyan-200 text-xs font-bold text-slate-800 flex items-center gap-2 transition-all"
                   >
                     <Activity className="w-4 h-4 text-cyan-600 shrink-0" />
                     Live Equipment Monitoring
@@ -248,7 +248,7 @@ export default function EquipmentDashboardPage() {
 
                   <Link
                     href="/equipment/maintenance"
-                    className="p-3 bg-slate-50/70 hover:bg-slate-100 rounded-xl border border-slate-200 hover:border-amber-200 text-xs font-bold text-white flex items-center gap-2 transition-all"
+                    className="p-3 bg-slate-50/70 hover:bg-slate-100 rounded-xl border border-slate-200 hover:border-amber-200 text-xs font-bold text-slate-800 flex items-center gap-2 transition-all"
                   >
                     <Wrench className="w-4 h-4 text-amber-600 shrink-0" />
                     Maintenance Records
@@ -256,7 +256,7 @@ export default function EquipmentDashboardPage() {
 
                   <Link
                     href="/equipment/damage"
-                    className="p-3 bg-slate-50/70 hover:bg-slate-100 rounded-xl border border-slate-200 hover:border-rose-200 text-xs font-bold text-white flex items-center gap-2 transition-all"
+                    className="p-3 bg-slate-50/70 hover:bg-slate-100 rounded-xl border border-slate-200 hover:border-rose-200 text-xs font-bold text-slate-800 flex items-center gap-2 transition-all"
                   >
                     <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
                     Damage & Repair Logs
@@ -264,7 +264,7 @@ export default function EquipmentDashboardPage() {
 
                   <Link
                     href="/equipment/history"
-                    className="p-3 bg-slate-50/70 hover:bg-slate-100 rounded-xl border border-slate-200 hover:border-purple-200 text-xs font-bold text-white flex items-center gap-2 transition-all"
+                    className="p-3 bg-slate-50/70 hover:bg-slate-100 rounded-xl border border-slate-200 hover:border-purple-200 text-xs font-bold text-slate-800 flex items-center gap-2 transition-all"
                   >
                     <RotateCcw className="w-4 h-4 text-purple-600 shrink-0" />
                     Permanent Movement Log

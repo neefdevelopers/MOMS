@@ -24,6 +24,7 @@ export const UNAPPROVED_CALENDAR_STATUSES = [
   'DRAFT',
   'CHANGES_REQUESTED',
   'REVISION_REQUESTED',
+  'REJECTED',
 ];
 
 /**
@@ -35,12 +36,12 @@ export function canUserViewEvent(
 ): boolean {
   if (!user || !event) return false;
 
-  // 1. ADMIN / ADMINISTRATOR HAS FULL OVERDRAFT ACCESS
+  // 1. ADMIN / ADMINISTRATOR HAS FULL ACCESS
   if (user.role === 'ADMIN' || user.role === 'ADMINISTRATOR') {
     return true;
   }
 
-  // 2. CREATOR CHECK (PRIMARY RULE — FIRST PRIORITY)
+  // 2. CREATOR CHECK (Creators can always view/manage their created event)
   const isCreator =
     Boolean(event.createdById && event.createdById === user.id) ||
     Boolean(event.createdBy && (event.createdBy.id === user.id || event.createdBy.userId === user.id));
@@ -49,7 +50,7 @@ export function canUserViewEvent(
     return true;
   }
 
-  // 3. DIRECT ASSIGNMENT CHECK — ASSIGNED USERS ALWAYS HAVE ACCESS REGARDLESS OF APPROVAL STATUS
+  // 3. DIRECT ASSIGNMENT CHECK
   const isAssigned =
     Boolean(event.assignedStaffId && event.assignedStaffId === user.id) ||
     Boolean(event.approvalAssignedToId && event.approvalAssignedToId === user.id) ||
@@ -69,7 +70,16 @@ export function canUserViewEvent(
     return true;
   }
 
-  // TECHNICAL_MANAGER: Show if event is waiting for technical review or after technical manager approval
+  // 4. MANAGERS (Marketing Manager, Media Manager, Social Media Manager)
+  if (
+    user.role === 'MARKETING_MANAGER' ||
+    user.role === 'MEDIA_MANAGER' ||
+    user.role === 'SOCIAL_MEDIA_MANAGER'
+  ) {
+    return true;
+  }
+
+  // 5. TECHNICAL_MANAGER: Show if event is waiting for technical review or after technical manager approval
   if (user.role === 'TECHNICAL_MANAGER') {
     const TECH_MANAGER_ALLOWED_EVENT_STATUSES = [
       'WAITING_FOR_TECHNICAL_REVIEW',
@@ -90,30 +100,16 @@ export function canUserViewEvent(
     );
   }
 
-  // 4. WORKFLOW & APPROVAL STATUS CHECK
+  // 6. CLIENT ACCESS (Client representatives can view approved or submitted review events)
+  if (user.role === 'CLIENT' || (user.role as string) === 'CLIENT_USER') {
+    const isClientMatch = event.clientId === user.id || (user as any).clientId === event.clientId;
+    const clientVisibleStatuses = ['PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'COMPLETED'];
+    return Boolean(isClientMatch && clientVisibleStatuses.includes(event.status));
+  }
+
+  // 7. APPROVED EVENTS (Operational workflow)
   const isApproved = APPROVED_CALENDAR_STATUSES.includes(event.status);
-
-  // RULE A: IF APPROVED BY MARKETING MANAGER (Passed Marketing Gate)
-  if (isApproved) {
-    if (
-      user.role === 'MEDIA_MANAGER' ||
-      user.role === 'SOCIAL_MEDIA_MANAGER' ||
-      user.role === 'MARKETING_MANAGER'
-    ) {
-      return true;
-    }
-    if (user.role === 'STAFF') {
-      return false; // Unassigned staff cannot view
-    }
-    return true;
-  }
-
-  // RULE B: IF UNAPPROVED (Waiting for Marketing Approval / Draft / Revision Requested)
-  if (user.role === 'MARKETING_MANAGER' || user.role === 'MEDIA_MANAGER' || user.role === 'SOCIAL_MEDIA_MANAGER') {
-    return true;
-  }
-
-  return false;
+  return isApproved;
 }
 
 /**
@@ -228,7 +224,108 @@ export function canUserViewProject(
   // 1. ADMIN
   if (user.role === 'ADMIN' || user.role === 'ADMINISTRATOR') return true;
 
-  // 2. TECHNICAL_MANAGER: Strictly show projects that have reached the stage of
+  // 2. CREATOR CHECK
+  const isCreator =
+    Boolean(project.createdById && project.createdById === user.id) ||
+    Boolean(project.createdBy && (project.createdBy.id === user.id || project.createdBy.userId === user.id)) ||
+    Boolean(project.calendarEvent && (project.calendarEvent.createdById === user.id || project.calendarEvent.createdBy?.id === user.id));
+
+  if (isCreator) return true;
+
+  // 3. TASK ACCEPTANCE & ASSIGNMENT CHECK
+  // For STAFF users, if they are assigned to any tasks on this project, at least one task assignment MUST be accepted
+  if (user.role === 'STAFF') {
+    const userTasks = (Array.isArray(project.tasks) ? project.tasks : []).filter((t: any) =>
+      t.assignedToId === user.id ||
+      (Array.isArray(t.assignedEmployees) && t.assignedEmployees.some((e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id))
+    );
+
+    if (userTasks.length > 0) {
+      const hasAcceptedTask = userTasks.some((t: any) =>
+        Array.isArray(t.assignedEmployees) &&
+        t.assignedEmployees.some(
+          (e: any) => (e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id) && e.acceptanceStatus === 'ACCEPTED',
+        )
+      );
+      if (!hasAcceptedTask) {
+        return false; // Gated: Task assignment pending acceptance!
+      }
+      return true;
+    }
+  }
+
+  const isTeamMember =
+    Array.isArray(project.assignedTeam) &&
+    project.assignedTeam.some((t: any) => t.userId === user.id || t.user?.id === user.id);
+  if (isTeamMember) return true;
+
+  const isTaskAssigned =
+    Array.isArray(project.tasks) &&
+    project.tasks.some(
+      (t: any) =>
+        (user.role !== 'STAFF' && t.assignedToId === user.id) ||
+        (Array.isArray(t.assignedEmployees) &&
+          t.assignedEmployees.some(
+            (e: any) =>
+              (e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id) &&
+              (user.role !== 'STAFF' || e.acceptanceStatus === 'ACCEPTED'),
+          )),
+    );
+  if (isTaskAssigned) return true;
+
+  const isScriptAssigned =
+    Array.isArray(project.scripts) &&
+    project.scripts.some(
+      (s: any) =>
+        s.authorId === user.id ||
+        s.createdById === user.id ||
+        s.writerId === user.id ||
+        (user.role !== 'STAFF' && s.assignedToId === user.id) ||
+        (Array.isArray(s.scriptAssignments) &&
+          s.scriptAssignments.some((sa: any) => sa.userId === user.id || sa.user?.id === user.id)) ||
+        (Array.isArray(s.tasks) &&
+          s.tasks.some(
+            (t: any) =>
+              Array.isArray(t.assignedEmployees) &&
+              t.assignedEmployees.some(
+                (e: any) =>
+                  (e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id) &&
+                  (user.role !== 'STAFF' || e.acceptanceStatus === 'ACCEPTED'),
+              ),
+          )),
+    );
+  if (isScriptAssigned) return true;
+
+  const isGraphicReqAssigned =
+    Array.isArray(project.graphicRequirements) &&
+    project.graphicRequirements.some(
+      (g: any) =>
+        g.createdById === user.id ||
+        (user.role !== 'STAFF' && g.assignedToId === user.id) ||
+        (Array.isArray(g.tasks) &&
+          g.tasks.some(
+            (t: any) =>
+              (user.role !== 'STAFF' && t.assignedToId === user.id) ||
+              (Array.isArray(t.assignedEmployees) &&
+                t.assignedEmployees.some(
+                  (e: any) =>
+                    (e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id) &&
+                    (user.role !== 'STAFF' || e.acceptanceStatus === 'ACCEPTED'),
+                )),
+          )),
+    );
+  if (isGraphicReqAssigned) return true;
+
+  // 4. MANAGERS (Marketing Manager, Media Manager, Social Media Manager)
+  if (
+    user.role === 'MARKETING_MANAGER' ||
+    user.role === 'MEDIA_MANAGER' ||
+    user.role === 'SOCIAL_MEDIA_MANAGER'
+  ) {
+    return true;
+  }
+
+  // 5. TECHNICAL_MANAGER: Strictly show projects that have reached the stage of
   // waiting for technical manager approval or after that (or have pending technical review approvals)
   if (user.role === 'TECHNICAL_MANAGER') {
     const TECH_MANAGER_ALLOWED_PROJECT_STATUSES = [
@@ -256,19 +353,16 @@ export function canUserViewProject(
     );
   }
 
-  // 3. CREATOR CHECK
-  const isCreator =
-    Boolean(project.createdById && project.createdById === user.id) ||
-    Boolean(project.createdBy && (project.createdBy.id === user.id || project.createdBy.userId === user.id)) ||
-    Boolean(project.calendarEvent && (project.calendarEvent.createdById === user.id || project.calendarEvent.createdBy?.id === user.id));
-
-  if (isCreator) return true;
-
-  // Linked Calendar Event Gate check
+  // 6. Linked Calendar Event Gate check for other roles
   if (project.calendarEvent) {
     if (!canUserViewEvent(user, project.calendarEvent)) {
       return false;
     }
+  }
+
+  // 7. Unassigned Staff cannot view unassigned projects
+  if (user.role === 'STAFF') {
+    return false;
   }
 
   // Check Project own status
@@ -279,53 +373,11 @@ export function canUserViewProject(
     'DRAFT',
     'CHANGES_REQUESTED',
     'REVISION_REQUESTED',
-    'PLANNED',
   ];
 
   const isProjectUnapproved = UNAPPROVED_PROJECT_STATUSES.includes(project.status);
 
-  if (user.role === 'MARKETING_MANAGER') return true;
-
   if (isProjectUnapproved) {
-    return false;
-  }
-
-  // 4. STAFF ROLE SPECIFIC ASSIGNMENT RULE:
-  // Staff MUST be assigned to the project team, its tasks, or its graphic requirements to view it
-  if (user.role === 'STAFF') {
-    const isTeamMember =
-      Array.isArray(project.assignedTeam) &&
-      project.assignedTeam.some((t: any) => t.userId === user.id || t.user?.id === user.id);
-    if (isTeamMember) return true;
-
-    const isTaskAssigned =
-      Array.isArray(project.tasks) &&
-      project.tasks.some(
-        (t: any) =>
-          t.assignedToId === user.id ||
-          (Array.isArray(t.assignedEmployees) &&
-            t.assignedEmployees.some(
-              (e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id,
-            )),
-      );
-    if (isTaskAssigned) return true;
-
-    const isGraphicReqAssigned =
-      Array.isArray(project.graphicRequirements) &&
-      project.graphicRequirements.some(
-        (g: any) =>
-          g.createdById === user.id ||
-          (Array.isArray(g.tasks) &&
-            g.tasks.some(
-              (t: any) =>
-                Array.isArray(t.assignedEmployees) &&
-                t.assignedEmployees.some(
-                  (e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id,
-                ),
-            )),
-      );
-    if (isGraphicReqAssigned) return true;
-
     return false;
   }
 
