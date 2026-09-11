@@ -5,7 +5,7 @@ import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Palette, Plus, Search, Layers, Calendar, Building2, Tag, CheckSquare, FileText, AlertCircle, ShieldAlert, SlidersHorizontal, RotateCcw, X, Flame, User, Clock, ShieldCheck, ArrowRight, ExternalLink, Link as LinkIcon } from 'lucide-react';
+import { Palette, Plus, Search, Layers, Calendar, Building2, Tag, CheckSquare, FileText, AlertCircle, ShieldAlert, SlidersHorizontal, RotateCcw, X, Flame, User, Clock, ShieldCheck, ArrowRight, ExternalLink, Link as LinkIcon, Send, Check, Lock, Camera, Image as ImageIcon } from 'lucide-react';
 import { SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
@@ -126,7 +126,9 @@ const getWorkflowStepIndex = (status: string) => {
 export default function GraphicReqsPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
-  const inspectIdParam = searchParams ? (searchParams.get('inspect') || searchParams.get('id') || searchParams.get('graphicId')) : null;
+  const inspectIdParam = searchParams ? (searchParams.get('inspect') || searchParams.get('id') || searchParams.get('graphicId') || searchParams.get('reqId') || searchParams.get('inspectId')) : null;
+  const isReadOnlyParam = searchParams ? (searchParams.get('readOnly') === 'true' || searchParams.get('source') === 'marketing_approval' || searchParams.get('mode') === 'view' || searchParams.get('mode') === 'readonly') : false;
+  const isMarketingApprovalSession = isReadOnlyParam || (user?.role === 'MARKETING_MANAGER' && Boolean(searchParams?.get('reqId') || searchParams?.get('readOnly') || searchParams?.get('source')));
   const [reqs, setReqs] = useState<any[]>([]);
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [clientsList, setClientsList] = useState<any[]>([]);
@@ -334,7 +336,7 @@ export default function GraphicReqsPage() {
       // Auto-open Inspector Popup if inspect or id URL query parameter is present
       if (typeof window !== 'undefined') {
         const searchParams = new URLSearchParams(window.location.search);
-        const targetId = searchParams.get('inspect') || searchParams.get('id');
+        const targetId = searchParams.get('inspect') || searchParams.get('id') || searchParams.get('graphicId') || searchParams.get('reqId') || searchParams.get('inspectId');
         if (targetId) {
           const match = loadedReqs.find((r: any) => r.id === targetId || r.requirementId === targetId);
           if (match) {
@@ -537,6 +539,93 @@ export default function GraphicReqsPage() {
     }
   };
 
+  const [submittingTechReview, setSubmittingTechReview] = useState(false);
+  const [reviewingAction, setReviewingAction] = useState(false);
+
+  const handleSubmitTechnicalReview = async (reqId: string) => {
+    if (!reqId) return;
+    setSubmittingTechReview(true);
+    try {
+      const updated = await fetchApi(`/graphic-reqs/${reqId}/submit-technical`, {
+        method: 'POST',
+      });
+      setInspectedReq(updated);
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to submit Graphic Requirement for Technical Review');
+    } finally {
+      setSubmittingTechReview(false);
+    }
+  };
+
+  const handleUpdateStatusToInProgress = async () => {
+    if (!inspectedReq) return;
+    setSubmittingTechReview(true);
+    try {
+      const updated = await fetchApi(`/graphic-reqs/${inspectedReq.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'IN_PROGRESS' }),
+      });
+      setInspectedReq(updated);
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update status to IN_PROGRESS');
+    } finally {
+      setSubmittingTechReview(false);
+    }
+  };
+
+  const handleReviewTechnical = async (reqId: string, action: 'APPROVE' | 'REJECT', comment?: string) => {
+    if (!reqId) return;
+    setReviewingAction(true);
+    try {
+      const updated = await fetchApi(`/graphic-reqs/${reqId}/review-technical`, {
+        method: 'POST',
+        body: JSON.stringify({ action, comment }),
+      });
+      setInspectedReq(updated);
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to submit technical review decision');
+    } finally {
+      setReviewingAction(false);
+    }
+  };
+
+  const handleReviewMedia = async (reqId: string, action: 'APPROVE' | 'REJECT', comment?: string) => {
+    if (!reqId) return;
+    setReviewingAction(true);
+    try {
+      const updated = await fetchApi(`/graphic-reqs/${reqId}/review-media`, {
+        method: 'POST',
+        body: JSON.stringify({ action, comment }),
+      });
+      setInspectedReq(updated);
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to submit media review decision');
+    } finally {
+      setReviewingAction(false);
+    }
+  };
+
+  const handleClientConfirmation = async (reqId: string, action: 'CONFIRM' | 'REQUEST_CHANGES', comment?: string) => {
+    if (!reqId) return;
+    setReviewingAction(true);
+    try {
+      const updated = await fetchApi(`/graphic-reqs/${reqId}/client-confirmation`, {
+        method: 'POST',
+        body: JSON.stringify({ action, comment }),
+      });
+      setInspectedReq(updated);
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to submit client confirmation decision');
+    } finally {
+      setReviewingAction(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'DRAFT':
@@ -568,6 +657,23 @@ export default function GraphicReqsPage() {
   };
 
   const visibleReqs = reqs.filter((g) => {
+    if (user?.role === 'STAFF') {
+      const hasAcceptedTask =
+        Array.isArray(g.tasks) &&
+        g.tasks.some(
+          (t: any) =>
+            (Array.isArray(t.assignedEmployees) &&
+              t.assignedEmployees.some(
+                (e: any) =>
+                  (e.userId === user?.id || e.user?.id === user?.id) &&
+                  (e.acceptanceStatus === 'ACCEPTED' || e.acceptanceStatus === 'Accepted'),
+              )) ||
+            (t.assignedToId === user?.id &&
+              (t.status === 'ACCEPTED' || t.status === 'IN_PROGRESS' || t.status === 'COMPLETED' || t.status === 'WAITING_FOR_REVIEW')),
+        );
+      return hasAcceptedTask;
+    }
+
     if (user?.role === 'TECHNICAL_MANAGER') {
       const TECH_MANAGER_ALLOWED_STATUSES = [
         'WAITING_FOR_TECHNICAL_REVIEW',
@@ -595,17 +701,32 @@ export default function GraphicReqsPage() {
   });
 
   const filteredReqs = visibleReqs.filter((g) => {
-    const assignedUserNames = (g.tasks || []).flatMap((t: any) => [
-      ...(t.assignedEmployees || []).map((e: any) => e.user?.name || ''),
-    ]);
-    const assignedUserIds = (g.tasks || []).flatMap((t: any) => [
-      ...(t.assignedEmployees || []).map((e: any) => e.userId || e.user?.id || ''),
-      t.assignedToId || '',
-    ]);
+    const assignedUserNames = [
+      ...(g.tasks || []).flatMap((t: any) => [
+        ...(t.assignedEmployees || []).map((e: any) => e.user?.name || ''),
+        t.assignedTo?.name || '',
+      ]),
+      ...(g.deliverables || []).map((d: any) => d.assignedStaff?.name || d.createdBy?.name || ''),
+      ...(g.project?.assignedTeam || []).map((t: any) => t.user?.name || ''),
+    ].filter(Boolean);
+
+    const assignedUserIds = [
+      ...(g.tasks || []).flatMap((t: any) => [
+        ...(t.assignedEmployees || []).map((e: any) => e.userId || e.user?.id || ''),
+        t.assignedToId || '',
+      ]),
+      ...(g.deliverables || []).map((d: any) => d.assignedStaffId || d.assignedStaff?.id || d.createdById || d.createdBy?.id || ''),
+      ...(g.project?.assignedTeam || []).map((t: any) => t.userId || t.user?.id || ''),
+      g.createdById || '',
+      g.calendarEvent?.assignedStaffId || '',
+      ...(g.sourceForCalendarEvents || []).map((s: any) => s.assignedStaffId || ''),
+    ].filter(Boolean);
+
     const isAssignedToUser = Boolean(
       user?.id && (
         assignedUserIds.includes(user.id) ||
-        g.project?.assignedTeam?.some((t: any) => t.userId === user.id)
+        g.createdById === user.id ||
+        g.project?.createdById === user.id
       )
     );
 
@@ -614,7 +735,7 @@ export default function GraphicReqsPage() {
     if (user?.role !== 'TECHNICAL_MANAGER') {
       const UNAPPROVED_STATUSES = ['PENDING_MARKETING_APPROVAL', 'PENDING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'DRAFT', 'CHANGES_REQUESTED', 'REVISION_REQUESTED'];
       const isReqUnapproved = UNAPPROVED_STATUSES.includes(g.status) || Boolean(linkedEvent && UNAPPROVED_STATUSES.includes(linkedEvent.status));
-      const isCreator = Boolean(user?.id && (linkedEvent?.createdById === user.id || g.createdById === user.id));
+      const isCreator = Boolean(user?.id && (linkedEvent?.createdById === user.id || g.createdById === user.id || g.project?.createdById === user.id));
 
       if (isReqUnapproved && !isCreator && !isAssignedToUser && user?.role !== 'MARKETING_MANAGER' && user?.role !== 'MEDIA_MANAGER' && user?.role !== 'SOCIAL_MEDIA_MANAGER' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN') {
         return false;
@@ -1584,709 +1705,1273 @@ export default function GraphicReqsPage() {
           </div>
         </div>
       )}
-
       {/* Graphic Requirement Inspector Modal (All 14 Mandatory Attributes) */}
-      {inspectedReq && (
-        <div
-          onClick={() => setInspectedReq(null)}
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200"
-        >
+      {inspectedReq && (() => {
+        const isReadOnlySession = Boolean(
+          isReadOnlyParam ||
+          (user?.role === 'MARKETING_MANAGER' && Boolean(searchParams?.get('reqId') || searchParams?.get('readOnly') || searchParams?.get('source')))
+        );
+        const isReviewLocked = isReadOnlySession || ['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_CLIENT_CONFIRMATION'].includes(inspectedReq.status);
+
+        return (
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white border border-slate-200 rounded-xl w-full max-w-2xl p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto shadow-2xl"
+            onClick={() => setInspectedReq(null)}
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200"
           >
-            <div className="flex justify-between items-start border-b border-slate-200 pb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-amber-600 font-bold text-xs">{inspectedReq.requirementId}</span>
-                  <span className={`px-2 py-0.5 rounded font-bold text-[10px] border ${getStatusBadge(inspectedReq.status)}`}>
-                    {inspectedReq.status}
-                  </span>
-                  <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 text-slate-700 rounded font-semibold text-[10px]">
-                    {inspectedReq.requirementType}
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 mt-1">{inspectedReq.name}</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                {user?.role === 'TECHNICAL_MANAGER' && (
-                  <Link
-                    href="/approvals"
-                    className="px-2.5 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold rounded-lg text-[11px] flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition-all border border-cyan-400/40"
-                    title="Open Technical Manager Approval Session"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-cyan-200" />
-                    <span>Go to Technical Manager Approval Session</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-cyan-200" />
-                  </Link>
-                )}
-                <button
-                  onClick={() => setInspectedReq(null)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs"
-                >
-                  × Close
-                </button>
-              </div>
-            </div>
-
-            {/* Production Workflow Pipeline Stepper (7 Video Production Stages) */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                  Graphic Production Workflow Pipeline (Identical to Video Production)
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono">
-                  Step {getWorkflowStepIndex(inspectedReq.status)} of 7
-                </span>
-              </div>
-
-              {/* Stepper Progress Bar */}
-              <div className="grid grid-cols-7 gap-1 pt-1">
-                {WORKFLOW_PIPELINE.map((wp) => {
-                  const currentStep = getWorkflowStepIndex(inspectedReq.status);
-                  const isCurrent = wp.step === currentStep;
-                  const isPassed = wp.step < currentStep;
-
-                  return (
-                    <div key={wp.step} className="flex flex-col items-center text-center">
-                      <div
-                        className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs border transition-all ${
-                          isCurrent
-                            ? 'bg-amber-500 text-gray-950 border-amber-300 ring-2 ring-amber-500/40 shadow-lg scale-110'
-                            : isPassed
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                            : 'bg-slate-50 text-slate-400 border-slate-200'
-                        }`}
-                      >
-                        {isPassed ? wp.step : wp.step}
-                      </div>
-                      <span
-                        className={`text-[9px] font-bold mt-1.5 line-clamp-1 ${
-                          isCurrent ? 'text-amber-800' : isPassed ? 'text-emerald-600' : 'text-slate-400'
-                        }`}
-                      >
-                        {wp.label}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white border border-slate-200 rounded-xl w-full max-w-2xl p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto shadow-2xl"
+            >
+              <div className="flex justify-between items-start border-b border-slate-200 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-amber-600 font-bold text-xs">{inspectedReq.requirementId}</span>
+                    <span className={`px-2 py-0.5 rounded font-bold text-[10px] border ${getStatusBadge(inspectedReq.status)}`}>
+                      {inspectedReq.status}
+                    </span>
+                    {isReviewLocked && (
+                      <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded font-bold text-[10px] flex items-center gap-1 font-mono">
+                        <Lock className="w-2.5 h-2.5 text-amber-600" /> READ-ONLY
                       </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Active Revision Requested Status Banner */}
-            {(inspectedReq.status === 'REVISION_REQUESTED' || inspectedReq.status === 'CLIENT_REVISION_REQUESTED') && (
-              <div className="bg-amber-50 border border-amber-500 p-4 rounded-xl space-y-2 text-xs shadow-xl animate-in fade-in duration-200">
-                <div className="flex items-center justify-between">
-                  <span className="text-amber-800 font-extrabold text-xs flex items-center gap-2">
-                    <RotateCcw className="w-4 h-4 text-amber-600 animate-spin" /> Active Workflow Phase: REVISION REQUESTED
-                  </span>
-                  <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded font-mono font-bold text-[10px]">
-                    Revision #{inspectedReq.revisionCount || 1}
-                  </span>
+                    )}
+                    <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 text-slate-700 rounded font-semibold text-[10px]">
+                      {inspectedReq.requirementType}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 mt-1">{inspectedReq.name}</h3>
                 </div>
-                <p className="text-slate-800 leading-relaxed">
-                  Reviewer requested changes. Assigned employee is currently revising deliverables before re-submitting for Technical Review.
-                </p>
-                <div className="flex items-center gap-2 pt-1">
+                <div className="flex items-center gap-2">
+                  {!isReadOnlySession && user?.role === 'TECHNICAL_MANAGER' && (
+                    <Link
+                      href="/approvals"
+                      className="px-2.5 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold rounded-lg text-[11px] flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition-all border border-cyan-400/40"
+                      title="Open Technical Manager Approval Session"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-cyan-200" />
+                      <span>Go to Technical Manager Approval Session</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-cyan-200" />
+                    </Link>
+                  )}
                   <button
-                    onClick={() => setRevisionModalReq(inspectedReq)}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow transition-colors"
+                    onClick={() => setInspectedReq(null)}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" /> Request Another Revision
+                    × Close
                   </button>
                 </div>
               </div>
-            )}
 
-            {/* Structured Attributes Inspector Grid */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
-              <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider block border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
-                <Palette className="w-3.5 h-3.5" /> Graphic Requirement Specifications
-              </span>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-[11px]">
-                {/* Requirement ID */}
-                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Requirement ID</span>
-                  <span className="text-amber-600 font-mono font-bold text-xs">{inspectedReq.requirementId}</span>
-                </div>
-
-                {/* Requirement Name */}
-                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Requirement Name</span>
-                  <span className="text-slate-900 font-bold">{inspectedReq.name}</span>
-                </div>
-
-                {/* Client */}
-                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Client</span>
-                  <span className="text-slate-900 font-bold flex items-center gap-1">
-                    {inspectedReq.client?.name || 'N/A'}
-                  </span>
-                </div>
-
-                {/* Brand */}
-                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Brand</span>
-                  <span className="text-emerald-700 font-bold flex items-center gap-1">
-                    [{inspectedReq.brand?.shortCode}] {inspectedReq.brand?.name}
-                  </span>
-                </div>
-
-                {/* Product */}
-                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Product</span>
-                  <span className="text-cyan-700 font-medium">
-                    {inspectedReq.product?.name ? `${inspectedReq.product.name}` : 'N/A'}
-                  </span>
-                </div>
-
-                {/* Campaign */}
-                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Campaign</span>
-                  <span className="text-purple-700 font-medium">
-                    {inspectedReq.campaign?.name ? `${inspectedReq.campaign.name}` : 'N/A'}
-                  </span>
-                </div>
-
-                {/* Requirement Type */}
-                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Requirement Type</span>
-                  <span className="text-slate-900 font-bold">{inspectedReq.requirementType}</span>
-                </div>
-
-                {/* Priority */}
-                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Priority</span>
-                  <span className="text-amber-800 font-bold">{inspectedReq.priority} Priority</span>
-                </div>
-
-                {/* Estimated Completion */}
-                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Estimated Completion</span>
-                  <span className="text-slate-800 font-mono font-medium">
-                    {inspectedReq.estimatedCompletion ? new Date(inspectedReq.estimatedCompletion).toLocaleDateString() : 'N/A'}
-                  </span>
-                </div>
-
-                {/* Revision Count & Workflow Controls */}
-                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Revision History</span>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="px-2 py-0.5 bg-orange-950 text-orange-400 border border-orange-800 rounded font-mono font-bold text-xs">
-                      Revision #{inspectedReq.revisionCount || 0}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setRevisionModalReq(inspectedReq)}
-                      className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] transition-colors flex items-center gap-1 shadow"
-                    >
-                      <RotateCcw className="w-3 h-3" /> Request Revision
-                    </button>
-                  </div>
-                </div>
-
-                {/* Status Badge (Automated Workflow State) */}
-                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase mb-1">Status</span>
-                  <div className={`w-full font-bold text-xs p-1.5 rounded border text-center ${getStatusBadge(inspectedReq.status)}`}>
-                    {(GRAPHIC_REQUIREMENT_STATUSES.find((s) => s.value === inspectedReq.status)?.label || inspectedReq.status).replace(/_/g, ' ')}
-                  </div>
-                </div>
-
-                {/* Assigned Employees (Rendered ONLY after Marketing Manager approval) */}
-                {!['PENDING_MARKETING_APPROVAL', 'WAITING_FOR_MARKETING_APPROVAL', 'DRAFT', 'PENDING_CLIENT_APPROVAL', 'PENDING'].includes(inspectedReq.status) && (
-                  <div className="col-span-1 md:col-span-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500 font-bold text-[10px] uppercase">Assigned Staff</span>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {inspectedReq.tasks?.length || 0} sub-tasks
+              {/* READ-ONLY BANNER FOR MARKETING MANAGER APPROVAL */}
+              {isReadOnlySession && (
+                <div className="bg-amber-50 border border-amber-300 p-3.5 rounded-xl flex items-center justify-between text-xs text-amber-900 shadow-xs">
+                  <div className="flex items-center gap-2.5">
+                    <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                    <div>
+                      <span className="font-extrabold text-amber-950 block text-[11px] uppercase tracking-wide">
+                        READ-ONLY MODE — Marketing Manager Approval Session
+                      </span>
+                      <span className="text-[11px] text-amber-800 leading-tight">
+                        You are inspecting Graphic Requirement specifications, deliverables, and assets in view-only mode. All mutation actions are disabled.
                       </span>
                     </div>
-                    {(() => {
-                      const assignedNames = Array.from(new Set(
-                        (inspectedReq.tasks || []).flatMap((t: any) =>
-                          (t.assignedEmployees || []).map((e: any) => e.user?.name)
-                        ).filter(Boolean)
-                      ));
-                      return (
-                        <div className="space-y-2">
-                          {assignedNames.length > 0 ? (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {assignedNames.map((name: any) => (
-                                <span key={name} className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg font-semibold text-[11px] flex items-center gap-1.5 shadow-sm">
-                                  <User className="w-3.5 h-3.5 text-blue-600" /> {name}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
-                              <div className="flex items-center gap-1.5 w-full justify-between">
-                                <span className="text-slate-500 text-xs">Staff Not Assigned</span>
-                                <div className="flex items-center gap-1.5">
-                                  <select
-                                    value={assignStaffUserId}
-                                    onChange={(e) => setAssignStaffUserId(e.target.value)}
-                                    className="bg-slate-50 border border-slate-200 text-slate-800 px-2 py-1 rounded text-xs focus:outline-none"
-                                  >
-                                    <option value="">-- Select Staff Member --</option>
-                                    {usersList.map((u) => (
-                                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    type="button"
-                                    disabled={!assignStaffUserId || assigningStaff}
-                                    onClick={() => handleAssignStaffToReq(inspectedReq.id, assignStaffUserId)}
-                                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded transition-colors disabled:opacity-40"
-                                  >
-                                    {assigningStaff ? 'Assigning…' : 'Assign Staff'}
-                                  </button>
-                                </div>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      );
-                    })()}
                   </div>
-                )}
-
-                {/* Objective */}
-                <div className="col-span-1 md:col-span-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Objective</span>
-                  <p className="text-slate-800 mt-0.5">{inspectedReq.objective || 'No objective specified.'}</p>
-                </div>
-
-                {/* Description */}
-                <div className="col-span-1 md:col-span-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Description &amp; Guidelines</span>
-                  <p className="text-slate-700 mt-0.5">{inspectedReq.description || 'No description provided.'}</p>
-                </div>
-
-                {/* Remarks */}
-                <div className="col-span-1 md:col-span-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Remarks</span>
-                  <p className="text-amber-800 mt-0.5">{inspectedReq.remarks || 'No remarks.'}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Produced Deliverables Vault (Outputs Manifest) */}
-            {(() => {
-              const isAssigned = Boolean(
-                user?.id && (
-                  (inspectedReq.tasks || []).some((t: any) =>
-                    t.assignedToId === user.id ||
-                    (t.assignedEmployees || []).some((e: any) => e.userId === user.id || e.user?.id === user.id)
-                  ) ||
-                  inspectedReq.createdById === user.id
-                )
-              );
-              const canManage = isAssigned || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN';
-
-              return (
-                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                    <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                      Produced Deliverable Outputs ({inspectedReq.deliverables?.length || 0})
-                    </span>
-                    {canManage && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingDeliverable(null);
-                          setDelName('');
-                          setDelLink('');
-                          setDelType('Instagram Post');
-                          setDelDesc('');
-                          setDelStatus('DRAFT');
-                          setDelRemarks('');
-                          setShowAddDeliverableModal(true);
-                        }}
-                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all"
-                      >
-                        + Add Deliverable
-                      </button>
-                    )}
-                  </div>
-
-                  {(!inspectedReq.deliverables || inspectedReq.deliverables.length === 0) ? (
-                    <div className="p-4 bg-slate-50/60 border border-slate-200 rounded-xl text-center text-slate-500 text-xs">
-                      No produced deliverable outputs added yet.
-                      {canManage && (
-                        <div className="mt-1 text-amber-600 font-semibold">
-                          Click "+ Add Deliverable" above to add output links and names.
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {inspectedReq.deliverables.map((del: any) => (
-                        <div
-                          key={del.id}
-                          className="p-3.5 bg-slate-50/90 border border-slate-200 rounded-xl space-y-2.5 text-xs flex flex-col justify-between"
-                        >
-                          <div className="space-y-1.5">
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="font-bold text-slate-900 text-xs block leading-tight">
-                                {del.name}
-                              </span>
-                              <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded font-bold text-[9px] whitespace-nowrap">
-                                {del.type || 'Deliverable'}
-                              </span>
-                            </div>
-
-                            {del.description && (
-                              <p className="text-[11px] text-slate-500 leading-normal">
-                                {del.description}
-                              </p>
-                            )}
-
-                            <div className="flex items-center justify-between pt-1 border-t border-slate-200 text-[10px]">
-                              <span className="text-slate-400 font-medium">Status:</span>
-                              {canManage ? (
-                                <select
-                                  value={del.status}
-                                  onChange={(e) => handleUpdateDeliverableStatus(inspectedReq.id, del.id, e.target.value)}
-                                  className="bg-slate-50 border border-slate-200 text-amber-800 font-bold px-2 py-0.5 rounded text-[10px] focus:outline-none"
-                                >
-                                  <option value="DRAFT">Draft</option>
-                                  <option value="IN_PROGRESS">In Progress</option>
-                                  <option value="COMPLETED">Completed</option>
-                                  <option value="SUBMITTED">Submitted</option>
-                                </select>
-                              ) : (
-                                <span className="font-bold text-amber-600">{del.status}</span>
-                              )}
-                            </div>
-
-                            {del.createdBy && (
-                              <div className="text-[10px] text-slate-400 flex items-center justify-between">
-                                <span>Creator:</span>
-                                <span className="text-slate-700 font-medium">{del.createdBy.name}</span>
-                              </div>
-                            )}
-
-                            {del.submissionDate && (
-                              <div className="text-[10px] text-slate-400 flex items-center justify-between">
-                                <span>Submitted:</span>
-                                <span className="text-emerald-600 font-mono">{new Date(del.submissionDate).toLocaleDateString()}</span>
-                              </div>
-                            )}
-
-                            {del.remarks && (
-                              <div className="text-[10px] text-amber-800 bg-amber-50 p-1.5 rounded border border-amber-200">
-                                {del.remarks}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-                            {del.fileUrl ? (
-                              <a
-                                href={del.fileUrl.startsWith('http') ? del.fileUrl : `https://${del.fileUrl}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded font-bold text-[10px] flex items-center gap-1.5 transition-colors truncate max-w-[190px]"
-                                title={del.fileUrl}
-                              >
-                                <ExternalLink className="w-3 h-3 text-amber-600 shrink-0" />
-                                <span className="truncate">{del.fileName || del.name || 'Open Link'}</span>
-                              </a>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 italic">No Link Provided</span>
-                            )}
-
-                            {canManage && (
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingDeliverable(del);
-                                    setDelName(del.name || '');
-                                    setDelLink(del.fileUrl || '');
-                                    setDelType(del.type || 'Instagram Post');
-                                    setDelDesc(del.description || '');
-                                    setDelStatus(del.status || 'DRAFT');
-                                    setDelRemarks(del.remarks || '');
-                                    setShowAddDeliverableModal(true);
-                                  }}
-                                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[10px] transition-colors"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteDeliverable(inspectedReq.id, del.id)}
-                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-semibold text-[10px] transition-colors"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* Design Assets & File Attachment Vault (Minimal Collapsible Grid) */}
-            <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-2">
-              <div
-                onClick={() => setShowAssetVault(!showAssetVault)}
-                className="flex items-center justify-between cursor-pointer select-none border-b border-slate-200 pb-1.5"
-              >
-                <span className="text-[11px] text-cyan-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                  Design Assets &amp; File Attachments (8 Categories)
-                  <span className="text-[10px] text-slate-500 font-mono font-normal">
-                    ({inspectedReq.files?.length || 0} File(s) Uploaded)
+                  <span className="px-2.5 py-0.5 bg-amber-200 text-amber-900 border border-amber-400 rounded font-mono font-bold text-[10px] shrink-0">
+                    READ-ONLY
                   </span>
-                </span>
-                <span className="text-[10px] text-cyan-600 font-bold hover:underline">
-                  {showAssetVault ? 'Collapse' : 'Expand Categories'}
-                </span>
-              </div>
+                </div>
+              )}
 
-              {showAssetVault && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] animate-in fade-in duration-150">
-                  {GRAPHIC_FILE_CATEGORIES.map((cat) => {
-                    const catFiles = (inspectedReq.files || []).filter(
-                      (f: any) => f.attachmentCategory === cat.key || f.fileCategory === cat.key
-                    );
+              {/* Production Workflow Pipeline Stepper */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    Graphic Production Workflow Pipeline (Identical to Video Production)
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    Step {getWorkflowStepIndex(inspectedReq.status)} of 7
+                  </span>
+                </div>
+
+                {/* Stepper Progress Bar */}
+                <div className="grid grid-cols-7 gap-1 pt-1">
+                  {WORKFLOW_PIPELINE.map((wp) => {
+                    const currentStep = getWorkflowStepIndex(inspectedReq.status);
+                    const isCurrent = wp.step === currentStep;
+                    const isPassed = wp.step < currentStep;
 
                     return (
-                      <div key={cat.key} className="bg-slate-50/90 p-2 rounded-lg border border-slate-200 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 truncate">
-                          <span className="font-semibold text-slate-800 text-[11px] truncate">{cat.label}</span>
-                          {catFiles.length > 0 && (
-                            <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded font-mono text-[9px] font-bold">
-                              {catFiles.length}
-                            </span>
-                          )}
+                      <div key={wp.step} className="flex flex-col items-center text-center">
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs border transition-all ${
+                            isCurrent
+                              ? 'bg-amber-500 text-gray-950 border-amber-300 ring-2 ring-amber-500/40 shadow-lg scale-110'
+                              : isPassed
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                              : 'bg-slate-50 text-slate-400 border-slate-200'
+                          }`}
+                        >
+                          {isPassed ? wp.step : wp.step}
                         </div>
-
-                        <div className="flex items-center gap-1 shrink-0">
-                          {catFiles.length > 0 && (
-                            <a
-                              href={catFiles[0].fileUrl || `http://localhost:4000${catFiles[0].storagePath}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-cyan-600 hover:underline text-[10px] font-bold px-1.5 py-0.5 bg-cyan-50 rounded border border-cyan-200"
-                            >
-                              View
-                            </a>
-                          )}
-                          <label className="cursor-pointer px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded font-semibold text-[10px] transition-colors">
-                            {uploadingCategory === cat.key ? '…' : '+ Attach'}
-                            <input
-                              type="file"
-                              className="hidden"
-                              onChange={(e) => handleFileUpload(e, cat.key)}
-                              disabled={uploadingCategory === cat.key}
-                            />
-                          </label>
-                        </div>
+                        <span
+                          className={`text-[9px] font-bold mt-1.5 line-clamp-1 ${
+                            isCurrent ? 'text-amber-800' : isPassed ? 'text-emerald-600' : 'text-slate-400'
+                          }`}
+                        >
+                          {wp.label}
+                        </span>
                       </div>
                     );
                   })}
                 </div>
-              )}
-            </div>
-
-            {/* Generated Tasks */}
-            <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg space-y-2">
-              <span className="text-[10px] text-purple-600 font-bold uppercase block">
-                Automated Associated Tasks ({inspectedReq.tasks?.length || 0})
-              </span>
-
-              {(!inspectedReq.tasks || inspectedReq.tasks.length === 0) ? (
-                <p className="text-slate-400 italic text-[11px]">No tasks associated.</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {inspectedReq.tasks.map((t: any) => (
-                    <div key={t.id} className="p-2 bg-slate-50 border border-slate-200 rounded flex justify-between items-center text-xs">
-                      <div>
-                        <span className="font-mono text-blue-600 font-bold">{t.taskId}:</span>{' '}
-                        <span className="text-slate-800 font-medium">{t.title}</span>
-                      </div>
-                      <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 text-slate-700 rounded font-bold text-[10px]">
-                        {t.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Revision Cycles & Resubmission Controls */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
-              <RevisionsTab
-                entityType="GRAPHIC_REQ"
-                entityId={inspectedReq.id}
-                entityTitle={inspectedReq.name}
-                originalAssigneeId={inspectedReq.tasks?.[0]?.assignedEmployees?.[0]?.userId}
-                originalAssigneeName={inspectedReq.tasks?.[0]?.assignedEmployees?.[0]?.user?.name}
-                userRole={user?.role}
-                userId={user?.id}
-                currentStatus={inspectedReq.status}
-                onRefresh={loadData}
-              />
-            </div>
-
-            {/* Activity & Revision History Timeline */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                  Activity &amp; Revision History Timeline (Full Audit Trail)
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono">
-                  Preserved Log Entries
-                </span>
               </div>
 
-              <div className="p-3 bg-slate-50/90 border border-slate-200 rounded-xl space-y-2 text-xs">
-                <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[10px] flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>
-                    <strong>Active Deliverable Rule:</strong> Only the latest production file remains active per category. All replaced versions, timestamps, and uploaders are permanently archived in this timeline.
+              {/* Active Revision Requested Status Banner */}
+              {(inspectedReq.status === 'REVISION_REQUESTED' || inspectedReq.status === 'CLIENT_REVISION_REQUESTED') && (
+                <div className="bg-amber-50 border border-amber-500 p-4 rounded-xl space-y-2 text-xs shadow-xl animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-800 font-extrabold text-xs flex items-center gap-2">
+                      <RotateCcw className="w-4 h-4 text-amber-600 animate-spin" /> Active Workflow Phase: REVISION REQUESTED
+                    </span>
+                    <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded font-mono font-bold text-[10px]">
+                      Revision #{inspectedReq.revisionCount || 1}
+                    </span>
+                  </div>
+                  <p className="text-slate-800 leading-relaxed">
+                    Reviewer requested changes. Assigned employee is currently revising deliverables before re-submitting for Technical Review.
+                  </p>
+                  {!isReadOnlySession && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => setRevisionModalReq(inspectedReq)}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow transition-colors"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" /> Request Another Revision
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Structured Attributes Inspector Grid */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider block border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
+                  <Palette className="w-3.5 h-3.5" /> Graphic Requirement Specifications
+                </span>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-[11px]">
+                  {/* Requirement ID */}
+                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Requirement ID</span>
+                    <span className="text-amber-600 font-mono font-bold text-xs">{inspectedReq.requirementId}</span>
+                  </div>
+
+                  {/* Requirement Name */}
+                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Requirement Name</span>
+                    <span className="text-slate-900 font-bold">{inspectedReq.name}</span>
+                  </div>
+
+                  {/* Client */}
+                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Client</span>
+                    <span className="text-slate-900 font-bold flex items-center gap-1">
+                      {inspectedReq.client?.name || 'N/A'}
+                    </span>
+                  </div>
+
+                  {/* Brand */}
+                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Brand</span>
+                    <span className="text-emerald-700 font-bold flex items-center gap-1">
+                      {inspectedReq.brand?.shortCode ? `[${inspectedReq.brand.shortCode}] ` : ''}{inspectedReq.brand?.name || 'N/A'}
+                    </span>
+                  </div>
+
+                  {/* Project */}
+                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Project</span>
+                    <span className="text-blue-700 font-bold">
+                      {inspectedReq.project?.title || inspectedReq.project?.name || inspectedReq.project?.projectId || 'N/A'}
+                    </span>
+                  </div>
+
+                  {/* Product */}
+                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Product</span>
+                    <span className="text-cyan-700 font-medium">
+                      {inspectedReq.product?.name ? `${inspectedReq.product.name}` : 'N/A'}
+                    </span>
+                  </div>
+
+                  {/* Campaign */}
+                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Campaign</span>
+                    <span className="text-purple-700 font-medium">
+                      {inspectedReq.campaign?.name || inspectedReq.campaign || inspectedReq.calendarEvent?.campaign || 'N/A'}
+                    </span>
+                  </div>
+
+                  {/* Language */}
+                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Language</span>
+                    <span className="text-slate-800 font-bold">
+                      {inspectedReq.language || inspectedReq.calendarEvent?.language || 'N/A'}
+                    </span>
+                  </div>
+
+                  {/* Requirement Type */}
+                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Requirement Type</span>
+                    <span className="text-slate-900 font-bold">{inspectedReq.requirementType}</span>
+                  </div>
+
+                  {/* Priority */}
+                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Priority</span>
+                    <span className="text-amber-800 font-bold">{inspectedReq.priority} Priority</span>
+                  </div>
+
+                  {/* Estimated Completion / Deadline */}
+                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Deadline / Estimated Completion</span>
+                    <span className="text-slate-800 font-mono font-medium">
+                      {inspectedReq.estimatedCompletion
+                        ? new Date(inspectedReq.estimatedCompletion).toLocaleDateString()
+                        : inspectedReq.calendarEvent?.date
+                        ? new Date(inspectedReq.calendarEvent.date).toLocaleDateString()
+                        : 'N/A'}
+                    </span>
+                  </div>
+
+                  {/* Revision Count & Workflow Controls */}
+                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Revision History</span>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="px-2 py-0.5 bg-orange-950 text-orange-400 border border-orange-800 rounded font-mono font-bold text-xs">
+                        Revision #{inspectedReq.revisionCount || 0}
+                      </span>
+                      {!isReadOnlySession && (
+                        <button
+                          type="button"
+                          onClick={() => setRevisionModalReq(inspectedReq)}
+                          className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] transition-colors flex items-center gap-1 shadow"
+                        >
+                          <RotateCcw className="w-3 h-3" /> Request Revision
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Status Badge */}
+                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase mb-1">Status</span>
+                    <div className={`w-full font-bold text-xs p-1.5 rounded border text-center ${getStatusBadge(inspectedReq.status)}`}>
+                      {(GRAPHIC_REQUIREMENT_STATUSES.find((s) => s.value === inspectedReq.status)?.label || inspectedReq.status).replace(/_/g, ' ')}
+                    </div>
+                  </div>
+
+                  {/* Assigned Employees */}
+                  {!['PENDING_MARKETING_APPROVAL', 'WAITING_FOR_MARKETING_APPROVAL', 'DRAFT', 'PENDING_CLIENT_APPROVAL', 'PENDING'].includes(inspectedReq.status) && (
+                    <div className="col-span-1 md:col-span-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-bold text-[10px] uppercase">Assigned Staff</span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {inspectedReq.tasks?.length || 0} sub-tasks
+                        </span>
+                      </div>
+                      {(() => {
+                        const assignedNames = Array.from(new Set(
+                          (inspectedReq.tasks || []).flatMap((t: any) =>
+                            (t.assignedEmployees || []).map((e: any) => e.user?.name)
+                          ).filter(Boolean)
+                        ));
+                        return (
+                          <div className="space-y-2">
+                            {assignedNames.length > 0 ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {assignedNames.map((name: any) => (
+                                  <span key={name} className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg font-semibold text-[11px] flex items-center gap-1.5 shadow-sm">
+                                    <User className="w-3.5 h-3.5 text-blue-600" /> {name}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              !isReadOnlySession && (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') ? (
+                                <div className="flex items-center gap-1.5 w-full justify-between">
+                                  <span className="text-slate-500 text-xs">Staff Not Assigned</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <select
+                                      value={assignStaffUserId}
+                                      onChange={(e) => setAssignStaffUserId(e.target.value)}
+                                      className="bg-slate-50 border border-slate-200 text-slate-800 px-2 py-1 rounded text-xs focus:outline-none"
+                                    >
+                                      <option value="">-- Select Staff Member --</option>
+                                      {usersList.map((u) => (
+                                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      type="button"
+                                      disabled={!assignStaffUserId || assigningStaff}
+                                      onClick={() => handleAssignStaffToReq(inspectedReq.id, assignStaffUserId)}
+                                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded transition-colors disabled:opacity-40"
+                                    >
+                                      {assigningStaff ? 'Assigning…' : 'Assign Staff'}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 text-xs">Staff Not Assigned</span>
+                              )
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Required Equipment */}
+                  <div className="col-span-1 md:col-span-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-200 space-y-1">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5 text-purple-600" /> Required Equipment
+                    </span>
+                    {inspectedReq.project?.equipmentReservations && inspectedReq.project.equipmentReservations.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {inspectedReq.project.equipmentReservations.map((res: any) => (
+                          <span key={res.id} className="px-2.5 py-1 bg-purple-50 text-purple-800 border border-purple-200 rounded-lg font-semibold text-[11px] flex items-center gap-1.5 shadow-xs">
+                            <Camera className="w-3 h-3 text-purple-600" />
+                            {res.equipment?.name || 'Equipment'} ({res.equipment?.category || res.status})
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-slate-500 font-medium text-[11px] pt-0.5">
+                        No equipment required / No equipment available
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Objective */}
+                  <div className="col-span-1 md:col-span-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Objective</span>
+                    <p className="text-slate-800 mt-0.5">{inspectedReq.objective || 'No objective specified.'}</p>
+                  </div>
+
+                  {/* Description / Notes */}
+                  <div className="col-span-1 md:col-span-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Description / Notes &amp; Guidelines</span>
+                    <p className="text-slate-700 mt-0.5 whitespace-pre-wrap">{inspectedReq.description || inspectedReq.calendarEvent?.notes || 'No description provided.'}</p>
+                  </div>
+
+                  {/* Remarks */}
+                  <div className="col-span-1 md:col-span-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">Remarks</span>
+                    <p className="text-amber-800 mt-0.5">{inspectedReq.remarks || 'No remarks.'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Creative Assets & Reference Materials Card */}
+              {(() => {
+                const creativeUrlVal =
+                  inspectedReq.calendarEvent?.creativePreviewUrl ||
+                  inspectedReq.creativePreviewUrl ||
+                  (inspectedReq.files || []).find((f: any) => f.storagePath?.startsWith('http') || f.fileType === 'URL')?.storagePath;
+
+                const creativeAssetNameVal =
+                  inspectedReq.calendarEvent?.creativeAssetName ||
+                  inspectedReq.creativeAssetName ||
+                  (inspectedReq.files || []).find((f: any) => f.storagePath?.startsWith('http') || f.fileType === 'URL')?.fileName ||
+                  'Primary Creative Visual Asset';
+
+                if (!creativeUrlVal) return null;
+
+                const isImageUrl = creativeUrlVal.match(/\.(jpeg|jpg|gif|png|webp)/i);
+
+                return (
+                  <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-3 shadow-xs">
+                    <div className="flex items-center justify-between border-b border-indigo-200/60 pb-2">
+                      <span className="text-[10px] text-indigo-700 font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-indigo-600" /> Creative Visual Asset &amp; Reference Material
+                      </span>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold uppercase">
+                        Linked Asset
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="space-y-0.5 overflow-hidden">
+                        <strong className="text-slate-900 text-sm block truncate">
+                          {creativeAssetNameVal}
+                        </strong>
+                        <span className="text-xs font-mono text-indigo-700 truncate block">
+                          {creativeUrlVal}
+                        </span>
+                      </div>
+                      <a
+                        href={creativeUrlVal.startsWith('http') ? creativeUrlVal : `https://${creativeUrlVal}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-sm transition-all"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" /> Open Asset Link
+                      </a>
+                    </div>
+
+                    {isImageUrl && (
+                      <div className="pt-2 flex justify-center">
+                        <img
+                          src={creativeUrlVal}
+                          alt="Creative Preview"
+                          className="max-h-60 rounded-lg object-contain border border-indigo-200 bg-white shadow-xs"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Produced Deliverables Vault (Outputs Manifest) */}
+              {(() => {
+                const isAssigned = Boolean(
+                  user?.id && (
+                    (inspectedReq.tasks || []).some((t: any) =>
+                      t.assignedToId === user.id ||
+                      (t.assignedEmployees || []).some((e: any) => e.userId === user.id || e.user?.id === user.id)
+                    ) ||
+                    inspectedReq.createdById === user.id
+                  )
+                );
+                const canManage = !isReadOnlySession && !isReviewLocked && (isAssigned || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN' || user?.role === 'MEDIA_MANAGER' || user?.role === 'STAFF');
+
+                return (
+                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                        Produced Deliverable Outputs ({inspectedReq.deliverables?.length || 0})
+                      </span>
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingDeliverable(null);
+                            setDelName('');
+                            setDelLink('');
+                            setDelType('Instagram Post');
+                            setDelDesc('');
+                            setDelStatus('DRAFT');
+                            setDelRemarks('');
+                            setShowAddDeliverableModal(true);
+                          }}
+                          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all"
+                        >
+                          + Add Deliverable
+                        </button>
+                      )}
+                    </div>
+
+                    {(!inspectedReq.deliverables || inspectedReq.deliverables.length === 0) ? (
+                      <div className="p-4 bg-slate-50/60 border border-slate-200 rounded-xl text-center text-slate-500 text-xs">
+                        No produced deliverable outputs added yet.
+                        {canManage && (
+                          <div className="mt-1 text-amber-600 font-semibold">
+                            Click "+ Add Deliverable" above to add output links and names.
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {inspectedReq.deliverables.map((del: any) => (
+                          <div
+                            key={del.id}
+                            className="p-3.5 bg-slate-50/90 border border-slate-200 rounded-xl space-y-2.5 text-xs flex flex-col justify-between"
+                          >
+                            <div className="space-y-1.5">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="font-bold text-slate-900 text-xs block leading-tight">
+                                  {del.name}
+                                </span>
+                                <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded font-bold text-[9px] whitespace-nowrap">
+                                  {del.type || 'Deliverable'}
+                                </span>
+                              </div>
+
+                              {del.description && (
+                                <p className="text-[11px] text-slate-500 leading-normal">
+                                  {del.description}
+                                </p>
+                              )}
+
+                              <div className="flex items-center justify-between pt-1 border-t border-slate-200 text-[10px]">
+                                <span className="text-slate-400 font-medium">Status:</span>
+                                {canManage ? (
+                                  <select
+                                    value={del.status}
+                                    onChange={(e) => handleUpdateDeliverableStatus(inspectedReq.id, del.id, e.target.value)}
+                                    className="bg-slate-50 border border-slate-200 text-amber-800 font-bold px-2 py-0.5 rounded text-[10px] focus:outline-none"
+                                  >
+                                    <option value="DRAFT">Draft</option>
+                                    <option value="IN_PROGRESS">In Progress</option>
+                                    <option value="COMPLETED">Completed</option>
+                                    <option value="SUBMITTED">Submitted</option>
+                                  </select>
+                                ) : (
+                                  <span className="font-bold text-amber-600">{del.status}</span>
+                                )}
+                              </div>
+
+                              {del.createdBy && (
+                                <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                                  <span>Creator:</span>
+                                  <span className="text-slate-700 font-medium">{del.createdBy.name}</span>
+                                </div>
+                              )}
+
+                              {del.submissionDate && (
+                                <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                                  <span>Submitted:</span>
+                                  <span className="text-emerald-600 font-mono">{new Date(del.submissionDate).toLocaleDateString()}</span>
+                                </div>
+                              )}
+
+                              {del.remarks && (
+                                <div className="text-[10px] text-amber-800 bg-amber-50 p-1.5 rounded border border-amber-200">
+                                  {del.remarks}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                              {del.fileUrl ? (
+                                <a
+                                  href={del.fileUrl.startsWith('http') ? del.fileUrl : `https://${del.fileUrl}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded font-bold text-[10px] flex items-center gap-1.5 transition-colors truncate max-w-[190px]"
+                                  title={del.fileUrl}
+                                >
+                                  <ExternalLink className="w-3 h-3 text-amber-600 shrink-0" />
+                                  <span className="truncate">{del.fileName || del.name || 'Open Link'}</span>
+                                </a>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 italic">No Link Provided</span>
+                              )}
+
+                              {canManage && (
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingDeliverable(del);
+                                      setDelName(del.name || '');
+                                      setDelLink(del.fileUrl || '');
+                                      setDelType(del.type || 'Instagram Post');
+                                      setDelDesc(del.description || '');
+                                      setDelStatus(del.status || 'DRAFT');
+                                      setDelRemarks(del.remarks || '');
+                                      setShowAddDeliverableModal(true);
+                                    }}
+                                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[10px] transition-colors"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteDeliverable(inspectedReq.id, del.id)}
+                                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-semibold text-[10px] transition-colors"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Design Assets & File Attachment Vault (8 Categories) */}
+              <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-2">
+                <div
+                  onClick={() => setShowAssetVault(!showAssetVault)}
+                  className="flex items-center justify-between cursor-pointer select-none border-b border-slate-200 pb-1.5"
+                >
+                  <span className="text-[11px] text-cyan-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    Design Assets &amp; File Attachments (8 Categories)
+                    <span className="text-[10px] text-slate-500 font-mono font-normal">
+                      ({inspectedReq.files?.length || 0} File(s) Uploaded)
+                    </span>
+                  </span>
+                  <span className="text-[10px] text-cyan-600 font-bold hover:underline">
+                    {showAssetVault ? 'Collapse' : 'Expand Categories'}
                   </span>
                 </div>
 
-                {(() => {
-                  const reqTimeline = inspectedReq.timeline || [];
-                  const taskTimeline = (inspectedReq.tasks || []).flatMap((t: any) => t.timeline || []);
-                  const allTimelineLogs = [...reqTimeline, ...taskTimeline].sort(
-                    (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                  );
-
-                  if (allTimelineLogs.length === 0) {
-                    return (
-                      <p className="text-slate-400 italic text-[11px] p-2">
-                        Requirement initialized. No revision actions recorded yet.
-                      </p>
-                    );
-                  }
-
-                  return (
-                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pt-1">
-                      {allTimelineLogs.map((log: any) => (
-                        <div
-                          key={log.id}
-                          className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-start justify-between gap-3 text-[11px]"
-                        >
-                          <div className="space-y-0.5">
-                            <span className="px-1.5 py-0.5 bg-slate-50 text-amber-600 font-mono font-bold text-[9px] border border-slate-200 rounded">
-                              {log.event || 'REVISION_EVENT'}
-                            </span>
-                            <p className="text-slate-800 font-medium leading-snug mt-1">{log.description}</p>
-                          </div>
-
-                          <span className="text-slate-400 font-mono text-[9px] whitespace-nowrap shrink-0">
-                            {new Date(log.createdAt).toLocaleString()}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {/* Permanent Remarks History & Interactive Input (User • Date • Time • Message) */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                  Permanent Remarks History (User • Date • Time • Message)
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono">
-                  {inspectedReq.remarksHistory?.length || 0} Permanent Remark(s)
-                </span>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                {/* Remarks Feed */}
-                {(!inspectedReq.remarksHistory || inspectedReq.remarksHistory.length === 0) ? (
-                  <p className="text-slate-400 italic text-[11px] p-2 bg-slate-50/60 rounded-lg border border-slate-200">
-                    No remarks recorded yet for this requirement. Add a permanent remark below.
-                  </p>
-                ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                    {inspectedReq.remarksHistory.map((rem: any) => {
-                      const remDate = new Date(rem.createdAt);
-                      const formattedDate = remDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                      const formattedTime = remDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                {showAssetVault && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] animate-in fade-in duration-150">
+                    {GRAPHIC_FILE_CATEGORIES.map((cat) => {
+                      const catFiles = (inspectedReq.files || []).filter(
+                        (f: any) => f.attachmentCategory === cat.key || f.fileCategory === cat.key
+                      );
 
                       return (
-                        <div key={rem.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
-                          <div className="flex items-center justify-between text-[10px]">
-                            <div className="flex items-center gap-2">
-                              <strong className="text-slate-900 flex items-center gap-1">
-                                {rem.user?.name || 'User'}
-                              </strong>
-                              <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 border border-purple-200 rounded text-[9px] font-semibold">
-                                {rem.user?.role || 'STAFF'}
-                              </span>
-                            </div>
-
-                            <div className="text-slate-500 font-mono flex items-center gap-2">
-                              <span>{formattedDate}</span>
-                              <span>{formattedTime}</span>
+                        <div key={cat.key} className="bg-slate-50/90 p-2.5 rounded-lg border border-slate-200 flex flex-col justify-between gap-2">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="font-semibold text-slate-800 text-[11px] truncate">{cat.label}</span>
+                            <div className="flex items-center gap-1.5">
+                              {catFiles.length > 0 && (
+                                <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded font-mono text-[9px] font-bold">
+                                  {catFiles.length} file{catFiles.length > 1 ? 's' : ''}
+                                </span>
+                              )}
+                              {!isReadOnlySession && !isReviewLocked ? (
+                                <label className="cursor-pointer px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded font-semibold text-[10px] transition-colors">
+                                  {uploadingCategory === cat.key ? '…' : '+ Attach'}
+                                  <input
+                                    type="file"
+                                    className="hidden"
+                                    onChange={(e) => handleFileUpload(e, cat.key)}
+                                    disabled={uploadingCategory === cat.key}
+                                  />
+                                </label>
+                              ) : (
+                                <span className="px-2 py-0.5 bg-slate-100 text-slate-400 border border-slate-200 rounded font-semibold text-[10px] flex items-center gap-1 cursor-not-allowed" title="File uploads locked in read-only mode">
+                                  <Lock className="w-2.5 h-2.5" /> Read-Only
+                                </span>
+                              )}
                             </div>
                           </div>
 
-                          <p className="text-slate-800 leading-relaxed text-xs pl-2 border-l-2 border-purple-500">
-                            {rem.message}
-                          </p>
+                          {catFiles.length > 0 && (
+                            <div className="space-y-1 pt-1 border-t border-slate-200">
+                              {catFiles.map((file: any) => {
+                                const fileHref = file.fileUrl || (file.storagePath?.startsWith('http') ? file.storagePath : `http://localhost:4000${file.storagePath}`);
+                                return (
+                                  <div key={file.id} className="flex items-center justify-between gap-1.5 text-[10px] bg-white/80 p-1.5 rounded border border-slate-200">
+                                    <span className="text-slate-700 font-medium truncate max-w-[170px]" title={file.fileName || 'Asset File'}>
+                                      {file.fileName || 'Asset File'}
+                                    </span>
+                                    <a
+                                      href={fileHref}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-cyan-700 hover:underline text-[10px] font-bold px-1.5 py-0.5 bg-cyan-50 rounded border border-cyan-200 shrink-0 flex items-center gap-1"
+                                    >
+                                      <ExternalLink className="w-2.5 h-2.5" /> View
+                                    </a>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
                 )}
+              </div>
 
-                {/* Add Remark Form */}
-                <div className="p-3 bg-slate-50/80 border border-slate-200 rounded-xl space-y-2">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
-                    Add Permanent Remark
+              {/* Generated Tasks */}
+              <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg space-y-2">
+                <span className="text-[10px] text-purple-600 font-bold uppercase block">
+                  Automated Associated Tasks ({inspectedReq.tasks?.length || 0})
+                </span>
+
+                {(!inspectedReq.tasks || inspectedReq.tasks.length === 0) ? (
+                  <p className="text-slate-400 italic text-[11px]">No tasks associated.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {inspectedReq.tasks.map((t: any) => (
+                      <div key={t.id} className="p-2 bg-slate-50 border border-slate-200 rounded flex justify-between items-center text-xs">
+                        <div>
+                          <span className="font-mono text-blue-600 font-bold">{t.taskId}:</span>{' '}
+                          <span className="text-slate-800 font-medium">{t.title}</span>
+                        </div>
+                        <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 text-slate-700 rounded font-bold text-[10px]">
+                          {t.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* TECHNICAL MANAGER REVIEW DEDICATED SECTION */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                  <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-blue-600" /> Technical Manager Review
+                  </h4>
+                  <span className="text-[10px] text-blue-600 font-mono font-bold">
+                    Level 1 Technical Compliance Log
                   </span>
-                  <textarea
-                    rows={2}
-                    placeholder="Type remark message (Visible to staff & managers, stored permanently)..."
-                    value={remarkInput}
-                    onChange={(e) => setRemarkInput(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-purple-500 focus:bg-white leading-relaxed"
-                  />
-                  <div className="flex justify-between items-center">
-                    <span className="text-[9px] text-slate-400 italic">
-                      Permanent history: Remarks cannot be edited or deleted.
+                </div>
+
+                {(() => {
+                  const techReviews = (inspectedReq.approvals || []).filter(
+                    (a: any) => (a.stage === 'TECHNICAL_REVIEW' || a.approvalType === 'TECHNICAL_REVIEW'),
+                  );
+
+                  // Sort: latest round first
+                  const sorted = [...techReviews].sort((a: any, b: any) => {
+                    if ((b.round || 0) !== (a.round || 0)) return (b.round || 0) - (a.round || 0);
+                    return new Date(b.reviewedAt || b.createdAt).getTime() - new Date(a.reviewedAt || a.createdAt).getTime();
+                  });
+
+                  // If no approval records exist, check for timeline/rejection reason fallbacks
+                  const timelineRejections = (inspectedReq.timeline || []).filter((t: any) =>
+                    t.event === 'TECHNICAL_REVIEW_REJECTED' || t.event === 'TECHNICAL_REVIEW_APPROVED',
+                  );
+
+                  if (sorted.length === 0 && timelineRejections.length === 0 && !inspectedReq.rejectionReason) {
+                    return (
+                      <div className="p-6 text-center bg-slate-50/60 border border-slate-200 rounded-xl space-y-1.5">
+                        <ShieldCheck className="w-8 h-8 text-gray-400 mx-auto" />
+                        <p className="text-xs font-semibold text-slate-700">No Technical Manager Review Decisions Recorded Yet</p>
+                        <p className="text-[11px] text-slate-400">
+                          This graphic requirement has not completed any Technical Manager review rounds.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      {sorted.length > 0 ? (
+                        sorted.map((rev: any, idx: number) => {
+                          const isApproved = rev.status === 'APPROVED';
+                          const isRejected = rev.status === 'REJECTED' || rev.status === 'CHANGES_REQUESTED';
+                          const isPending = rev.status === 'PENDING';
+                          const roundNum = rev.round || sorted.length - idx;
+                          const reviewerName = rev.reviewer?.name || rev.requestedBy?.name || 'Technical Manager';
+                          const reviewerRole = (rev.reviewer?.role || 'TECHNICAL_MANAGER').replace(/_/g, ' ');
+                          const dateStr = rev.reviewedAt
+                            ? new Date(rev.reviewedAt).toLocaleString()
+                            : rev.createdAt
+                            ? new Date(rev.createdAt).toLocaleString()
+                            : '—';
+                          const remarksText = rev.remarks || (isApproved ? 'Technical review requirements verified and approved.' : inspectedReq.rejectionReason || 'No detailed reason supplied.');
+
+                          return (
+                            <div
+                              key={rev.id || idx}
+                              className={`p-4 rounded-xl border-2 space-y-3 shadow-md transition-all ${
+                                isApproved
+                                  ? 'bg-emerald-50/80 border-emerald-600/60'
+                                  : isPending
+                                  ? 'bg-blue-50/80 border-blue-500/60'
+                                  : 'bg-rose-50/80 border-red-600/60'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2.5 py-0.5 text-[10px] font-mono font-extrabold rounded border uppercase ${
+                                    isApproved
+                                      ? 'bg-emerald-900/70 border-emerald-600 text-emerald-200'
+                                      : isPending
+                                      ? 'bg-blue-900/70 border-blue-600 text-blue-200'
+                                      : 'bg-red-900/70 border-red-600 text-red-200'
+                                  }`}>
+                                    {isApproved ? 'APPROVED' : isPending ? 'PENDING REVIEW' : 'REJECTED / CHANGES REQUESTED'}
+                                  </span>
+                                  <span className="font-bold text-xs text-slate-900 font-mono">
+                                    Technical Review — Round #{roundNum}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-slate-500 font-mono">{dateStr}</span>
+                              </div>
+
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-[11px]">
+                                <div>
+                                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Reviewed By</span>
+                                  <strong className="text-slate-900">{isPending ? 'Pending Assignment' : reviewerName}</strong>
+                                  <span className="text-[10px] text-slate-500 block font-mono">({reviewerRole})</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Review Status</span>
+                                  <strong className={isApproved ? 'text-emerald-600 font-extrabold' : isPending ? 'text-blue-600 font-extrabold' : 'text-rose-600 font-extrabold'}>
+                                    {isApproved ? 'APPROVED / PASSED' : isPending ? 'WAITING FOR REVIEW' : 'REJECTED / CHANGES REQUESTED'}
+                                  </strong>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Review Date/Time</span>
+                                  <span className="text-slate-700 font-mono font-medium text-[11px] block">
+                                    {dateStr}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {!isPending && (
+                                <div className={`p-3 rounded-lg border text-xs space-y-1 ${
+                                  isApproved
+                                    ? 'bg-emerald-900/10 border-emerald-300 text-emerald-900'
+                                    : 'bg-red-900/10 border-rose-300 text-red-900'
+                                }`}>
+                                  <span className="text-[10px] uppercase font-bold block flex items-center gap-1 tracking-wider">
+                                    {isApproved ? 'Approval Remarks / Notes:' : 'Technical Manager Review Remarks / Rejection Reason:'}
+                                  </span>
+                                  <p className="text-slate-800 font-medium text-[11px] whitespace-pre-wrap leading-relaxed">
+                                    {remarksText}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        /* Fallback from Timeline / Rejection Reason */
+                        <div className="p-4 rounded-xl border-2 bg-rose-50 border-red-600/60 space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                            <span className="px-2.5 py-0.5 text-[10px] font-mono font-extrabold rounded border uppercase bg-red-900/70 border-red-600 text-red-200">
+                              REJECTED / CHANGES REQUESTED
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">
+                              {inspectedReq.rejectedAt ? new Date(inspectedReq.rejectedAt).toLocaleString() : 'Latest Round'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-[11px]">
+                            <div>
+                              <span className="text-slate-400 text-[10px] uppercase font-bold block">Reviewed By</span>
+                              <strong className="text-slate-900">Technical Manager</strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 text-[10px] uppercase font-bold block">Review Status</span>
+                              <strong className="text-rose-600 font-extrabold">REJECTED / CHANGES REQUESTED</strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 text-[10px] uppercase font-bold block">Review Date/Time</span>
+                              <span className="text-slate-700 font-mono font-medium text-[11px] block">
+                                {inspectedReq.rejectedAt ? new Date(inspectedReq.rejectedAt).toLocaleString() : '—'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="p-3 bg-red-900/10 border border-rose-300 rounded-lg space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-rose-700 block">Technical Manager Review Remarks / Rejection Reason:</span>
+                            <p className="text-slate-800 font-medium text-[11px] whitespace-pre-wrap">
+                              {inspectedReq.rejectionReason || inspectedReq.remarks || 'Graphic Requirement rejected during Technical Review. Revisions required.'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* TECHNICAL APPROVAL REQUEST SUBMISSION & RESUBMISSION SESSION */}
+              <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                  <h4 className="font-extrabold text-purple-700 text-xs flex items-center gap-2">
+                    <Send className="w-4 h-4 text-purple-600" /> Technical Approval Request Submission &amp; Resubmission
+                  </h4>
+                  <div className="flex items-center gap-1.5">
+                    {(inspectedReq.technicalReviewRound > 0 || inspectedReq.rejectionReason) && inspectedReq.status !== 'WAITING_FOR_TECHNICAL_REVIEW' && (
+                      <span className="text-[10px] bg-rose-100 text-rose-800 border border-rose-300 px-2 py-0.5 rounded font-mono font-bold">
+                        Corrections Required (Round #{(inspectedReq.technicalReviewRound || 0) + 1})
+                      </span>
+                    )}
+                    <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-2 py-0.5 rounded font-mono font-bold">
+                      Status: {inspectedReq.status}
                     </span>
-                    <button
-                      type="button"
-                      onClick={handleAddRemark}
-                      disabled={addingRemark || !remarkInput.trim()}
-                      className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shadow transition-colors disabled:opacity-50"
-                    >
-                      {addingRemark ? 'Posting...' : 'Post Permanent Remark'}
-                    </button>
                   </div>
                 </div>
+
+                {inspectedReq.status === 'WAITING_FOR_TECHNICAL_REVIEW' ? (
+                  <div className="p-3 bg-blue-50 border border-blue-300 rounded-lg space-y-2 text-blue-900">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs flex items-center gap-1.5 text-blue-700">
+                        Technical Approval Request Submitted (Round #{inspectedReq.technicalReviewRound || 1})
+                      </span>
+                      <span className="text-[10px] bg-blue-900 text-blue-100 px-2 py-0.5 rounded font-mono font-bold">
+                        Under Technical Review
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-blue-800 font-normal">
+                      This graphic requirement has been submitted and is currently waiting for Technical Manager evaluation. Deliverable modifications are locked until the review is completed.
+                    </p>
+                  </div>
+                ) : (inspectedReq.status === 'WAITING_FOR_MEDIA_REVIEW' || inspectedReq.status === 'WAITING_FOR_CLIENT_CONFIRMATION' || inspectedReq.status === 'COMPLETED') ? (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg space-y-1 text-emerald-900">
+                    <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-700">
+                      Technical Approval Completed
+                    </span>
+                    <p className="text-[11px] text-emerald-700/90 font-normal">
+                      This graphic requirement has passed Level 1 Technical Review and is advancing through the subsequent manager approval stages.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    <p className="text-[11px] text-slate-700 leading-relaxed">
+                      {inspectedReq.technicalReviewRound > 0 || inspectedReq.rejectionReason || (inspectedReq.revisionCount || 0) > 0
+                        ? `This graphic requirement was rejected or returned for corrections. Update deliverables, assets, or specifications above, then click below to resubmit for Technical Manager Review (Round #${(inspectedReq.technicalReviewRound || 0) + 1}).`
+                        : 'Submit this graphic requirement, deliverable assets, and design specifications to initiate Level 1: Technical Manager Review & Approval.'}
+                    </p>
+                    {!isReadOnlySession && (
+                      <div className="flex items-center gap-2 flex-wrap pt-1">
+                        {inspectedReq.status !== 'IN_PROGRESS' && (
+                          <button
+                            type="button"
+                            onClick={handleUpdateStatusToInProgress}
+                            disabled={submittingTechReview}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                          >
+                            Update Status to IN PROGRESS
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleSubmitTechnicalReview(inspectedReq.id)}
+                          disabled={submittingTechReview}
+                          className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-lg shadow-lg shadow-purple-600/30 transition-all flex items-center gap-2 text-xs"
+                        >
+                          {inspectedReq.technicalReviewRound > 0 || inspectedReq.rejectionReason || (inspectedReq.revisionCount || 0) > 0 ? (
+                            <>
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>Resubmit for Technical Manager Review (Round #{(inspectedReq.technicalReviewRound || 0) + 1})</span>
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Submit for Technical Manager Review</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* MANAGEMENT ACTION SESSIONS (LEVEL 1, 2, 3 DECISION CONTROLS) */}
+              {!isReadOnlySession && (
+                <div className="space-y-3">
+                  {/* Step 2: Technical Manager Review Action */}
+                  {inspectedReq.status === 'WAITING_FOR_TECHNICAL_REVIEW' && (
+                    (user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
+                      <div className="p-4 bg-blue-50 border-2 border-blue-600/80 rounded-xl space-y-3 shadow-2xl animate-in fade-in duration-200">
+                        <div className="flex items-center justify-between border-b border-blue-200 pb-2">
+                          <h4 className="font-extrabold text-blue-700 text-xs flex items-center gap-2">
+                            <ShieldCheck className="w-4 h-4 text-blue-600" /> Level 1: Technical Manager Review Decision Controls
+                          </h4>
+                          <span className="text-[10px] bg-blue-900 text-blue-200 border border-blue-300 px-2.5 py-0.5 rounded font-mono font-bold">
+                            Status: WAITING_FOR_TECHNICAL_REVIEW
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-blue-900 leading-relaxed font-normal">
+                          This graphic requirement has been submitted for Technical Manager approval. Inspect deliverable assets, resolution/specs, and file attachments, then approve or reject with mandatory revision feedback.
+                        </p>
+                        <div className="flex items-center gap-2 flex-wrap pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const note = prompt('Optional: Enter approval reason / notes for technical compliance:');
+                              handleReviewTechnical(inspectedReq.id, 'APPROVE', note || 'Technical Review Approved');
+                            }}
+                            disabled={reviewingAction}
+                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg shadow-lg transition-all flex items-center gap-2 text-xs"
+                          >
+                            <Check className="w-4 h-4" /> Accept &amp; Approve Technical Review
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const comment = prompt('Rejection reason is mandatory. Enter rejection reason for design revision:');
+                              if (comment && comment.trim()) {
+                                handleReviewTechnical(inspectedReq.id, 'REJECT', comment.trim());
+                              } else if (comment !== null) {
+                                alert('Rejection reason is mandatory.');
+                              }
+                            }}
+                            disabled={reviewingAction}
+                            className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-extrabold rounded-lg shadow-lg transition-all flex items-center gap-2 text-xs"
+                          >
+                            <RotateCcw className="w-4 h-4" /> Reject Technical Review
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between shadow-md">
+                        <span className="text-blue-700 font-semibold text-xs flex items-center gap-2">
+                          <Clock className="w-4 h-4" /> Waiting for Technical Review
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">Technical Manager Authority Required</span>
+                      </div>
+                    )
+                  )}
+
+                  {/* Step 3: Media Manager Review Action */}
+                  {inspectedReq.status === 'WAITING_FOR_MEDIA_REVIEW' && (
+                    (user?.role === 'MEDIA_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
+                      <div className="p-4 bg-indigo-50 border border-indigo-800/60 rounded-xl space-y-3 shadow-lg">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-indigo-700 text-xs flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-indigo-600" /> Level 2: Media Manager Review Session
+                          </h4>
+                          <span className="text-[10px] bg-indigo-100 text-indigo-800 border border-indigo-300 px-2 py-0.5 rounded font-mono font-bold">
+                            Status: WAITING_FOR_MEDIA_REVIEW
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-indigo-900 leading-relaxed font-normal">
+                          Technical review passed. As Media Manager, review the visual deliverables and design quality before passing for client confirmation.
+                        </p>
+                        <div className="flex items-center gap-2 flex-wrap pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleReviewMedia(inspectedReq.id, 'APPROVE')}
+                            disabled={reviewingAction}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                          >
+                            <Check className="w-4 h-4" /> Approve Graphic Requirement
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const comment = prompt('Rejection reason is mandatory. Enter rejection reason:');
+                              if (comment && comment.trim()) {
+                                handleReviewMedia(inspectedReq.id, 'REJECT', comment.trim());
+                              } else if (comment !== null) {
+                                alert('Rejection reason is mandatory.');
+                              }
+                            }}
+                            disabled={reviewingAction}
+                            className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                          >
+                            <RotateCcw className="w-4 h-4" /> Reject Graphic Requirement
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between">
+                        <span className="text-indigo-700 font-semibold text-xs flex items-center gap-2">
+                          <Clock className="w-4 h-4" /> Technical Review Approved — Waiting for Media Review
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">Media Manager Review</span>
+                      </div>
+                    )
+                  )}
+
+                  {/* Step 4: Client Confirmation / Marketing Manager Review Action */}
+                  {inspectedReq.status === 'WAITING_FOR_CLIENT_CONFIRMATION' && (
+                    (user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
+                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3 shadow-lg">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-amber-800 text-xs flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-amber-600" /> Level 3: Client Confirmation &amp; Sign-off Session
+                          </h4>
+                          <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded font-mono font-bold">
+                            Status: WAITING_FOR_CLIENT_CONFIRMATION
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-amber-900 leading-relaxed font-normal">
+                          Deliverables approved by Technical and Media Managers. Confirm client approval to mark this requirement as COMPLETED.
+                        </p>
+                        <div className="flex items-center gap-2 flex-wrap pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleClientConfirmation(inspectedReq.id, 'CONFIRM')}
+                            disabled={reviewingAction}
+                            className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                          >
+                            <Check className="w-4 h-4" /> Confirm Client Approval &amp; Complete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const comment = prompt('Rejection reason is mandatory. Enter client feedback / revision reason:');
+                              if (comment && comment.trim()) {
+                                handleClientConfirmation(inspectedReq.id, 'REQUEST_CHANGES', comment.trim());
+                              } else if (comment !== null) {
+                                alert('Rejection reason is mandatory.');
+                              }
+                            }}
+                            disabled={reviewingAction}
+                            className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
+                          >
+                            <RotateCcw className="w-4 h-4" /> Request Client Revisions
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+                        <span className="text-amber-800 font-semibold text-xs flex items-center gap-2">
+                          <Clock className="w-4 h-4" /> Media Review Approved — Waiting for Client Confirmation
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">Marketing Manager / Client Sign-off</span>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+
+              {/* Revision Cycles & Resubmission Controls */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                <RevisionsTab
+                  entityType="GRAPHIC_REQ"
+                  entityId={inspectedReq.id}
+                  entityTitle={inspectedReq.name}
+                  originalAssigneeId={inspectedReq.tasks?.[0]?.assignedEmployees?.[0]?.userId}
+                  originalAssigneeName={inspectedReq.tasks?.[0]?.assignedEmployees?.[0]?.user?.name}
+                  userRole={user?.role}
+                  userId={user?.id}
+                  currentStatus={inspectedReq.status}
+                  onRefresh={loadData}
+                  readOnly={isReadOnlySession}
+                />
+              </div>
+
+              {/* Activity & Revision History Timeline */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    Activity &amp; Revision History Timeline (Full Audit Trail)
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    Preserved Log Entries
+                  </span>
+                </div>
+
+                <div className="p-3 bg-slate-50/90 border border-slate-200 rounded-xl space-y-2 text-xs">
+                  {(() => {
+                    const reqTimeline = inspectedReq.timeline || [];
+                    const taskTimeline = (inspectedReq.tasks || []).flatMap((t: any) => t.timeline || []);
+                    const allTimelineLogs = [...reqTimeline, ...taskTimeline].sort(
+                      (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                    );
+
+                    if (allTimelineLogs.length === 0) {
+                      return (
+                        <p className="text-slate-400 italic text-[11px] p-2">
+                          Requirement initialized. No revision actions recorded yet.
+                        </p>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pt-1">
+                        {allTimelineLogs.map((log: any) => (
+                          <div
+                            key={log.id}
+                            className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-start justify-between gap-3 text-[11px]"
+                          >
+                            <div className="space-y-0.5">
+                              <span className="px-1.5 py-0.5 bg-slate-50 text-amber-600 font-mono font-bold text-[9px] border border-slate-200 rounded">
+                                {log.event || 'REVISION_EVENT'}
+                              </span>
+                              <p className="text-slate-800 font-medium leading-snug mt-1">{log.description}</p>
+                            </div>
+
+                            <span className="text-slate-400 font-mono text-[9px] whitespace-nowrap shrink-0">
+                              {new Date(log.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Permanent Remarks History & Interactive Input (User • Date • Time • Message) */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    Permanent Remarks History (User • Date • Time • Message)
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    {inspectedReq.remarksHistory?.length || 0} Permanent Remark(s)
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  {/* Remarks Feed */}
+                  {(!inspectedReq.remarksHistory || inspectedReq.remarksHistory.length === 0) ? (
+                    <p className="text-slate-400 italic text-[11px] p-2 bg-slate-50/60 rounded-lg border border-slate-200">
+                      No remarks recorded yet for this requirement.
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                      {inspectedReq.remarksHistory.map((rem: any) => {
+                        const remDate = new Date(rem.createdAt);
+                        const formattedDate = remDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        const formattedTime = remDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+                        return (
+                          <div key={rem.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                            <div className="flex items-center justify-between text-[10px]">
+                              <div className="flex items-center gap-2">
+                                <strong className="text-slate-900 flex items-center gap-1">
+                                  {rem.user?.name || 'User'}
+                                </strong>
+                                <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 border border-purple-200 rounded text-[9px] font-semibold">
+                                  {rem.user?.role || 'STAFF'}
+                                </span>
+                              </div>
+
+                              <div className="text-slate-500 font-mono flex items-center gap-2">
+                                <span>{formattedDate}</span>
+                                <span>{formattedTime}</span>
+                              </div>
+                            </div>
+
+                            <p className="text-slate-800 leading-relaxed text-xs pl-2 border-l-2 border-purple-500">
+                              {rem.message}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Add Remark Form (Hidden in read-only session) */}
+                  {!isReadOnlySession ? (
+                    <div className="p-3 bg-slate-50/80 border border-slate-200 rounded-xl space-y-2">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+                        Add Permanent Remark
+                      </span>
+                      <textarea
+                        rows={2}
+                        placeholder="Type remark message (Visible to staff & managers, stored permanently)..."
+                        value={remarkInput}
+                        onChange={(e) => setRemarkInput(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-purple-500 focus:bg-white leading-relaxed"
+                      />
+                      <div className="flex justify-between items-center">
+                        <span className="text-[9px] text-slate-400 italic">
+                          Permanent history: Remarks cannot be edited or deleted.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleAddRemark}
+                          disabled={addingRemark || !remarkInput.trim()}
+                          className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shadow transition-colors disabled:opacity-50"
+                        >
+                          {addingRemark ? 'Posting...' : 'Post Permanent Remark'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 bg-slate-50/60 rounded-lg border border-slate-200 text-slate-400 italic text-[11px] text-center">
+                      Remark submission is disabled in read-only inspection mode.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-slate-200">
+                <button
+                  onClick={() => setInspectedReq(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg text-xs"
+                >
+                  Close Inspector
+                </button>
               </div>
             </div>
-
-            <div className="flex justify-end pt-2 border-t border-slate-200">
-              <button
-                onClick={() => setInspectedReq(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg text-xs"
-              >
-                Close Inspector
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Add / Edit Deliverable Output Modal */}
       {showAddDeliverableModal && (

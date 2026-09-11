@@ -52,8 +52,8 @@ export class GraphicReqsController {
 
   @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
   @Post()
-  create(@Body() data: any) {
-    return this.graphicReqsService.create(data);
+  create(@Body() data: any, @CurrentUser() user: any) {
+    return this.graphicReqsService.create(data, user);
   }
 
   @Put(':id')
@@ -101,4 +101,37 @@ export class GraphicReqsController {
   deleteDeliverable(@Param('deliverableId') deliverableId: string, @CurrentUser() user: any) {
     return this.graphicReqsService.deleteDeliverable(deliverableId, user);
   }
+
+  @Post(':id/submit-technical')
+  submitTechnicalReview(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.graphicReqsService.submitTechnicalReview(id, user);
+  }
+
+  @Post(':id/review-technical')
+  reviewTechnical(
+    @Param('id') id: string,
+    @Body() body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.graphicReqsService.reviewTechnical(id, user, body);
+  }
+
+  @Post(':id/review-media')
+  reviewMedia(
+    @Param('id') id: string,
+    @Body() body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.graphicReqsService.reviewMedia(id, user, body);
+  }
+
+  @Post(':id/client-confirmation')
+  clientConfirmation(
+    @Param('id') id: string,
+    @Body() body: { action: 'CONFIRM' | 'REQUEST_CHANGES'; comment?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.graphicReqsService.clientConfirmation(id, user, body);
+  }
 }
+

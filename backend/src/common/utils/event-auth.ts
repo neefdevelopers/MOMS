@@ -124,7 +124,29 @@ export function canUserViewRequirement(
   // 1. ADMIN
   if (user.role === 'ADMIN' || user.role === 'ADMINISTRATOR') return true;
 
-  // 2. TECHNICAL_MANAGER: Strictly show graphic requirements that have reached
+  // 2. STAFF: Allow viewing Graphic Requirements assigned to this staff user (both before acceptance to inspect details/assets, and after acceptance)
+  if (user.role === 'STAFF' || (user.role as string) === 'STAFF') {
+    const isAssigned =
+      (Array.isArray(requirement.tasks) &&
+        requirement.tasks.some(
+          (t: any) =>
+            (Array.isArray(t.assignedEmployees) &&
+              t.assignedEmployees.some(
+                (e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id,
+              )) ||
+            t.assignedToId === user.id,
+        )) ||
+      requirement.assignedToId === user.id ||
+      (requirement.deliverables &&
+        Array.isArray(requirement.deliverables) &&
+        requirement.deliverables.some((d: any) => d.assignedStaffId === user.id)) ||
+      requirement.createdById === user.id ||
+      (requirement.project?.assignedTeam &&
+        requirement.project.assignedTeam.some((tm: any) => tm.userId === user.id || tm.user?.id === user.id));
+    return Boolean(isAssigned);
+  }
+
+  // 3. TECHNICAL_MANAGER: Strictly show graphic requirements that have reached
   // the stage of waiting for technical manager approval or after that.
   if (user.role === 'TECHNICAL_MANAGER') {
     const TECH_MANAGER_ALLOWED_STATUSES = [
@@ -158,7 +180,14 @@ export function canUserViewRequirement(
   // 3. CREATOR CHECK
   const isCreator =
     Boolean(requirement.createdById && requirement.createdById === user.id) ||
-    Boolean(requirement.createdBy && (requirement.createdBy.id === user.id || requirement.createdBy.userId === user.id));
+    Boolean(requirement.createdBy && (requirement.createdBy.id === user.id || requirement.createdBy.userId === user.id)) ||
+    Boolean(requirement.calendarEvent && (requirement.calendarEvent.createdById === user.id || requirement.calendarEvent.createdBy?.id === user.id)) ||
+    Boolean(
+      Array.isArray(requirement.sourceForCalendarEvents) &&
+        requirement.sourceForCalendarEvents.some(
+          (s: any) => s.createdById === user.id || s.createdBy?.id === user.id,
+        ),
+    );
 
   if (isCreator) return true;
 
@@ -178,9 +207,49 @@ export function canUserViewRequirement(
     requirement.project &&
     ((Array.isArray(requirement.project.assignedTeam) &&
       requirement.project.assignedTeam.some((t: any) => t.userId === user.id || t.user?.id === user.id)) ||
-      requirement.project.createdById === user.id);
+      requirement.project.createdById === user.id ||
+      (Array.isArray(requirement.project.tasks) &&
+        requirement.project.tasks.some(
+          (t: any) =>
+            t.assignedToId === user.id ||
+            (Array.isArray(t.assignedEmployees) &&
+              t.assignedEmployees.some(
+                (e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id,
+              )),
+        )));
 
-  if (isTaskAssigned || isProjectAssigned) {
+  const isDeliverableAssigned =
+    Array.isArray(requirement.deliverables) &&
+    requirement.deliverables.some(
+      (d: any) =>
+        d.assignedStaffId === user.id ||
+        d.assignedStaff?.id === user.id ||
+        d.createdById === user.id ||
+        d.createdBy?.id === user.id,
+    );
+
+  const isCalendarAssigned =
+    Boolean(
+      requirement.calendarEvent &&
+        (requirement.calendarEvent.assignedStaffId === user.id ||
+          (Array.isArray(requirement.calendarEvent.tasks) &&
+            requirement.calendarEvent.tasks.some(
+              (t: any) =>
+                t.assignedToId === user.id ||
+                (Array.isArray(t.assignedEmployees) &&
+                  t.assignedEmployees.some(
+                    (e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id,
+                  )),
+            ))),
+    ) ||
+    Boolean(
+      Array.isArray(requirement.sourceForCalendarEvents) &&
+        requirement.sourceForCalendarEvents.some(
+          (s: any) => s.assignedStaffId === user.id,
+        ),
+    );
+
+  if (isTaskAssigned || isProjectAssigned || isDeliverableAssigned || isCalendarAssigned) {
     return true;
   }
 

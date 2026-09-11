@@ -182,15 +182,43 @@ export default function ApprovalsPage() {
   const isTechnicalManager = user?.role === 'TECHNICAL_MANAGER';
 
   const getDeliverableItems = (proj: any) => {
+    if (!proj) return [];
     const tasks = proj.tasks || [];
     const files = proj.files || [];
+    const deliverables = proj.deliverables || [];
     const deliverableItems: any[] = [];
+    const seenUrls = new Set<string>();
 
+    // 1. Deliverables associated directly with Requirement / Script
+    deliverables.forEach((d: any) => {
+      const rawUrl = d.fileUrl || d.url || d.storagePath;
+      if (rawUrl && !seenUrls.has(rawUrl)) {
+        seenUrls.add(rawUrl);
+        const resolvedUrl = rawUrl.startsWith('http')
+          ? rawUrl
+          : rawUrl.startsWith('/')
+          ? `http://localhost:4000${rawUrl}`
+          : `https://${rawUrl}`;
+
+        deliverableItems.push({
+          id: d.id,
+          fileName: d.fileName || d.name || `${d.type || 'Deliverable'} Output`,
+          fileUrl: resolvedUrl,
+          version: d.version || 1,
+          taskTitle: d.type || 'Produced Deliverable',
+          uploadedBy: d.createdBy?.name || d.assignedStaff?.name || 'Staff Designer',
+          isActive: true,
+        });
+      }
+    });
+
+    // 2. Active Task Deliverables & Deliverable History
     tasks.forEach((t: any) => {
-      if (t.activeDeliverableUrl) {
+      if (t.activeDeliverableUrl && !seenUrls.has(t.activeDeliverableUrl)) {
+        seenUrls.add(t.activeDeliverableUrl);
         deliverableItems.push({
           id: `${t.id}-active`,
-          fileName: t.activeDeliverableFileName || 'Active Work Deliverable Output',
+          fileName: t.activeDeliverableFileName || `${t.title} Active Output`,
           fileUrl: t.activeDeliverableUrl,
           version: t.activeDeliverableVersion || 1,
           taskTitle: t.title,
@@ -201,7 +229,8 @@ export default function ApprovalsPage() {
 
       if (t.deliverableHistory && Array.isArray(t.deliverableHistory)) {
         t.deliverableHistory.forEach((h: any) => {
-          if (h.fileUrl !== t.activeDeliverableUrl) {
+          if (h.fileUrl && !seenUrls.has(h.fileUrl)) {
+            seenUrls.add(h.fileUrl);
             deliverableItems.push({
               id: h.id,
               fileName: h.fileName || `Deliverable v${h.version}`,
@@ -216,17 +245,41 @@ export default function ApprovalsPage() {
       }
     });
 
+    // 3. Design Asset Files & Attached Files
     files.forEach((f: any) => {
-      deliverableItems.push({
-        id: f.id,
-        fileName: f.fileName || f.name || 'Project Output File',
-        fileUrl: f.fileUrl || f.url,
-        version: f.version || 1,
-        taskTitle: 'Project Asset',
-        uploadedBy: 'Team Member',
-        isActive: false,
-      });
+      const rawUrl = f.fileUrl || f.url || f.storagePath;
+      if (rawUrl && !seenUrls.has(rawUrl)) {
+        seenUrls.add(rawUrl);
+        const resolvedUrl = rawUrl.startsWith('http')
+          ? rawUrl
+          : `http://localhost:4000${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+
+        deliverableItems.push({
+          id: f.id,
+          fileName: f.fileName || f.name || 'Design File Asset',
+          fileUrl: resolvedUrl,
+          version: f.version || 1,
+          taskTitle: f.attachmentCategory?.replace(/_/g, ' ') || 'Attached Asset',
+          uploadedBy: f.uploadedBy?.name || 'Team Member',
+          isActive: Boolean(f.activeVersion),
+        });
+      }
     });
+
+    // 4. Primary Creative Visual Asset Link
+    const creativeUrl = proj.creativePreviewUrl || proj.calendarEvent?.creativePreviewUrl;
+    if (creativeUrl && !seenUrls.has(creativeUrl)) {
+      seenUrls.add(creativeUrl);
+      deliverableItems.push({
+        id: `creative-preview-${proj.id}`,
+        fileName: proj.creativeAssetName || proj.calendarEvent?.creativeAssetName || `${proj.name || 'Creative'} Visual Asset`,
+        fileUrl: creativeUrl.startsWith('http') ? creativeUrl : `https://${creativeUrl}`,
+        version: 1,
+        taskTitle: 'Primary Creative Visual Asset',
+        uploadedBy: proj.calendarEvent?.createdBy?.name || 'Media Manager',
+        isActive: true,
+      });
+    }
 
     return deliverableItems;
   };
@@ -628,7 +681,7 @@ export default function ApprovalsPage() {
                                 key={d.id}
                                 className={`p-2.5 rounded-xl border flex items-center justify-between text-xs transition-colors ${
                                   d.isActive
-                                    ? 'bg-cyan-50 border-cyan-300 text-white'
+                                    ? 'bg-cyan-50/90 border-cyan-300 text-slate-900 shadow-xs'
                                     : 'bg-slate-50 border-slate-200 text-slate-700'
                                 }`}
                               >
@@ -636,25 +689,29 @@ export default function ApprovalsPage() {
                                   <div className="font-bold flex items-center gap-1.5 text-xs truncate">
                                     <span className="truncate">{d.fileName}</span>
                                     {d.isActive && (
-                                      <span className="px-1.5 py-0.2 bg-cyan-50 text-cyan-700 border border-cyan-200 rounded text-[9px] font-mono shrink-0">
+                                      <span className="px-1.5 py-0.2 bg-cyan-100 text-cyan-800 border border-cyan-200 rounded text-[9px] font-mono shrink-0 font-bold">
                                         v{d.version} Active
                                       </span>
                                     )}
                                   </div>
                                   <div className="text-[10px] text-slate-500 truncate">
-                                    By <strong className="text-slate-700">{d.uploadedBy}</strong> • Task: {d.taskTitle}
+                                    By <strong className="text-slate-700">{d.uploadedBy}</strong> • {d.taskTitle}
                                   </div>
                                 </div>
 
-                                <a
-                                  href={d.fileUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-extrabold rounded-lg text-[11px] transition-all flex items-center gap-1 shrink-0 shadow-md shadow-cyan-600/30"
-                                >
-                                  <span>Review Asset</span>
-                                  <ExternalLink className="w-3 h-3" />
-                                </a>
+                                {d.fileUrl ? (
+                                  <a
+                                    href={d.fileUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-extrabold rounded-lg text-[11px] transition-all flex items-center gap-1 shrink-0 shadow-md shadow-cyan-600/30"
+                                  >
+                                    <span>Review Asset</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic px-2 py-1">No URL</span>
+                                )}
                               </div>
                             ))}
                           </div>

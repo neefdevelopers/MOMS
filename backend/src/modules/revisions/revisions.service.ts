@@ -572,6 +572,10 @@ export class RevisionsService {
       throw new ForbiddenException('You can only start revision work assigned to you.');
     }
 
+    if (revision.status !== 'ACCEPTED' && revision.status !== 'IN_PROGRESS' && user.role !== 'ADMINISTRATOR' && (user.role as string) !== 'ADMIN') {
+      throw new BadRequestException('Revision task must be accepted before starting production work. The revision task is currently read-only.');
+    }
+
     const updated = await this.prisma.revision.update({
       where: { id },
       data: { status: 'IN_PROGRESS' },

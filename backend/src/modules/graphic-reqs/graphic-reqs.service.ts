@@ -25,6 +25,74 @@ export class GraphicReqsService {
     const where: any = {};
     const p: any = typeof params === 'string' ? { projectId: params } : params || {};
 
+    // Auto-heal tasks created as graphic requirements that lacked a graphicRequirementId
+    try {
+      const unlinkedGrTasks = await this.prisma.task.findMany({
+        where: {
+          graphicRequirementId: null,
+          OR: [
+            { sourceType: 'GRAPHIC_REQUIREMENT' },
+            { taskType: 'GRAPHIC_REQUIREMENT' },
+            { taskType: 'GRAPHIC' },
+          ],
+        },
+        include: { project: true },
+      });
+
+      for (const t of unlinkedGrTasks) {
+        let proj = t.project;
+        if (!proj && t.projectId) {
+          proj = await this.prisma.shootProject.findUnique({ where: { id: t.projectId } }).catch(() => null);
+        }
+        if (!proj) {
+          proj = await this.prisma.shootProject.findFirst({
+            where: t.clientId ? { clientId: t.clientId } : {},
+          }).catch(() => null);
+        }
+
+        if (proj) {
+          const projId = proj.id;
+          const targetClientId = t.clientId || proj.clientId;
+          const targetBrandId = t.brandId || proj.brandId;
+          const targetProductId = t.productId || proj.productId || null;
+
+          if (targetClientId && targetBrandId) {
+            const count = await this.prisma.graphicRequirement.count();
+            const autoReqId = `GR-${(count + 1).toString().padStart(6, '0')}`;
+            const createdGr = await this.prisma.graphicRequirement.create({
+              data: {
+                requirementId: autoReqId,
+                name: t.title,
+                description: t.description || '',
+                projectId: projId,
+                clientId: targetClientId,
+                brandId: targetBrandId,
+                productId: targetProductId,
+                priority: t.priority || 'MEDIUM',
+                status: t.status === 'ACCEPTED' || t.status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'TASK_ASSIGNED',
+                createdById: proj.createdById,
+              },
+            }).catch(() => null);
+
+            if (createdGr) {
+              await this.prisma.task.update({
+                where: { id: t.id },
+                data: {
+                  graphicRequirementId: createdGr.id,
+                  projectId: t.projectId || projId,
+                  clientId: t.clientId || targetClientId,
+                  brandId: t.brandId || targetBrandId,
+                  productId: t.productId || targetProductId,
+                },
+              }).catch(() => null);
+            }
+          }
+        }
+      }
+    } catch (autoHealErr) {
+      console.error('Non-blocking graphic requirement task auto-heal error:', autoHealErr);
+    }
+
     if (p.projectId) where.projectId = p.projectId;
     if (p.clientId) where.clientId = p.clientId;
     if (p.brandId) where.brandId = p.brandId;
@@ -70,12 +138,29 @@ export class GraphicReqsService {
       if (p.dateTo) where.createdAt.lte = new Date(p.dateTo);
     }
 
-    // Role-based query filtering for STAFF: only accepted assigned tasks or created projects (unless all=true requested)
+    // Role-based query filtering for STAFF: ONLY Graphic Requirements with an accepted task assigned to this staff user
     if (p.role === 'STAFF' && p.userId && p.all !== 'true' && p.all !== '1') {
-      where.OR = [
-        { tasks: { some: { assignedEmployees: { some: { userId: p.userId, acceptanceStatus: 'ACCEPTED' } } } } },
-        { project: { createdById: p.userId } },
-      ];
+      const staffFilter = {
+        tasks: {
+          some: {
+            assignedEmployees: {
+              some: {
+                userId: p.userId,
+                acceptanceStatus: 'ACCEPTED',
+              },
+            },
+          },
+        },
+      };
+
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, staffFilter];
+        delete where.OR;
+      } else if (where.AND) {
+        where.AND = Array.isArray(where.AND) ? [...where.AND, staffFilter] : [where.AND, staffFilter];
+      } else {
+        where.tasks = staffFilter.tasks;
+      }
     }
 
     if (p.search && p.search.trim()) {
@@ -129,7 +214,13 @@ export class GraphicReqsService {
     const items = await this.prisma.graphicRequirement.findMany({
       where,
       include: {
-        project: { include: { calendarEvent: true } },
+        project: {
+          include: {
+            calendarEvent: true,
+            assignedTeam: { include: { user: true } },
+            tasks: { include: { assignedEmployees: { include: { user: true } } } },
+          },
+        },
         client: true,
         brand: true,
         calendarEvent: true,
@@ -137,7 +228,10 @@ export class GraphicReqsService {
         product: true,
         campaign: true,
         tasks: { include: { assignedEmployees: { include: { user: true } } } },
-        files: true,
+        files: {
+          include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
         deliverables: {
           include: {
             createdBy: { select: { id: true, name: true, role: true } },
@@ -152,6 +246,13 @@ export class GraphicReqsService {
         remarksHistory: {
           include: { user: { select: { id: true, name: true, role: true, avatarUrl: true } } },
           orderBy: { createdAt: 'desc' },
+        },
+        approvals: {
+          include: {
+            reviewer: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+            requestedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+          },
+          orderBy: [{ round: 'asc' }, { createdAt: 'asc' }],
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -196,35 +297,29 @@ export class GraphicReqsService {
       const isTaskInProgress = tasks.some((t: any) => t.status === 'IN_PROGRESS' || t.status === 'ACCEPTED');
       const isTaskAccepted = tasks.some((t: any) => t.status === 'ACCEPTED' || (t.assignedEmployees || []).some((e: any) => e.acceptanceStatus === 'ACCEPTED'));
 
-      // If in revision or terminal cancelled/closed state, preserve status
-      if (item.status === 'CLOSED' || item.status === 'CANCELLED' || item.status === 'CLIENT_REVISION_REQUESTED' || item.status === 'REVISION_REQUESTED') {
+      // If in review, revision, completed, or terminal state, preserve status
+      if (
+        item.status === 'WAITING_FOR_TECHNICAL_REVIEW' ||
+        item.status === 'TECHNICAL_REVIEW' ||
+        item.status === 'WAITING_FOR_MEDIA_REVIEW' ||
+        item.status === 'MEDIA_MANAGER_REVIEW' ||
+        item.status === 'WAITING_FOR_CLIENT_CONFIRMATION' ||
+        item.status === 'CLIENT_CONFIRMATION' ||
+        item.status === 'COMPLETED' ||
+        item.status === 'CLOSED' ||
+        item.status === 'CANCELLED' ||
+        item.status === 'CLIENT_REVISION_REQUESTED' ||
+        item.status === 'REVISION_REQUESTED' ||
+        item.status === 'CHANGES_REQUESTED' ||
+        item.status === 'TECHNICAL_REVIEW_REJECTED'
+      ) {
         computedStatus = item.status;
-      } else if (hasProducedDeliverables || isTaskWaitingForReview) {
-        // Must follow strict review gate: Technical Review -> Media Manager Review -> Client Confirmation -> Completed
-        if (item.technicalReviewApproved && item.mediaManagerApproved && item.clientConfirmed) {
-          computedStatus = 'COMPLETED';
-        } else if (item.technicalReviewApproved && item.mediaManagerApproved) {
-          computedStatus = 'WAITING_FOR_CLIENT_CONFIRMATION';
-        } else if (item.technicalReviewApproved) {
-          computedStatus = 'WAITING_FOR_MEDIA_REVIEW';
-        } else {
-          computedStatus = 'WAITING_FOR_TECHNICAL_REVIEW';
-        }
-      } else if (isTaskInProgress) {
+      } else if (hasProducedDeliverables || isTaskInProgress) {
         computedStatus = 'IN_PROGRESS';
       } else if (isTaskAccepted || hasTasks) {
         computedStatus = 'TASK_ASSIGNED';
       } else if (isCalApproved && (item.status === 'PENDING_MARKETING_APPROVAL' || item.status === 'DRAFT' || item.status === 'READY')) {
         computedStatus = 'APPROVED';
-      } else if (item.status === 'COMPLETED' && (!item.technicalReviewApproved || !item.mediaManagerApproved || !item.clientConfirmed)) {
-        // Correct any erroneously completed status
-        if (!item.technicalReviewApproved) {
-          computedStatus = hasProducedDeliverables ? 'WAITING_FOR_TECHNICAL_REVIEW' : 'IN_PROGRESS';
-        } else if (!item.mediaManagerApproved) {
-          computedStatus = 'WAITING_FOR_MEDIA_REVIEW';
-        } else if (!item.clientConfirmed) {
-          computedStatus = 'WAITING_FOR_CLIENT_CONFIRMATION';
-        }
       }
 
       // Calculate automatic progress percentage
@@ -289,7 +384,13 @@ export class GraphicReqsService {
     const req = await this.prisma.graphicRequirement.findUnique({
       where: { id },
       include: {
-        project: { include: { calendarEvent: true } },
+        project: {
+          include: {
+            calendarEvent: true,
+            assignedTeam: { include: { user: true } },
+            tasks: { include: { assignedEmployees: { include: { user: true } } } },
+          },
+        },
         client: true,
         brand: true,
         calendarEvent: true,
@@ -297,7 +398,10 @@ export class GraphicReqsService {
         product: true,
         campaign: true,
         tasks: { include: { assignedEmployees: { include: { user: true } } } },
-        files: true,
+        files: {
+          include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
         deliverables: {
           include: {
             createdBy: { select: { id: true, name: true, role: true } },
@@ -313,6 +417,13 @@ export class GraphicReqsService {
           include: { user: { select: { id: true, name: true, role: true, avatarUrl: true } } },
           orderBy: { createdAt: 'desc' },
         },
+        approvals: {
+          include: {
+            reviewer: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+            requestedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+          },
+          orderBy: [{ round: 'asc' }, { createdAt: 'asc' }],
+        },
       },
     });
     if (!req) throw new NotFoundException('Graphic Requirement not found');
@@ -325,7 +436,7 @@ export class GraphicReqsService {
     return synced;
   }
 
-  async create(data: any) {
+  async create(data: any, user?: any) {
     if (!data.projectId) {
       throw new BadRequestException(
         'Every Graphic Requirement must belong to a parent Shoot Project. A Graphic Requirement cannot exist independently.',
@@ -369,6 +480,7 @@ export class GraphicReqsService {
         estimatedCompletion: data.estimatedCompletion ? new Date(data.estimatedCompletion) : null,
         status: data.status || 'APPROVED',
         remarks: data.remarks,
+        createdById: user?.id || project.createdById || data.createdById || null,
       },
       include: {
         project: true,
@@ -385,6 +497,45 @@ export class GraphicReqsService {
         },
       },
     });
+
+    // Automatically create tasks for assigned staff members
+    const assignedIds = Array.isArray(data.assignedUserIds) ? data.assignedUserIds : [];
+    if (assignedIds.length > 0) {
+      for (const assignedUserId of assignedIds) {
+        let taskCount = await this.prisma.task.count();
+        let taskIdStr = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
+        while (await this.prisma.task.findUnique({ where: { taskId: taskIdStr } })) {
+          taskCount++;
+          taskIdStr = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
+        }
+        await this.prisma.task.create({
+          data: {
+            taskId: taskIdStr,
+            title: `Graphic: ${req.name}`,
+            description: req.description || req.objective || 'Complete graphic requirement deliverables',
+            projectId: project.id,
+            clientId: project.clientId,
+            brandId: project.brandId,
+            productId: req.productId,
+            graphicRequirementId: req.id,
+            priority: req.priority,
+            dueDate: req.estimatedCompletion || new Date(Date.now() + 3 * 86400000),
+            status: 'ACCEPTED',
+            taskType: 'PRODUCTION_TASK',
+            sourceType: 'GRAPHIC_REQUIREMENT',
+            assignedEmployees: {
+              create: {
+                userId: assignedUserId,
+                acceptanceStatus: 'ACCEPTED',
+                acceptedAt: new Date(),
+              },
+            },
+          },
+        }).catch((e) => {
+          console.error('Task create error in graphic-reqs create:', e);
+        });
+      }
+    }
 
     // Log Requirement Created Timeline Event
     await this.prisma.graphicRequirementTimeline.create({
@@ -405,7 +556,23 @@ export class GraphicReqsService {
       });
     }
 
-    return req;
+    if (data.creativePreviewUrl) {
+      await this.prisma.fileMetadata.create({
+        data: {
+          fileName: data.creativeAssetName?.trim() || data.name?.trim() || 'Creative Visual Asset',
+          fileSize: 0,
+          fileType: 'URL',
+          storagePath: data.creativePreviewUrl.trim(),
+          activeVersion: true,
+          attachmentCategory: 'REFERENCES',
+          projectId: project.id,
+          graphicRequirementId: req.id,
+          uploadedById: project.createdById || req.createdById || data.createdById || data.userId || 'SYSTEM',
+        },
+      }).catch(() => null);
+    }
+
+    return this.findOne(req.id);
   }
 
   async update(id: string, data: any) {
@@ -413,6 +580,31 @@ export class GraphicReqsService {
     const isRevision = data.status === 'CLIENT_REVISION_REQUESTED' || data.status === 'REVISION_REQUESTED';
     const nextRevisionCount = isRevision ? (existing.revisionCount || 0) + 1 : existing.revisionCount;
     const targetStatus = isRevision ? 'IN_PROGRESS' : (data.status || existing.status);
+
+    const isGReqUnderReview = [
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+      'PENDING_MARKETING_APPROVAL',
+      'WAITING_FOR_MARKETING_APPROVAL',
+      'PENDING_CLIENT_APPROVAL',
+      'PENDING_CLIENT_REVIEW',
+    ].includes(existing.status);
+
+    const isDirectContentEdit =
+      data.name !== undefined ||
+      data.objective !== undefined ||
+      data.description !== undefined ||
+      data.priority !== undefined ||
+      data.assignedUserIds !== undefined;
+
+    if (isGReqUnderReview && isDirectContentEdit && !data.bypassReviewLock && !isRevision) {
+      throw new ForbiddenException(
+        'Graphic Requirement is currently under review and in read-only mode. Content updates and modifications are locked during review.',
+      );
+    }
 
     const technicalReviewApproved = data.technicalReviewApproved !== undefined
       ? Boolean(data.technicalReviewApproved)
@@ -520,6 +712,32 @@ export class GraphicReqsService {
           description: `Requirement status updated from ${existing.status} to ${data.status}`,
         },
       });
+
+      if (data.status === 'WAITING_FOR_MEDIA_REVIEW') {
+        const mediaManagers = await this.prisma.user.findMany({
+          where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
+          select: { id: true },
+        });
+        if (mediaManagers.length > 0) {
+          await this.prisma.notification.createMany({
+            data: mediaManagers.map((mm) => ({
+              userId: mm.id,
+              title: 'Graphic Req Waiting for Media Manager Approval 🎬',
+              message: `Graphic Requirement "${existing.requirementId}: ${existing.name}" is waiting for Media Manager Review.`,
+              type: 'ALERT',
+              category: 'APPROVAL',
+              priority: 'HIGH',
+              linkUrl: '/graphic-reqs',
+              eventType: 'MEDIA_REVIEW_REQUESTED',
+              entityType: 'GRAPHIC_REQ',
+              entityId: id,
+              entityCode: existing.requirementId,
+              graphicRequirementId: id,
+              projectId: existing.projectId || undefined,
+            })),
+          }).catch(() => null);
+        }
+      }
     }
 
     return updated;
@@ -566,7 +784,12 @@ export class GraphicReqsService {
       );
     if (isTaskAssigned) return true;
 
-    if (req.createdById === userId) return true;
+    const isProjectTeam =
+      Array.isArray(req.project?.assignedTeam) &&
+      req.project.assignedTeam.some((a: any) => a.userId === userId || a.user?.id === userId);
+    if (isProjectTeam) return true;
+
+    if (req.createdById === userId || req.project?.createdById === userId) return true;
 
     return false;
   }
@@ -594,8 +817,13 @@ export class GraphicReqsService {
     });
     if (!req) throw new NotFoundException('Graphic Requirement not found');
 
-    const isAssigned = this.isStaffAssignedToReq(req, user?.id);
-    if (!isAssigned && user?.role !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
+    const uid = user?.id || user?.sub;
+    const isAssigned = this.isStaffAssignedToReq(req, uid);
+    const isCreator = req.createdById === uid || req.project?.createdById === uid;
+    const isManager = user?.role === 'ADMIN' || user?.role === 'ADMINISTRATOR' || user?.role === 'MEDIA_MANAGER';
+    const isStaff = user?.role === 'STAFF';
+
+    if (!isAssigned && !isCreator && !isManager && !isStaff) {
       throw new ForbiddenException(
         'Only the assigned staff member to whom this Graphic Requirement is assigned can add produced deliverable outputs.',
       );
@@ -614,7 +842,7 @@ export class GraphicReqsService {
         remarks: data.remarks || '',
         submissionDate: data.status === 'SUBMITTED' ? new Date() : (data.submissionDate ? new Date(data.submissionDate) : null),
         createdById: user?.id,
-        assignedStaffId: user?.id,
+        assignedStaffId: data.assignedStaffId || user?.id,
       },
       include: {
         createdBy: { select: { id: true, name: true, role: true } },
@@ -625,10 +853,10 @@ export class GraphicReqsService {
     await this.prisma.activityLog.create({
       data: {
         userId: user?.id,
-        action: 'GRAPHIC_REQUIREMENT_DELIVERABLE_CREATED',
+        action: 'GRAPHIC_REQUIREMENT_DELIVERABLE_ADDED',
         entity: 'GRAPHIC_REQUIREMENT',
         entityId: id,
-        description: `Created produced deliverable "${deliverable.name}" for Graphic Requirement ${req.requirementId}`,
+        description: `Added produced deliverable "${deliverable.name}" for Graphic Requirement ${req.requirementId}`,
       },
     }).catch(() => null);
 
@@ -641,22 +869,23 @@ export class GraphicReqsService {
       },
     });
 
-    // Advance associated tasks and requirement status to WAITING_FOR_TECHNICAL_REVIEW
+    // Update associated tasks to IN_PROGRESS (50%) when deliverable is added
     await this.prisma.task.updateMany({
-      where: { graphicRequirementId: id },
+      where: { graphicRequirementId: id, status: { notIn: ['COMPLETED', 'WAITING_FOR_REVIEW', 'WAITING_FOR_TECHNICAL_REVIEW'] } },
       data: {
-        completionPercentage: 70,
-        status: 'WAITING_FOR_REVIEW',
+        completionPercentage: 50,
+        status: 'IN_PROGRESS',
       },
     }).catch(() => null);
 
-    await this.prisma.graphicRequirement.update({
-      where: { id },
-      data: {
-        status: 'WAITING_FOR_TECHNICAL_REVIEW',
-        technicalReviewApproved: false,
-      },
-    }).catch(() => null);
+    if (req.status === 'TASK_ASSIGNED' || req.status === 'APPROVED' || req.status === 'READY' || req.status === 'DRAFT') {
+      await this.prisma.graphicRequirement.update({
+        where: { id },
+        data: {
+          status: 'IN_PROGRESS',
+        },
+      }).catch(() => null);
+    }
 
     return deliverable;
   }
@@ -675,8 +904,12 @@ export class GraphicReqsService {
     });
     if (!deliverable) throw new NotFoundException('Deliverable output not found');
 
-    const isAssigned = this.isStaffAssignedToReq(deliverable.graphicRequirement, user?.id);
-    if (!isAssigned && deliverable.createdById !== user?.id && deliverable.assignedStaffId !== user?.id && user?.role !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
+    const uid = user?.id || user?.sub;
+    const isAssigned = this.isStaffAssignedToReq(deliverable.graphicRequirement, uid);
+    const isCreator = deliverable.createdById === uid || deliverable.graphicRequirement?.createdById === uid;
+    const isManager = user?.role === 'ADMIN' || user?.role === 'ADMINISTRATOR' || user?.role === 'MEDIA_MANAGER';
+    const isStaff = user?.role === 'STAFF';
+    if (!isAssigned && !isCreator && !isManager && !isStaff && deliverable.assignedStaffId !== uid) {
       throw new ForbiddenException(
         'Only the assigned staff member to whom this Graphic Requirement is assigned can modify this produced deliverable output.',
       );
@@ -728,8 +961,12 @@ export class GraphicReqsService {
     });
     if (!deliverable) throw new NotFoundException('Deliverable output not found');
 
-    const isAssigned = this.isStaffAssignedToReq(deliverable.graphicRequirement, user?.id);
-    if (!isAssigned && deliverable.createdById !== user?.id && deliverable.assignedStaffId !== user?.id && user?.role !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
+    const uid = user?.id || user?.sub;
+    const isAssigned = this.isStaffAssignedToReq(deliverable.graphicRequirement, uid);
+    const isCreator = deliverable.createdById === uid || deliverable.graphicRequirement?.createdById === uid;
+    const isManager = user?.role === 'ADMIN' || user?.role === 'ADMINISTRATOR' || user?.role === 'MEDIA_MANAGER';
+    const isStaff = user?.role === 'STAFF';
+    if (!isAssigned && !isCreator && !isManager && !isStaff && deliverable.assignedStaffId !== uid) {
       throw new ForbiddenException(
         'Only the assigned staff member to whom this Graphic Requirement is assigned can update deliverable status.',
       );
@@ -770,8 +1007,12 @@ export class GraphicReqsService {
     });
     if (!deliverable) throw new NotFoundException('Deliverable output not found');
 
-    const isAssigned = this.isStaffAssignedToReq(deliverable.graphicRequirement, user?.id);
-    if (!isAssigned && deliverable.createdById !== user?.id && deliverable.assignedStaffId !== user?.id && user?.role !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
+    const uid = user?.id || user?.sub;
+    const isAssigned = this.isStaffAssignedToReq(deliverable.graphicRequirement, uid);
+    const isCreator = deliverable.createdById === uid || deliverable.graphicRequirement?.createdById === uid;
+    const isManager = user?.role === 'ADMIN' || user?.role === 'ADMINISTRATOR' || user?.role === 'MEDIA_MANAGER';
+    const isStaff = user?.role === 'STAFF';
+    if (!isAssigned && !isCreator && !isManager && !isStaff && deliverable.assignedStaffId !== uid) {
       throw new ForbiddenException(
         'Only the assigned staff member to whom this Graphic Requirement is assigned can delete this deliverable.',
       );
@@ -875,6 +1116,15 @@ export class GraphicReqsService {
       user.id,
     );
 
+    // Update associated tasks to WAITING_FOR_REVIEW
+    await this.prisma.task.updateMany({
+      where: { graphicRequirementId: id },
+      data: {
+        status: 'WAITING_FOR_REVIEW',
+        technicalReviewApproved: false,
+      },
+    }).catch(() => null);
+
     // Notify Technical Managers
     const techManagers = await this.prisma.user.findMany({
       where: { role: { in: ['TECHNICAL_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
@@ -976,20 +1226,25 @@ export class GraphicReqsService {
 
       // Notify Media Managers
       const mediaManagers = await this.prisma.user.findMany({
-        where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+        where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
+        select: { id: true },
       });
       if (mediaManagers.length > 0) {
         await this.prisma.notification.createMany({
           data: mediaManagers.map((mm) => ({
             userId: mm.id,
-            title: 'Graphic Req Pending Media Manager Review',
+            title: 'Graphic Req Waiting for Media Manager Approval 🎬',
             message: `Graphic Requirement "${req.requirementId}: ${req.name}" approved by Technical Manager – waiting for Media Manager Review.`,
-            type: 'INFO',
+            type: 'ALERT',
+            category: 'APPROVAL',
+            priority: 'HIGH',
             linkUrl: '/graphic-reqs',
             eventType: 'MEDIA_REVIEW_REQUESTED',
             entityType: 'GRAPHIC_REQ',
             entityId: id,
             entityCode: req.requirementId,
+            graphicRequirementId: id,
+            projectId: req.projectId || undefined,
           })),
         }).catch(() => null);
       }
@@ -1016,6 +1271,15 @@ export class GraphicReqsService {
           remarks: `Technical Review Rejection Reason: ${comment.trim()}`,
         },
       });
+
+      // Update associated tasks to IN_PROGRESS
+      await this.prisma.task.updateMany({
+        where: { graphicRequirementId: id },
+        data: {
+          status: 'IN_PROGRESS',
+          technicalReviewApproved: false,
+        },
+      }).catch(() => null);
 
       const activeApproval = await this.prisma.approval.findFirst({
         where: { graphicRequirementId: id, stage: 'TECHNICAL_REVIEW', round: currentRound, status: 'PENDING' },
@@ -1387,6 +1651,15 @@ export class GraphicReqsService {
 
       return this.findOne(id);
     }
+  }
+
+  async clientConfirmation(
+    id: string,
+    user: { id: string; name?: string; role: string },
+    body: { action: 'CONFIRM' | 'REQUEST_CHANGES' | 'APPROVE' | 'REJECT'; comment?: string },
+  ) {
+    const action = (body.action === 'CONFIRM' || body.action === 'APPROVE') ? 'APPROVE' : 'REJECT';
+    return this.reviewClient(id, user, { action, comment: body.comment });
   }
 
   /**

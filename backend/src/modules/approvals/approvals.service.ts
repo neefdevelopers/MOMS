@@ -26,11 +26,31 @@ export class ApprovalsService {
     });
 
     const grTechQueue = await this.prisma.graphicRequirement.findMany({
-      where: { status: 'WAITING_FOR_TECHNICAL_REVIEW' },
+      where: {
+        OR: [
+          { status: 'WAITING_FOR_TECHNICAL_REVIEW' },
+          { status: 'TECHNICAL_REVIEW' },
+          { preTechnicalReviewStatus: 'WAITING_FOR_TECHNICAL_REVIEW' },
+          { tasks: { some: { status: 'WAITING_FOR_TECHNICAL_REVIEW' } } },
+        ],
+      },
       include: {
         client: true,
         brand: true,
-        files: true,
+        files: {
+          include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+        deliverables: {
+          include: {
+            createdBy: { select: { id: true, name: true, role: true } },
+            assignedStaff: { select: { id: true, name: true, role: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        calendarEvent: {
+          include: { createdBy: { select: { id: true, name: true, role: true } } },
+        },
         tasks: taskIncludes,
       },
     });
@@ -47,11 +67,30 @@ export class ApprovalsService {
     });
 
     const grMediaQueue = await this.prisma.graphicRequirement.findMany({
-      where: { status: 'WAITING_FOR_MEDIA_REVIEW' },
+      where: {
+        OR: [
+          { status: 'WAITING_FOR_MEDIA_REVIEW' },
+          { status: 'MEDIA_MANAGER_REVIEW' },
+          { tasks: { some: { status: 'WAITING_FOR_MEDIA_REVIEW' } } },
+        ],
+      },
       include: {
         client: true,
         brand: true,
-        files: true,
+        files: {
+          include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+        deliverables: {
+          include: {
+            createdBy: { select: { id: true, name: true, role: true } },
+            assignedStaff: { select: { id: true, name: true, role: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        calendarEvent: {
+          include: { createdBy: { select: { id: true, name: true, role: true } } },
+        },
         tasks: taskIncludes,
       },
     });
@@ -85,7 +124,17 @@ export class ApprovalsService {
       include: {
         client: true,
         brand: true,
-        files: true,
+        files: {
+          include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+        deliverables: {
+          include: {
+            createdBy: { select: { id: true, name: true, role: true } },
+            assignedStaff: { select: { id: true, name: true, role: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
         tasks: taskIncludes,
       },
     });
@@ -95,7 +144,17 @@ export class ApprovalsService {
       include: {
         client: true,
         brand: true,
-        files: true,
+        files: {
+          include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+        deliverables: {
+          include: {
+            createdBy: { select: { id: true, name: true, role: true } },
+            assignedStaff: { select: { id: true, name: true, role: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
         tasks: taskIncludes,
       },
     });
@@ -119,6 +178,10 @@ export class ApprovalsService {
       brand: gr.brand,
       status: gr.status,
       files: gr.files,
+      deliverables: gr.deliverables,
+      calendarEvent: gr.calendarEvent,
+      creativePreviewUrl: gr.calendarEvent?.creativePreviewUrl,
+      creativeAssetName: gr.calendarEvent?.title || gr.files?.[0]?.fileName || 'Creative Visual Asset',
       tasks: gr.tasks,
       isGraphicRequirement: true,
     }));
@@ -131,6 +194,10 @@ export class ApprovalsService {
       brand: gr.brand,
       status: gr.status,
       files: gr.files,
+      deliverables: gr.deliverables,
+      calendarEvent: gr.calendarEvent,
+      creativePreviewUrl: gr.calendarEvent?.creativePreviewUrl,
+      creativeAssetName: gr.calendarEvent?.title || gr.files?.[0]?.fileName || 'Creative Visual Asset',
       tasks: gr.tasks,
       isGraphicRequirement: true,
     }));
@@ -240,10 +307,10 @@ export class ApprovalsService {
     const targetEntity = script ? 'SCRIPT' : task ? 'TASK' : gReq ? 'GRAPHIC_REQ' : 'PROJECT';
     const pendingApproval = await this.prisma.approval.findFirst({
       where: {
-        entityType: targetEntity,
-        entityId: targetId,
-        approvalType: ApprovalType.TECHNICAL_REVIEW,
-        status: 'PENDING',
+        OR: [
+          { entityType: targetEntity, entityId: targetId, approvalType: ApprovalType.TECHNICAL_REVIEW, status: 'PENDING' },
+          ...(gReq ? [{ graphicRequirementId: gReq.id, stage: 'TECHNICAL_REVIEW', status: 'PENDING' }] : []),
+        ],
       },
     });
 
@@ -255,6 +322,9 @@ export class ApprovalsService {
           reviewerId,
           status: data.status === 'APPROVED' ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
           remarks: data.remarks || (data.status === 'APPROVED' ? 'Technical standards passed.' : 'Technical revisions required.'),
+          reviewedAt: new Date(),
+          graphicRequirementId: gReq ? gReq.id : pendingApproval.graphicRequirementId,
+          returnedStatus: data.status === 'APPROVED' ? 'WAITING_FOR_MEDIA_REVIEW' : 'IN_PROGRESS',
         },
       });
     } else {
@@ -262,12 +332,20 @@ export class ApprovalsService {
         data: {
           entityType: targetEntity,
           entityId: targetId,
+          graphicRequirementId: gReq ? gReq.id : null,
           scriptId: script ? script.id : null,
-          projectId: project ? project.id : task?.projectId || script?.projectId || null,
+          projectId: project ? project.id : task?.projectId || script?.projectId || gReq?.projectId || null,
           approvalType: ApprovalType.TECHNICAL_REVIEW,
+          stage: 'TECHNICAL_REVIEW',
+          round: gReq ? (gReq.technicalReviewRound || 1) : 1,
+          version: gReq ? `v${gReq.technicalReviewRound || 1}` : 'v1',
+          targetRole: 'TECHNICAL_MANAGER',
+          requestedById: gReq?.createdById || null,
           reviewerId,
           status: data.status === 'APPROVED' ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
           remarks: data.remarks || (data.status === 'APPROVED' ? 'Technical standards passed.' : 'Technical revisions required.'),
+          returnedStatus: data.status === 'APPROVED' ? 'WAITING_FOR_MEDIA_REVIEW' : 'IN_PROGRESS',
+          reviewedAt: new Date(),
         },
       });
     }
@@ -290,8 +368,43 @@ export class ApprovalsService {
         data: {
           status: newGrStatus,
           technicalReviewApproved: data.status === 'APPROVED',
+          preTechnicalReviewStatus: 'IN_PROGRESS',
+          rejectionReason: data.status === 'REJECTED' ? (data.remarks || 'Technical revisions required.').trim() : null,
+          rejectedAt: data.status === 'REJECTED' ? new Date() : null,
+          remarks: data.status === 'REJECTED'
+            ? `Technical Review Rejection Reason: ${(data.remarks || 'Technical revisions required.').trim()}`
+            : gReq.remarks,
         },
       });
+
+      // Log timeline and remark on gReq
+      try {
+        const reviewerUser = await this.prisma.user.findUnique({ where: { id: reviewerId }, select: { name: true } });
+        const reviewerName = reviewerUser?.name || 'Technical Manager';
+
+        await this.prisma.graphicRequirementTimeline.create({
+          data: {
+            graphicRequirementId: gReq.id,
+            userId: reviewerId,
+            event: data.status === 'APPROVED' ? 'TECHNICAL_REVIEW_APPROVED' : 'TECHNICAL_REVIEW_REJECTED',
+            description: data.status === 'APPROVED'
+              ? `Technical Review APPROVED by ${reviewerName}.${data.remarks ? ' Remarks: ' + data.remarks : ''}`
+              : `Technical Review REJECTED by ${reviewerName}. Reason: ${data.remarks || 'Technical revisions required.'}`,
+          },
+        }).catch(() => null);
+
+        await this.prisma.graphicRequirementRemark.create({
+          data: {
+            graphicRequirementId: gReq.id,
+            userId: reviewerId,
+            message: data.status === 'APPROVED'
+              ? `✅ Technical Review APPROVED by ${reviewerName}. Forwarded for Level 2: Media Manager Review.`
+              : `❌ Technical Review REJECTED by ${reviewerName}: ${data.remarks || 'Technical revisions required.'}. Returned to status: ${newGrStatus}`,
+          },
+        }).catch(() => null);
+      } catch (err) {
+        console.error('Failed to log gReq timeline/remark during tech review:', err);
+      }
     }
 
     if (task) {
@@ -388,6 +501,7 @@ export class ApprovalsService {
       });
       if (mediaManagers.length > 0) {
         const entityLabel = task ? `Task ${task.taskId} ('${task.title}')` : script ? `Script "${script.scriptId}: ${script.name}"` : project ? `Project "${project.name}"` : gReq ? `Graphic Requirement "${gReq.name}"` : 'Production item';
+        const targetLink = task ? '/tasks' : script ? '/scripts' : gReq ? '/graphic-reqs' : project ? `/projects/${project.id}` : '/approvals';
         await this.prisma.notification.createMany({
           data: mediaManagers.map((mm) => ({
             userId: mm.id,
@@ -396,13 +510,15 @@ export class ApprovalsService {
             type: 'ALERT',
             category: 'APPROVAL',
             priority: 'HIGH',
-            linkUrl: task ? '/tasks' : script ? '/scripts' : '/approvals',
+            linkUrl: targetLink,
             eventType: 'MEDIA_REVIEW_REQUESTED',
             entityType: task ? 'TASK' : script ? 'SCRIPT' : project ? 'PROJECT' : 'GRAPHIC_REQ',
             entityId: (task?.id || script?.id || project?.id || gReq?.id) as string,
+            entityCode: task?.taskId || script?.scriptId || project?.projectId || gReq?.requirementId || undefined,
             taskId: task?.id || undefined,
             projectId: project?.id || task?.projectId || undefined,
             scriptId: script?.id || task?.scriptId || undefined,
+            graphicRequirementId: gReq?.id || undefined,
           })),
         }).catch(() => null);
       }

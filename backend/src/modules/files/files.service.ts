@@ -79,7 +79,7 @@ export class FilesService {
     const uploadedById = typeof userParam === 'string' ? userParam : userParam?.id;
     const userRole = typeof userParam === 'object' ? userParam?.role : null;
 
-    if (data.graphicRequirementId && userRole !== 'ADMIN' && userRole !== 'ADMINISTRATOR' && uploadedById) {
+    if (data.graphicRequirementId) {
       const gReq = await this.prisma.graphicRequirement.findUnique({
         where: { id: data.graphicRequirementId },
         include: {
@@ -88,20 +88,41 @@ export class FilesService {
         },
       });
       if (gReq) {
-        const isTaskAssigned =
-          Array.isArray(gReq.tasks) &&
-          gReq.tasks.some(
-            (t: any) =>
-              t.assignedToId === uploadedById ||
-              (Array.isArray(t.assignedEmployees) &&
-                t.assignedEmployees.some((e: any) => e.userId === uploadedById || e.employeeId === uploadedById || e.user?.id === uploadedById)),
-          );
-        const isCreator = (gReq as any).createdById === uploadedById;
+        const isGReqReviewLocked = [
+          'WAITING_FOR_TECHNICAL_REVIEW',
+          'TECHNICAL_REVIEW',
+          'WAITING_FOR_MEDIA_REVIEW',
+          'MEDIA_MANAGER_REVIEW',
+          'WAITING_FOR_MARKETING_APPROVAL',
+          'PENDING_MARKETING_APPROVAL',
+          'PENDING_CLIENT_APPROVAL',
+          'PENDING_CLIENT_REVIEW',
+          'WAITING_FOR_CLIENT_CONFIRMATION',
+          'COMPLETED',
+        ].includes(gReq.status);
 
-        if (!isTaskAssigned && !isCreator) {
+        if (isGReqReviewLocked && userRole !== 'ADMIN' && userRole !== 'ADMINISTRATOR') {
           throw new ForbiddenException(
-            'Only the assigned team/staff member to whom this Graphic Requirement is assigned can upload deliverable files.',
+            'Graphic Requirement is currently under review and in read-only mode. Deliverable uploads are locked during review.',
           );
+        }
+
+        if (userRole !== 'ADMIN' && userRole !== 'ADMINISTRATOR' && uploadedById) {
+          const isTaskAssigned =
+            Array.isArray(gReq.tasks) &&
+            gReq.tasks.some(
+              (t: any) =>
+                t.assignedToId === uploadedById ||
+                (Array.isArray(t.assignedEmployees) &&
+                  t.assignedEmployees.some((e: any) => e.userId === uploadedById || e.employeeId === uploadedById || e.user?.id === uploadedById)),
+            );
+          const isCreator = (gReq as any).createdById === uploadedById;
+
+          if (!isTaskAssigned && !isCreator) {
+            throw new ForbiddenException(
+              'Only the assigned team/staff member to whom this Graphic Requirement is assigned can upload deliverable files.',
+            );
+          }
         }
       }
     }
@@ -109,11 +130,21 @@ export class FilesService {
     if (data.scriptId) {
       const script = await this.prisma.script.findUnique({ where: { id: data.scriptId } });
       if (script) {
-        const isReviewLocked = ['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_MARKETING_APPROVAL', 'COMPLETED'].includes(script.status);
-        const isStaffUser = userRole === 'STAFF' || userRole === 'SOCIAL_MEDIA_MANAGER';
-        if (isReviewLocked && isStaffUser) {
+        const isReviewLocked = [
+          'WAITING_FOR_TECHNICAL_REVIEW',
+          'TECHNICAL_REVIEW',
+          'WAITING_FOR_MEDIA_REVIEW',
+          'MEDIA_MANAGER_REVIEW',
+          'WAITING_FOR_MARKETING_APPROVAL',
+          'PENDING_MARKETING_APPROVAL',
+          'PENDING_CLIENT_APPROVAL',
+          'PENDING_CLIENT_REVIEW',
+          'WAITING_FOR_CLIENT_CONFIRMATION',
+          'COMPLETED',
+        ].includes(script.status);
+        if (isReviewLocked && userRole !== 'ADMIN' && userRole !== 'ADMINISTRATOR') {
           throw new ForbiddenException(
-            'Script is currently under review. File uploads and attachment modifications are locked for staff during review.',
+            'Script is currently under review and in read-only mode. File uploads and deliverable additions are locked during review.',
           );
         }
       }
@@ -121,6 +152,25 @@ export class FilesService {
 
     const project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
     if (!project) throw new NotFoundException('Parent project not found');
+
+    const isProjectReviewLocked = [
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_MARKETING_APPROVAL',
+      'PENDING_MARKETING_APPROVAL',
+      'PENDING_CLIENT_APPROVAL',
+      'PENDING_CLIENT_REVIEW',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+      'COMPLETED',
+    ].includes(project.status);
+
+    if (isProjectReviewLocked && userRole !== 'ADMIN' && userRole !== 'ADMINISTRATOR') {
+      throw new ForbiddenException(
+        'Project is currently under review and in read-only mode. File uploads and deliverable additions are locked during review.',
+      );
+    }
 
     const folderCategory = data.folderCategory || 'Final Deliverables';
     const attachmentCategory = data.attachmentCategory || 'SCRIPT_DOCUMENT';
@@ -264,9 +314,29 @@ export class FilesService {
       storagePath?: string;
     },
     uploadedById: string,
+    userRole?: string,
   ) {
     const project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
     if (!project) throw new NotFoundException('Project not found');
+
+    const isProjectReviewLocked = [
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_MARKETING_APPROVAL',
+      'PENDING_MARKETING_APPROVAL',
+      'PENDING_CLIENT_APPROVAL',
+      'PENDING_CLIENT_REVIEW',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+      'COMPLETED',
+    ].includes(project.status);
+
+    if (isProjectReviewLocked && userRole !== 'ADMIN' && userRole !== 'ADMINISTRATOR') {
+      throw new ForbiddenException(
+        'Project is currently under review and in read-only mode. Adding deliverables is locked during review.',
+      );
+    }
 
     const relativePath =
       data.storagePath || `/deliverables/${project.projectId}/${data.deliverableType}/${data.fileName}`;

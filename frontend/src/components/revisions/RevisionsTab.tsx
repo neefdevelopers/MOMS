@@ -29,6 +29,7 @@ interface RevisionsTabProps {
   previousVersionUrl?: string;
   onRefresh?: () => void;
   isRevision?: boolean;
+  readOnly?: boolean;
 }
 
 export default function RevisionsTab({
@@ -43,6 +44,7 @@ export default function RevisionsTab({
   previousVersionUrl,
   onRefresh,
   isRevision = false,
+  readOnly = false,
 }: RevisionsTabProps) {
   const [revisions, setRevisions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,7 +142,7 @@ export default function RevisionsTab({
   };
 
   const isRevisionItem = isRevision || (entityType === 'TASK' && (currentStatus === 'REVISION_REQUESTED' || currentStatus === 'CLIENT_REVISION_REQUESTED'));
-  const canRequestRevision = !isRevisionItem && (userRole === 'MEDIA_MANAGER' || userRole === 'TECHNICAL_MANAGER' || userRole === 'ADMIN' || userRole === 'ADMINISTRATOR');
+  const canRequestRevision = !readOnly && !isRevisionItem && (userRole === 'MEDIA_MANAGER' || userRole === 'TECHNICAL_MANAGER' || userRole === 'ADMIN' || userRole === 'ADMINISTRATOR');
 
   if (isRevisionItem && revisions.length === 0 && !loading) {
     return null;
@@ -332,7 +334,7 @@ export default function RevisionsTab({
                 </div>
 
                 {/* Workflow Actions for Assigned Employee */}
-                {isAssignedToUser && rev.status !== 'APPROVED' && (
+                {!readOnly && isAssignedToUser && rev.status !== 'APPROVED' && (
                   <div className="bg-slate-50 p-4 rounded-xl border border-blue-200 space-y-3 pt-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-blue-700 font-bold flex items-center gap-1.5">
@@ -353,7 +355,7 @@ export default function RevisionsTab({
                         </button>
                       )}
 
-                      {(rev.status === 'REVISION_REQUESTED' || rev.status === 'ACCEPTED') && (
+                      {rev.status === 'ACCEPTED' && (
                         <button
                           onClick={() => handleStart(rev.id)}
                           className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition-colors shadow-xs"
@@ -411,7 +413,7 @@ export default function RevisionsTab({
                 )}
 
                 {/* Workflow Actions for Reviewer */}
-                {isReviewer && rev.status === 'SUBMITTED' && (
+                {!readOnly && isReviewer && rev.status === 'SUBMITTED' && (
                   <div className="bg-slate-50 p-4 rounded-xl border border-emerald-200 space-y-3">
                     <span className="text-xs text-emerald-700 font-bold flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 text-emerald-600" /> Reviewer Decision for Revised Deliverable:

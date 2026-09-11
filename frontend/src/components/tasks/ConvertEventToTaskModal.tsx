@@ -366,7 +366,7 @@ export default function ConvertEventToTaskModal({
             <div className="text-slate-900 font-bold text-xs">
               {eventData.parentCode ? `[${eventData.parentCode}] ` : ''}{eventData.title}
             </div>
-            {eventData.createdBy && (
+            {eventData.parentType !== 'GRAPHIC_REQ' && eventData.createdBy && (
               <div className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-1.5 border-t border-slate-200">
                 <User className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                 <span>Created by: <strong className="text-slate-800">{eventData.createdBy.name || (eventData.createdBy.role ? eventData.createdBy.role.replace(/_/g, ' ') : 'Creator')}</strong></span>
@@ -489,6 +489,59 @@ export default function ConvertEventToTaskModal({
               </div>
             )}
           </div>
+
+          {/* Equipment Requirements / Allocation (For Graphic Requirements) */}
+          {eventData.parentType === 'GRAPHIC_REQ' && (() => {
+            const availableEquipmentList = equipmentList.filter((eq) => eq.availability === 'AVAILABLE');
+            const hasEquipmentData = selectedEquipmentIds.length > 0;
+
+            return (
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-purple-600" />
+                    <span>Required Equipment</span>
+                  </span>
+                  <span className="text-[10px] font-mono font-semibold text-slate-500">
+                    {hasEquipmentData
+                      ? `${selectedEquipmentIds.length} Selected (${availableEquipmentList.length} Available)`
+                      : 'No Equipment Required'}
+                  </span>
+                </label>
+
+                {hasEquipmentData ? (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5 custom-scrollbar">
+                    {equipmentList
+                      .filter((eq) => selectedEquipmentIds.includes(eq.id))
+                      .map((eq) => (
+                        <div
+                          key={eq.id}
+                          className="flex items-center justify-between p-2 rounded-xl border bg-purple-50 border-purple-300 text-purple-900 font-bold text-xs"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Camera className="w-3.5 h-3.5 text-purple-600" />
+                            <span>{eq.name} <span className="font-mono text-[10px] text-slate-500">({eq.equipmentId})</span></span>
+                          </div>
+                          <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                            {eq.availability || 'AVAILABLE'}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-slate-50/80 border border-slate-200 rounded-xl text-slate-600 space-y-1">
+                    <div className="flex items-center gap-2 font-semibold text-xs text-slate-700">
+                      <Camera className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span>No equipment required / No equipment available</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      No equipment is associated with or required for this Graphic Requirement.
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Equipment Requirements / Allocation (For Shoot Projects Only) */}
           {eventData.parentType === 'PROJECT' && (() => {

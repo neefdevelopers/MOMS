@@ -713,6 +713,32 @@ export class ScriptsService {
       await this.logTimeline(id, 'SCRIPT_UPDATED', 'Script Updated', data.updatedById);
     }
 
+    if (finalStatus === 'WAITING_FOR_MEDIA_REVIEW' && existing.status !== 'WAITING_FOR_MEDIA_REVIEW') {
+      const mediaManagers = await this.prisma.user.findMany({
+        where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
+        select: { id: true },
+      });
+      if (mediaManagers.length > 0) {
+        await this.prisma.notification.createMany({
+          data: mediaManagers.map((mm) => ({
+            userId: mm.id,
+            title: 'Script Waiting for Media Manager Approval 🎬',
+            message: `Script "${existing.scriptId}: ${existing.name}" is waiting for Media Manager Review.`,
+            type: 'ALERT',
+            category: 'APPROVAL',
+            priority: 'HIGH',
+            linkUrl: '/scripts',
+            eventType: 'MEDIA_REVIEW_REQUESTED',
+            entityType: 'SCRIPT',
+            entityId: id,
+            entityCode: existing.scriptId,
+            scriptId: id,
+            projectId: existing.projectId || undefined,
+          })),
+        }).catch(() => null);
+      }
+    }
+
     await this.syncLinkedTasks(id, updated);
     return updated;
   }
@@ -976,22 +1002,26 @@ export class ScriptsService {
 
       // Notify Media Managers
       const mediaManagers = await this.prisma.user.findMany({
-        where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+        where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
+        select: { id: true },
       });
 
       if (mediaManagers.length > 0) {
         await this.prisma.notification.createMany({
           data: mediaManagers.map((mm) => ({
             userId: mm.id,
-            title: 'Script Pending Media Manager Review',
+            title: 'Script Waiting for Media Manager Approval 🎬',
             message: `Script "${script.scriptId}: ${script.name}" was approved by Technical Manager and is waiting for Media Manager Review.`,
-            type: 'INFO',
+            type: 'ALERT',
+            category: 'APPROVAL',
+            priority: 'HIGH',
             linkUrl: '/scripts',
             eventType: 'MEDIA_REVIEW_REQUESTED',
             entityType: 'SCRIPT',
             entityId: script.id,
             entityCode: script.scriptId,
             scriptId: script.id,
+            projectId: script.projectId || undefined,
           })),
         }).catch(() => null);
       }

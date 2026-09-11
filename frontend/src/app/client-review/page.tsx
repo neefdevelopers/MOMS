@@ -620,7 +620,7 @@ export default function ClientReviewPage() {
               </div>
 
               <div className="flex items-center gap-1.5">
-                {selectedEvent.shootProjects?.[0]?.id ? (
+                {selectedEvent.shootProjects?.[0]?.id && (
                   <a
                     href={`/projects/${selectedEvent.shootProjects[0].id}`}
                     target="_blank"
@@ -630,17 +630,7 @@ export default function ClientReviewPage() {
                     <span>View Shoot Details</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
-                ) : selectedEvent.graphicRequirement?.id ? (
-                  <a
-                    href={`/graphic-reqs?reqId=${selectedEvent.graphicRequirement.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 font-bold text-[11px] border border-amber-200 flex items-center gap-1"
-                  >
-                    <span>View Requirement Details</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                ) : null}
+                )}
               </div>
             </div>
 

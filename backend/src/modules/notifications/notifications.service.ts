@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export type OperationalEntityType =
@@ -181,8 +181,32 @@ export interface CreateOperationalNotificationDto {
 }
 
 @Injectable()
-export class NotificationsService {
+export class NotificationsService implements OnModuleInit, OnModuleDestroy {
+  private reminderInterval: NodeJS.Timeout | null = null;
+
   constructor(private prisma: PrismaService) {}
+
+  onModuleInit() {
+    // Initial check shortly after startup
+    setTimeout(() => {
+      this.checkAndDispatchReminders().catch((err) =>
+        console.error('Initial reminder check error:', err),
+      );
+    }, 10000);
+
+    // Periodic background scan every 3 minutes
+    this.reminderInterval = setInterval(() => {
+      this.checkAndDispatchReminders().catch((err) =>
+        console.error('Periodic reminder check error:', err),
+      );
+    }, 3 * 60 * 1000);
+  }
+
+  onModuleDestroy() {
+    if (this.reminderInterval) {
+      clearInterval(this.reminderInterval);
+    }
+  }
 
   /**
    * Business Rule Enforcement:
@@ -192,6 +216,9 @@ export class NotificationsService {
    * 4. Each notification has one priority level (LOW, MEDIUM, HIGH, CRITICAL).
    */
   async notifyOperationalEvent(dto: CreateOperationalNotificationDto) {
+    if (!dto.userId) {
+      return null;
+    }
     if (!dto.eventType || !dto.eventType.trim()) {
       throw new BadRequestException('Notification must belong to a valid operational event (eventType is required).');
     }
@@ -343,7 +370,7 @@ export class NotificationsService {
    */
   async notifyMediaManagers(dto: Omit<CreateOperationalNotificationDto, 'userId'>) {
     const mediaManagers = await this.prisma.user.findMany({
-      where: { role: 'MEDIA_MANAGER', isArchived: false, status: 'ACTIVE' },
+      where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] as any }, isArchived: false, status: 'ACTIVE' },
       select: { id: true },
     });
     return this.notifyMultipleEmployees(
@@ -1055,7 +1082,7 @@ export class NotificationsService {
     }
 
     // ── 3. Pending Reviews ──
-    // 3a. Technical Review
+    // 3a. Technical Review (Scripts, Tasks, Graphic Reqs, Shoot Projects)
     const pendingTechScripts = await this.prisma.script.findMany({
       where: { status: 'WAITING_FOR_TECHNICAL_REVIEW' },
       include: { project: { select: { id: true, projectId: true } } },
@@ -1073,12 +1100,83 @@ export class NotificationsService {
           entityCode: sc.scriptId,
           scriptId: sc.id,
           projectId: sc.projectId || undefined,
+          linkUrl: '/approvals',
         });
         dispatchedCount++;
       }
     }
 
-    // 3b. Media Manager Review
+    const pendingTechTasks = await this.prisma.task.findMany({
+      where: { status: 'WAITING_FOR_TECHNICAL_REVIEW' },
+      include: { project: { select: { id: true, projectId: true } } },
+    });
+    for (const task of pendingTechTasks) {
+      if (!(await hasRecentReminder('TASK', task.id, 'TECHNICAL_REVIEW_REQUIRED'))) {
+        await this.notifyTechnicalManagers({
+          title: `Pending Technical Review: ${task.taskId}`,
+          message: `Task '${task.title}' is waiting for Technical Manager review.`,
+          type: 'ALERT',
+          category: 'APPROVAL_REQUEST',
+          priority: 'HIGH',
+          eventType: 'TECHNICAL_REVIEW_REQUIRED',
+          entityType: 'TASK',
+          entityId: task.id,
+          entityCode: task.taskId,
+          taskId: task.id,
+          projectId: task.projectId || undefined,
+          linkUrl: '/approvals',
+        });
+        dispatchedCount++;
+      }
+    }
+
+    const pendingTechGReqs = await this.prisma.graphicRequirement.findMany({
+      where: { status: 'WAITING_FOR_TECHNICAL_REVIEW' },
+      include: { project: { select: { id: true, projectId: true } } },
+    });
+    for (const gr of pendingTechGReqs) {
+      if (!(await hasRecentReminder('GRAPHIC_REQ', gr.id, 'TECHNICAL_REVIEW_REQUIRED'))) {
+        await this.notifyTechnicalManagers({
+          title: `Pending Technical Review: ${gr.requirementId}`,
+          message: `Graphic Requirement '${gr.name}' is waiting for Technical Manager review.`,
+          type: 'ALERT',
+          category: 'APPROVAL_REQUEST',
+          priority: 'HIGH',
+          eventType: 'TECHNICAL_REVIEW_REQUIRED',
+          entityType: 'GRAPHIC_REQUIREMENT',
+          entityId: gr.id,
+          entityCode: gr.requirementId,
+          graphicRequirementId: gr.id,
+          projectId: gr.projectId || undefined,
+          linkUrl: '/approvals',
+        });
+        dispatchedCount++;
+      }
+    }
+
+    const pendingTechProjects = await this.prisma.shootProject.findMany({
+      where: { status: 'WAITING_FOR_TECHNICAL_REVIEW' as any },
+    });
+    for (const proj of pendingTechProjects) {
+      if (!(await hasRecentReminder('PROJECT', proj.id, 'TECHNICAL_REVIEW_REQUIRED'))) {
+        await this.notifyTechnicalManagers({
+          title: `Pending Technical Review: ${proj.projectId}`,
+          message: `Shoot Project '${proj.name}' is waiting for Technical Manager review.`,
+          type: 'ALERT',
+          category: 'APPROVAL_REQUEST',
+          priority: 'HIGH',
+          eventType: 'TECHNICAL_REVIEW_REQUIRED',
+          entityType: 'PROJECT',
+          entityId: proj.id,
+          entityCode: proj.projectId,
+          projectId: proj.id,
+          linkUrl: '/approvals',
+        });
+        dispatchedCount++;
+      }
+    }
+
+    // 3b. Media Manager Review (Tasks, Scripts, Graphic Reqs, Shoot Projects, Calendar Events)
     const pendingMediaScripts = await this.prisma.script.findMany({
       where: { status: 'WAITING_FOR_MEDIA_REVIEW' },
       include: { project: { select: { id: true, projectId: true } } },
@@ -1086,16 +1184,127 @@ export class NotificationsService {
     for (const sc of pendingMediaScripts) {
       if (!(await hasRecentReminder('SCRIPT', sc.id, 'MEDIA_REVIEW_REQUIRED'))) {
         await this.notifyMediaManagers({
-          title: `Pending Media Manager Review: ${sc.scriptId}`,
+          title: `Pending Media Manager Review: ${sc.scriptId} 🎬`,
           message: `Script '${sc.name}' is awaiting Media Manager final review.`,
-          type: 'INFO',
+          type: 'ALERT',
           category: 'APPROVAL_REQUEST',
+          priority: 'HIGH',
           eventType: 'MEDIA_REVIEW_REQUIRED',
           entityType: 'SCRIPT',
           entityId: sc.id,
           entityCode: sc.scriptId,
           scriptId: sc.id,
           projectId: sc.projectId || undefined,
+          linkUrl: '/scripts',
+        });
+        dispatchedCount++;
+      }
+    }
+
+    const pendingMediaTasks = await this.prisma.task.findMany({
+      where: { status: 'WAITING_FOR_MEDIA_REVIEW' },
+      include: {
+        project: { select: { id: true, projectId: true, name: true } },
+        graphicRequirement: { select: { id: true, requirementId: true, name: true } },
+        script: { select: { id: true, scriptId: true, name: true } },
+      },
+    });
+    for (const task of pendingMediaTasks) {
+      if (!(await hasRecentReminder('TASK', task.id, 'MEDIA_REVIEW_REQUIRED'))) {
+        await this.notifyMediaManagers({
+          title: `Pending Media Manager Review: ${task.taskId} 🎬`,
+          message: `Task '${task.title}' is waiting for Media Manager Approval.`,
+          type: 'ALERT',
+          category: 'APPROVAL_REQUEST',
+          priority: 'HIGH',
+          eventType: 'MEDIA_REVIEW_REQUIRED',
+          entityType: 'TASK',
+          entityId: task.id,
+          entityCode: task.taskId,
+          taskId: task.id,
+          projectId: task.projectId || undefined,
+          scriptId: task.scriptId || undefined,
+          graphicRequirementId: task.graphicRequirementId || undefined,
+          linkUrl: '/tasks',
+        });
+        dispatchedCount++;
+      }
+    }
+
+    const pendingMediaGReqs = await this.prisma.graphicRequirement.findMany({
+      where: {
+        OR: [
+          { status: 'WAITING_FOR_MEDIA_REVIEW' },
+          { status: 'MEDIA_MANAGER_REVIEW' },
+        ],
+      },
+      include: { project: { select: { id: true, projectId: true, name: true } } },
+    });
+    for (const gr of pendingMediaGReqs) {
+      if (!(await hasRecentReminder('GRAPHIC_REQ', gr.id, 'MEDIA_REVIEW_REQUIRED'))) {
+        await this.notifyMediaManagers({
+          title: `Pending Media Manager Review: ${gr.requirementId} 🎬`,
+          message: `Graphic Requirement '${gr.name}' is waiting for Media Manager Review.`,
+          type: 'ALERT',
+          category: 'APPROVAL_REQUEST',
+          priority: 'HIGH',
+          eventType: 'MEDIA_REVIEW_REQUIRED',
+          entityType: 'GRAPHIC_REQUIREMENT',
+          entityId: gr.id,
+          entityCode: gr.requirementId,
+          graphicRequirementId: gr.id,
+          projectId: gr.projectId || undefined,
+          linkUrl: '/graphic-reqs',
+        });
+        dispatchedCount++;
+      }
+    }
+
+    const pendingMediaProjects = await this.prisma.shootProject.findMany({
+      where: {
+        OR: [
+          { status: 'WAITING_FOR_MEDIA_REVIEW' as any },
+          { status: 'MEDIA_MANAGER_REVIEW' as any },
+        ],
+      },
+    });
+    for (const proj of pendingMediaProjects) {
+      if (!(await hasRecentReminder('PROJECT', proj.id, 'MEDIA_REVIEW_REQUIRED'))) {
+        await this.notifyMediaManagers({
+          title: `Pending Media Manager Review: ${proj.projectId} 🎬`,
+          message: `Shoot Project '${proj.name}' is waiting for Media Manager Review.`,
+          type: 'ALERT',
+          category: 'APPROVAL_REQUEST',
+          priority: 'HIGH',
+          eventType: 'MEDIA_REVIEW_REQUIRED',
+          entityType: 'PROJECT',
+          entityId: proj.id,
+          entityCode: proj.projectId,
+          projectId: proj.id,
+          linkUrl: `/projects/${proj.id}`,
+        });
+        dispatchedCount++;
+      }
+    }
+
+    const pendingMediaCalendarEvents = await this.prisma.mediaCalendarEvent.findMany({
+      where: {
+        status: { in: ['WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW'] },
+      },
+    });
+    for (const evt of pendingMediaCalendarEvents) {
+      if (!(await hasRecentReminder('CALENDAR_EVENT', evt.id, 'MEDIA_REVIEW_REQUIRED'))) {
+        await this.notifyMediaManagers({
+          title: `Pending Media Manager Review: ${evt.title} 🎬`,
+          message: `Calendar Event '${evt.title}' is waiting for Media Manager Review.`,
+          type: 'ALERT',
+          category: 'APPROVAL_REQUEST',
+          priority: 'HIGH',
+          eventType: 'MEDIA_REVIEW_REQUIRED',
+          entityType: 'CALENDAR_EVENT',
+          entityId: evt.id,
+          calendarEventId: evt.id,
+          linkUrl: '/calendar',
         });
         dispatchedCount++;
       }
@@ -1133,12 +1342,13 @@ export class NotificationsService {
       },
       include: {
         equipment: { select: { id: true, equipmentId: true, name: true } },
-        project: { select: { id: true, projectId: true } },
+        project: { select: { id: true, projectId: true, createdById: true } },
       },
     });
     for (const res of dueEquipment) {
-      if (!(await hasRecentReminder('EQUIPMENT', res.equipmentId, 'EQUIPMENT_RETURN_REMINDER', res.reservedById))) {
-        await this.notifyIndividual(res.reservedById, {
+      const recipientId = res.reservedById || res.project?.createdById;
+      if (recipientId && !(await hasRecentReminder('EQUIPMENT', res.equipmentId, 'EQUIPMENT_RETURN_REMINDER', recipientId))) {
+        await this.notifyIndividual(recipientId, {
           title: `📷 Equipment Return Due: ${res.equipment.equipmentId}`,
           message: `Equipment '${res.equipment.name}' is due for return by ${new Date(res.endDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`,
           type: 'WARNING',

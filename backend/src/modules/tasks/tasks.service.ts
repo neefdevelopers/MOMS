@@ -172,30 +172,27 @@ export class TasksService {
 
     const syncedTasks = await this.syncTaskSourceTypes(tasks);
 
-    // Consolidated Task Deduplication: Ensure each entity (project, graphic req, script) has only 1 task row
-    // and redundant extra revision tasks are merged & removed.
+    // Consolidated Task Deduplication: Only merge duplicate revision tasks, never drop distinct project/graphic/script tasks
     const consolidatedTasks: any[] = [];
-    const seenEntities = new Map<string, any>();
+    const seenRevisionKeys = new Map<string, any>();
 
     for (const t of syncedTasks) {
-      const entityKey = (t.sourceType === 'SCRIPT' || t.scriptId)
-        ? `SCRIPT_${t.scriptId || t.id}`
-        : (t.sourceType === 'GRAPHIC_REQUIREMENT' || t.graphicRequirementId)
-        ? `GRAPHIC_${t.graphicRequirementId || t.id}`
-        : (t.sourceType === 'SHOOT_PROJECT' && !t.scriptId && !t.graphicRequirementId)
-        ? `PROJECT_${t.projectId || t.id}`
-        : null;
+      const isRevisionTask =
+        t.sourceType === 'REVISION' ||
+        t.taskType === 'REVISION' ||
+        (t.revisionId && typeof t.revisionId === 'string' && t.revisionId.trim() !== '');
 
-      if (!entityKey) {
+      if (!isRevisionTask) {
         consolidatedTasks.push(t);
         continue;
       }
 
-      if (!seenEntities.has(entityKey)) {
-        seenEntities.set(entityKey, t);
+      const revKey = t.revisionId ? `REV_${t.revisionId}` : `REV_TASK_${t.id}`;
+      if (!seenRevisionKeys.has(revKey)) {
+        seenRevisionKeys.set(revKey, t);
         consolidatedTasks.push(t);
       } else {
-        const existing = seenEntities.get(entityKey);
+        const existing = seenRevisionKeys.get(revKey);
         // Merge revisions into existing primary task
         if (Array.isArray(t.revisions) && t.revisions.length > 0) {
           const existingRevIds = new Set((existing.revisions || []).map((r: any) => r.id));
@@ -216,11 +213,9 @@ export class TasksService {
         }
 
         // Clean up redundant duplicate revision task from DB asynchronously
-        if (t.sourceType === 'REVISION' || t.taskType === 'REVISION' || t.title?.toLowerCase().includes('revision')) {
-          this.prisma.taskAssignment.deleteMany({ where: { taskId: t.id } })
-            .then(() => this.prisma.task.delete({ where: { id: t.id } }))
-            .catch(() => null);
-        }
+        this.prisma.taskAssignment.deleteMany({ where: { taskId: t.id } })
+          .then(() => this.prisma.task.delete({ where: { id: t.id } }))
+          .catch(() => null);
       }
     }
 
@@ -702,7 +697,7 @@ export class TasksService {
 
     const inputProjectId = sanitizeId(data.projectId);
     const inputScriptId = sanitizeId(data.scriptId);
-    const inputGraphicReqId = sanitizeId(data.graphicRequirementId);
+    const inputGraphicReqId = sanitizeId(data.graphicRequirementId) || (data.parentEntityType === 'GRAPHIC_REQ' ? sanitizeId(data.parentId) : null);
     const rawCalendarEventId = sanitizeId(data.calendarEventId);
 
     let project: any = null;
@@ -722,6 +717,29 @@ export class TasksService {
           graphicReqs: true,
         },
       });
+    }
+
+    // Determine and strictly verify Client, Brand, and Product IDs upfront
+    const candidateClientId = sanitizeId(data.clientId) || sanitizeId(data.taskClientId);
+    const candidateBrandId = sanitizeId(data.brandId) || sanitizeId(data.taskBrandId);
+    const candidateProductId = sanitizeId(data.productId) || sanitizeId(data.taskProductId);
+
+    let verifiedClientId: string | null = null;
+    if (candidateClientId) {
+      const c = await this.prisma.client.findUnique({ where: { id: candidateClientId } }).catch(() => null);
+      if (c) verifiedClientId = c.id;
+    }
+
+    let verifiedBrandId: string | null = null;
+    if (candidateBrandId) {
+      const b = await this.prisma.brand.findUnique({ where: { id: candidateBrandId } }).catch(() => null);
+      if (b) verifiedBrandId = b.id;
+    }
+
+    let verifiedProductId: string | null = null;
+    if (candidateProductId) {
+      const p = await this.prisma.product.findUnique({ where: { id: candidateProductId } }).catch(() => null);
+      if (p) verifiedProductId = p.id;
     }
 
     const isOtherType =
@@ -755,41 +773,153 @@ export class TasksService {
 
     // 2. Resolve Shoot Project
     if (isExplicitShoot) {
+      let parentProj: any = null;
       if (inputProjectId) {
-        project = await this.prisma.shootProject.findUnique({
-          where: { id: inputProjectId },
-          include: { client: true, brand: true, product: true },
+        parentProj = await this.prisma.shootProject.findFirst({
+          where: {
+            OR: [
+              { id: inputProjectId },
+              { projectId: inputProjectId },
+            ],
+          },
+          include: { client: true, brand: true, product: true, calendarEvent: true, indoorDetails: true, outdoorDetails: true },
         });
       }
-      if (!project && calendarEvent?.shootId) {
+
+      if (parentProj) {
+        project = parentProj;
+      } else if (calendarEvent?.shootId) {
         project = await this.prisma.shootProject.findUnique({
           where: { id: calendarEvent.shootId },
-          include: { client: true, brand: true, product: true },
+          include: { client: true, brand: true, product: true, calendarEvent: true, indoorDetails: true, outdoorDetails: true },
         }).catch(() => null);
-      }
-      if (!project && calendarEvent?.shootProjects && calendarEvent.shootProjects.length > 0) {
+      } else if (calendarEvent?.shootProjects && calendarEvent.shootProjects.length > 0) {
         project = calendarEvent.shootProjects[0];
       }
-      if (!project && calendarEvent) {
-        project = await this.prisma.shootProject.findFirst({
-          where: { calendarEventId: calendarEvent.id },
-          include: { client: true, brand: true, product: true },
-        }).catch(() => null);
+
+      // If no parent project exists and parentEntityType is PROJECT (creating a brand new independent Shoot Project directly as a task container)
+      if (!project && data.parentEntityType === 'PROJECT') {
+        let pClientId = verifiedClientId || data.clientId || calendarEvent?.clientId;
+        let pBrandId = verifiedBrandId || data.brandId || calendarEvent?.brandId;
+        let pProductId = verifiedProductId || data.productId || calendarEvent?.productId || null;
+
+        if (pClientId) {
+          const c = await this.prisma.client.findUnique({ where: { id: pClientId } }).catch(() => null);
+          if (!c) pClientId = verifiedClientId || undefined;
+        }
+        if (pBrandId) {
+          const b = await this.prisma.brand.findUnique({ where: { id: pBrandId } }).catch(() => null);
+          if (!b) pBrandId = verifiedBrandId || undefined;
+        }
+
+        let validProductId: string | null = null;
+        if (pProductId) {
+          const p = await this.prisma.product.findUnique({ where: { id: pProductId } }).catch(() => null);
+          if (p) validProductId = p.id;
+        }
+
+        let validCampaignId: string | null = null;
+        const rawCamp = data.campaignId || data.campaign;
+        if (rawCamp) {
+          const camp = await this.prisma.campaign.findUnique({ where: { id: rawCamp } }).catch(() => null);
+          if (camp) validCampaignId = camp.id;
+        }
+
+        if (pClientId && pBrandId) {
+          const count = await this.prisma.shootProject.count();
+          const autoProjId = `SP-${(count + 1).toString().padStart(6, '0')}`;
+          const isOutdoor = data.shootType === 'OUTDOOR' || data.shootType === 'Outdoor Shoot';
+
+          const createdProj = await this.prisma.shootProject.create({
+            data: {
+              projectId: autoProjId,
+              name: data.title,
+              shootType: isOutdoor ? 'OUTDOOR' : 'INDOOR',
+              shootDate: new Date(data.shootDate || Date.now()),
+              estimatedCompletionDate: new Date(data.deadline || data.dueDate || Date.now() + 7 * 86400000),
+              shootLocation: data.location || (isOutdoor ? 'Outdoor Location' : 'Main Studio Floor'),
+              locationCategory: data.locationCategory || (isOutdoor ? 'Outdoor Landmark' : 'Studio Bay'),
+              reportingTime: data.callTime || data.startTime || '09:00 AM',
+              expectedWrapUpTime: data.expectedWrapTime || data.endTime || '05:00 PM',
+              influencerTalent: data.influencerTalent || null,
+              priority: data.priority || 'MEDIUM',
+              notes: data.productionNotes || data.notes || data.description || null,
+              clientId: pClientId,
+              brandId: pBrandId,
+              productId: validProductId,
+              campaignId: validCampaignId,
+              status: 'TASK_ASSIGNED',
+              createdById: managerUserId,
+              ...(isOutdoor
+                ? {
+                    outdoorDetails: {
+                      create: {
+                        outdoorLocation: data.location || 'Outdoor Location',
+                        locationAddress: data.exactLocationAddress || data.location || 'Outdoor Location',
+                        locationCategory: data.locationCategory || 'Outdoor Landmark',
+                        locationContactPerson: data.locationContact || null,
+                        permitRequired: data.permitRequired || 'NO',
+                        permitStatus: data.permitStatus || 'Not Applied',
+                        backupLocation: data.backupLocation || null,
+                        specialOutdoorRequirements: data.specialOutdoorRequirements || null,
+                      },
+                    },
+                  }
+                : {
+                    indoorDetails: {
+                      create: {
+                        studioName: data.location || 'Main Studio Floor',
+                        studioAddress: data.location || 'Main Studio Floor',
+                        reportingTime: data.callTime || data.startTime || '09:00 AM',
+                        wrapUpTime: data.expectedWrapTime || data.endTime || '05:00 PM',
+                      },
+                    },
+                  }),
+            },
+            include: { client: true, brand: true, product: true, indoorDetails: true, outdoorDetails: true },
+          });
+
+          project = createdProj;
+        }
       }
+
+      // Reserve equipment for project if equipmentIds provided
+      if (project && data.equipmentIds && Array.isArray(data.equipmentIds) && data.equipmentIds.length > 0) {
+        for (const eqId of data.equipmentIds) {
+          await this.prisma.equipmentReservation.create({
+            data: {
+              projectId: project.id,
+              equipmentId: eqId,
+              startDate: new Date(data.shootDate || Date.now()),
+              endDate: new Date(data.shootDate || Date.now()),
+              status: 'RESERVED',
+            },
+          }).catch(() => null);
+          await this.prisma.equipment.update({
+            where: { id: eqId },
+            data: { availability: 'RESERVED' },
+          }).catch(() => null);
+        }
+      }
+
       scriptId = null;
       graphicReqId = null;
     }
 
-    // 3. Resolve Script if provided or if parentEntityType is SCRIPT
+    // 3. Resolve Script if provided
     if (isExplicitScript) {
-      let script = inputScriptId
-        ? await this.prisma.script.findUnique({
-            where: { id: inputScriptId },
+      let script: any = inputScriptId
+        ? await this.prisma.script.findFirst({
+            where: {
+              OR: [
+                { id: inputScriptId },
+                { scriptId: inputScriptId },
+              ],
+            },
             include: { project: true },
           })
         : null;
 
-      // If no script ID directly provided, check if a script already belongs to this shoot project
       if (!script && inputProjectId) {
         script = await this.prisma.script.findFirst({
           where: { projectId: inputProjectId },
@@ -798,29 +928,36 @@ export class TasksService {
       }
 
       // If no script exists yet for this project and parentEntityType is SCRIPT, automatically create one
-      if (!script && data.parentEntityType === 'SCRIPT') {
-        const proj = inputProjectId
-          ? await this.prisma.shootProject.findUnique({ where: { id: inputProjectId } })
-          : null;
-
-        const count = await this.prisma.script.count();
-        const autoScriptId = `SCR-${(count + 1).toString().padStart(6, '0')}`;
-
-        script = await this.prisma.script.create({
-          data: {
-            scriptId: autoScriptId,
-            name: data.title || (proj ? `Script - ${proj.name}` : 'Script Task'),
-            description: data.description || '',
-            status: 'ASSIGNED',
-            priority: data.priority || 'MEDIUM',
-            projectId: inputProjectId || null,
-            clientId: proj?.clientId || data.clientId || null,
-            brandId: proj?.brandId || data.brandId || null,
-            productId: proj?.productId || data.productId || null,
-            createdById: managerUserId,
+      if (!script && data.parentEntityType === 'SCRIPT' && inputProjectId) {
+        const proj = await this.prisma.shootProject.findFirst({
+          where: {
+            OR: [
+              { id: inputProjectId },
+              { projectId: inputProjectId },
+            ],
           },
-          include: { project: true },
         });
+
+        if (proj) {
+          const count = await this.prisma.script.count();
+          const autoScriptId = `SCR-${(count + 1).toString().padStart(6, '0')}`;
+
+          script = await this.prisma.script.create({
+            data: {
+              scriptId: autoScriptId,
+              name: data.title || `Script - ${proj.name}`,
+              description: data.description || '',
+              status: 'ASSIGNED',
+              priority: data.priority || 'MEDIUM',
+              projectId: proj.id,
+              clientId: proj.clientId || verifiedClientId || data.clientId,
+              brandId: proj.brandId || verifiedBrandId || data.brandId,
+              productId: proj.productId || verifiedProductId || data.productId || null,
+              createdById: managerUserId,
+            },
+            include: { project: true },
+          });
+        }
       }
 
       if (script) {
@@ -833,8 +970,13 @@ export class TasksService {
     // 4. Resolve Graphic Requirement if provided
     if (isExplicitGraphicReq) {
       const gReq = inputGraphicReqId
-        ? await this.prisma.graphicRequirement.findUnique({
-            where: { id: inputGraphicReqId },
+        ? await this.prisma.graphicRequirement.findFirst({
+            where: {
+              OR: [
+                { id: inputGraphicReqId },
+                { requirementId: inputGraphicReqId },
+              ],
+            },
             include: { project: true, calendarEvent: true },
           })
         : null;
@@ -854,7 +996,116 @@ export class TasksService {
       }
       if (!graphicReqId && calendarEvent?.graphicReqs && calendarEvent.graphicReqs.length > 0) {
         graphicReqId = calendarEvent.graphicReqs[0].id;
+        if (!project) project = calendarEvent.graphicReqs[0].project;
       }
+
+      // If no graphic requirement exists yet for this project/event and parentEntityType is GRAPHIC_REQ, automatically create one with all structured fields
+      if (!graphicReqId) {
+        if (!project && inputProjectId) {
+          project = await this.prisma.shootProject.findFirst({
+            where: {
+              OR: [
+                { id: inputProjectId },
+                { projectId: inputProjectId },
+              ],
+            },
+            include: { client: true, brand: true, product: true, calendarEvent: true },
+          });
+        }
+        if (!project && calendarEvent?.shootId) {
+          project = await this.prisma.shootProject.findUnique({
+            where: { id: calendarEvent.shootId },
+            include: { client: true, brand: true, product: true, calendarEvent: true },
+          }).catch(() => null);
+        }
+        if (!project && calendarEvent?.shootProjects && calendarEvent.shootProjects.length > 0) {
+          project = calendarEvent.shootProjects[0];
+        }
+        if (!project && verifiedClientId) {
+          project = await this.prisma.shootProject.findFirst({
+            where: { clientId: verifiedClientId },
+            include: { client: true, brand: true, product: true, calendarEvent: true },
+          }).catch(() => null);
+        }
+
+        // If still no project exists and creating Graphic Requirement as a Task, auto-create a container Shoot Project
+        if (!project && verifiedClientId && verifiedBrandId) {
+          const count = await this.prisma.shootProject.count();
+          const autoProjId = `SP-${(count + 1).toString().padStart(6, '0')}`;
+          project = await this.prisma.shootProject.create({
+            data: {
+              projectId: autoProjId,
+              name: data.title || 'Graphic Requirement Project',
+              shootType: 'INDOOR',
+              shootDate: new Date(),
+              shootLocation: 'Studio / Digital',
+              clientId: verifiedClientId,
+              brandId: verifiedBrandId,
+              productId: verifiedProductId || null,
+              status: 'TASK_ASSIGNED',
+              createdById: managerUserId,
+            },
+            include: { client: true, brand: true, product: true },
+          });
+        }
+
+        if (project) {
+          const count = await this.prisma.graphicRequirement.count();
+          const prefixSetting = await this.prisma.systemSetting.findUnique({
+            where: { key: 'GRAPHIC_REQ_ID_PREFIX' },
+          });
+          const idPrefix = prefixSetting?.value?.trim() || 'GR-';
+          const autoReqId = `${idPrefix}${(count + 1).toString().padStart(6, '0')}`;
+
+          let validGrProductId: string | null = null;
+          const rawGrProd = project.productId || verifiedProductId || data.productId;
+          if (rawGrProd) {
+            const p = await this.prisma.product.findUnique({ where: { id: rawGrProd } }).catch(() => null);
+            if (p) validGrProductId = p.id;
+          }
+
+          let validGrCampaignId: string | null = null;
+          const rawGrCamp = project.campaignId || data.campaignId || data.campaign;
+          if (rawGrCamp) {
+            const c = await this.prisma.campaign.findUnique({ where: { id: rawGrCamp } }).catch(() => null);
+            if (c) validGrCampaignId = c.id;
+          }
+
+          const newGr = await this.prisma.graphicRequirement.create({
+            data: {
+              requirementId: autoReqId,
+              name: data.title || `Graphic Requirement - ${project.name}`,
+              description: data.description || '',
+              objective: data.caption || data.objective || null,
+              remarks: data.remarks || null,
+              projectId: project.id,
+              clientId: project.clientId || verifiedClientId || data.clientId,
+              brandId: project.brandId || verifiedBrandId || data.brandId,
+              productId: validGrProductId,
+              campaignId: validGrCampaignId,
+              calendarEventId: calendarEvent?.id || null,
+              requirementType: data.contentType || data.requirementType || 'Poster',
+              priority: data.priority || 'MEDIUM',
+              estimatedCompletion: data.clientApprovalDeadline || data.dueDate ? new Date(data.clientApprovalDeadline || data.dueDate) : null,
+              status: 'TASK_ASSIGNED',
+              mediaManagerApproved: true,
+              createdById: managerUserId,
+            },
+            include: { project: true },
+          });
+
+
+
+          graphicReqId = newGr.id;
+          if (calendarEvent && !calendarEvent.graphicRequirementId) {
+            await this.prisma.mediaCalendarEvent.update({
+              where: { id: calendarEvent.id },
+              data: { graphicRequirementId: newGr.id },
+            }).catch(() => null);
+          }
+        }
+      }
+
       scriptId = null;
     }
 
@@ -885,59 +1136,6 @@ export class TasksService {
       }
     }
 
-    // Business Rule Validation: Marketing Manager Approval
-    if (project && !graphicReqId && !scriptId) {
-      const allowedStatuses = [
-        'APPROVED',
-        'IN_PROGRESS',
-        'IN_PRODUCTION',
-        'TASK_ASSIGNED',
-        'READY',
-        'ACTIVE',
-        'PLANNED',
-        'TECHNICAL_REVIEW',
-        'WAITING_FOR_TECHNICAL_REVIEW',
-        'MEDIA_MANAGER_REVIEW',
-        'WAITING_FOR_MEDIA_REVIEW',
-        'CLIENT_CONFIRMATION',
-        'COMPLETED',
-      ];
-      if (!allowedStatuses.includes(project.status)) {
-        throw new BadRequestException(
-          'Project Shoot must be approved by Marketing Manager before task assignment.'
-        );
-      }
-    }
-
-    if (graphicReqId) {
-      const gReq = await this.prisma.graphicRequirement.findUnique({
-        where: { id: graphicReqId },
-        include: { calendarEvent: true },
-      });
-      if (gReq) {
-        const isApproved =
-          ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'TASK_ASSIGNED'].includes(gReq.status) ||
-          (gReq.calendarEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'TASK_ASSIGNED'].includes(gReq.calendarEvent.status));
-
-        if (!isApproved && (gReq.status === 'PENDING_MARKETING_APPROVAL' || gReq.status === 'REJECTED' || gReq.status === 'CANCELLED')) {
-          throw new BadRequestException(
-            'Graphic Requirement must be approved by Marketing Manager before task assignment.'
-          );
-        }
-      }
-    }
-
-    if (calendarEvent) {
-      const isCalApproved =
-        ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'TASK_ASSIGNED'].includes(calendarEvent.status) ||
-        calendarEvent.approvalStatus === 'APPROVED';
-      if (!isCalApproved && (calendarEvent.status === 'PENDING_MARKETING_APPROVAL' || calendarEvent.approvalStatus === 'PENDING_MARKETING_APPROVAL' || calendarEvent.status === 'REJECTED' || calendarEvent.status === 'CANCELLED')) {
-        throw new BadRequestException(
-          'Media Calendar Event must be approved by Marketing Manager before task assignment.'
-        );
-      }
-    }
-
     // Determine Source Type (DIRECT_TASK, CALENDAR_EVENT, GRAPHIC_REQUIREMENT, SHOOT_PROJECT, SCRIPT)
     let sourceType = 'DIRECT_TASK';
     let isMarketingApproved = true;
@@ -958,30 +1156,40 @@ export class TasksService {
       } else {
         sourceType = 'CALENDAR_EVENT';
       }
-      if (calendarEvent) {
-        isMarketingApproved =
-          ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'TASK_ASSIGNED'].includes(calendarEvent.status) ||
-          calendarEvent.approvalStatus === 'APPROVED';
-      }
     } else if (project && !isOtherType) {
       sourceType = 'SHOOT_PROJECT';
     } else {
       sourceType = 'DIRECT_TASK';
     }
 
+    // Business Rule Validation: Marketing Manager Approval ONLY applies to events originated from Event Creation (Media Calendar)
+    const isEventCreationOrigin = Boolean(calendarEvent || rawCalendarEventId);
+    if (isEventCreationOrigin && calendarEvent) {
+      isMarketingApproved =
+        ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'TASK_ASSIGNED'].includes(calendarEvent.status) ||
+        calendarEvent.approvalStatus === 'APPROVED';
+
+      if (!isMarketingApproved && (calendarEvent.status === 'PENDING_MARKETING_APPROVAL' || calendarEvent.approvalStatus === 'PENDING_MARKETING_APPROVAL' || calendarEvent.status === 'REJECTED' || calendarEvent.status === 'CANCELLED')) {
+        throw new BadRequestException(
+          'Media Calendar Event must be approved by Marketing Manager before task assignment.'
+        );
+      }
+    } else {
+      // Direct Task Creation does NOT require Marketing Manager approval
+      isMarketingApproved = true;
+    }
+
     // Determine initial status based on sourceType and Marketing Approval
     let initialTaskStatus = data.assignedUserIds?.length ? TaskStatus.ASSIGNED : TaskStatus.PENDING;
-    if (sourceType !== 'DIRECT_TASK') {
-      if (!isMarketingApproved) {
-        initialTaskStatus = TaskStatus.PENDING_MARKETING_APPROVAL;
-        if (data.assignedUserIds?.length) {
-          throw new BadRequestException(
-            'Marketing Manager approval is required before assigning staff to Event or Graphic Requirement work.'
-          );
-        }
-      } else {
-        initialTaskStatus = data.assignedUserIds?.length ? TaskStatus.ASSIGNED : TaskStatus.APPROVED;
+    if (sourceType !== 'DIRECT_TASK' && isEventCreationOrigin && !isMarketingApproved) {
+      initialTaskStatus = TaskStatus.PENDING_MARKETING_APPROVAL;
+      if (data.assignedUserIds?.length) {
+        throw new BadRequestException(
+          'Marketing Manager approval is required before assigning staff to Event work.'
+        );
       }
+    } else {
+      initialTaskStatus = data.assignedUserIds?.length ? TaskStatus.ASSIGNED : TaskStatus.APPROVED;
     }
 
     // Prevent duplicate task creation for the same source entity
@@ -1013,7 +1221,7 @@ export class TasksService {
       }
     }
 
-    if (project?.id && !scriptId && !graphicReqId && data.parentEntityType === 'PROJECT') {
+    if (project?.id && !scriptId && !graphicReqId && data.isConvertFromProject && !data.title) {
       const existingProjTask = await this.prisma.task.findFirst({
         where: {
           projectId: project.id,
@@ -1030,28 +1238,10 @@ export class TasksService {
       }
     }
 
-    // Determine and strictly verify Client, Brand, and Product IDs
-    const candidateClientId = project?.clientId || calendarEvent?.clientId || sanitizeId(data.clientId);
-    const candidateBrandId = project?.brandId || calendarEvent?.brandId || sanitizeId(data.brandId);
-    const candidateProductId = project?.productId || calendarEvent?.productId || sanitizeId(data.productId);
-
-    let verifiedClientId: string | null = null;
-    if (candidateClientId) {
-      const c = await this.prisma.client.findUnique({ where: { id: candidateClientId } }).catch(() => null);
-      if (c) verifiedClientId = c.id;
-    }
-
-    let verifiedBrandId: string | null = null;
-    if (candidateBrandId) {
-      const b = await this.prisma.brand.findUnique({ where: { id: candidateBrandId } }).catch(() => null);
-      if (b) verifiedBrandId = b.id;
-    }
-
-    let verifiedProductId: string | null = null;
-    if (candidateProductId) {
-      const p = await this.prisma.product.findUnique({ where: { id: candidateProductId } }).catch(() => null);
-      if (p) verifiedProductId = p.id;
-    }
+    // Final fallback verification if client/brand not yet set from input
+    if (!verifiedClientId && project?.clientId) verifiedClientId = project.clientId;
+    if (!verifiedBrandId && project?.brandId) verifiedBrandId = project.brandId;
+    if (!verifiedProductId && project?.productId) verifiedProductId = project.productId;
 
     // Generate Task ID TSK-00000X safely with collision loop
     let taskCount = await this.prisma.task.count();
@@ -1279,11 +1469,14 @@ export class TasksService {
       );
 
       const isAssignmentAccepted =
-        assignment &&
-        (assignment.acceptanceStatus === 'ACCEPTED' || assignment.acceptanceStatus === 'Accepted');
+        (assignment &&
+          (assignment.acceptanceStatus === 'ACCEPTED' || assignment.acceptanceStatus === 'Accepted')) ||
+        (!assignment && task.status === TaskStatus.ACCEPTED);
 
       if (!isAssignmentAccepted) {
-        throw new ForbiddenException('Task acceptance is required before you can perform this action.');
+        throw new ForbiddenException(
+          'Task acceptance is required before you can perform this action. The task is currently in read-only mode.',
+        );
       }
     }
   }
@@ -1309,10 +1502,11 @@ export class TasksService {
         TaskStatus.WAITING_FOR_TECHNICAL_REVIEW,
         TaskStatus.WAITING_FOR_MEDIA_REVIEW,
         TaskStatus.WAITING_FOR_REVIEW,
+        TaskStatus.PENDING_MARKETING_APPROVAL,
         TaskStatus.COMPLETED,
       ];
       if (reviewStatuses.includes(task.status as any)) {
-        throw new ForbiddenException("Task is currently undergoing review. Updates are locked during review.");
+        throw new ForbiddenException("Task is currently undergoing review and in read-only mode. Updates are locked during review.");
       }
     }
 
@@ -1515,6 +1709,68 @@ export class TasksService {
         where: { id: task.graphicRequirementId },
         data: { status: 'IN_PROGRESS' },
       }).catch(() => null);
+
+      await this.prisma.graphicRequirementTimeline.create({
+        data: {
+          graphicRequirementId: task.graphicRequirementId,
+          userId: user.id,
+          event: 'ASSIGNED',
+          description: `Assigned task ${task.taskId} acknowledged & ACCEPTED by ${user.name || user.email}. Requirement status updated to IN_PROGRESS.`,
+        },
+      }).catch(() => null);
+    } else if (task.sourceType === 'GRAPHIC_REQUIREMENT' || task.taskType === 'GRAPHIC_REQUIREMENT' || task.taskType === 'GRAPHIC') {
+      let targetGr = task.projectId
+        ? await this.prisma.graphicRequirement.findFirst({ where: { projectId: task.projectId } })
+        : null;
+
+      if (!targetGr) {
+        let projId = task.projectId;
+        let projClientId = task.clientId;
+        let projBrandId = task.brandId;
+        let projProductId = task.productId;
+
+        if (!projId || !projClientId || !projBrandId) {
+          const fallbackProj = await this.prisma.shootProject.findFirst({
+            where: task.clientId ? { clientId: task.clientId } : {},
+          }).catch(() => null);
+          if (fallbackProj) {
+            projId = fallbackProj.id;
+            if (!projClientId) projClientId = fallbackProj.clientId;
+            if (!projBrandId) projBrandId = fallbackProj.brandId;
+            if (!projProductId) projProductId = fallbackProj.productId;
+          }
+        }
+
+        if (projId && projClientId && projBrandId) {
+          const count = await this.prisma.graphicRequirement.count();
+          const autoReqId = `GR-${(count + 1).toString().padStart(6, '0')}`;
+          targetGr = await this.prisma.graphicRequirement.create({
+            data: {
+              requirementId: autoReqId,
+              name: task.title,
+              description: task.description || '',
+              projectId: projId,
+              clientId: projClientId,
+              brandId: projBrandId,
+              productId: projProductId || null,
+              priority: task.priority || 'MEDIUM',
+              status: 'IN_PROGRESS',
+              createdById: user.id,
+            },
+          }).catch(() => null);
+        }
+      }
+
+      if (targetGr) {
+        await this.prisma.task.update({
+          where: { id: task.id },
+          data: { graphicRequirementId: targetGr.id },
+        }).catch(() => null);
+        await this.prisma.graphicRequirement.update({
+          where: { id: targetGr.id },
+          data: { status: 'IN_PROGRESS' },
+        }).catch(() => null);
+      }
     }
 
     // If this is a real script task, sync script status
@@ -1620,10 +1876,11 @@ export class TasksService {
         TaskStatus.WAITING_FOR_TECHNICAL_REVIEW,
         TaskStatus.WAITING_FOR_MEDIA_REVIEW,
         TaskStatus.WAITING_FOR_REVIEW,
+        TaskStatus.PENDING_MARKETING_APPROVAL,
         TaskStatus.COMPLETED,
       ];
       if (reviewStatuses.includes(task.status as any)) {
-        throw new ForbiddenException("Task is currently undergoing Technical Review. Remarks are locked for staff during review.");
+        throw new ForbiddenException("Task is currently undergoing review and in read-only mode. Remarks are locked for staff during review.");
       }
     }
 
@@ -1685,10 +1942,11 @@ export class TasksService {
         TaskStatus.WAITING_FOR_TECHNICAL_REVIEW,
         TaskStatus.WAITING_FOR_MEDIA_REVIEW,
         TaskStatus.WAITING_FOR_REVIEW,
+        TaskStatus.PENDING_MARKETING_APPROVAL,
         TaskStatus.COMPLETED,
       ];
       if (reviewStatuses.includes(task.status as any)) {
-        throw new ForbiddenException("Task is currently undergoing Technical Review. Deliverable uploads are locked for staff during review.");
+        throw new ForbiddenException("Task is currently undergoing review and in read-only mode. Deliverable uploads are locked for staff during review.");
       }
     }
 

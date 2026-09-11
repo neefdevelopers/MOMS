@@ -27,9 +27,11 @@ export class FilesController {
       fileType?: string;
       storagePath?: string;
     },
-    @CurrentUser('id') uploadedById: string,
+    @CurrentUser() user: any,
   ) {
-    return this.filesService.createDeliverableMetadata(data, uploadedById);
+    const uploadedById = user?.id || user?.sub || user;
+    const userRole = user?.role;
+    return this.filesService.createDeliverableMetadata(data, uploadedById, userRole);
   }
 
   @Post('upload')

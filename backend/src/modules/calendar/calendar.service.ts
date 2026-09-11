@@ -476,6 +476,22 @@ export class CalendarService {
             where: { id: resolvedGraphicReq.id },
             data: { calendarEventId: event.id },
           });
+
+          if (data.creativePreviewUrl) {
+            await tx.fileMetadata.create({
+              data: {
+                fileName: data.creativeAssetName?.trim() || data.title.trim() || 'Creative Visual Asset',
+                fileSize: 0,
+                fileType: 'URL',
+                storagePath: data.creativePreviewUrl.trim(),
+                activeVersion: true,
+                attachmentCategory: 'REFERENCES',
+                projectId: resolvedGraphicReq.projectId,
+                graphicRequirementId: resolvedGraphicReq.id,
+                uploadedById: activeUserId,
+              },
+            });
+          }
         } else {
           // Auto-create corresponding GraphicRequirement
           let parentProjectId = data.projectId;
@@ -521,6 +537,7 @@ export class CalendarService {
               estimatedCompletion: data.clientApprovalDeadline ? new Date(data.clientApprovalDeadline) : null,
               status: initialStatus === 'APPROVED' ? 'APPROVED' : 'PENDING_MARKETING_APPROVAL',
               remarks: data.remarks || data.productionNotes || null,
+              createdById: activeUserId,
             },
           });
 
@@ -528,6 +545,25 @@ export class CalendarService {
             where: { id: event.id },
             data: { graphicRequirementId: newGr.id },
           });
+
+          // Persist Creative Asset in FileMetadata vault
+          if (data.creativePreviewUrl) {
+            await tx.fileMetadata.create({
+              data: {
+                fileName: data.creativeAssetName?.trim() || data.title.trim() || 'Creative Visual Asset',
+                fileSize: 0,
+                fileType: 'URL',
+                storagePath: data.creativePreviewUrl.trim(),
+                activeVersion: true,
+                attachmentCategory: 'REFERENCES',
+                projectId: parentProjectId,
+                graphicRequirementId: newGr.id,
+                uploadedById: activeUserId,
+              },
+            });
+          }
+
+
         }
       } else if (eventSource === 'SHOOT' || eventSource === 'PROJECT_SHOOT') {
         if (resolvedShoot) {
@@ -735,13 +771,22 @@ export class CalendarService {
       );
     }
 
-    // APPROVAL LOCK: Prevent silent modification while pending review (unless Media Manager override)
-    if (
-      (existing.status === 'PENDING_CLIENT_REVIEW' || existing.status === 'PENDING_CLIENT_APPROVAL') &&
-      user?.role !== 'MEDIA_MANAGER'
-    ) {
+    // APPROVAL LOCK: Prevent modification while pending review
+    const isEventUnderReview = [
+      'PENDING_CLIENT_REVIEW',
+      'PENDING_CLIENT_APPROVAL',
+      'PENDING_MARKETING_APPROVAL',
+      'WAITING_FOR_MARKETING_APPROVAL',
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+    ].includes(existing.status);
+
+    if (isEventUnderReview && !data.resubmitForApproval && existing.status !== 'REJECTED') {
       throw new ForbiddenException(
-        'Calendar event is currently locked pending client approval. The Marketing Manager must request changes before creator edits can be submitted.',
+        'Calendar event is currently under review and in read-only mode. Content updates and modifications are locked until the review decision is complete.',
       );
     }
 
@@ -823,6 +868,19 @@ export class CalendarService {
       where: { id },
       data: updateData,
     });
+
+    if (
+      (updateData.status === 'WAITING_FOR_MEDIA_REVIEW' || updateData.status === 'MEDIA_MANAGER_REVIEW') &&
+      existing.status !== updateData.status
+    ) {
+      await this.sendNotification(
+        [],
+        'MEDIA_MANAGER',
+        'Calendar Event Waiting for Media Manager Approval 🎬',
+        `Media Calendar Event '${updateData.title || existing.title}' is waiting for Media Manager Review.`,
+        id,
+      );
+    }
 
     return this.findOne(id, user);
   }

@@ -1281,17 +1281,22 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                 </div>
               )}
 
-              {/* ACTION 4: Inspect Submitted Work Section */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-blue-600" /> Action 4: Inspect Submitted Work & Specifications
-                </h4>
+              {/* ACTION 4: Inspect Submitted Work & Deliverables Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-blue-600" /> Action 4: Inspect Submitted Deliverables & Specifications
+                  </h4>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    Verify assets before granting technical sign-off
+                  </span>
+                </div>
 
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
                   <div>
                     <strong className="text-slate-600 font-mono">Description / Specifications:</strong>
                     <p className="text-slate-800 mt-1 leading-relaxed whitespace-pre-wrap">
-                      {activeReviewItem.description || 'No detailed specifications submitted. Review submitted assets below.'}
+                      {activeReviewItem.description || 'No detailed specifications submitted. Review submitted deliverables below.'}
                     </p>
                   </div>
 
@@ -1304,6 +1309,147 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                     </div>
                   )}
                 </div>
+
+                {/* Deliverable Files List */}
+                {(() => {
+                  const raw = activeReviewItem.rawData || {};
+                  const items: any[] = [];
+                  const seenUrls = new Set<string>();
+
+                  // 1. Requirement Deliverables
+                  const deliverables = raw.deliverables || [];
+                  deliverables.forEach((d: any) => {
+                    const rawUrl = d.fileUrl || d.url || d.storagePath;
+                    if (rawUrl && !seenUrls.has(rawUrl)) {
+                      seenUrls.add(rawUrl);
+                      items.push({
+                        id: d.id,
+                        fileName: d.fileName || d.name || `${d.type || 'Deliverable'} Output`,
+                        fileUrl: rawUrl.startsWith('http') ? rawUrl : (rawUrl.startsWith('/') ? `http://localhost:4000${rawUrl}` : `https://${rawUrl}`),
+                        type: d.type || 'Deliverable',
+                        uploadedBy: d.createdBy?.name || d.assignedStaff?.name || 'Staff Designer',
+                        status: d.status || 'SUBMITTED',
+                      });
+                    }
+                  });
+
+                  // 2. Design Files & Attachments
+                  const files = raw.files || [];
+                  files.forEach((f: any) => {
+                    const rawUrl = f.fileUrl || f.url || f.storagePath;
+                    if (rawUrl && !seenUrls.has(rawUrl)) {
+                      seenUrls.add(rawUrl);
+                      items.push({
+                        id: f.id,
+                        fileName: f.fileName || f.name || 'Design File Asset',
+                        fileUrl: rawUrl.startsWith('http') ? rawUrl : `http://localhost:4000${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`,
+                        type: f.attachmentCategory?.replace(/_/g, ' ') || 'Attached File',
+                        uploadedBy: f.uploadedBy?.name || 'Team Member',
+                        status: 'ATTACHED',
+                      });
+                    }
+                  });
+
+                  // 3. Primary Creative Asset Link
+                  const creativeUrl = raw.calendarEvent?.creativePreviewUrl || raw.creativePreviewUrl || activeReviewItem.fileUrl;
+                  if (creativeUrl && !seenUrls.has(creativeUrl)) {
+                    seenUrls.add(creativeUrl);
+                    items.push({
+                      id: `creative-preview-${activeReviewItem.id}`,
+                      fileName: raw.calendarEvent?.creativeAssetName || raw.creativeAssetName || 'Primary Creative Visual Asset',
+                      fileUrl: creativeUrl.startsWith('http') ? creativeUrl : `https://${creativeUrl}`,
+                      type: 'Primary Creative Asset',
+                      uploadedBy: raw.calendarEvent?.createdBy?.name || 'Media Manager',
+                      status: 'LINKED',
+                    });
+                  }
+
+                  // 4. Tasks deliverables
+                  const tasks = raw.tasks || [];
+                  tasks.forEach((t: any) => {
+                    if (t.activeDeliverableUrl && !seenUrls.has(t.activeDeliverableUrl)) {
+                      seenUrls.add(t.activeDeliverableUrl);
+                      items.push({
+                        id: `${t.id}-active`,
+                        fileName: t.activeDeliverableFileName || `${t.title} Active Output`,
+                        fileUrl: t.activeDeliverableUrl,
+                        type: 'Active Task Deliverable',
+                        uploadedBy: t.assignedEmployees?.map((a: any) => a.user?.name).filter(Boolean).join(', ') || 'Assigned Staff',
+                        status: t.status,
+                      });
+                    }
+                    if (Array.isArray(t.deliverableHistory)) {
+                      t.deliverableHistory.forEach((h: any) => {
+                        if (h.fileUrl && !seenUrls.has(h.fileUrl)) {
+                          seenUrls.add(h.fileUrl);
+                          items.push({
+                            id: h.id,
+                            fileName: h.fileName || `Deliverable v${h.version}`,
+                            fileUrl: h.fileUrl,
+                            type: `Version ${h.version}`,
+                            uploadedBy: h.user?.name || 'Staff Member',
+                            status: 'HISTORY',
+                          });
+                        }
+                      });
+                    }
+                  });
+
+                  return (
+                    <div className="bg-slate-50 border border-cyan-200 p-3.5 rounded-xl space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-cyan-700 font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5 text-cyan-600" />
+                          <span>Deliverable Files &amp; Output Assets ({items.length})</span>
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono italic">
+                          Click "Review Asset" to open &amp; inspect
+                        </span>
+                      </div>
+
+                      {items.length === 0 ? (
+                        <p className="text-slate-400 italic text-xs p-3 text-center bg-white rounded-lg border border-dashed border-slate-200">
+                          No deliverable output files attached yet.
+                        </p>
+                      ) : (
+                        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                          {items.map((d: any) => (
+                            <div
+                              key={d.id}
+                              className="p-2.5 rounded-xl border border-slate-200 bg-white flex items-center justify-between gap-2 text-xs shadow-xs"
+                            >
+                              <div className="space-y-0.5 min-w-0 max-w-[65%] truncate">
+                                <div className="font-bold flex items-center gap-1.5 text-xs text-slate-900 truncate">
+                                  <span className="truncate">{d.fileName}</span>
+                                  <span className="px-1.5 py-0.2 bg-cyan-50 text-cyan-700 border border-cyan-200 rounded text-[9px] font-mono shrink-0 font-bold">
+                                    {d.type}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-slate-500 truncate">
+                                  By <strong className="text-slate-700">{d.uploadedBy}</strong> • <span className="font-mono text-cyan-700">{d.status}</span>
+                                </div>
+                              </div>
+
+                              {d.fileUrl ? (
+                                <a
+                                  href={d.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-extrabold rounded-lg text-[11px] transition-all flex items-center gap-1 shrink-0 shadow-md shadow-cyan-600/30"
+                                >
+                                  <span>Review Asset</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 italic px-2 py-1">No URL</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* ACTION 5: Add Technical Remarks Section */}

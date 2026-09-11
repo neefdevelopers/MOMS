@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import Link from 'next/link';
-import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame, Clock, ArrowUpDown, ExternalLink, FileText, Eye, Check, ShieldCheck, Copy, MessageSquare, Send, Lock, Sparkles, Film, Link as LinkIcon, Camera, Layers, MapPin, Compass, CloudSun, Users, Image as ImageIcon } from 'lucide-react';
+import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame, Clock, ArrowUpDown, ExternalLink, FileText, Eye, Check, ShieldCheck, Copy, MessageSquare, Send, Lock, Sparkles, Film, Link as LinkIcon, Camera, Layers, MapPin, Compass, CloudSun, Users, Image as ImageIcon, Palette } from 'lucide-react';
 import { TableSortHeader, SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
@@ -153,7 +153,7 @@ const TaskWorkflowTimeline = ({ task }: { task: any }) => {
   } else if (isRevision) {
     stages = revisionStages;
     currentIdx = stages.findIndex((s) => s.key === task.status);
-  } else if (isDirect) {
+  } else if (isDirect || !task.calendarEventId) {
     stages = directStages;
     currentIdx = stages.findIndex((s) => s.key === task.status);
   } else {
@@ -382,6 +382,16 @@ export default function TasksPage() {
   const [scriptNewLinkUrl, setScriptNewLinkUrl] = useState('');
   const [scriptAddingLink, setScriptAddingLink] = useState(false);
 
+  // Full Graphic Requirement Workspace State (For Staff Direction access & editing)
+  const [fullGraphicReq, setFullGraphicReq] = useState<any>(null);
+  const [loadingFullGraphicReq, setLoadingFullGraphicReq] = useState(false);
+  const [graphicDirectionTab, setGraphicDirectionTab] = useState<'view' | 'edit'>('view');
+  const [graphicCopiedDirection, setGraphicCopiedDirection] = useState(false);
+  const [graphicEditObjective, setGraphicEditObjective] = useState('');
+  const [graphicEditDirection, setGraphicEditDirection] = useState('');
+  const [graphicEditRemarks, setGraphicEditRemarks] = useState('');
+  const [savingGraphicReq, setSavingGraphicReq] = useState(false);
+
   useEffect(() => {
     if (inspectedTask?.script?.id || inspectedTask?.scriptId) {
       const sId = inspectedTask.script?.id || inspectedTask.scriptId;
@@ -407,10 +417,57 @@ export default function TasksPage() {
     } else {
       setFullScript(null);
     }
+
+    const gId = inspectedTask?.graphicRequirement?.id || inspectedTask?.graphicRequirementId;
+    if (gId) {
+      setLoadingFullGraphicReq(true);
+      fetchApi(`/graphic-reqs/${gId}`)
+        .then((res: any) => {
+          const item = res?.data || res;
+          if (item) {
+            setFullGraphicReq(item);
+            setGraphicEditObjective(item.objective || '');
+            setGraphicEditDirection(item.description || item.calendarEvent?.notes || '');
+            setGraphicEditRemarks(item.remarks || '');
+          }
+        })
+        .catch(() => {
+          setFullGraphicReq(inspectedTask.graphicRequirement || null);
+          setGraphicEditObjective(inspectedTask.graphicRequirement?.objective || '');
+          setGraphicEditDirection(inspectedTask.graphicRequirement?.description || inspectedTask.description || '');
+          setGraphicEditRemarks(inspectedTask.graphicRequirement?.remarks || inspectedTask.remarks || '');
+        })
+        .finally(() => setLoadingFullGraphicReq(false));
+    } else {
+      setFullGraphicReq(null);
+      setGraphicEditObjective('');
+      setGraphicEditDirection('');
+      setGraphicEditRemarks('');
+    }
   }, [inspectedTask]);
+
+  const inspectedTaskIsAssigned =
+    inspectedTask?.assignedEmployees?.some((a: any) => a.userId === user?.id || a.user?.id === user?.id) ||
+    inspectedTask?.assignedToId === user?.id;
+  const inspectedTaskUserAssignment = inspectedTask?.assignedEmployees?.find(
+    (a: any) => a.userId === user?.id || a.user?.id === user?.id,
+  );
+  const isPendingAcceptance =
+    inspectedTaskIsAssigned &&
+    (inspectedTaskUserAssignment
+      ? inspectedTaskUserAssignment?.acceptanceStatus !== 'ACCEPTED'
+      : inspectedTask?.status !== 'ACCEPTED' &&
+        inspectedTask?.status !== 'IN_PROGRESS' &&
+        inspectedTask?.status !== 'COMPLETED') &&
+    user?.role !== 'ADMINISTRATOR' &&
+    (user?.role as string) !== 'ADMIN';
 
   const handleSaveScriptDetailsInTask = async () => {
     if (!fullScript) return;
+    if (isPendingAcceptance) {
+      alert('Task is in read-only mode. Please accept the task assignment first.');
+      return;
+    }
     setSavingScript(true);
     try {
       let finalStatus = scriptEditStatus;
@@ -438,8 +495,53 @@ export default function TasksPage() {
     }
   };
 
+  const handleSaveGraphicDirectionInTask = async () => {
+    const gId = fullGraphicReq?.id || inspectedTask?.graphicRequirement?.id || inspectedTask?.graphicRequirementId;
+    if (!gId) return;
+    if (isPendingAcceptance) {
+      alert('Task is in read-only mode. Please accept the task assignment first.');
+      return;
+    }
+    setSavingGraphicReq(true);
+    try {
+      await fetchApi(`/graphic-reqs/${gId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          objective: graphicEditObjective,
+          description: graphicEditDirection,
+          remarks: graphicEditRemarks,
+        }),
+      });
+      const updated = await fetchApi(`/graphic-reqs/${gId}`).catch(() => null);
+      if (updated) {
+        setFullGraphicReq(updated);
+      }
+      if (inspectedTask) {
+        setInspectedTask((prev: any) => ({
+          ...prev,
+          graphicRequirement: updated || {
+            ...prev?.graphicRequirement,
+            objective: graphicEditObjective,
+            description: graphicEditDirection,
+            remarks: graphicEditRemarks,
+          },
+        }));
+      }
+      alert('Graphic Requirement Direction & Guidelines updated successfully!');
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update Graphic Requirement Direction');
+    } finally {
+      setSavingGraphicReq(false);
+    }
+  };
+
   const handleAddScriptRemarkInTask = async () => {
     if (!fullScript || !scriptNewRemarkText.trim()) return;
+    if (isPendingAcceptance) {
+      alert('Task is in read-only mode. Please accept the task assignment before adding remarks.');
+      return;
+    }
     setScriptAddingRemark(true);
     try {
       await fetchApi(`/scripts/${fullScript.id}/remarks`, {
@@ -458,6 +560,10 @@ export default function TasksPage() {
 
   const handleAddScriptAttachmentLink = async () => {
     if (!fullScript || !scriptNewLinkName.trim() || !scriptNewLinkUrl.trim()) return;
+    if (isPendingAcceptance) {
+      alert('Task is in read-only mode. Please accept the task assignment before adding attachments.');
+      return;
+    }
     setScriptAddingLink(true);
     try {
       const updated = await fetchApi(`/scripts/${fullScript.id}/attachment-links`, {
@@ -480,6 +586,10 @@ export default function TasksPage() {
 
   const handleDeleteScriptAttachmentLink = async (linkId: string) => {
     if (!fullScript) return;
+    if (isPendingAcceptance) {
+      alert('Task is in read-only mode. Please accept the task assignment first.');
+      return;
+    }
     try {
       const updated = await fetchApi(`/scripts/attachment-links/${linkId}`, { method: 'DELETE' });
       setFullScript(updated);
@@ -521,6 +631,10 @@ export default function TasksPage() {
 
   const handleSubmitTechnicalReviewInTask = async () => {
     const targetScriptId = fullScript?.id || activeScript?.id || inspectedTask?.scriptId || inspectedTask?.script?.id;
+    if (isPendingAcceptance) {
+      alert('Task is in read-only mode. Please accept the task assignment first.');
+      return;
+    }
 
     if (targetScriptId) {
       setSavingScript(true);
@@ -553,6 +667,10 @@ export default function TasksPage() {
     const targetScriptId = fullScript?.id || activeScript?.id || inspectedTask?.scriptId;
     if (!targetScriptId) {
       alert('No script found to update status');
+      return;
+    }
+    if (isPendingAcceptance) {
+      alert('Task is in read-only mode. Please accept the task assignment first.');
       return;
     }
 
@@ -697,6 +815,24 @@ export default function TasksPage() {
       return;
     }
 
+    const isUnderReview = [
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_REVIEW',
+      'PENDING_MARKETING_APPROVAL',
+      'WAITING_FOR_MARKETING_APPROVAL',
+      'PENDING_CLIENT_APPROVAL',
+      'PENDING_CLIENT_REVIEW',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+    ].includes(task.status);
+
+    if (isUnderReview) {
+      alert(`Task is currently under review (${task.status}) and in Read-Only mode. Progress and status updates cannot be modified during review.`);
+      return;
+    }
+
     setUpdatingTask(task);
     setEditStatus(task.status || 'IN_PROGRESS');
     setEditProgress(task.completionPercentage || 0);
@@ -745,6 +881,7 @@ export default function TasksPage() {
   const [taskClientId, setTaskClientId] = useState('');
   const [taskBrandId, setTaskBrandId] = useState('');
   const [taskProductId, setTaskProductId] = useState('');
+  const [taskCampaign, setTaskCampaign] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
   const [taskPriority, setTaskPriority] = useState('MEDIUM');
@@ -752,9 +889,35 @@ export default function TasksPage() {
   const [taskEstimatedHours, setTaskEstimatedHours] = useState('2.0');
   const [assignedStaffIds, setAssignedStaffIds] = useState<string[]>([]);
 
+  // Graphic Requirement specific fields (100% matched with Event Creation)
+  const [taskContentType, setTaskContentType] = useState('Poster');
+  const [taskPlatform, setTaskPlatform] = useState('Instagram');
+  const [taskObjective, setTaskObjective] = useState('');
+  const [taskRemarks, setTaskRemarks] = useState('');
+  const [taskSelectedDeliverables, setTaskSelectedDeliverables] = useState<string[]>(['Poster', 'Story']);
+  const [taskCreativeAssetName, setTaskCreativeAssetName] = useState('');
+  const [taskCreativePreviewUrl, setTaskCreativePreviewUrl] = useState('');
+
+  // Shoot Project specific fields (100% matched with Event Creation)
+  const [taskShootType, setTaskShootType] = useState('INDOOR');
+  const [taskShootDate, setTaskShootDate] = useState(new Date().toISOString().split('T')[0]);
+  const [taskLocation, setTaskLocation] = useState('Main Studio Floor');
+  const [taskLocationCategory, setTaskLocationCategory] = useState('Studio Bay');
+  const [taskCallTime, setTaskCallTime] = useState('09:00 AM');
+  const [taskExpectedWrapTime, setTaskExpectedWrapTime] = useState('05:00 PM');
+  const [taskInfluencerTalent, setTaskInfluencerTalent] = useState('');
+  const [taskExactLocationAddress, setTaskExactLocationAddress] = useState('');
+  const [taskLocationAccessDetails, setTaskLocationAccessDetails] = useState('');
+  const [taskLocationContact, setTaskLocationContact] = useState('');
+  const [taskExpectedWeatherConditions, setTaskExpectedWeatherConditions] = useState('Sunny');
+  const [taskBackupLocation, setTaskBackupLocation] = useState('');
+  const [taskSpecialOutdoorRequirements, setTaskSpecialOutdoorRequirements] = useState('');
+  const [taskEquipmentIds, setTaskEquipmentIds] = useState<string[]>([]);
+
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [scriptsList, setScriptsList] = useState<any[]>([]);
   const [graphicReqsList, setGraphicReqsList] = useState<any[]>([]);
+  const [equipmentList, setEquipmentList] = useState<any[]>([]);
   const [staffUsersList, setStaffUsersList] = useState<any[]>([]);
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
   const [creating, setCreating] = useState(false);
@@ -763,7 +926,7 @@ export default function TasksPage() {
 
   const loadReferenceData = async () => {
     try {
-      const [resCap, resProj, resScripts, resGraphic, resUsers, resClients, resBrands, resProducts] = await Promise.all([
+      const [resCap, resProj, resScripts, resGraphic, resUsers, resClients, resBrands, resProducts, resEquip] = await Promise.all([
         fetchApi('/tasks/capacity/overview'),
         fetchApi('/projects'),
         fetchApi('/scripts'),
@@ -772,6 +935,7 @@ export default function TasksPage() {
         fetchApi('/clients'),
         fetchApi('/brands'),
         fetchApi('/products'),
+        fetchApi('/equipment').catch(() => []),
       ]);
       
       setProjectsList(Array.isArray(resProj) ? resProj : []);
@@ -781,6 +945,7 @@ export default function TasksPage() {
       setClientsList(Array.isArray(resClients) ? resClients : []);
       setBrandsList(Array.isArray(resBrands) ? resBrands : []);
       setProductsList(Array.isArray(resProducts) ? resProducts : []);
+      setEquipmentList(Array.isArray(resEquip) ? resEquip : []);
     } catch (err) {
       console.error('Failed to load tasks reference metadata:', err);
     }
@@ -849,20 +1014,26 @@ export default function TasksPage() {
       const pId = selectedParentId || selectedParentProjectId;
       const p = projectsList.find((x) => x.id === pId);
       if (p) {
-        if (!taskTitle || taskTitle.trim() === '') setTaskTitle(`[Task] ${p.name}`);
+        if (!taskTitle || taskTitle.trim() === '') setTaskTitle(p.name);
         if (!taskDescription || taskDescription.trim() === '') setTaskDescription(p.notes || '');
         if (p.clientId) setTaskClientId(p.clientId);
         if (p.brandId) setTaskBrandId(p.brandId);
         if (p.productId) setTaskProductId(p.productId);
         if (p.priority) setTaskPriority(p.priority);
+        if (p.shootType) setTaskShootType(p.shootType);
+        if (p.shootLocation) setTaskLocation(p.shootLocation);
+        if (p.locationCategory) setTaskLocationCategory(p.locationCategory);
       }
       setSelectedParentProjectId(pId);
       setScriptCreationDetails(null);
     } else if (parentEntityType === 'GRAPHIC_REQ' && selectedParentId) {
       const g = graphicReqsList.find((x) => x.id === selectedParentId);
       if (g) {
-        if (!taskTitle || taskTitle.trim() === '') setTaskTitle(`[Task] ${g.name}`);
+        if (!taskTitle || taskTitle.trim() === '') setTaskTitle(g.name);
         if (!taskDescription || taskDescription.trim() === '') setTaskDescription(g.description || g.objective || '');
+        if (g.objective && !taskObjective) setTaskObjective(g.objective);
+        if (g.remarks && !taskRemarks) setTaskRemarks(g.remarks);
+        if (g.requirementType && !taskContentType) setTaskContentType(g.requirementType);
         if (g.projectId && !selectedParentProjectId) setSelectedParentProjectId(g.projectId);
         if (g.clientId) setTaskClientId(g.clientId);
         if (g.brandId) setTaskBrandId(g.brandId);
@@ -932,19 +1103,48 @@ export default function TasksPage() {
     setCreating(true);
     try {
       const isOther = parentEntityType === 'NONE' || (parentEntityType as string) === 'OTHER';
+      const isGraphic = parentEntityType === 'GRAPHIC_REQ';
+      const isShoot = parentEntityType === 'PROJECT';
+
       const payload: any = {
         title: taskTitle,
-        description: taskDescription,
+        description: taskDescription || (isGraphic ? taskObjective : undefined),
         priority: taskPriority,
         dueDate: taskDueDate || new Date(Date.now() + 86400000).toISOString(),
         estimatedHours: parseFloat(taskEstimatedHours) || 2.0,
         parentEntityType: isOther ? 'NONE' : parentEntityType,
-        taskType: isOther ? 'OTHER' : (parentEntityType === 'PROJECT' ? 'PROJECT' : (parentEntityType === 'SCRIPT' ? 'SCRIPT' : (parentEntityType === 'GRAPHIC_REQ' ? 'GRAPHIC_REQUIREMENT' : 'PRODUCTION_TASK'))),
-        sourceType: isOther ? 'DIRECT_TASK' : undefined,
+        taskType: isOther ? 'OTHER' : (isShoot ? 'PROJECT' : (parentEntityType === 'SCRIPT' ? 'SCRIPT' : (isGraphic ? 'GRAPHIC_REQUIREMENT' : 'PRODUCTION_TASK'))),
+        sourceType: isOther ? 'DIRECT_TASK' : (isGraphic ? 'GRAPHIC_REQUIREMENT' : (isShoot ? 'SHOOT_PROJECT' : undefined)),
         clientId: taskClientId || undefined,
         brandId: taskBrandId || undefined,
         productId: taskProductId || undefined,
+        campaignId: taskCampaign || undefined,
         assignedUserIds: assignedStaffIds,
+        // Graphic Requirement full fields
+        contentType: isGraphic ? taskContentType : undefined,
+        platform: isGraphic ? taskPlatform : undefined,
+        objective: isGraphic ? taskObjective : undefined,
+        caption: isGraphic ? taskObjective : undefined,
+        remarks: isGraphic ? taskRemarks : undefined,
+        selectedDeliverables: isGraphic ? taskSelectedDeliverables : undefined,
+        creativeAssetName: isGraphic || isShoot ? taskCreativeAssetName : undefined,
+        creativePreviewUrl: isGraphic || isShoot ? taskCreativePreviewUrl : undefined,
+        // Shoot Project full fields
+        shootType: isShoot ? taskShootType : undefined,
+        shootDate: isShoot ? taskShootDate : undefined,
+        location: isShoot ? taskLocation : undefined,
+        locationCategory: isShoot ? taskLocationCategory : undefined,
+        callTime: isShoot ? taskCallTime : undefined,
+        expectedWrapTime: isShoot ? taskExpectedWrapTime : undefined,
+        influencerTalent: isShoot ? taskInfluencerTalent : undefined,
+        productionNotes: isShoot ? taskDescription : undefined,
+        exactLocationAddress: isShoot && taskShootType === 'OUTDOOR' ? taskExactLocationAddress : undefined,
+        locationAccessDetails: isShoot && taskShootType === 'OUTDOOR' ? taskLocationAccessDetails : undefined,
+        locationContact: isShoot && taskShootType === 'OUTDOOR' ? taskLocationContact : undefined,
+        expectedWeatherConditions: isShoot && taskShootType === 'OUTDOOR' ? taskExpectedWeatherConditions : undefined,
+        backupLocation: isShoot && taskShootType === 'OUTDOOR' ? taskBackupLocation : undefined,
+        specialOutdoorRequirements: isShoot && taskShootType === 'OUTDOOR' ? taskSpecialOutdoorRequirements : undefined,
+        equipmentIds: isShoot ? taskEquipmentIds : undefined,
       };
 
       if (parentEntityType === 'PROJECT') {
@@ -976,6 +1176,18 @@ export default function TasksPage() {
       setTaskClientId('');
       setTaskBrandId('');
       setTaskProductId('');
+      setTaskCampaign('');
+      setTaskObjective('');
+      setTaskRemarks('');
+      setTaskCreativeAssetName('');
+      setTaskCreativePreviewUrl('');
+      setTaskInfluencerTalent('');
+      setTaskExactLocationAddress('');
+      setTaskLocationAccessDetails('');
+      setTaskLocationContact('');
+      setTaskBackupLocation('');
+      setTaskSpecialOutdoorRequirements('');
+      setTaskEquipmentIds([]);
       setTaskDueDate(new Date(Date.now() + 86400000).toISOString().split('T')[0]);
       setAssignedStaffIds([]);
       loadData();
@@ -1069,6 +1281,16 @@ export default function TasksPage() {
   };
 
   const handleStartInProgress = async (taskId: string) => {
+    const taskObj = tasks.find((t) => t.id === taskId) || inspectedTask;
+    const isAssigned = taskObj?.assignedEmployees?.some((a: any) => a.userId === user?.id || a.user?.id === user?.id);
+    const userAssignment = taskObj?.assignedEmployees?.find((a: any) => a.userId === user?.id || a.user?.id === user?.id);
+    const isNotAcceptedYet = isAssigned && userAssignment?.acceptanceStatus !== 'ACCEPTED' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN';
+
+    if (isNotAcceptedYet) {
+      alert('Task must be accepted before you can start work. Please click "Accept Task" first.');
+      return;
+    }
+
     try {
       await fetchApi(`/tasks/${taskId}/progress`, {
         method: 'PATCH',
@@ -1092,6 +1314,16 @@ export default function TasksPage() {
 
   const handleAddRemark = async (taskId: string) => {
     if (!newRemarkText.trim()) return;
+    const taskObj = tasks.find((t) => t.id === taskId) || inspectedTask;
+    const isAssigned = taskObj?.assignedEmployees?.some((a: any) => a.userId === user?.id || a.user?.id === user?.id);
+    const userAssignment = taskObj?.assignedEmployees?.find((a: any) => a.userId === user?.id || a.user?.id === user?.id);
+    const isNotAcceptedYet = isAssigned && userAssignment?.acceptanceStatus !== 'ACCEPTED' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN';
+
+    if (isNotAcceptedYet) {
+      alert('Task is in read-only mode. Please accept the task assignment before recording remarks.');
+      return;
+    }
+
     setSubmittingRemark(true);
     try {
       const added = await fetchApi(`/tasks/${taskId}/remarks`, {
@@ -1117,6 +1349,15 @@ export default function TasksPage() {
   const handleUploadDeliverable = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadTask || !uploadFileUrl.trim()) return;
+    const isAssigned = uploadTask?.assignedEmployees?.some((a: any) => a.userId === user?.id || a.user?.id === user?.id);
+    const userAssignment = uploadTask?.assignedEmployees?.find((a: any) => a.userId === user?.id || a.user?.id === user?.id);
+    const isNotAcceptedYet = isAssigned && userAssignment?.acceptanceStatus !== 'ACCEPTED' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN';
+
+    if (isNotAcceptedYet) {
+      alert('Task is in read-only mode. Please accept the task assignment before uploading deliverables.');
+      return;
+    }
+
     setUploadingDeliverable(true);
     try {
       const res = await fetchApi(`/tasks/${uploadTask.id}/upload-deliverable`, {
@@ -1152,6 +1393,10 @@ export default function TasksPage() {
 
   const handleUploadScriptAttachment = async (file: File, category: string) => {
     if ((!inspectedTask?.script && !inspectedTask?.scriptId) || !file) return;
+    if (isPendingAcceptance) {
+      alert('Task is in read-only mode. Please accept the task assignment before uploading attachments.');
+      return;
+    }
     setUploadingScriptAttachment(true);
     try {
       const formData = new FormData();
@@ -1188,6 +1433,16 @@ export default function TasksPage() {
   };
 
   const handleRequestTechnicalReview = async (taskId: string) => {
+    const taskObj = tasks.find((t) => t.id === taskId) || inspectedTask;
+    const isAssigned = taskObj?.assignedEmployees?.some((a: any) => a.userId === user?.id || a.user?.id === user?.id);
+    const userAssignment = taskObj?.assignedEmployees?.find((a: any) => a.userId === user?.id || a.user?.id === user?.id);
+    const isNotAcceptedYet = isAssigned && userAssignment?.acceptanceStatus !== 'ACCEPTED' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN';
+
+    if (isNotAcceptedYet) {
+      alert('Task is in read-only mode. Please accept the task assignment before requesting technical review.');
+      return;
+    }
+
     try {
       await fetchApi(`/tasks/${taskId}/request-technical-review`, {
         method: 'POST',
@@ -1264,10 +1519,6 @@ export default function TasksPage() {
       alert(err.message || 'Failed to update progress');
     }
   };
-
-  const inspectedTaskIsAssigned = inspectedTask?.assignedEmployees?.some((a: any) => a.userId === user?.id || a.user?.id === user?.id);
-  const inspectedTaskUserAssignment = inspectedTask?.assignedEmployees?.find((a: any) => a.userId === user?.id || a.user?.id === user?.id);
-  const isPendingAcceptance = inspectedTaskIsAssigned && inspectedTaskUserAssignment?.acceptanceStatus !== 'ACCEPTED' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN';
 
   const isAdminUser = user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN';
   const inspectedTaskCreatedEvent = inspectedTask?.timeline?.find((t: any) => t.event === 'TASK_CREATED' || t.event === 'CREATED');
@@ -1937,10 +2188,11 @@ export default function TasksPage() {
                                   </button>
                                 )}
 
-                                {/* Actions locked for staff when under review */}
-                                {user?.role === 'STAFF' && ['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_REVIEW', 'COMPLETED'].includes(task.status) ? (
-                                  <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded font-mono text-[9px] font-bold">
-                                    Under Review
+                                {/* Actions locked when task is under review */}
+                                {['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'WAITING_FOR_REVIEW', 'PENDING_MARKETING_APPROVAL', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(task.status) ? (
+                                  <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded font-mono text-[9px] font-bold flex items-center gap-1">
+                                    <ShieldCheck className="w-3 h-3 text-amber-600" />
+                                    {task.status === 'COMPLETED' ? 'Completed' : 'Under Review (Read-Only)'}
                                   </span>
                                 ) : (
                                   <>
@@ -2030,51 +2282,48 @@ export default function TasksPage() {
       {showCreateModal && (
         <div
           onClick={() => setShowCreateModal(false)}
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 z-50 animate-in fade-in duration-150"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white border border-slate-200 rounded-xl w-full max-w-lg p-6 space-y-4 text-xs shadow-2xl relative max-h-[90vh] overflow-y-auto"
+            className="bg-white border border-slate-200 rounded-2xl w-full max-w-4xl p-6 sm:p-8 space-y-6 text-sm shadow-2xl relative max-h-[90vh] overflow-y-auto"
           >
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
               <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2.5">
                   <CheckSquare className="w-5 h-5 text-blue-600" /> Create Task
                 </h3>
-                <p className="text-slate-500 text-[11px] mt-0.5">
-                  Select the task type and origin to configure workflow requirements and assets.
-                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 flex items-center justify-center font-bold text-sm transition-colors"
+                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 flex items-center justify-center font-bold text-base transition-colors"
                 title="Close"
               >
                 ×
               </button>
             </div>
 
-            <form onSubmit={handleCreateTask} className="space-y-3.5">
-              {/* Minimal Task Type Segmented Selector */}
+            <form onSubmit={handleCreateTask} className="space-y-6">
+              {/* Task Type Segmented Selector */}
               <div>
-                <label className="block text-slate-500 font-semibold mb-1 text-[10px] uppercase tracking-wider">
+                <label className="block text-slate-600 font-bold mb-2 text-xs uppercase tracking-wider">
                   Task Type / Workflow Origin *
                 </label>
-                <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 bg-slate-100 rounded-xl border border-slate-200">
                   <button
                     type="button"
                     onClick={() => {
                       setParentEntityType('SCRIPT');
                       setSelectedParentId('');
                     }}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
                       parentEntityType === 'SCRIPT'
                         ? 'bg-purple-600 text-white shadow-xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                     }`}
                   >
-                    <Film className="w-3.5 h-3.5 shrink-0" />
+                    <Film className="w-4 h-4 shrink-0" />
                     <span>Script</span>
                   </button>
 
@@ -2084,14 +2333,14 @@ export default function TasksPage() {
                       setParentEntityType('PROJECT');
                       setSelectedParentId('');
                     }}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
                       parentEntityType === 'PROJECT'
                         ? 'bg-blue-600 text-white shadow-xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                     }`}
                   >
-                    <Camera className="w-3.5 h-3.5 shrink-0" />
-                    <span>Project</span>
+                    <Camera className="w-4 h-4 shrink-0" />
+                    <span>Shoot Project</span>
                   </button>
 
                   <button
@@ -2100,14 +2349,14 @@ export default function TasksPage() {
                       setParentEntityType('GRAPHIC_REQ');
                       setSelectedParentId('');
                     }}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
                       parentEntityType === 'GRAPHIC_REQ'
                         ? 'bg-amber-600 text-white shadow-xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                     }`}
                   >
-                    <Layers className="w-3.5 h-3.5 shrink-0" />
-                    <span>Graphic</span>
+                    <Layers className="w-4 h-4 shrink-0" />
+                    <span>Graphic Req</span>
                   </button>
 
                   <button
@@ -2116,457 +2365,1178 @@ export default function TasksPage() {
                       setParentEntityType('NONE');
                       setSelectedParentId('');
                     }}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
                       parentEntityType === 'NONE'
                         ? 'bg-slate-800 text-white shadow-xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                     }`}
                   >
-                    <CheckSquare className="w-3.5 h-3.5 shrink-0" />
-                    <span>Other</span>
+                    <CheckSquare className="w-4 h-4 shrink-0" />
+                    <span>Other Task</span>
                   </button>
                 </div>
               </div>
 
-              {/* Specific Parent & Project Selection Dropdowns */}
-              {parentEntityType === 'SCRIPT' && (
-                <div>
-                  <label className="block text-slate-500 font-semibold mb-1 text-[10px] uppercase tracking-wider">
-                    Select Parent Shoot Project *
-                  </label>
-                  <select
-                    value={selectedParentProjectId}
-                    onChange={(e) => {
-                      const projId = e.target.value;
-                      setSelectedParentProjectId(projId);
-                      const matchingScript = scriptsList.find((s) => s.projectId === projId);
-                      setSelectedParentId(matchingScript ? matchingScript.id : '');
-                    }}
-                    className="w-full bg-slate-50 border border-purple-200 focus:border-purple-500 rounded-lg p-2 text-slate-800 font-medium text-xs focus:bg-white transition-colors"
-                  >
-                    <option value="">-- Choose Shoot Project --</option>
-                    {projectsList.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.projectId}) - {p.status}
-                      </option>
-                    ))}
-                  </select>
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {/* FORM TYPE 1: GRAPHIC REQUIREMENT CREATION (100% Matching Event Creation)   */}
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {parentEntityType === 'GRAPHIC_REQ' && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  {/* Section 1: Core Entity Details */}
+                  <div className="space-y-4 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                      Section 1 • Core Requirement Details *
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="col-span-1 sm:col-span-2">
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Requirement Name / Title *</label>
+                        <input
+                          type="text"
+                          required
+                          value={taskTitle}
+                          onChange={(e) => setTaskTitle(e.target.value)}
+                          placeholder="e.g. Product Banner Graphic"
+                          className="w-full bg-white border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm transition-colors"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Client *</label>
+                        <select
+                          required
+                          value={taskClientId}
+                          onChange={(e) => {
+                            setTaskClientId(e.target.value);
+                            setTaskBrandId('');
+                            setTaskProductId('');
+                          }}
+                          className="w-full bg-white border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        >
+                          <option value="">Select Active Client</option>
+                          {clientsList.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Brand *</label>
+                        <select
+                          required
+                          value={taskBrandId}
+                          onChange={(e) => {
+                            setTaskBrandId(e.target.value);
+                            setTaskProductId('');
+                          }}
+                          className="w-full bg-white border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        >
+                          <option value="">Select Active Brand</option>
+                          {brandsList
+                            .filter((b) => !taskClientId || b.clientId === taskClientId)
+                            .map((b) => (
+                              <option key={b.id} value={b.id}>[{b.shortCode}] {b.name}</option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Product (Optional)</label>
+                        <select
+                          value={taskProductId}
+                          onChange={(e) => setTaskProductId(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-amber-500 rounded-lg p-2.5 text-slate-800 text-sm transition-colors"
+                        >
+                          <option value="">None / General Requirement</option>
+                          {productsList
+                            .filter((p) => !taskBrandId || p.brandId === taskBrandId)
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>{p.name} ({p.productCode})</option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Campaign (Optional)</label>
+                        <input
+                          type="text"
+                          value={taskCampaign}
+                          onChange={(e) => setTaskCampaign(e.target.value)}
+                          placeholder="e.g. Q3 Launch Campaign"
+                          className="w-full bg-white border border-slate-200 focus:border-amber-500 rounded-lg p-2.5 text-slate-800 text-sm transition-colors"
+                        />
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2">
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Parent Shoot Project (Optional)</label>
+                        <select
+                          value={selectedParentProjectId}
+                          onChange={(e) => setSelectedParentProjectId(e.target.value)}
+                          className="w-full bg-white border border-purple-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm transition-colors"
+                        >
+                          <option value="">-- Independent Graphic Requirement (No Parent Project) --</option>
+                          {projectsList.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.projectId || 'SP'} • {p.name} ({p.client?.name || 'Client'})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 2: Graphic Requirement Details */}
+                  <div className="space-y-4 bg-amber-50/60 p-5 sm:p-6 rounded-xl border border-amber-200 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <FileText className="w-4 h-4 text-amber-600" /> Section 2 • Graphic Requirement Details *
+                      </span>
+                      <span className="font-mono text-xs bg-amber-100 px-2.5 py-0.5 rounded border border-amber-300 text-amber-800 font-bold">
+                        ID: GR-AUTO
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-slate-800 font-bold block mb-1.5 text-xs">Requirement Type *</label>
+                        <select
+                          required
+                          value={taskContentType}
+                          onChange={(e) => setTaskContentType(e.target.value)}
+                          className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-lg p-2.5 text-slate-800 font-bold text-sm"
+                        >
+                          <option value="Poster">Poster</option>
+                          <option value="Carousel">Carousel Post</option>
+                          <option value="Story">Story Design</option>
+                          <option value="Banner">Web / Social Banner</option>
+                          <option value="Thumbnail">Video Thumbnail</option>
+                          <option value="Social Media Post">Social Media Post</option>
+                          <option value="Motion Graphic">Motion Graphic</option>
+                          <option value="Infographic">Infographic</option>
+                          <option value="Header">Header / Cover</option>
+                          <option value="Custom">Custom Design</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-800 font-bold block mb-1.5 text-xs">Target Platform *</label>
+                        <select
+                          required
+                          value={taskPlatform}
+                          onChange={(e) => setTaskPlatform(e.target.value)}
+                          className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-lg p-2.5 text-slate-800 font-bold text-sm"
+                        >
+                          <option value="Instagram">Instagram</option>
+                          <option value="Facebook">Facebook</option>
+                          <option value="LinkedIn">LinkedIn</option>
+                          <option value="YouTube">YouTube</option>
+                          <option value="Twitter/X">Twitter / X</option>
+                          <option value="Website">Website</option>
+                          <option value="Print">Print Media</option>
+                          <option value="Multi-Platform">Multi-Platform</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-800 font-bold block mb-1.5 text-xs">Priority *</label>
+                        <select
+                          required
+                          value={taskPriority}
+                          onChange={(e) => setTaskPriority(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-amber-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm"
+                        >
+                          <option value="LOW">Low</option>
+                          <option value="MEDIUM">Medium</option>
+                          <option value="HIGH">High</option>
+                          <option value="CRITICAL">Urgent</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-800 font-bold block mb-1.5 text-xs">Target Completion Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={taskDueDate}
+                          onChange={(e) => setTaskDueDate(e.target.value)}
+                          className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-lg p-2.5 text-slate-800 font-bold text-sm"
+                        />
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2">
+                        <label className="text-slate-800 font-bold block mb-1.5 text-xs">Objective / Design Brief *</label>
+                        <input
+                          type="text"
+                          required
+                          value={taskObjective}
+                          onChange={(e) => setTaskObjective(e.target.value)}
+                          placeholder="e.g. Promote summer sale discount with vibrant product showcase"
+                          className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
+                        />
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-3">
+                        <label className="text-slate-700 font-semibold block mb-1.5 text-xs">Remarks &amp; Special Instructions (Optional)</label>
+                        <textarea
+                          rows={2}
+                          value={taskRemarks}
+                          onChange={(e) => setTaskRemarks(e.target.value)}
+                          placeholder="Enter any permanent remarks, references, or special instructions..."
+                          className="w-full bg-white border border-slate-200 focus:border-amber-500 rounded-lg p-2.5 text-slate-800 text-sm"
+                        ></textarea>
+                      </div>
+                    </div>
+
+                    {/* Produced Deliverables Formats Selection */}
+                    <div className="p-4 bg-white/80 border border-amber-200/80 rounded-xl space-y-2.5">
+                      <label className="text-slate-800 font-bold block text-xs">
+                        Produced Deliverables (Click to select/deselect deliverable formats to generate) *
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { name: 'Poster' },
+                          { name: 'Story' },
+                          { name: 'Carousel' },
+                          { name: 'Thumbnail' },
+                          { name: 'Banner' },
+                          { name: 'Motion Graphic' },
+                          { name: 'Social Media Post' },
+                          { name: 'Advertisement' },
+                          { name: 'Packaging Design' },
+                          { name: 'Website Creative' },
+                        ].map((del) => {
+                          const isSelected = (taskSelectedDeliverables || ['Poster', 'Story']).includes(del.name);
+                          return (
+                            <button
+                              key={del.name}
+                              type="button"
+                              onClick={() => {
+                                const current = taskSelectedDeliverables || ['Poster', 'Story'];
+                                const next = isSelected
+                                  ? current.filter((d) => d !== del.name)
+                                  : [...current, del.name];
+                                setTaskSelectedDeliverables(next);
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                                isSelected
+                                  ? 'bg-amber-500 text-gray-950 border-amber-400 font-bold shadow-md scale-[1.02]'
+                                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-100'
+                              }`}
+                            >
+                              <span>{del.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Required Equipment */}
+                  <div className="space-y-3 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200 text-sm">
+                    <div className="flex items-center justify-between">
+                      <label className="text-slate-800 font-bold flex items-center gap-2 text-xs uppercase tracking-wider">
+                        <Camera className="w-4 h-4 text-purple-600" />
+                        <span>Required Equipment</span>
+                      </label>
+                      <span className="text-xs text-slate-500 font-mono font-bold">
+                        {taskEquipmentIds.length > 0 ? `${taskEquipmentIds.length} Selected` : 'No Equipment Required'}
+                      </span>
+                    </div>
+                    {taskEquipmentIds.length > 0 && equipmentList.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-3 bg-white rounded-lg border border-slate-200">
+                        {equipmentList.map((eq: any) => (
+                          <label
+                            key={eq.id}
+                            className="flex items-center gap-2.5 p-2 hover:bg-slate-50 rounded text-xs cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={taskEquipmentIds.includes(eq.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setTaskEquipmentIds([...taskEquipmentIds, eq.id]);
+                                else setTaskEquipmentIds(taskEquipmentIds.filter((id) => id !== eq.id));
+                              }}
+                              className="w-4 h-4 accent-blue-600 rounded"
+                            />
+                            <span className="truncate">
+                              <strong>{eq.name}</strong> <span className="text-slate-500 font-mono text-[10px]">({eq.equipmentCode || eq.category})</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-white rounded-lg border border-slate-200 text-slate-600 space-y-1">
+                        <div className="flex items-center gap-2 font-semibold text-xs text-slate-700">
+                          <Camera className="w-4 h-4 text-slate-400 shrink-0" />
+                          <span>No equipment required / No equipment available</span>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          No equipment is associated with or required for this Graphic Requirement.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {parentEntityType === 'GRAPHIC_REQ' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {/* FORM TYPE 2: SHOOT PROJECT CREATION (100% Matching Event Creation)        */}
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {parentEntityType === 'PROJECT' && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  {/* Section 1: Core Shoot Details */}
+                  <div className="space-y-4 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                        Section 1 • Core Project Details *
+                      </span>
+                      <span className="font-mono text-xs bg-blue-50 px-2.5 py-0.5 rounded border border-blue-200 text-blue-800 font-bold">
+                        ID: SP-AUTO
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="col-span-1 sm:col-span-2">
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Parent Shoot Project (Optional Link / Base Project)</label>
+                        <select
+                          value={selectedParentProjectId}
+                          onChange={(e) => setSelectedParentProjectId(e.target.value)}
+                          className="w-full bg-white border border-blue-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm transition-colors"
+                        >
+                          <option value="">-- New Independent Shoot Project (No Parent Project) --</option>
+                          {projectsList.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.projectId || 'SP'} • {p.name} ({p.client?.name || 'Client'}) - {p.status}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2">
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Project Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={taskTitle}
+                          onChange={(e) => setTaskTitle(e.target.value)}
+                          placeholder="e.g. Summer Collection Outdoor Shoot"
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm transition-colors"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Client *</label>
+                        <select
+                          required
+                          value={taskClientId}
+                          onChange={(e) => {
+                            setTaskClientId(e.target.value);
+                            setTaskBrandId('');
+                            setTaskProductId('');
+                          }}
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        >
+                          <option value="">Select Active Client</option>
+                          {clientsList.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Brand *</label>
+                        <select
+                          required
+                          value={taskBrandId}
+                          onChange={(e) => {
+                            setTaskBrandId(e.target.value);
+                            setTaskProductId('');
+                          }}
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        >
+                          <option value="">Select Active Brand</option>
+                          {brandsList
+                            .filter((b) => !taskClientId || b.clientId === taskClientId)
+                            .map((b) => (
+                              <option key={b.id} value={b.id}>[{b.shortCode}] {b.name}</option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Product (Optional)</label>
+                        <select
+                          value={taskProductId}
+                          onChange={(e) => setTaskProductId(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 text-sm transition-colors"
+                        >
+                          <option value="">None / General Shoot</option>
+                          {productsList
+                            .filter((p) => !taskBrandId || p.brandId === taskBrandId)
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>{p.name} ({p.productCode})</option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Campaign (Optional)</label>
+                        <input
+                          type="text"
+                          value={taskCampaign}
+                          onChange={(e) => setTaskCampaign(e.target.value)}
+                          placeholder="e.g. Q3 Launch Campaign"
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 text-sm transition-colors"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 2: Project Shoot Base Details */}
+                  <div className="space-y-4 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200">
+                    <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider block">
+                      Section 2 • Project Shoot Base Details *
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Shoot Type *</label>
+                        <select
+                          required
+                          value={taskShootType}
+                          onChange={(e) => setTaskShootType(e.target.value)}
+                          className="w-full bg-white border border-blue-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-bold text-sm"
+                        >
+                          <option value="INDOOR">Indoor Shoot</option>
+                          <option value="OUTDOOR">Outdoor Shoot</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Shoot Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={taskShootDate}
+                          onChange={(e) => setTaskShootDate(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Estimated Completion Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={taskDueDate}
+                          onChange={(e) => setTaskDueDate(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm"
+                        />
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2">
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Shoot Location *</label>
+                        <input
+                          type="text"
+                          required
+                          value={taskLocation}
+                          onChange={(e) => setTaskLocation(e.target.value)}
+                          placeholder="e.g. Main Studio Floor or Kozhikode Beach"
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Location Category *</label>
+                        <select
+                          value={taskLocationCategory}
+                          onChange={(e) => setTaskLocationCategory(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm"
+                        >
+                          <option value="Studio Bay">Studio Bay</option>
+                          <option value="Main Studio Floor">Main Studio Floor</option>
+                          <option value="On-Location">On-Location</option>
+                          <option value="Client Premises">Client Premises</option>
+                          <option value="Outdoor Landmark">Outdoor Landmark</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Reporting Time (Call Time) *</label>
+                        <input
+                          type="text"
+                          required
+                          value={taskCallTime}
+                          onChange={(e) => setTaskCallTime(e.target.value)}
+                          placeholder="09:00 AM"
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-mono text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Expected Wrap-up Time *</label>
+                        <input
+                          type="text"
+                          required
+                          value={taskExpectedWrapTime}
+                          onChange={(e) => setTaskExpectedWrapTime(e.target.value)}
+                          placeholder="06:00 PM"
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-mono text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Influencer / Talent *</label>
+                        <input
+                          type="text"
+                          required
+                          value={taskInfluencerTalent}
+                          onChange={(e) => setTaskInfluencerTalent(e.target.value)}
+                          placeholder="e.g. Model Name / Talent Contact"
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Project Priority *</label>
+                        <select
+                          value={taskPriority}
+                          onChange={(e) => setTaskPriority(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm"
+                        >
+                          <option value="LOW">Low</option>
+                          <option value="MEDIUM">Medium</option>
+                          <option value="HIGH">High</option>
+                          <option value="CRITICAL">Urgent</option>
+                        </select>
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-3">
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Notes / Production Brief (Optional)</label>
+                        <textarea
+                          rows={2}
+                          value={taskDescription}
+                          onChange={(e) => setTaskDescription(e.target.value)}
+                          placeholder="Enter production brief, shot list notes, client instructions..."
+                          className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
+                        ></textarea>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 2b: Outdoor Shoot Details */}
+                  {(taskShootType === 'OUTDOOR' || taskShootType === 'Outdoor Shoot') && (
+                    <div className="space-y-4 bg-purple-50/70 p-5 sm:p-6 rounded-xl border border-purple-200 text-sm">
+                      <span className="text-xs font-black text-purple-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <MapPin className="w-4 h-4 text-purple-600" /> --- OUTDOOR SHOOT DETAILS ---
+                      </span>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="col-span-1 sm:col-span-2">
+                          <label className="text-slate-800 font-bold block mb-1.5 text-xs">Exact Location / Address *</label>
+                          <input
+                            type="text"
+                            required
+                            value={taskExactLocationAddress}
+                            onChange={(e) => setTaskExactLocationAddress(e.target.value)}
+                            placeholder="e.g. Kozhikode Beach, Kozhikode, Kerala"
+                            className="w-full bg-white border border-purple-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
+                          />
+                        </div>
+
+                        <div className="col-span-1 sm:col-span-2">
+                          <label className="text-slate-800 font-bold block mb-1.5 text-xs">Location Access Details *</label>
+                          <textarea
+                            rows={2}
+                            required
+                            value={taskLocationAccessDetails}
+                            onChange={(e) => setTaskLocationAccessDetails(e.target.value)}
+                            placeholder="e.g. Parking availability, entry point, road access, restricted access notes..."
+                            className="w-full bg-white border border-purple-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 text-sm"
+                          ></textarea>
+                        </div>
+
+                        <div>
+                          <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Location Contact</label>
+                          <input
+                            type="text"
+                            value={taskLocationContact}
+                            onChange={(e) => setTaskLocationContact(e.target.value)}
+                            placeholder="Contact Name / Phone / Manager"
+                            className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 text-sm"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Expected Weather Conditions</label>
+                          <select
+                            value={taskExpectedWeatherConditions}
+                            onChange={(e) => setTaskExpectedWeatherConditions(e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-semibold text-sm"
+                          >
+                            <option value="Sunny">Sunny</option>
+                            <option value="Cloudy">Cloudy</option>
+                            <option value="Rain Expected">Rain Expected</option>
+                            <option value="Windy">Windy</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Backup Location</label>
+                          <input
+                            type="text"
+                            value={taskBackupLocation}
+                            onChange={(e) => setTaskBackupLocation(e.target.value)}
+                            placeholder="e.g. Indoor Studio 4"
+                            className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 text-sm"
+                          />
+                        </div>
+
+                        <div className="col-span-1 sm:col-span-2">
+                          <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Special Outdoor Requirements</label>
+                          <textarea
+                            rows={2}
+                            value={taskSpecialOutdoorRequirements}
+                            onChange={(e) => setTaskSpecialOutdoorRequirements(e.target.value)}
+                            placeholder="Power, tents, transport, safety gear, drone permissions..."
+                            className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 text-sm"
+                          ></textarea>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section 3: Required Equipment Selection */}
+                  {equipmentList.length > 0 && (
+                    <div className="space-y-3 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200 text-sm">
+                      <div className="flex items-center justify-between">
+                        <label className="text-slate-800 font-bold text-xs uppercase tracking-wider">
+                          Required Equipment Selection (Optional)
+                        </label>
+                        {taskEquipmentIds.length > 0 && (
+                          <span className="text-xs text-blue-600 font-bold font-mono">
+                            {taskEquipmentIds.length} Selected
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-3 bg-white rounded-lg border border-slate-200">
+                        {equipmentList.map((eq: any) => (
+                          <label
+                            key={eq.id}
+                            className="flex items-center gap-2.5 p-2 hover:bg-slate-50 rounded text-xs cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={taskEquipmentIds.includes(eq.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setTaskEquipmentIds([...taskEquipmentIds, eq.id]);
+                                else setTaskEquipmentIds(taskEquipmentIds.filter((id) => id !== eq.id));
+                              }}
+                              className="w-4 h-4 accent-blue-600 rounded"
+                            />
+                            <span className="truncate">
+                              <strong>{eq.name}</strong> <span className="text-slate-500 font-mono text-[10px]">({eq.equipmentCode || eq.category})</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {/* FORM TYPE 3: SCRIPT TASK CREATION                                         */}
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {parentEntityType === 'SCRIPT' && (
+                <div className="space-y-5 animate-in fade-in duration-150">
                   <div>
-                    <label className="block text-slate-500 font-semibold mb-1 text-[10px] uppercase tracking-wider">
-                      Parent Shoot Project (Optional Filter)
+                    <label className="block text-slate-600 font-bold mb-1.5 text-xs uppercase tracking-wider">
+                      Select Parent Shoot Project *
                     </label>
                     <select
                       value={selectedParentProjectId}
                       onChange={(e) => {
-                        setSelectedParentProjectId(e.target.value);
+                        const projId = e.target.value;
+                        setSelectedParentProjectId(projId);
+                        const matchingScript = scriptsList.find((s) => s.projectId === projId);
+                        setSelectedParentId(matchingScript ? matchingScript.id : '');
                       }}
-                      className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 rounded-lg p-2 text-slate-800 font-medium text-xs focus:bg-white transition-colors"
+                      className="w-full bg-white border border-purple-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm focus:bg-white transition-colors"
                     >
-                      <option value="">-- All Shoot Projects --</option>
+                      <option value="">-- Choose Shoot Project --</option>
                       {projectsList.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.projectId})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-500 font-semibold mb-1 text-[10px] uppercase tracking-wider">
-                      Select Graphic Requirement *
-                    </label>
-                    <select
-                      value={selectedParentId}
-                      onChange={(e) => setSelectedParentId(e.target.value)}
-                      className="w-full bg-slate-50 border border-amber-200 focus:border-amber-500 rounded-lg p-2 text-slate-800 font-medium text-xs focus:bg-white transition-colors"
-                    >
-                      <option value="">-- Choose Graphic Requirement --</option>
-                      {(selectedParentProjectId ? graphicReqsList.filter((g) => g.projectId === selectedParentProjectId) : graphicReqsList)
-                        .filter((g) => ['READY', 'APPROVED', 'IN_PROGRESS', 'COMPLETED'].includes(g.status))
-                        .map((g) => (
-                          <option key={g.id} value={g.id}>
-                            {g.name} ({g.requirementId}) - {g.status}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {parentEntityType === 'PROJECT' && (
-                <div>
-                  <label className="block text-slate-500 font-semibold mb-1 text-[10px] uppercase tracking-wider">
-                    Select Target Shoot Project *
-                  </label>
-                  <select
-                    value={selectedParentId}
-                    onChange={(e) => {
-                      setSelectedParentId(e.target.value);
-                      setSelectedParentProjectId(e.target.value);
-                    }}
-                    className="w-full bg-slate-50 border border-blue-200 focus:border-blue-500 rounded-lg p-2 text-slate-800 font-medium text-xs focus:bg-white transition-colors"
-                  >
-                    <option value="">-- Choose Shoot Project --</option>
-                    {projectsList
-                      .filter((p) => ['APPROVED', 'IN_PROGRESS', 'IN_PRODUCTION', 'TASK_ASSIGNED', 'READY', 'ACTIVE', 'PLANNED', 'TECHNICAL_REVIEW', 'MEDIA_MANAGER_REVIEW', 'CLIENT_CONFIRMATION', 'COMPLETED'].includes(p.status))
-                      .map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name} ({p.projectId}) - {p.status}
                         </option>
                       ))}
-                  </select>
+                    </select>
+                  </div>
+
+                  {/* Script Assets & Storyline Preview Session */}
+                  {selectedParentId && (
+                    <div className="p-5 bg-gradient-to-br from-purple-50 via-indigo-50/40 to-slate-50 border border-purple-200 rounded-xl space-y-3">
+                      <div className="flex items-center justify-between border-b border-purple-200/80 pb-2.5">
+                        <h4 className="font-extrabold text-sm text-purple-900 flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-purple-600" /> Script Assets &amp; Storyline Preview Session
+                        </h4>
+                        <span className="text-xs font-mono font-bold bg-purple-100 text-purple-800 px-2.5 py-1 rounded border border-purple-300">
+                          {scriptCreationDetails?.scriptId || 'SCRIPT ASSETS'}
+                        </span>
+                      </div>
+
+                      {loadingScriptCreationDetails ? (
+                        <div className="p-4 text-center text-slate-400 italic text-sm">
+                          Loading script assets and reference materials…
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {scriptCreationDetails?.description && (
+                            <div className="space-y-1.5">
+                              <span className="text-xs font-bold text-purple-950 uppercase tracking-wider block">
+                                Storyline / Script Narration:
+                              </span>
+                              <div className="p-3 bg-white/90 border border-purple-200/80 rounded-xl text-sm text-slate-800 leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap font-sans shadow-2xs">
+                                {scriptCreationDetails.description}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Commercial Classification */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Client (Optional)</label>
+                      <select
+                        value={taskClientId}
+                        onChange={(e) => {
+                          setTaskClientId(e.target.value);
+                          setTaskBrandId('');
+                          setTaskProductId('');
+                        }}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
+                      >
+                        <option value="">-- None (Optional) --</option>
+                        {clientsList.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Brand (Optional)</label>
+                      <select
+                        value={taskBrandId}
+                        onChange={(e) => {
+                          setTaskBrandId(e.target.value);
+                          setTaskProductId('');
+                        }}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
+                      >
+                        <option value="">-- None (Optional) --</option>
+                        {brandsList
+                          .filter((b) => !taskClientId || b.clientId === taskClientId)
+                          .map((b) => (
+                            <option key={b.id} value={b.id}>[{b.shortCode}] {b.name}</option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Product (Optional)</label>
+                      <select
+                        value={taskProductId}
+                        onChange={(e) => setTaskProductId(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
+                      >
+                        <option value="">-- None (Optional) --</option>
+                        {productsList
+                          .filter((p) => !taskBrandId || p.brandId === taskBrandId)
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Task Title *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Script Review & Storyboarding"
+                      value={taskTitle}
+                      onChange={(e) => setTaskTitle(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 text-sm font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Description</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Task instructions..."
+                      value={taskDescription}
+                      onChange={(e) => setTaskDescription(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 text-sm"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Due Date *</label>
+                      <input
+                        type="date"
+                        required
+                        value={taskDueDate}
+                        onChange={(e) => setTaskDueDate(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-900 font-mono text-sm font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Priority</label>
+                      <select
+                        value={taskPriority}
+                        onChange={(e) => setTaskPriority(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
+                      >
+                        <option value="LOW">LOW</option>
+                        <option value="MEDIUM">MEDIUM</option>
+                        <option value="HIGH">HIGH</option>
+                        <option value="CRITICAL">CRITICAL</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               )}
 
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {/* FORM TYPE 4: OTHER / STANDALONE TASK CREATION                              */}
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
               {parentEntityType === 'NONE' && (
-                <div>
-                  <label className="block text-slate-500 font-semibold mb-1 text-[10px] uppercase tracking-wider">
-                    Parent Shoot Project (Optional Link)
-                  </label>
-                  <select
-                    value={selectedParentProjectId}
-                    onChange={(e) => setSelectedParentProjectId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 rounded-lg p-2 text-slate-800 font-medium text-xs focus:bg-white transition-colors"
-                  >
-                    <option value="">-- Standalone Task (No Parent Project) --</option>
-                    {projectsList.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.projectId}) - {p.status}
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  <div>
+                    <label className="block text-slate-600 font-bold mb-1.5 text-xs uppercase tracking-wider">
+                      Parent Shoot Project (Optional Link)
+                    </label>
+                    <select
+                      value={selectedParentProjectId}
+                      onChange={(e) => setSelectedParentProjectId(e.target.value)}
+                      className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm focus:bg-white transition-colors"
+                    >
+                      <option value="">-- Standalone Task (No Parent Project) --</option>
+                      {projectsList.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.projectId}) - {p.status}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Client (Optional)</label>
+                      <select
+                        value={taskClientId}
+                        onChange={(e) => {
+                          setTaskClientId(e.target.value);
+                          setTaskBrandId('');
+                          setTaskProductId('');
+                        }}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
+                      >
+                        <option value="">-- None (Optional) --</option>
+                        {clientsList.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Brand (Optional)</label>
+                      <select
+                        value={taskBrandId}
+                        onChange={(e) => {
+                          setTaskBrandId(e.target.value);
+                          setTaskProductId('');
+                        }}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
+                      >
+                        <option value="">-- None (Optional) --</option>
+                        {brandsList
+                          .filter((b) => !taskClientId || b.clientId === taskClientId)
+                          .map((b) => (
+                            <option key={b.id} value={b.id}>[{b.shortCode}] {b.name}</option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Product (Optional)</label>
+                      <select
+                        value={taskProductId}
+                        onChange={(e) => setTaskProductId(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
+                      >
+                        <option value="">-- None (Optional) --</option>
+                        {productsList
+                          .filter((p) => !taskBrandId || p.brandId === taskBrandId)
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Task Title *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Color Grading & Video Editing"
+                      value={taskTitle}
+                      onChange={(e) => setTaskTitle(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 text-sm font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Description</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Task instructions..."
+                      value={taskDescription}
+                      onChange={(e) => setTaskDescription(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 text-sm"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Due Date *</label>
+                      <input
+                        type="date"
+                        required
+                        value={taskDueDate}
+                        onChange={(e) => setTaskDueDate(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-900 font-mono text-sm font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Priority</label>
+                      <select
+                        value={taskPriority}
+                        onChange={(e) => setTaskPriority(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
+                      >
+                        <option value="LOW">LOW</option>
+                        <option value="MEDIUM">MEDIUM</option>
+                        <option value="HIGH">HIGH</option>
+                        <option value="CRITICAL">CRITICAL</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* Script Assets & Storyline Preview Session */}
-              {parentEntityType === 'SCRIPT' && selectedParentId && (
-                <div className="p-3.5 bg-gradient-to-br from-purple-50 via-indigo-50/40 to-slate-50 border border-purple-200 rounded-xl space-y-3 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
-                    <h4 className="font-extrabold text-xs text-purple-900 flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-purple-600" />
-                      Script Assets &amp; Storyline Preview Session
-                    </h4>
-                    <span className="text-[10px] font-mono font-bold bg-purple-100 text-purple-800 px-2 py-0.5 rounded border border-purple-300">
-                      {scriptCreationDetails?.scriptId || 'SCRIPT ASSETS'}
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {/* SECTION: CREATIVE ASSETS & REFERENCE FILES (For Graphic Req & Shoot)      */}
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {(parentEntityType === 'GRAPHIC_REQ' || parentEntityType === 'PROJECT') && (
+                <div className="space-y-4 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200 text-sm">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                    <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-2">
+                      <LinkIcon className="w-4 h-4 text-indigo-600" /> Creative Assets &amp; Reference Files (File Name &amp; Link Method)
+                    </span>
+                    <span className="text-xs text-slate-500 font-mono bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-200 text-indigo-800">
+                      Cloud / URL Reference
                     </span>
                   </div>
 
-                  {loadingScriptCreationDetails ? (
-                    <div className="p-3 text-center text-slate-400 italic text-xs">
-                      Loading script assets and reference materials…
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-slate-800 font-bold block mb-1.5 text-xs">Creative Asset / File Name</label>
+                      <input
+                        type="text"
+                        value={taskCreativeAssetName}
+                        onChange={(e) => setTaskCreativeAssetName(e.target.value)}
+                        placeholder="e.g. Summer_Sale_Main_Creative_v1 or Campaign_Assets_Drive"
+                        className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
+                      />
                     </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {/* Script Storyline Narration Box */}
-                      {scriptCreationDetails?.description && (
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-bold text-purple-950 uppercase tracking-wider block">
-                            Storyline / Script Narration:
-                          </span>
-                          <div className="p-2.5 bg-white/90 border border-purple-200/80 rounded-xl text-xs text-slate-800 leading-relaxed max-h-32 overflow-y-auto whitespace-pre-wrap font-sans shadow-2xs">
-                            {scriptCreationDetails.description}
-                          </div>
-                        </div>
-                      )}
 
-                      {/* Script Reference Attachment Links */}
-                      {scriptCreationDetails?.attachmentLinks && scriptCreationDetails.attachmentLinks.length > 0 && (
-                        <div className="space-y-1.5 pt-1 border-t border-purple-200/60">
-                          <span className="text-[10px] font-bold text-purple-950 uppercase tracking-wider block">
-                            Attached Reference Documents &amp; External Assets ({scriptCreationDetails.attachmentLinks.length}):
-                          </span>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {scriptCreationDetails.attachmentLinks.map((link: any) => (
-                              <a
-                                key={link.id}
-                                href={link.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2.5 bg-white border border-purple-200 hover:border-purple-400 hover:shadow-xs rounded-xl flex items-center justify-between text-[11px] text-purple-900 transition-all group"
-                              >
-                                <div className="flex items-center gap-2 overflow-hidden">
-                                  <LinkIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                                  <div className="truncate">
-                                    <span className="font-bold block truncate group-hover:text-purple-700">{link.name}</span>
-                                    <span className="text-[9px] text-slate-500 font-mono">{link.attachmentCategory?.replace(/_/g, ' ')}</span>
-                                  </div>
-                                </div>
-                                <ExternalLink className="w-3.5 h-3.5 text-purple-400 group-hover:text-purple-600 shrink-0" />
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                    <div>
+                      <label className="text-slate-800 font-bold block mb-1.5 text-xs">Asset Link / File URL (Cloud / Web Link)</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          value={taskCreativePreviewUrl}
+                          onChange={(e) => setTaskCreativePreviewUrl(e.target.value)}
+                          placeholder="https://drive.google.com/... or https://figma.com/..."
+                          className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-lg p-2.5 text-slate-800 font-mono text-xs sm:text-sm"
+                        />
+                        {taskCreativePreviewUrl && (
+                          <a
+                            href={taskCreativePreviewUrl.startsWith('http') ? taskCreativePreviewUrl : `https://${taskCreativePreviewUrl}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg font-bold text-xs flex items-center gap-1 shrink-0 transition-colors"
+                            title="Test and open link in new tab"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            <span>Test</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-                      {/* Script Planned Deliverables */}
-                      {scriptCreationDetails?.deliverables && scriptCreationDetails.deliverables.length > 0 && (
-                        <div className="space-y-1.5 pt-1 border-t border-purple-200/60">
-                          <span className="text-[10px] font-bold text-purple-950 uppercase tracking-wider block">
-                            Planned Deliverables &amp; Output Specs ({scriptCreationDetails.deliverables.length}):
-                          </span>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {scriptCreationDetails.deliverables.map((del: any) => (
-                              <div key={del.id} className="p-2.5 bg-white border border-purple-200 rounded-xl flex items-center justify-between text-[11px]">
-                                <div className="flex items-center gap-2">
-                                  <Film className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                  <div>
-                                    <strong className="text-slate-900 block">{del.name || del.title || 'Deliverable'}</strong>
-                                    <span className="text-[10px] text-slate-500 font-mono">{del.type} • {del.duration || '30s'}</span>
-                                  </div>
-                                </div>
-                                <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 uppercase">
-                                  {del.status}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
+                  {/* Live Preview Card */}
+                  {taskCreativePreviewUrl && (
+                    <div className="p-3.5 bg-indigo-50/60 border border-indigo-200 rounded-xl flex items-center justify-between gap-3 text-sm">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center justify-center shrink-0">
+                          <LinkIcon className="w-4 h-4" />
                         </div>
-                      )}
-
-                      {/* Attached Files Tree */}
-                      {scriptCreationDetails?.files && scriptCreationDetails.files.length > 0 && (
-                        <div className="space-y-1.5 pt-1 border-t border-purple-200/60">
-                          <span className="text-[10px] font-bold text-purple-950 uppercase tracking-wider block">
-                            Attached Media Assets &amp; Files ({scriptCreationDetails.files.length}):
+                        <div className="truncate">
+                          <strong className="text-slate-900 block truncate text-sm">
+                            {taskCreativeAssetName || 'Creative Asset Reference'}
+                          </strong>
+                          <span className="text-xs font-mono text-indigo-700 truncate block">
+                            {taskCreativePreviewUrl}
                           </span>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {scriptCreationDetails.files.map((f: any) => (
-                              <a
-                                key={f.id}
-                                href={f.storagePath?.startsWith('http') ? f.storagePath : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${f.storagePath}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2.5 bg-white border border-slate-200 hover:border-emerald-300 rounded-xl flex items-center justify-between text-[11px] transition-all group"
-                              >
-                                <div className="flex items-center gap-2 overflow-hidden">
-                                  <FileText className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                  <span className="truncate font-semibold text-slate-800 group-hover:text-emerald-700">{f.fileName}</span>
-                                </div>
-                                <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0" />
-                              </a>
-                            ))}
-                          </div>
                         </div>
-                      )}
+                      </div>
+                      <a
+                        href={taskCreativePreviewUrl.startsWith('http') ? taskCreativePreviewUrl : `https://${taskCreativePreviewUrl}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" /> Open Asset
+                      </a>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Commercial Classification (Client / Brand / Product) - All Optional */}
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-slate-500 font-semibold mb-1 text-[10px]">Client (Optional)</label>
-                  <select
-                    value={taskClientId}
-                    onChange={(e) => {
-                      setTaskClientId(e.target.value);
-                      setTaskBrandId('');
-                      setTaskProductId('');
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-medium text-xs"
-                  >
-                    <option value="">-- None (Optional) --</option>
-                    {clientsList.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {/* SECTION: ASSIGN EMPLOYEES & WORKLOAD ESTIMATION                            */}
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              <div className="space-y-4 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200 text-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-600" /> Assignment &amp; Workload Estimation *
+                  </span>
+                  <div className="flex items-center gap-2.5">
+                    <label className="text-slate-600 font-bold text-xs">Estimated Hours:</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={taskEstimatedHours}
+                      onChange={(e) => setTaskEstimatedHours(e.target.value)}
+                      className="w-20 bg-white border border-slate-200 rounded-lg p-1.5 text-slate-900 font-mono font-bold text-xs sm:text-sm text-center"
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-slate-500 font-semibold mb-1 text-[10px]">Brand (Optional)</label>
-                  <select
-                    value={taskBrandId}
-                    onChange={(e) => {
-                      setTaskBrandId(e.target.value);
-                      setTaskProductId('');
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-medium text-xs"
-                  >
-                    <option value="">-- None (Optional) --</option>
-                    {brandsList
-                      .filter((b) => !taskClientId || b.clientId === taskClientId)
-                      .map((b) => (
-                        <option key={b.id} value={b.id}>[{b.shortCode}] {b.name}</option>
-                      ))}
-                  </select>
-                </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-slate-600 font-semibold text-xs">Assign Employees (One or Multiple) *</label>
+                    {assignedStaffIds.length > 0 && (
+                      <span className="text-xs text-blue-600 font-bold font-mono">
+                        {assignedStaffIds.length} Selected
+                      </span>
+                    )}
+                  </div>
 
-                <div>
-                  <label className="block text-slate-500 font-semibold mb-1 text-[10px]">Product (Optional)</label>
-                  <select
-                    value={taskProductId}
-                    onChange={(e) => setTaskProductId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-medium text-xs"
-                  >
-                    <option value="">-- None (Optional) --</option>
-                    {productsList
-                      .filter((p) => !taskBrandId || p.brandId === taskBrandId)
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                  </select>
+                  {/* Real-time Employee Search Input Box */}
+                  <div className="relative mb-3">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search employee by name, role, or designation..."
+                      value={staffSearchQuery}
+                      onChange={(e) => setStaffSearchQuery(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-9 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-medium"
+                    />
+                    {staffSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setStaffSearchQuery('')}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg p-2.5">
+                    {staffUsersList
+                      .filter((u) => ['STAFF', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER'].includes(u.role))
+                      .filter((u) => {
+                        if (!staffSearchQuery.trim()) return true;
+                        const q = staffSearchQuery.toLowerCase().trim();
+                        const nameMatch = (u.name || '').toLowerCase().includes(q);
+                        const roleMatch = (u.role || '').toLowerCase().includes(q);
+                        const desigMatch = (u.employeeProfile?.designation || '').toLowerCase().includes(q);
+                        return nameMatch || roleMatch || desigMatch;
+                      })
+                      .map((u) => {
+                        const empStatus = u.employeeProfile?.employmentStatus || u.status || 'ACTIVE';
+                        const isActive = empStatus === 'ACTIVE' && u.status === 'ACTIVE' && !u.isArchived;
+
+                        return (
+                          <label
+                            key={u.id}
+                            className={`flex items-center gap-2.5 text-xs sm:text-sm p-2 rounded-lg transition-colors ${
+                              isActive ? 'text-slate-900 cursor-pointer hover:bg-slate-50' : 'text-slate-400 bg-slate-50/60 cursor-not-allowed opacity-60'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              disabled={!isActive}
+                              checked={assignedStaffIds.includes(u.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setAssignedStaffIds([...assignedStaffIds, u.id]);
+                                else setAssignedStaffIds(assignedStaffIds.filter((id) => id !== u.id));
+                              }}
+                              className="w-4 h-4 accent-blue-500 cursor-pointer disabled:cursor-not-allowed rounded"
+                            />
+                            <span className="flex-1 truncate">
+                              <strong>{u.name}</strong> <span className="text-slate-500 text-xs">({u.role?.replace(/_/g, ' ')})</span>
+                              {u.employeeProfile?.designation && <span className="text-slate-400 text-xs ml-1">• {u.employeeProfile.designation}</span>}
+                              {!isActive && <span className="text-amber-600 font-bold ml-1 font-mono text-xs">({empStatus} - Restricted)</span>}
+                            </span>
+                          </label>
+                        );
+                      })}
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-500 font-semibold mb-1 text-[10px]">Task Title *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Color Grading & Video Editing"
-                  value={taskTitle}
-                  onChange={(e) => setTaskTitle(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-500 font-semibold mb-1 text-[10px]">Description</label>
-                <textarea
-                  rows={2}
-                  placeholder="Task instructions..."
-                  value={taskDescription}
-                  onChange={(e) => setTaskDescription(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-slate-500 font-semibold mb-1 text-[10px]">Due Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={taskDueDate}
-                    onChange={(e) => setTaskDueDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-900 font-mono text-xs focus:outline-none focus:border-blue-500 focus:bg-white font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-500 font-semibold mb-1 text-[10px]">Priority</label>
-                  <select
-                    value={taskPriority}
-                    onChange={(e) => setTaskPriority(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-medium text-xs"
-                  >
-                    <option value="LOW">LOW</option>
-                    <option value="MEDIUM">MEDIUM</option>
-                    <option value="HIGH">HIGH</option>
-                    <option value="CRITICAL">CRITICAL</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-500 font-semibold mb-1 text-[10px]">Estimated Hours</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={taskEstimatedHours}
-                    onChange={(e) => setTaskEstimatedHours(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-900 font-mono font-bold text-xs"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-slate-500 font-semibold text-[10px]">Assign Employees (One or Multiple)</label>
-                  {assignedStaffIds.length > 0 && (
-                    <span className="text-[10px] text-blue-600 font-bold font-mono">
-                      {assignedStaffIds.length} Selected
-                    </span>
-                  )}
-                </div>
-
-                {/* Real-time Employee Search Input Box */}
-                <div className="relative mb-2">
-                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5 pointer-events-none" />
-                  <input
-                    type="text"
-                    placeholder="Search employee by name, role, or designation..."
-                    value={staffSearchQuery}
-                    onChange={(e) => setStaffSearchQuery(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-8 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
-                  />
-                  {staffSearchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setStaffSearchQuery('')}
-                      className="absolute right-2.5 top-2 text-slate-500 hover:text-slate-900"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                <div className="space-y-1 max-h-36 overflow-y-auto bg-slate-50 border border-slate-200 rounded p-2">
-                  {staffUsersList
-                    .filter((u) => ['STAFF', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER'].includes(u.role))
-                    .filter((u) => {
-                      if (!staffSearchQuery.trim()) return true;
-                      const q = staffSearchQuery.toLowerCase().trim();
-                      const nameMatch = (u.name || '').toLowerCase().includes(q);
-                      const roleMatch = (u.role || '').toLowerCase().includes(q);
-                      const desigMatch = (u.employeeProfile?.designation || '').toLowerCase().includes(q);
-                      return nameMatch || roleMatch || desigMatch;
-                    })
-                    .map((u) => {
-                      const empStatus = u.employeeProfile?.employmentStatus || u.status || 'ACTIVE';
-                      const isActive = empStatus === 'ACTIVE' && u.status === 'ACTIVE' && !u.isArchived;
-
-                      return (
-                        <label
-                          key={u.id}
-                          className={`flex items-center gap-2 text-xs p-1 rounded transition-colors ${
-                            isActive ? 'text-slate-900 cursor-pointer hover:bg-slate-100' : 'text-slate-400 bg-slate-50/60 cursor-not-allowed opacity-60'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            disabled={!isActive}
-                            checked={assignedStaffIds.includes(u.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) setAssignedStaffIds([...assignedStaffIds, u.id]);
-                              else setAssignedStaffIds(assignedStaffIds.filter((id) => id !== u.id));
-                            }}
-                            className="w-3.5 h-3.5 accent-blue-500 cursor-pointer disabled:cursor-not-allowed"
-                          />
-                          <span className="flex-1 truncate">
-                            <strong>{u.name}</strong> <span className="text-slate-500 text-[10px]">({u.role?.replace(/_/g, ' ')})</span>
-                            {u.employeeProfile?.designation && <span className="text-slate-400 text-[10px] ml-1">• {u.employeeProfile.designation}</span>}
-                            {!isActive && <span className="text-amber-600 font-bold ml-1 font-mono">({empStatus} - Restricted)</span>}
-                          </span>
-                        </label>
-                      );
-                    })}
-                </div>
-              </div>
-
-              <div className="sticky bottom-0 bg-slate-50/95 -mx-6 -mb-6 p-4 border-t border-slate-200 flex items-center justify-between gap-3 z-20 backdrop-blur-xs">
-                <span className="text-[11px] text-slate-500 font-mono">
-                  <span className="text-emerald-600 font-bold">Ready to Create</span>
+              <div className="sticky bottom-0 bg-slate-50/95 -mx-6 sm:-mx-8 -mb-6 sm:-mb-8 p-4 sm:p-5 border-t border-slate-200 flex items-center justify-between gap-4 z-20 backdrop-blur-xs">
+                <span className="text-xs text-slate-500 font-mono">
+                  <span className="text-emerald-600 font-bold">Ready to Create Task</span>
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold transition-colors text-xs"
+                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold transition-colors text-xs sm:text-sm"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={creating}
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs transition-all shadow-lg shadow-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs sm:text-sm transition-all shadow-lg shadow-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    {creating ? 'Creating...' : 'Create Task'}
+                    {creating ? 'Creating Task...' : 'Create Task'}
                   </button>
                 </div>
               </div>
@@ -3302,19 +4272,20 @@ export default function TasksPage() {
                     <div className="flex items-end gap-2 pt-1 border-t border-slate-200">
                       <textarea
                         value={scriptNewRemarkText}
+                        disabled={isScriptEditingLocked}
                         onChange={(e) => setScriptNewRemarkText(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddScriptRemarkInTask(); } }}
-                        placeholder="Add a remark… (Enter to submit, Shift+Enter for new line)"
+                        placeholder={isScriptEditingLocked ? "Task is in read-only mode. Please accept the task to add remarks." : "Add a remark… (Enter to submit, Shift+Enter for new line)"}
                         rows={2}
-                        className="flex-1 bg-slate-50 border border-slate-200 text-white px-3 py-2 rounded-lg text-[11px] resize-none focus:border-amber-500 focus:bg-white focus:outline-none placeholder-slate-400"
+                        className="flex-1 bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg text-[11px] resize-none focus:border-amber-500 focus:bg-white focus:outline-none placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <button
                         onClick={handleAddScriptRemarkInTask}
-                        disabled={!scriptNewRemarkText.trim() || scriptAddingRemark}
-                        className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg text-[11px] disabled:opacity-40 flex items-center gap-1 h-[52px]"
+                        disabled={!scriptNewRemarkText.trim() || scriptAddingRemark || isScriptEditingLocked}
+                        className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg text-[11px] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 h-[52px]"
                       >
                         <Send className="w-3.5 h-3.5" />
-                        {scriptAddingRemark ? '…' : 'Send'}
+                        {scriptAddingRemark ? '…' : isScriptEditingLocked ? 'Locked' : 'Send'}
                       </button>
                     </div>
                   </div>
@@ -3487,6 +4458,11 @@ export default function TasksPage() {
                         <p className="text-[11px] text-emerald-800 font-normal">
                           This script task has passed Level 1 Technical Review and is advancing through the subsequent manager approval stages.
                         </p>
+                      </div>
+                    ) : isPendingAcceptance ? (
+                      <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-purple-900 font-semibold text-xs flex items-center gap-2">
+                        <Lock className="w-4 h-4 text-purple-600 shrink-0" />
+                        <span>Read-Only Mode: Please accept the task assignment to unlock technical review submission.</span>
                       </div>
                     ) : (
                       <div className="space-y-2.5">
@@ -3817,26 +4793,71 @@ export default function TasksPage() {
           })()) : (
             /* STANDARD DIRECT / GENERAL TASK INSPECTOR UI */
             (() => {
-                const linkedProject = inspectedTask.project || inspectedTask.script?.project || inspectedTask.graphicRequirement?.project;
-                const linkedCalEvent = inspectedTask.project?.calendarEvent || inspectedTask.graphicRequirement?.calendarEvent || inspectedTask.calendarEvent;
+                const activeGraphicReq = fullGraphicReq || inspectedTask.graphicRequirement;
+                const graphicReqId = activeGraphicReq?.reqId || activeGraphicReq?.id || inspectedTask.graphicRequirementId;
+                const linkedProject = inspectedTask.project || inspectedTask.script?.project || inspectedTask.graphicRequirement?.project || activeGraphicReq?.project;
+                const linkedCalEvent = inspectedTask.project?.calendarEvent || inspectedTask.graphicRequirement?.calendarEvent || activeGraphicReq?.calendarEvent || inspectedTask.calendarEvent;
                 const linkedOutdoor = inspectedTask.project?.outdoorDetails || linkedProject?.outdoorDetails;
                 const linkedIndoor = inspectedTask.project?.indoorDetails || linkedProject?.indoorDetails;
                 const linkedEquipment = inspectedTask.project?.equipmentReservations || linkedProject?.equipmentReservations || [];
                 const linkedTeam = inspectedTask.project?.assignedTeam || linkedProject?.assignedTeam || [];
-                const clientObj = inspectedTask.client || linkedProject?.client || inspectedTask.graphicRequirement?.client || inspectedTask.script?.client;
-                const brandObj = inspectedTask.brand || linkedProject?.brand || inspectedTask.graphicRequirement?.brand || inspectedTask.script?.brand;
-                const productObj = inspectedTask.product || linkedProject?.product || inspectedTask.graphicRequirement?.product || inspectedTask.script?.product;
-                const createdByObj = inspectedTask.createdBy || inspectedTask.project?.createdBy || linkedCalEvent?.createdBy || inspectedTask.graphicRequirement?.createdBy;
+                const clientObj = inspectedTask.client || linkedProject?.client || inspectedTask.graphicRequirement?.client || activeGraphicReq?.client || inspectedTask.script?.client;
+                const brandObj = inspectedTask.brand || linkedProject?.brand || inspectedTask.graphicRequirement?.brand || activeGraphicReq?.brand || inspectedTask.script?.brand;
+                const productObj = inspectedTask.product || linkedProject?.product || inspectedTask.graphicRequirement?.product || activeGraphicReq?.product || inspectedTask.script?.product;
+                const createdByObj = inspectedTask.createdBy || inspectedTask.project?.createdBy || linkedCalEvent?.createdBy || inspectedTask.graphicRequirement?.createdBy || activeGraphicReq?.createdBy;
                 const shootDateVal = inspectedTask.project?.shootDate || linkedCalEvent?.shootDate;
                 const callTimeVal = linkedOutdoor?.callTime || linkedIndoor?.reportingTime || linkedCalEvent?.startTime || inspectedTask.project?.reportingTime;
                 const wrapTimeVal = linkedOutdoor?.expectedWrapTime || linkedIndoor?.wrapUpTime || linkedCalEvent?.endTime || inspectedTask.project?.expectedWrapUpTime;
-                const formatVal = linkedCalEvent?.contentType || inspectedTask.graphicRequirement?.requirementType || inspectedTask.contentType;
+                const formatVal = linkedCalEvent?.contentType || inspectedTask.graphicRequirement?.requirementType || activeGraphicReq?.requirementType || inspectedTask.contentType;
                 const platformVal = linkedCalEvent?.platform || inspectedTask.platform;
                 const campaignVal = linkedCalEvent?.campaign || linkedProject?.campaign?.name || inspectedTask.campaign;
                 const talentVal = linkedProject?.influencerTalent || linkedCalEvent?.influencerTalent;
-                const creativeUrlVal = linkedCalEvent?.creativePreviewUrl || inspectedTask.creativePreviewUrl;
-                const notesVal = inspectedTask.project?.notes || linkedCalEvent?.productionNotes || inspectedTask.graphicRequirement?.remarks || inspectedTask.remarks;
+                const creativeUrlVal = linkedCalEvent?.creativePreviewUrl || inspectedTask.creativePreviewUrl || activeGraphicReq?.creativePreviewUrl || (activeGraphicReq?.files || []).find((f: any) => f.storagePath?.startsWith('http') || f.fileType === 'URL')?.storagePath;
+                const creativeAssetNameVal = linkedCalEvent?.creativeAssetName || inspectedTask.creativeAssetName || activeGraphicReq?.creativeAssetName || (activeGraphicReq?.files || []).find((f: any) => f.storagePath?.startsWith('http') || f.fileType === 'URL')?.fileName || 'Primary Creative Visual Asset';
+                const notesVal = inspectedTask.project?.notes || linkedCalEvent?.productionNotes || inspectedTask.graphicRequirement?.remarks || activeGraphicReq?.remarks || inspectedTask.remarks;
                 const isOutdoor = (inspectedTask.project?.shootType === 'OUTDOOR' || Boolean(linkedOutdoor));
+                const isGraphicReqTask = Boolean(
+                  inspectedTask?.graphicRequirement ||
+                  activeGraphicReq ||
+                  inspectedTask?.graphicRequirementId ||
+                  inspectedTask?.sourceType === 'GRAPHIC_REQUIREMENT' ||
+                  inspectedTask?.sourceType === 'GRAPHIC' ||
+                  inspectedTask?.taskType === 'GRAPHIC_REQUIREMENT' ||
+                  inspectedTask?.taskType === 'GRAPHIC'
+                );
+
+                const parentAssetFiles = (() => {
+                  const filesList: any[] = [];
+                  const seenIds = new Set<string>();
+
+                  const addFile = (f: any, sourceLabel: string) => {
+                    if (!f) return;
+                    const fId = f.id || f.storagePath || f.fileName;
+                    if (fId && !seenIds.has(fId)) {
+                      seenIds.add(fId);
+                      filesList.push({
+                        ...f,
+                        sourceLabel,
+                      });
+                    }
+                  };
+
+                  if (isGraphicReqTask) {
+                    (activeGraphicReq?.files || inspectedTask.graphicRequirement?.files || []).forEach((f: any) =>
+                      addFile(f, 'Graphic Requirement Asset')
+                    );
+                  } else if (inspectedTask.script || inspectedTask.scriptId || inspectedTask.sourceType === 'SCRIPT') {
+                    (fullScript?.files || inspectedTask.script?.files || []).forEach((f: any) =>
+                      addFile(f, 'Script Asset')
+                    );
+                  } else {
+                    (inspectedTask.project?.files || linkedProject?.files || []).forEach((f: any) =>
+                      addFile(f, 'Event Creation Asset')
+                    );
+                  }
+
+                  return filesList;
+                })();
 
                 return (
                   <>
@@ -3855,6 +4876,12 @@ export default function TasksPage() {
                               </span>
                             );
                           })()}
+                          {isGraphicReqTask && graphicReqId && (
+                            <span className="font-mono text-[10px] text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
+                              <Palette className="w-3 h-3 text-amber-600" />
+                              Requirement: {activeGraphicReq?.reqId || (typeof graphicReqId === 'string' && graphicReqId.startsWith('GR-') ? graphicReqId : `GR-${inspectedTask.taskId}`)}
+                            </span>
+                          )}
                         </div>
                         <h3 className="text-lg font-bold text-slate-900 mt-0.5">{inspectedTask.title}</h3>
                         <div className="flex items-center gap-2 mt-1">
@@ -3874,7 +4901,8 @@ export default function TasksPage() {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+
                         {user?.role === 'TECHNICAL_MANAGER' && (
                           <Link
                             href="/approvals"
@@ -3895,7 +4923,20 @@ export default function TasksPage() {
                       </div>
                     </div>
 
-                    {/* Pending Task Acceptance Banner */}
+                    {/* Under Review Read-Only Banner */}
+                    {['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'WAITING_FOR_REVIEW', 'PENDING_MARKETING_APPROVAL', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'WAITING_FOR_CLIENT_CONFIRMATION'].includes(inspectedTask.status) && (
+                      <div className="bg-amber-50 border-2 border-amber-300 p-3.5 rounded-xl space-y-1 text-xs text-amber-950 shadow-xs flex items-start gap-3 animate-in fade-in duration-150">
+                        <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <h4 className="font-extrabold text-amber-900 text-xs uppercase tracking-wide flex items-center gap-1.5">
+                            Under Review — Read-Only Mode
+                          </h4>
+                          <p className="text-[11px] text-amber-800 leading-relaxed">
+                            This task is currently undergoing formal review (Status: <strong className="font-mono font-bold text-amber-900">{inspectedTask.status}</strong>). Content modifications, progress updates, and deliverable uploads are locked in read-only mode until the review decision is finalized.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     {isPendingAcceptance && (
                       <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-300 p-4 rounded-xl space-y-3 text-xs shadow-md animate-in fade-in duration-150">
                         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -3929,9 +4970,7 @@ export default function TasksPage() {
                           </div>
                         )}
 
-                        <p className="text-slate-700 text-xs leading-relaxed font-medium">
-                          You are assigned to this task. Please inspect all event and production details below, then click <strong className="text-purple-950 font-bold">Accept Task Assignment</strong> to unlock work progress updates, deliverable uploads, and review actions.
-                        </p>
+
                         <button
                           type="button"
                           onClick={() => handleAcknowledgeAcceptance(inspectedTask.id)}
@@ -4065,173 +5104,362 @@ export default function TasksPage() {
                             </div>
                           </div>
 
-                          {/* Logistics Location Cards */}
-                          {isOutdoor || linkedOutdoor ? (
-                            <div className="p-4 rounded-xl bg-purple-50/80 border border-purple-200 text-xs space-y-3">
-                              <div className="flex items-center justify-between border-b border-purple-200 pb-2">
-                                <span className="font-bold text-purple-900 flex items-center gap-1.5 uppercase text-[11px]">
-                                  <Compass className="w-4 h-4 text-purple-600" /> Outdoor On-Location Logistics
+                          {/* Parent Shoot Project Binding Info */}
+                          {linkedProject && (
+                            <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-blue-50/70 border border-blue-200 text-xs flex items-center justify-between flex-wrap gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
+                                  <Film className="w-4 h-4 text-blue-600" />
                                 </span>
-                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold border border-purple-200">
-                                  ON-LOCATION
-                                </span>
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Parent Shoot Project</span>
+                                  <strong className="text-slate-900 text-xs font-semibold">{linkedProject.name}</strong>
+                                </div>
                               </div>
-
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-800">
-                                <div>
-                                  <span className="text-[10px] font-bold text-purple-800 uppercase block">Exact Location Address</span>
-                                  <p className="font-semibold text-slate-900">{linkedOutdoor?.exactLocationAddress || linkedOutdoor?.locationAddress || inspectedTask.project?.shootLocation || 'Specified in brief'}</p>
-                                </div>
-
-                                <div>
-                                  <span className="text-[10px] font-bold text-purple-800 uppercase block">Location Access &amp; Parking</span>
-                                  <p className="text-slate-800">{linkedOutdoor?.locationAccessDetails || 'Standard Access'}</p>
-                                </div>
-
-                                <div>
-                                  <span className="text-[10px] font-bold text-purple-800 uppercase block">Location Contact Person</span>
-                                  <p className="text-slate-800">{linkedOutdoor?.locationContact || linkedOutdoor?.locationContactPerson || 'Contact not provided'}</p>
-                                </div>
-
-                                <div>
-                                  <span className="text-[10px] font-bold text-purple-800 uppercase block">Expected Weather Conditions</span>
-                                  <p className="font-semibold text-slate-900 flex items-center gap-1">
-                                    <CloudSun className="w-3.5 h-3.5 text-amber-600" />
-                                    {linkedOutdoor?.expectedWeatherConditions || linkedOutdoor?.weatherStatus || 'Sunny / Clear'}
-                                  </p>
-                                </div>
-
-                                {linkedOutdoor?.backupLocation && (
-                                  <div className="col-span-1 sm:col-span-2">
-                                    <span className="text-[10px] font-bold text-purple-800 uppercase block">Backup Weather Location</span>
-                                    <p className="text-slate-800">{linkedOutdoor.backupLocation}</p>
-                                  </div>
-                                )}
-
-                                {linkedOutdoor?.specialOutdoorRequirements && (
-                                  <div className="col-span-1 sm:col-span-2">
-                                    <span className="text-[10px] font-bold text-purple-800 uppercase block">Special Outdoor Notes &amp; Safety</span>
-                                    <p className="text-slate-800 italic bg-white/70 p-2.5 rounded-lg border border-purple-200">
-                                      &quot;{linkedOutdoor.specialOutdoorRequirements}&quot;
-                                    </p>
-                                  </div>
-                                )}
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded border border-blue-300">
+                                  {linkedProject.projectId}
+                                </span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
+                                  linkedProject.shootType === 'INDOOR'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                }`}>
+                                  {linkedProject.shootType} SHOOT
+                                </span>
+                                <Link
+                                  href={`/projects/${linkedProject.id}`}
+                                  className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-600 hover:text-blue-700 border border-blue-200 rounded font-bold text-[11px] shadow-2xs transition-colors flex items-center gap-1"
+                                >
+                                  Open Project <ArrowRight className="w-3 h-3" />
+                                </Link>
                               </div>
                             </div>
-                          ) : (
-                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2.5">
-                              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                                <span className="font-bold text-slate-900 flex items-center gap-1.5 uppercase text-[11px]">
-                                  <Building2 className="w-4 h-4 text-blue-600" /> Indoor Studio Details
-                                </span>
-                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200">
-                                  STUDIO FLOOR
-                                </span>
+                          )}
+
+                          {/* Logistics Location Cards */}
+                          <div className="space-y-3">
+                            {/* Outdoor On-Location Logistics Card */}
+                            {(isOutdoor || linkedOutdoor) && (
+                              <div className="p-4 rounded-xl bg-purple-50/80 border border-purple-200 text-xs space-y-3">
+                                <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                                  <span className="font-bold text-purple-900 flex items-center gap-1.5 uppercase text-[11px]">
+                                    <Compass className="w-4 h-4 text-purple-600" /> Outdoor On-Location Shoot Logistics
+                                  </span>
+                                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold border border-purple-200">
+                                    ON-LOCATION
+                                  </span>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-800">
+                                  <div>
+                                    <span className="text-[10px] font-bold text-purple-800 uppercase block">Exact Location Address</span>
+                                    <p className="font-semibold text-slate-900">{linkedOutdoor?.exactLocationAddress || linkedOutdoor?.locationAddress || inspectedTask.project?.shootLocation || 'Specified in brief'}</p>
+                                  </div>
+
+                                  <div>
+                                    <span className="text-[10px] font-bold text-purple-800 uppercase block">Location Access &amp; Parking</span>
+                                    <p className="text-slate-800">{linkedOutdoor?.locationAccessDetails || 'Standard Access'}</p>
+                                  </div>
+
+                                  <div>
+                                    <span className="text-[10px] font-bold text-purple-800 uppercase block">Location Contact Person</span>
+                                    <p className="text-slate-800">{linkedOutdoor?.locationContact || linkedOutdoor?.locationContactPerson || 'Contact not provided'}</p>
+                                  </div>
+
+                                  <div>
+                                    <span className="text-[10px] font-bold text-purple-800 uppercase block">Expected Weather Conditions</span>
+                                    <p className="font-semibold text-slate-900 flex items-center gap-1">
+                                      <CloudSun className="w-3.5 h-3.5 text-amber-600" />
+                                      {linkedOutdoor?.expectedWeatherConditions || linkedOutdoor?.weatherStatus || 'Sunny / Clear'}
+                                    </p>
+                                  </div>
+
+                                  {linkedOutdoor?.backupLocation && (
+                                    <div className="col-span-1 sm:col-span-2">
+                                      <span className="text-[10px] font-bold text-purple-800 uppercase block">Backup Weather Location</span>
+                                      <p className="text-slate-800">{linkedOutdoor.backupLocation}</p>
+                                    </div>
+                                  )}
+
+                                  {linkedOutdoor?.specialOutdoorRequirements && (
+                                    <div className="col-span-1 sm:col-span-2">
+                                      <span className="text-[10px] font-bold text-purple-800 uppercase block">Special Outdoor Notes &amp; Safety</span>
+                                      <p className="text-slate-800 italic bg-white/70 p-2.5 rounded-lg border border-purple-200">
+                                        &quot;{linkedOutdoor.specialOutdoorRequirements}&quot;
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-800">
-                                <div>
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Studio / Stage Location</span>
-                                  <p className="font-semibold text-slate-900">{linkedIndoor?.studioName || inspectedTask.project?.shootLocation || 'Main Studio Floor'}</p>
+                            )}
+
+                            {/* Indoor Studio / Facility Details Card */}
+                            {(linkedIndoor || (!isOutdoor && !linkedOutdoor) || (linkedProject?.shootType === 'INDOOR')) && (
+                              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2.5">
+                                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                                  <span className="font-bold text-slate-900 flex items-center gap-1.5 uppercase text-[11px]">
+                                    <Building2 className="w-4 h-4 text-blue-600" /> Parent / Base Indoor Studio Details
+                                  </span>
+                                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                                    STUDIO FLOOR
+                                  </span>
                                 </div>
-                                <div>
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Studio Address</span>
-                                  <p className="text-slate-700">{linkedIndoor?.studioAddress || inspectedTask.project?.locationAddress || 'HQ Studio Facility'}</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-800">
+                                  <div>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Studio / Stage Location</span>
+                                    <p className="font-semibold text-slate-900">{linkedIndoor?.studioName || inspectedTask.project?.shootLocation || 'Main Studio Floor'}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Studio Address</span>
+                                    <p className="text-slate-700">{linkedIndoor?.studioAddress || inspectedTask.project?.locationAddress || 'HQ Studio Facility'}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Studio Call Time</span>
+                                    <p className="font-mono text-blue-700 font-semibold">{linkedIndoor?.reportingTime || '09:00 AM'}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Studio Wrap Time</span>
+                                    <p className="font-mono text-blue-700 font-semibold">{linkedIndoor?.wrapUpTime || '05:00 PM'}</p>
+                                  </div>
                                 </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SECTION 4: ASSIGNED CREW / STAFF & RESERVED / REQUIRED EQUIPMENT */}
+                      {(() => {
+                        const isGraphicReqTask = Boolean(
+                          inspectedTask.graphicRequirement ||
+                          inspectedTask.graphicRequirementId ||
+                          inspectedTask.sourceType === 'GRAPHIC_REQUIREMENT' ||
+                          inspectedTask.sourceType === 'GRAPHIC' ||
+                          inspectedTask.taskType === 'GRAPHIC_REQUIREMENT' ||
+                          inspectedTask.taskType === 'GRAPHIC'
+                        );
+
+                        const taskAssignedStaff = (() => {
+                          const staffList: Array<{ id: string; name: string; role: string }> = [];
+                          const seenIds = new Set<string>();
+
+                          (inspectedTask.assignedEmployees || []).forEach((ae: any) => {
+                            const uId = ae.userId || ae.user?.id || ae.id;
+                            if (uId && !seenIds.has(uId)) {
+                              seenIds.add(uId);
+                              staffList.push({
+                                id: ae.id || uId,
+                                name: ae.user?.name || ae.name || 'Staff Member',
+                                role: ae.user?.role?.replace(/_/g, ' ') || ae.role?.replace(/_/g, ' ') || 'Assignee',
+                              });
+                            }
+                          });
+
+                          if (inspectedTask.assignedTo) {
+                            const uId = inspectedTask.assignedToId || inspectedTask.assignedTo.id;
+                            if (uId && !seenIds.has(uId)) {
+                              seenIds.add(uId);
+                              staffList.push({
+                                id: uId,
+                                name: inspectedTask.assignedTo.name || 'Staff Member',
+                                role: inspectedTask.assignedTo.role?.replace(/_/g, ' ') || 'Assignee',
+                              });
+                            }
+                          }
+
+                          // Only include project team for Shoot Project tasks; NEVER for Graphic Requirements
+                          if (!isGraphicReqTask) {
+                            linkedTeam.forEach((tm: any) => {
+                              const uId = tm.userId || tm.user?.id || tm.id;
+                              if (uId && !seenIds.has(uId)) {
+                                seenIds.add(uId);
+                                staffList.push({
+                                  id: tm.id || uId,
+                                  name: tm.user?.name || 'Crew Member',
+                                  role: tm.roleInProject || tm.user?.role?.replace(/_/g, ' ') || 'Crew',
+                                });
+                              }
+                            });
+                          }
+
+                          return staffList;
+                        })();
+
+                        if (!taskAssignedStaff.length && !linkedEquipment.length && !isGraphicReqTask) {
+                          return null;
+                        }
+
+                        return (
+                          <div className="space-y-2">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                              <Users className="w-3.5 h-3.5 text-indigo-600" /> {isGraphicReqTask ? 'Assigned Staff & Required Equipment' : 'Assigned Crew & Required Equipment'}
+                            </span>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {/* Assigned Staff / Crew Members */}
+                              <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 text-xs space-y-2">
+                                <span className="font-bold text-indigo-900 uppercase text-[10px] flex items-center gap-1">
+                                  <Users className="w-3.5 h-3.5 text-indigo-600" /> {isGraphicReqTask ? 'Assigned Staff Members' : 'Production Team & Assigned Crew'} ({taskAssignedStaff.length})
+                                </span>
+                                <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                                  {taskAssignedStaff.map((staff) => (
+                                    <div key={staff.id} className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-indigo-200">
+                                      <span className="font-semibold text-slate-900">{staff.name}</span>
+                                      <span className="text-[10px] font-mono text-indigo-700 uppercase bg-indigo-50 px-2 py-0.5 rounded">
+                                        {staff.role}
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {taskAssignedStaff.length === 0 && (
+                                    <p className="text-slate-400 italic text-[11px] p-2">No assigned staff members.</p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Required Equipment */}
+                              <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200 text-xs space-y-2">
+                                <span className="font-bold text-purple-900 uppercase text-[10px] flex items-center gap-1">
+                                  <Camera className="w-3.5 h-3.5 text-purple-600" /> Required Equipment ({linkedEquipment.length})
+                                </span>
+                                <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                                  {linkedEquipment.map((res: any) => (
+                                    <div key={res.id} className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-purple-200">
+                                      <span className="font-semibold text-slate-900">{res.equipment?.name || 'Equipment'}</span>
+                                      <span className="text-[10px] font-mono text-purple-700 uppercase bg-purple-50 px-2 py-0.5 rounded">
+                                        {res.equipment?.category || res.status}
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {linkedEquipment.length === 0 && (
+                                    <div className="p-2.5 bg-white/80 border border-purple-200/80 rounded-lg text-slate-600 space-y-1">
+                                      <div className="flex items-center gap-1.5 font-semibold text-xs text-slate-700">
+                                        <Camera className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        <span>No equipment required / No equipment available</span>
+                                      </div>
+                                      <p className="text-[10px] text-slate-500">
+                                        No equipment is associated with or required for this task.
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* SECTION 5: CREATIVE ASSETS & REFERENCE FILES (EVENT CREATION ASSETS) */}
+                      {(creativeUrlVal || parentAssetFiles.length > 0) ? (
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                              <ImageIcon className="w-3.5 h-3.5 text-blue-600" /> Event Creation Assets &amp; Reference Files
+                            </span>
+                            <span className="text-[10px] font-mono text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded font-bold">
+                              {(creativeUrlVal ? 1 : 0) + parentAssetFiles.length} File{((creativeUrlVal ? 1 : 0) + parentAssetFiles.length) === 1 ? '' : 's'} Added on Creation
+                            </span>
+                          </div>
+
+                          {/* Primary Linked Creative Visual Asset added on Event Creation */}
+                          {creativeUrlVal && (
+                            <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-3 shadow-xs">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="space-y-0.5 overflow-hidden">
+                                  <span className="text-[10px] font-bold text-indigo-800 uppercase tracking-wider block">
+                                    Primary Visual Asset / Reference Link:
+                                  </span>
+                                  <strong className="text-slate-900 text-sm block truncate">
+                                    {creativeAssetNameVal}
+                                  </strong>
+                                  <span className="text-xs font-mono text-indigo-700 truncate block">
+                                    {creativeUrlVal}
+                                  </span>
+                                </div>
+                                <a
+                                  href={creativeUrlVal.startsWith('http') ? creativeUrlVal : `https://${creativeUrlVal}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-sm transition-all"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" /> Open Asset Link
+                                </a>
+                              </div>
+                              {creativeUrlVal.match(/\.(jpeg|jpg|gif|png|webp)/i) && (
+                                <div className="pt-1 flex justify-center">
+                                  <img
+                                    src={creativeUrlVal}
+                                    alt="Creative Preview"
+                                    className="max-h-60 rounded-lg object-contain border border-indigo-200 bg-white shadow-xs"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Files uploaded on Event Creation */}
+                          {parentAssetFiles.length > 0 && (
+                            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
+                                Files Added on Event Creation ({parentAssetFiles.length}):
+                              </span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {parentAssetFiles.map((file: any, idx: number) => {
+                                  const fileUrl = file.storagePath?.startsWith('http')
+                                    ? file.storagePath
+                                    : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${file.storagePath}`;
+                                  const isImg = file.fileType?.includes('image') || file.storagePath?.match(/\.(jpeg|jpg|gif|png|webp)/i);
+
+                                  return (
+                                    <div
+                                      key={file.id || `file-${idx}`}
+                                      className="p-3 rounded-xl bg-white border border-slate-200 hover:border-indigo-300 transition-all shadow-xs flex items-center justify-between gap-2.5"
+                                    >
+                                      <div className="flex items-center gap-2.5 overflow-hidden">
+                                        <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
+                                          {isImg ? <ImageIcon className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                                        </div>
+                                        <div className="truncate">
+                                          <span className="font-bold text-slate-900 block truncate text-xs">
+                                            {file.fileName || 'Event Asset File'}
+                                          </span>
+                                          <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+                                            <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-bold">
+                                              {file.sourceLabel || file.attachmentCategory?.replace(/_/g, ' ') || file.fileType || 'ASSET'}
+                                            </span>
+                                            {file.fileSize > 0 && (
+                                              <span>
+                                                {file.fileSize > 1048576
+                                                  ? `${(file.fileSize / 1048576).toFixed(1)} MB`
+                                                  : `${Math.round(file.fileSize / 1024)} KB`}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <a
+                                        href={fileUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-[11px] border border-indigo-200 flex items-center gap-1 shrink-0 transition-colors"
+                                      >
+                                        <Eye className="w-3.5 h-3.5" />
+                                        <span>View</span>
+                                      </a>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
                         </div>
-                      )}
-
-                      {/* SECTION 4: ASSIGNED CREW & RESERVED EQUIPMENT */}
-                      {(linkedTeam.length > 0 || linkedEquipment.length > 0 || inspectedTask.assignedEmployees?.length > 0) && (
-                        <div className="space-y-2">
-                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                            <Users className="w-3.5 h-3.5 text-indigo-600" /> Assigned Crew &amp; Reserved Equipment
-                          </span>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {/* Crew Members */}
-                            <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 text-xs space-y-2">
-                              <span className="font-bold text-indigo-900 uppercase text-[10px] flex items-center gap-1">
-                                <Users className="w-3.5 h-3.5 text-indigo-600" /> Production Team &amp; Assigned Crew
-                              </span>
-                              <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                                {inspectedTask.assignedEmployees?.map((ae: any) => (
-                                  <div key={ae.id} className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-indigo-200">
-                                    <span className="font-semibold text-slate-900">{ae.user?.name || 'Staff Member'}</span>
-                                    <span className="text-[10px] font-mono text-indigo-700 uppercase bg-indigo-50 px-2 py-0.5 rounded">
-                                      {ae.user?.role?.replace(/_/g, ' ') || 'Assignee'}
-                                    </span>
-                                  </div>
-                                ))}
-                                {linkedTeam.map((tm: any) => (
-                                  <div key={tm.id} className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-indigo-200">
-                                    <span className="font-semibold text-slate-900">{tm.user?.name || 'Crew Member'}</span>
-                                    <span className="text-[10px] font-mono text-indigo-700 uppercase bg-indigo-50 px-2 py-0.5 rounded">
-                                      {tm.roleInProject || tm.user?.role?.replace(/_/g, ' ') || 'Crew'}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Reserved Equipment */}
-                            <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200 text-xs space-y-2">
-                              <span className="font-bold text-purple-900 uppercase text-[10px] flex items-center gap-1">
-                                <Camera className="w-3.5 h-3.5 text-purple-600" /> Reserved Production Equipment ({linkedEquipment.length})
-                              </span>
-                              <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                                {linkedEquipment.map((res: any) => (
-                                  <div key={res.id} className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-purple-200">
-                                    <span className="font-semibold text-slate-900">{res.equipment?.name || 'Equipment'}</span>
-                                    <span className="text-[10px] font-mono text-purple-700 uppercase bg-purple-50 px-2 py-0.5 rounded">
-                                      {res.equipment?.category || res.status}
-                                    </span>
-                                  </div>
-                                ))}
-                                {linkedEquipment.length === 0 && (
-                                  <p className="text-slate-400 italic text-[11px] p-2">No equipment reserved for this task.</p>
-                                )}
-                              </div>
-                            </div>
+                      ) : (
+                        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs text-slate-500">
+                          <div className="flex items-center gap-2">
+                            <ImageIcon className="w-4 h-4 text-slate-400" />
+                            <span>No asset files were attached during this event creation.</span>
                           </div>
-                        </div>
-                      )}
-
-                      {/* SECTION 5: CREATIVE ASSETS & REFERENCE FILES */}
-                      {creativeUrlVal && (
-                        <div className="space-y-2">
-                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                            <ImageIcon className="w-3.5 h-3.5 text-blue-600" /> Creative Assets &amp; Reference Materials
-                          </span>
-                          <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="space-y-0.5 overflow-hidden">
-                                <strong className="text-slate-900 text-sm block truncate">
-                                  {linkedCalEvent?.creativeAssetName || 'Primary Creative Visual Asset'}
-                                </strong>
-                                <span className="text-xs font-mono text-indigo-700 truncate block">
-                                  {creativeUrlVal}
-                                </span>
-                              </div>
-                              <a
-                                href={creativeUrlVal.startsWith('http') ? creativeUrlVal : `https://${creativeUrlVal}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-sm transition-all"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" /> Open Asset Link
-                              </a>
-                            </div>
-                            {creativeUrlVal.match(/\.(jpeg|jpg|gif|png|webp)/i) && (
-                              <img
-                                src={creativeUrlVal}
-                                alt="Creative Preview"
-                                className="max-h-60 rounded-lg object-contain mx-auto border border-indigo-200 bg-white"
-                              />
-                            )}
-                          </div>
+                          <span className="text-[10px] font-mono text-slate-400">0 Assets</span>
                         </div>
                       )}
 
@@ -4254,6 +5482,188 @@ export default function TasksPage() {
                               </div>
                             ))}
                           </div>
+                        </div>
+                      )}
+
+                      {/* DEDICATED GRAPHIC REQUIREMENT DIRECTION & DESIGN GUIDELINES (FOR GRAPHIC REQ TASKS) */}
+                      {isGraphicReqTask && (
+                        <div className="p-4 bg-slate-50 border border-amber-200 rounded-2xl space-y-3 shadow-lg">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Palette className="w-4 h-4 text-amber-600" />
+                              <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+                                Graphic Direction &amp; Design Guidelines
+                              </h3>
+                              {graphicReqId && (
+                                <span className="text-[9px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded font-mono font-bold border border-amber-200">
+                                  {activeGraphicReq?.reqId || (typeof graphicReqId === 'string' && graphicReqId.startsWith('GR-') ? graphicReqId : `GR-${inspectedTask.taskId}`)}
+                                </span>
+                              )}
+                              <span className="text-[9px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-200 uppercase tracking-wider">
+                                Graphic Req
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap">
+
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const copyContent = [
+                                    activeGraphicReq?.objective ? `OBJECTIVE:\n${activeGraphicReq.objective}` : '',
+                                    graphicEditDirection || activeGraphicReq?.description || inspectedTask.description ? `DIRECTION & GUIDELINES:\n${graphicEditDirection || activeGraphicReq?.description || inspectedTask.description}` : '',
+                                    activeGraphicReq?.remarks ? `REMARKS:\n${activeGraphicReq.remarks}` : '',
+                                  ].filter(Boolean).join('\n\n');
+                                  navigator.clipboard.writeText(copyContent || 'No direction provided.');
+                                  setGraphicCopiedDirection(true);
+                                  setTimeout(() => setGraphicCopiedDirection(false), 2000);
+                                }}
+                                className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-colors"
+                              >
+                                {graphicCopiedDirection ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-amber-600" />}
+                                <span>{graphicCopiedDirection ? 'Copied!' : 'Copy Direction'}</span>
+                              </button>
+
+                              <div className="flex bg-slate-100 border border-slate-200 p-0.5 rounded-lg text-[10px] font-semibold">
+                                <button
+                                  type="button"
+                                  onClick={() => setGraphicDirectionTab('view')}
+                                  className={`px-2 py-0.5 rounded transition-all ${
+                                    graphicDirectionTab === 'view' ? 'bg-amber-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  View Direction
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (isPendingAcceptance) {
+                                      alert('Task is in read-only mode. Please accept the task assignment first.');
+                                      return;
+                                    }
+                                    setGraphicDirectionTab('edit');
+                                  }}
+                                  className={`px-2 py-0.5 rounded transition-all flex items-center gap-1 ${
+                                    graphicDirectionTab === 'edit' ? 'bg-amber-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                                  }`}
+                                >
+                                  {isPendingAcceptance && <Lock className="w-2.5 h-2.5 text-slate-400" />}
+                                  <span>Edit Direction</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* TAB CONTENT: FORMATTED VIEW */}
+                          {graphicDirectionTab === 'view' && (
+                            <div className="space-y-3">
+                              {/* Objective */}
+                              {(activeGraphicReq?.objective || graphicEditObjective) && (
+                                <div className="bg-amber-50/70 border border-amber-200/80 p-3 rounded-xl space-y-1">
+                                  <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">
+                                    Creative Objective &amp; Goal
+                                  </span>
+                                  <p className="text-xs text-slate-900 font-medium leading-relaxed">
+                                    {activeGraphicReq?.objective || graphicEditObjective}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Direction & Design Guidelines */}
+                              <div className="bg-white border border-amber-200/80 p-3.5 rounded-xl space-y-1.5 shadow-xs">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                  Visual Design Direction &amp; Specifications
+                                </span>
+                                <p className="text-xs text-slate-800 leading-relaxed font-normal whitespace-pre-wrap">
+                                  {graphicEditDirection || activeGraphicReq?.description || inspectedTask.description || 'No design direction or guidelines specified yet.'}
+                                </p>
+                              </div>
+
+                              {/* Remarks / Production Notes */}
+                              {(activeGraphicReq?.remarks || graphicEditRemarks) && (
+                                <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1">
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                    Special Instructions &amp; Remarks
+                                  </span>
+                                  <p className="text-xs text-amber-800 font-medium leading-relaxed whitespace-pre-wrap">
+                                    {activeGraphicReq?.remarks || graphicEditRemarks}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* TAB CONTENT: EDIT DIRECTION */}
+                          {graphicDirectionTab === 'edit' && (
+                            <div className="space-y-3">
+                              {isPendingAcceptance ? (
+                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs flex items-center gap-2">
+                                  <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                                  <span>Task is in read-only mode. Accept the task assignment to edit direction.</span>
+                                </div>
+                              ) : (
+                                <>
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                      Creative Objective
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={graphicEditObjective}
+                                      onChange={(e) => setGraphicEditObjective(e.target.value)}
+                                      placeholder="e.g. Highlight promotional discount & brand elements"
+                                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                      Design Direction, Visual Guidelines &amp; Specs
+                                    </label>
+                                    <textarea
+                                      rows={5}
+                                      value={graphicEditDirection}
+                                      onChange={(e) => setGraphicEditDirection(e.target.value)}
+                                      placeholder="Enter detailed design direction, typography rules, color mood, visual elements, and creative guidelines..."
+                                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500 leading-relaxed"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                      Production Remarks &amp; Notes
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={graphicEditRemarks}
+                                      onChange={(e) => setGraphicEditRemarks(e.target.value)}
+                                      placeholder="e.g. Follow updated logo safe zone rules"
+                                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                                    />
+                                  </div>
+
+                                  <div className="flex justify-end gap-2 pt-1 border-t border-slate-200">
+                                    <button
+                                      type="button"
+                                      onClick={() => setGraphicDirectionTab('view')}
+                                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleSaveGraphicDirectionInTask}
+                                      disabled={savingGraphicReq}
+                                      className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                                    >
+                                      {savingGraphicReq ? 'Saving…' : 'Save Direction'}
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -4326,20 +5736,21 @@ export default function TasksPage() {
                         <div className="flex items-end gap-2 pt-1 border-t border-slate-200">
                           <textarea
                             value={newRemarkText}
+                            disabled={isPendingAcceptance}
                             onChange={(e) => setNewRemarkText(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddRemark(inspectedTask.id); } }}
-                            placeholder="Add an operational work note or status remark… (Enter to send)"
+                            placeholder={isPendingAcceptance ? "Task is in read-only mode. Accept task assignment to add remarks." : "Add an operational work note or status remark… (Enter to send)"}
                             rows={2}
-                            className="flex-1 bg-white border border-slate-200 text-slate-900 px-3 py-2 rounded-lg text-[11px] resize-none focus:border-amber-500 focus:outline-none placeholder-slate-400"
+                            className="flex-1 bg-white border border-slate-200 text-slate-900 px-3 py-2 rounded-lg text-[11px] resize-none focus:border-amber-500 focus:outline-none placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                           <button
                             type="button"
                             onClick={() => handleAddRemark(inspectedTask.id)}
-                            disabled={!newRemarkText.trim() || submittingRemark}
-                            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs disabled:opacity-40 flex items-center gap-1 h-[52px]"
+                            disabled={!newRemarkText.trim() || submittingRemark || isPendingAcceptance}
+                            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 h-[52px]"
                           >
                             <Send className="w-3.5 h-3.5" />
-                            {submittingRemark ? '…' : 'Send'}
+                            {submittingRemark ? '…' : isPendingAcceptance ? 'Locked' : 'Send'}
                           </button>
                         </div>
                       </div>

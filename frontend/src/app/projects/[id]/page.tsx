@@ -47,6 +47,10 @@ import {
   Send,
   Sparkles,
   AlertTriangle,
+  Building2,
+  Compass,
+  Tag,
+  Layers,
 } from 'lucide-react';
 
 export default function ProjectDetailPage() {
@@ -90,6 +94,7 @@ export default function ProjectDetailPage() {
   const [showConvertTaskModal, setShowConvertTaskModal] = useState(false);
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [teamFilter, setTeamFilter] = useState<'ALL' | 'ACCEPTED' | 'PENDING'>('ALL');
+  const [taskFilter, setTaskFilter] = useState<'ALL' | 'SHOOT' | 'SCRIPT' | 'GRAPHIC' | 'ACTIVE' | 'COMPLETED'>('ALL');
 
   // Deliverables State
   const [deliverableName, setDeliverableName] = useState('');
@@ -245,6 +250,25 @@ export default function ProjectDetailPage() {
   const handleCreateDeliverable = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!deliverableName.trim()) return;
+
+    const isProjectUnderReview = [
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_MARKETING_APPROVAL',
+      'PENDING_MARKETING_APPROVAL',
+      'PENDING_CLIENT_APPROVAL',
+      'PENDING_CLIENT_REVIEW',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+      'COMPLETED',
+    ].includes(project?.status);
+
+    if (isProjectUnderReview) {
+      alert(`Project is currently under review (${project?.status}) and in read-only mode. Deliverable additions are locked during review.`);
+      return;
+    }
+
     if (!deliverableVideoUrl.trim()) {
       alert('Please enter a valid video link or cloud storage URL.');
       return;
@@ -761,60 +785,6 @@ export default function ProjectDetailPage() {
 
         {activeTab === 'Overview' && (
           <div className="space-y-6 text-xs">
-            {/* In Progress Session / Execution & Status Controls */}
-            <div className="p-4 bg-gradient-to-r from-blue-50/90 via-indigo-50/40 to-blue-50/90 border border-blue-200 rounded-xl space-y-3 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/80 pb-2">
-                <div className="flex items-center gap-2">
-                  <span className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
-                    <Play className="w-4 h-4 fill-current text-blue-600" />
-                  </span>
-                  <div>
-                    <h4 className="font-extrabold text-slate-900 text-xs">
-                      In Progress Session — Project Execution &amp; Workflow Status
-                    </h4>
-                    <p className="text-[11px] text-slate-500">
-                      Manage active shoot production status and progress updates.
-                    </p>
-                  </div>
-                </div>
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase border ${
-                  project.status === 'IN_PROGRESS'
-                    ? 'bg-blue-50 text-blue-700 border-blue-300'
-                    : 'bg-slate-100 text-slate-700 border-slate-300'
-                }`}>
-                  Status: {project.status.replace(/_/g, ' ')}
-                </span>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                <p className="text-[11px] text-slate-700 leading-relaxed max-w-xl">
-                  {project.status === 'IN_PROGRESS'
-                    ? 'This project is currently IN PROGRESS. Assigned team members are actively filming, editing, and producing project assets.'
-                    : 'Advance this project to IN PROGRESS to mark shoot production as actively underway and unlock task progress updates.'}
-                </p>
-
-                <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                  {project.status !== 'IN_PROGRESS' && project.status !== 'COMPLETED' && project.status !== 'CLOSED' && (
-                    <button
-                      type="button"
-                      onClick={handleUpdateStatusToInProgress}
-                      disabled={isProcessingApproval}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      Update Status to IN PROGRESS
-                    </button>
-                  )}
-                  {project.status === 'IN_PROGRESS' && (
-                    <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-lg text-xs font-bold flex items-center gap-1.5">
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                      Project Actively In Progress
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
             {/* Core Shoot Project Details Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Card 1: Project Identity & Client Details */}
@@ -1730,23 +1700,349 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* Tab 4: Tasks */}
-        {activeTab === 'Tasks' && (
-          <div className="space-y-4 text-xs">
-            <h3 className="font-bold text-slate-900 text-sm">Project Tasks</h3>
-            <div className="space-y-2">
-              {project.tasks?.map((t: any) => (
-                <div key={t.id} className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
-                  <div>
-                    <span className="font-mono text-blue-600 font-bold mr-2">{t.taskId}</span>
-                    <span className="font-bold text-slate-900">{t.title}</span>
-                  </div>
-                  <span className="text-slate-500 font-semibold">{t.completionPercentage}%</span>
+        {/* Tab 4: Tasks & Production Execution Sessions */}
+        {activeTab === 'Tasks' && (() => {
+          const allTasks: any[] = Array.isArray(project.tasks) ? project.tasks : [];
+
+          const shootTasks = allTasks.filter(
+            (t: any) =>
+              t.sourceType === 'SHOOT_PROJECT' ||
+              (t.taskType === 'PROJECT' && !t.scriptId && !t.graphicRequirementId) ||
+              (!t.scriptId && !t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'SCRIPT')
+          );
+          const scriptTasks = allTasks.filter((t: any) => t.scriptId || t.sourceType === 'SCRIPT' || t.taskType === 'SCRIPT');
+          const graphicTasks = allTasks.filter(
+            (t: any) => t.graphicRequirementId || t.sourceType === 'GRAPHIC_REQUIREMENT' || t.taskType === 'GRAPHIC_REQUIREMENT'
+          );
+
+          const activeTasks = allTasks.filter((t: any) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+          const completedTasks = allTasks.filter((t: any) => t.status === 'COMPLETED');
+
+          const filteredTasks = allTasks.filter((t: any) => {
+            if (taskFilter === 'SHOOT') {
+              return (
+                t.sourceType === 'SHOOT_PROJECT' ||
+                (t.taskType === 'PROJECT' && !t.scriptId && !t.graphicRequirementId) ||
+                (!t.scriptId && !t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'SCRIPT')
+              );
+            }
+            if (taskFilter === 'SCRIPT') return t.scriptId || t.sourceType === 'SCRIPT' || t.taskType === 'SCRIPT';
+            if (taskFilter === 'GRAPHIC') return t.graphicRequirementId || t.sourceType === 'GRAPHIC_REQUIREMENT' || t.taskType === 'GRAPHIC_REQUIREMENT';
+            if (taskFilter === 'ACTIVE') return t.status !== 'COMPLETED' && t.status !== 'CANCELLED';
+            if (taskFilter === 'COMPLETED') return t.status === 'COMPLETED';
+            return true;
+          });
+
+          return (
+            <div className="space-y-6 text-xs">
+              {/* Header Banner */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-5 rounded-2xl shadow-xs">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <CheckSquare className="w-4 h-4 text-blue-600" /> Project Tasks &amp; Production Execution Sessions ({allTasks.length})
+                  </h3>
+                  <p className="text-slate-500 text-[11px] mt-0.5">
+                    All shoot execution tasks, outdoor on-location sessions, script writing, and graphic deliverables linked to this project.
+                  </p>
                 </div>
-              ))}
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Link
+                    href={`/tasks`}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Tasks Operations Hub
+                  </Link>
+                  {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+                    <Link
+                      href={`/tasks`}
+                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-all shadow-md shadow-blue-600/20 flex items-center gap-1.5 text-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Create Task
+                    </Link>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Filter Pills */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setTaskFilter('ALL')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                    taskFilter === 'ALL'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>All Tasks</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">{allTasks.length}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTaskFilter('SHOOT')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                    taskFilter === 'SHOOT'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200'
+                  }`}
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                  <span>Shoot Sessions</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-200/40">{shootTasks.length}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTaskFilter('SCRIPT')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                    taskFilter === 'SCRIPT'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Script Tasks</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-200/40">{scriptTasks.length}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTaskFilter('GRAPHIC')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                    taskFilter === 'GRAPHIC'
+                      ? 'bg-pink-600 text-white shadow-sm'
+                      : 'bg-pink-50 text-pink-700 hover:bg-pink-100 border border-pink-200'
+                  }`}
+                >
+                  <Palette className="w-3.5 h-3.5" />
+                  <span>Graphic Creatives</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-pink-200/40">{graphicTasks.length}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTaskFilter('ACTIVE')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                    taskFilter === 'ACTIVE'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Active ({activeTasks.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTaskFilter('COMPLETED')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                    taskFilter === 'COMPLETED'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                  }`}
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>Completed ({completedTasks.length})</span>
+                </button>
+              </div>
+
+              {/* Task Grid */}
+              {filteredTasks.length === 0 ? (
+                <div className="p-12 text-center bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                  <CheckSquare className="w-10 h-10 text-slate-300 mx-auto" />
+                  <div className="space-y-1">
+                    <p className="font-bold text-slate-800 text-sm">No tasks match the selected filter.</p>
+                    <p className="text-slate-500 text-xs">
+                      {allTasks.length === 0
+                        ? 'No production tasks created yet under this shoot project.'
+                        : 'Try switching to "All Tasks" to view all project tasks.'}
+                    </p>
+                  </div>
+                  {allTasks.length === 0 && (
+                    <Link
+                      href="/tasks"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs shadow-md transition-all mt-2"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Create Task Now
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredTasks.map((t: any) => {
+                    const isShootTask =
+                      t.sourceType === 'SHOOT_PROJECT' ||
+                      (t.taskType === 'PROJECT' && !t.scriptId && !t.graphicRequirementId) ||
+                      (!t.scriptId && !t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'SCRIPT');
+                    const isScriptTask = Boolean(t.scriptId || t.sourceType === 'SCRIPT' || t.taskType === 'SCRIPT');
+                    const isGraphicTask = Boolean(t.graphicRequirementId || t.sourceType === 'GRAPHIC_REQUIREMENT' || t.taskType === 'GRAPHIC_REQUIREMENT');
+
+                    const isOutdoorTask = isShootTask && (t.title?.toLowerCase().includes('outdoor') || t.description?.toLowerCase().includes('outdoor') || t.project?.shootType === 'OUTDOOR');
+
+                    const assignedStaff = t.assignedEmployees || [];
+                    const isUserAssigned = user?.id && assignedStaff.some((a: any) => (a.userId === user.id || a.user?.id === user.id));
+                    const isUserPendingAcceptance =
+                      isUserAssigned &&
+                      assignedStaff.some(
+                        (a: any) => (a.userId === user.id || a.user?.id === user.id) && a.acceptanceStatus !== 'ACCEPTED'
+                      );
+
+                    return (
+                      <div
+                        key={t.id}
+                        className="bg-white border border-slate-200 hover:border-blue-300 rounded-xl p-4.5 space-y-3 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+                      >
+                        <div className="space-y-2.5">
+                          {/* Top Badges */}
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono text-blue-700 font-extrabold bg-blue-50 border border-blue-200 px-2 py-0.5 rounded text-xs">
+                                {t.taskId}
+                              </span>
+
+                              {/* Type Badge */}
+                              {isOutdoorTask ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300 flex items-center gap-1">
+                                  <Compass className="w-3 h-3 text-purple-600" /> Outdoor Shoot Session
+                                </span>
+                              ) : isShootTask ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1">
+                                  <Building2 className="w-3 h-3 text-blue-600" /> Shoot Task
+                                </span>
+                              ) : isScriptTask ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300 flex items-center gap-1">
+                                  <FileText className="w-3 h-3 text-indigo-600" /> Script Task
+                                </span>
+                              ) : isGraphicTask ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-100 text-pink-800 border border-pink-300 flex items-center gap-1">
+                                  <Palette className="w-3 h-3 text-pink-600" /> Graphic Task
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                  Production Task
+                                </span>
+                              )}
+
+                              {/* Priority */}
+                              <span
+                                className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase border ${
+                                  t.priority === 'CRITICAL'
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                    : t.priority === 'HIGH'
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                                }`}
+                              >
+                                {t.priority || 'MEDIUM'}
+                              </span>
+                            </div>
+
+                            {/* Status */}
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono border ${
+                                t.status === 'COMPLETED'
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                  : t.status === 'IN_PROGRESS'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-300'
+                                  : t.status === 'ACCEPTED'
+                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-300'
+                                  : t.status?.includes('REVIEW') || t.status?.includes('WAITING')
+                                  ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                  : 'bg-slate-100 text-slate-700 border-slate-300'
+                              }`}
+                            >
+                              {(t.status || 'PENDING').replace(/_/g, ' ')}
+                            </span>
+                          </div>
+
+                          {/* Task Title */}
+                          <h4 className="font-bold text-slate-900 text-sm leading-snug">{t.title}</h4>
+
+                          {/* Description */}
+                          {t.description && (
+                            <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed bg-slate-50/60 p-2 rounded-lg border border-slate-100">
+                              {t.description}
+                            </p>
+                          )}
+
+                          {/* Due Date & Hours */}
+                          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400" /> Due: <strong className="text-slate-800">{t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'Not Set'}</strong>
+                            </span>
+                            <span className="font-mono text-slate-700">
+                              Est: <strong>{t.estimatedHours || 2}h</strong>
+                            </span>
+                          </div>
+
+                          {/* Assigned Employees */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Assigned Crew:</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {assignedStaff.length === 0 ? (
+                                <span className="text-[11px] text-slate-400 italic">No staff assigned</span>
+                              ) : (
+                                assignedStaff.map((ae: any) => (
+                                  <span
+                                    key={ae.id || ae.userId}
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
+                                      ae.acceptanceStatus === 'ACCEPTED'
+                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                                    }`}
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                                    <span>{ae.user?.name || 'Staff'}</span>
+                                    {ae.acceptanceStatus === 'ACCEPTED' && <Check className="w-2.5 h-2.5 text-emerald-600" />}
+                                  </span>
+                                ))
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Progress Bar */}
+                          <div className="space-y-1 pt-1">
+                            <div className="flex justify-between text-[10px] text-slate-600 font-bold">
+                              <span>Progress</span>
+                              <span>{t.completionPercentage || 0}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-blue-500 rounded-full transition-all"
+                                style={{ width: `${t.completionPercentage || 0}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Footer */}
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <Link
+                            href={`/tasks?taskId=${t.id}`}
+                            className="text-blue-600 hover:text-blue-800 font-bold text-xs flex items-center gap-1"
+                          >
+                            Inspect Task Details <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+
+                          {isUserPendingAcceptance && (
+                            <Link
+                              href={`/tasks?taskId=${t.id}`}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-[11px] flex items-center gap-1 shadow transition-colors"
+                            >
+                              <Check className="w-3 h-3" /> Accept Task
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Tab 5: Team */}
         {activeTab === 'Team' && (() => {
@@ -2083,22 +2379,42 @@ export default function ProjectDetailPage() {
         {/* Tab 7: Deliverables */}
         {(activeTab === 'Deliverables' || activeTab === 'Deliverables & Drive') && (
           <div className="space-y-6 text-xs">
+            {['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project?.status) && (
+              <div className="bg-amber-50 border-2 border-amber-300 p-3.5 rounded-xl space-y-1 text-xs text-amber-950 shadow-xs flex items-start gap-3">
+                <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-extrabold text-amber-900 text-xs uppercase tracking-wide flex items-center gap-1.5">
+                    Project Under Review — Read-Only Mode
+                  </h4>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    This project is currently undergoing formal review (Status: <strong className="font-mono font-bold text-amber-900">{project?.status}</strong>). Adding new deliverables, media assets, and file modifications are locked in read-only mode until review decision is completed.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <Film className="w-4 h-4 text-emerald-600" /> Project Deliverables & Media Assets
+                  <Film className="w-4 h-4 text-emerald-600" /> Project Deliverables &amp; Media Assets
                 </h3>
                 <p className="text-slate-500 text-[11px] mt-0.5">
                   Each deliverable is linked to its corresponding Script or Graphic Requirement.
                 </p>
               </div>
 
-              <button
-                onClick={() => setShowCreateDeliverableModal(!showCreateDeliverableModal)}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" /> Register Deliverable
-              </button>
+              {!['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project?.status) ? (
+                <button
+                  onClick={() => setShowCreateDeliverableModal(!showCreateDeliverableModal)}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Register Deliverable
+                </button>
+              ) : (
+                <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded font-mono text-[10px] font-bold flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-600" /> Deliverables Locked (Under Review)
+                </span>
+              )}
             </div>
 
             {/* Create Deliverable Modal Form */}

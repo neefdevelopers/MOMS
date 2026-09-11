@@ -257,8 +257,8 @@ export class ProjectsService {
 
     if (!project) throw new NotFoundException('Project not found');
 
-    // Also fetch any scripts or graphic requirements linked via project code or calendar event
-    const [extraScripts, extraGraphicReqs] = await Promise.all([
+    // Also fetch any scripts, graphic requirements, and tasks linked via project code or calendar event
+    const [extraScripts, extraGraphicReqs, extraTasks] = await Promise.all([
       this.prisma.script.findMany({
         where: {
           OR: [
@@ -289,6 +289,28 @@ export class ProjectsService {
         },
         orderBy: { createdAt: 'desc' },
       }).catch(() => []),
+      this.prisma.task.findMany({
+        where: {
+          OR: [
+            { projectId: project.id },
+            { projectId: project.projectId },
+            ...(project.calendarEventId
+              ? [
+                  { project: { calendarEventId: project.calendarEventId } },
+                  { graphicRequirement: { calendarEventId: project.calendarEventId } },
+                ]
+              : []),
+          ],
+        },
+        include: {
+          assignedEmployees: { include: { user: { include: { employeeProfile: true } } } },
+          revisions: { include: { requestedBy: true, assignedTo: true } },
+          client: true,
+          brand: true,
+          product: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }).catch(() => []),
     ]);
 
     const scriptMap = new Map<string, any>();
@@ -300,6 +322,22 @@ export class ProjectsService {
     (project.graphicRequirements || []).forEach((g: any) => grMap.set(g.id, g));
     extraGraphicReqs.forEach((g: any) => grMap.set(g.id, g));
     project.graphicRequirements = Array.from(grMap.values());
+
+    const taskMap = new Map<string, any>();
+    (project.tasks || []).forEach((t: any) => taskMap.set(t.id, t));
+    extraTasks.forEach((t: any) => taskMap.set(t.id, t));
+    // Also include tasks nested in scripts and graphic requirements
+    project.scripts.forEach((s: any) => {
+      (s.tasks || []).forEach((t: any) => {
+        if (!taskMap.has(t.id)) taskMap.set(t.id, { ...t, script: s });
+      });
+    });
+    project.graphicRequirements.forEach((g: any) => {
+      (g.tasks || []).forEach((t: any) => {
+        if (!taskMap.has(t.id)) taskMap.set(t.id, { ...t, graphicRequirement: g });
+      });
+    });
+    project.tasks = Array.from(taskMap.values());
 
     if (currentUser && currentUser.id && currentUser.role) {
       if (!canUserViewProject(currentUser, project)) {
@@ -706,6 +744,33 @@ export class ProjectsService {
   async update(id: string, data: any, userId: string) {
     const existing = await this.findOne(id);
 
+    const isProjectUnderReview = [
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+      'PENDING_MARKETING_APPROVAL',
+      'WAITING_FOR_MARKETING_APPROVAL',
+      'PENDING_CLIENT_APPROVAL',
+      'PENDING_CLIENT_REVIEW',
+    ].includes(existing.status);
+
+    const isContentEdit =
+      data.name !== undefined ||
+      data.description !== undefined ||
+      data.shootDate !== undefined ||
+      data.teamUserIds !== undefined ||
+      data.equipmentIds !== undefined ||
+      data.indoorDetails !== undefined ||
+      data.outdoorDetails !== undefined;
+
+    if (isProjectUnderReview && isContentEdit && !data.bypassReviewLock) {
+      throw new ForbiddenException(
+        'Shoot Project is currently under review and in read-only mode. Content updates and modifications are locked during review.',
+      );
+    }
+
     const updateData: any = { ...data };
 
     if (data.teamUserIds && Array.isArray(data.teamUserIds)) {
@@ -878,6 +943,31 @@ export class ProjectsService {
           description: `Status changed from ${existing.status} to ${data.status}`,
         },
       });
+
+      if (data.status === 'WAITING_FOR_MEDIA_REVIEW') {
+        const mediaManagers = await this.prisma.user.findMany({
+          where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
+          select: { id: true },
+        });
+        if (mediaManagers.length > 0) {
+          await this.prisma.notification.createMany({
+            data: mediaManagers.map((mm) => ({
+              userId: mm.id,
+              title: 'Project Waiting for Media Manager Approval 🎬',
+              message: `Shoot Project "${existing.projectId}: ${existing.name}" is waiting for Media Manager Review.`,
+              type: 'ALERT',
+              category: 'APPROVAL',
+              priority: 'HIGH',
+              linkUrl: `/projects/${id}`,
+              eventType: 'MEDIA_REVIEW_REQUESTED',
+              entityType: 'PROJECT',
+              entityId: id,
+              entityCode: existing.projectId,
+              projectId: id,
+            })),
+          }).catch(() => null);
+        }
+      }
     }
 
     return updated;
@@ -1043,21 +1133,25 @@ export class ProjectsService {
       });
 
       const mediaManagers = await this.prisma.user.findMany({
-        where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+        where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
+        select: { id: true },
       });
 
       if (mediaManagers.length > 0) {
         await this.prisma.notification.createMany({
           data: mediaManagers.map((mm) => ({
             userId: mm.id,
-            title: 'Project Pending Media Manager Review',
+            title: 'Project Waiting for Media Manager Approval 🎬',
             message: `Shoot Project "${project.projectId}: ${project.name}" was approved by Technical Manager and is waiting for Media Manager Review.`,
-            type: 'INFO',
+            type: 'ALERT',
+            category: 'APPROVAL',
+            priority: 'HIGH',
             linkUrl: `/projects/${project.id}`,
             eventType: 'MEDIA_REVIEW_REQUESTED',
             entityType: 'PROJECT',
             entityId: project.id,
             entityCode: project.projectId,
+            projectId: project.id,
           })),
         }).catch(() => null);
       }

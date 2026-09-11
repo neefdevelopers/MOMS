@@ -624,6 +624,25 @@ export class ReportsService {
         },
         include: {
           project: { select: { id: true, projectId: true, name: true } },
+          client: true,
+          brand: true,
+          files: {
+            include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+            orderBy: { createdAt: 'desc' },
+          },
+          deliverables: {
+            include: {
+              createdBy: { select: { id: true, name: true, role: true } },
+              assignedStaff: { select: { id: true, name: true, role: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
+          tasks: {
+            include: {
+              assignedEmployees: { include: { user: { select: { id: true, name: true, role: true } } } },
+              deliverableHistory: { include: { user: { select: { id: true, name: true, role: true } } } },
+            },
+          },
         },
         orderBy: { updatedAt: 'desc' },
       }),
@@ -635,6 +654,28 @@ export class ReportsService {
         },
         include: {
           project: { select: { id: true, projectId: true, name: true } },
+          client: true,
+          brand: true,
+          files: {
+            include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+            orderBy: { createdAt: 'desc' },
+          },
+          deliverables: {
+            include: {
+              createdBy: { select: { id: true, name: true, role: true } },
+              assignedStaff: { select: { id: true, name: true, role: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
+          calendarEvent: {
+            include: { createdBy: { select: { id: true, name: true, role: true } } },
+          },
+          tasks: {
+            include: {
+              assignedEmployees: { include: { user: { select: { id: true, name: true, role: true } } } },
+              deliverableHistory: { include: { user: { select: { id: true, name: true, role: true } } } },
+            },
+          },
         },
         orderBy: { updatedAt: 'desc' },
       }),

@@ -512,6 +512,23 @@ export default function CalendarPage() {
 
   const openEdit = (eventItem: any) => {
     const isApproved = APPROVED_CALENDAR_STATUSES.includes(eventItem.status);
+    const isUnderReview = [
+      'PENDING_CLIENT_APPROVAL',
+      'PENDING_CLIENT_REVIEW',
+      'PENDING_MARKETING_APPROVAL',
+      'WAITING_FOR_MARKETING_APPROVAL',
+      'WAITING_FOR_TECHNICAL_REVIEW',
+      'TECHNICAL_REVIEW',
+      'WAITING_FOR_MEDIA_REVIEW',
+      'MEDIA_MANAGER_REVIEW',
+      'WAITING_FOR_CLIENT_CONFIRMATION',
+    ].includes(eventItem.status);
+
+    if (isUnderReview && eventItem.status !== 'REJECTED' && eventItem.approvalStatus !== 'REJECTED') {
+      setViewModalEvent(eventItem);
+      return;
+    }
+
     const hasPendingEditRequest = (
       (eventItem.editRequests && eventItem.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL')) ||
       Boolean(eventItem.editRequestedById)
@@ -1551,47 +1568,49 @@ export default function CalendarPage() {
                 </div>
               )}
 
-              {/* Sleek Minimalist Creator & Editor Audit Strip */}
-              <div 
-                onClick={() => setViewModalEvent(eventItem)}
-                className="text-[11px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-200 space-y-1 cursor-pointer hover:border-blue-200 transition-colors font-sans"
-                title="Click to view full Event Details"
-              >
-                <div className="flex items-center justify-between text-slate-500">
-                  <span className="flex items-center gap-1.5 truncate">
-                    <User className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                    <span>Created by:</span>
-                    <strong className="text-slate-800 font-semibold">
-                      {eventItem.createdBy?.name || (eventItem.createdByRole ? eventItem.createdByRole.replace(/_/g, ' ') : 'Media Team')}
-                    </strong>
-                    <span className="text-slate-400 text-[10px]">
-                      ({eventItem.createdBy?.role ? eventItem.createdBy.role.replace(/_/g, ' ') : eventItem.createdByRole ? eventItem.createdByRole.replace(/_/g, ' ') : 'Creator'})
-                    </span>
-                  </span>
-                </div>
-
-                {(eventItem.lastModifiedBy || eventItem.lastModifiedAt) && (
-                  <div className="flex items-center justify-between text-purple-700/90 pt-1 border-t border-slate-200">
+              {/* Sleek Minimalist Creator & Editor Audit Strip (Hidden for Independent Graphic Requirement events) */}
+              {eventItem.eventSource !== 'GRAPHIC_REQUIREMENT' && !eventItem.graphicRequirementId && !eventItem.graphicRequirement && (
+                <div 
+                  onClick={() => setViewModalEvent(eventItem)}
+                  className="text-[11px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-200 space-y-1 cursor-pointer hover:border-blue-200 transition-colors font-sans"
+                  title="Click to view full Event Details"
+                >
+                  <div className="flex items-center justify-between text-slate-500">
                     <span className="flex items-center gap-1.5 truncate">
-                      <Edit className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                      <span>Edited by:</span>
-                      <strong className="text-purple-900 font-semibold">
-                        {eventItem.lastModifiedBy?.name || 'Authorized Editor'}
+                      <User className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span>Created by:</span>
+                      <strong className="text-slate-800 font-semibold">
+                        {eventItem.createdBy?.name || (eventItem.createdByRole ? eventItem.createdByRole.replace(/_/g, ' ') : 'Media Team')}
                       </strong>
-                      {eventItem.lastModifiedBy?.role && (
-                        <span className="text-purple-600/70 text-[10px]">
-                          ({eventItem.lastModifiedBy.role.replace(/_/g, ' ')})
+                      <span className="text-slate-400 text-[10px]">
+                        ({eventItem.createdBy?.role ? eventItem.createdBy.role.replace(/_/g, ' ') : eventItem.createdByRole ? eventItem.createdByRole.replace(/_/g, ' ') : 'Creator'})
+                      </span>
+                    </span>
+                  </div>
+
+                  {(eventItem.lastModifiedBy || eventItem.lastModifiedAt) && (
+                    <div className="flex items-center justify-between text-purple-700/90 pt-1 border-t border-slate-200">
+                      <span className="flex items-center gap-1.5 truncate">
+                        <Edit className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                        <span>Edited by:</span>
+                        <strong className="text-purple-900 font-semibold">
+                          {eventItem.lastModifiedBy?.name || 'Authorized Editor'}
+                        </strong>
+                        {eventItem.lastModifiedBy?.role && (
+                          <span className="text-purple-600/70 text-[10px]">
+                            ({eventItem.lastModifiedBy.role.replace(/_/g, ' ')})
+                          </span>
+                        )}
+                      </span>
+                      {eventItem.lastModifiedAt && (
+                        <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-1">
+                          {new Date(eventItem.lastModifiedAt).toLocaleDateString()}
                         </span>
                       )}
-                    </span>
-                    {eventItem.lastModifiedAt && (
-                      <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-1">
-                        {new Date(eventItem.lastModifiedAt).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Event Source Info */}
               {eventItem.eventSource && (
@@ -2749,6 +2768,37 @@ export default function CalendarPage() {
               </button>
             </div>
 
+            {/* Read-Only Mode Banner for Events Under Review */}
+            {(() => {
+              const isUnderReview = [
+                'PENDING_CLIENT_APPROVAL',
+                'PENDING_CLIENT_REVIEW',
+                'PENDING_MARKETING_APPROVAL',
+                'WAITING_FOR_MARKETING_APPROVAL',
+                'WAITING_FOR_TECHNICAL_REVIEW',
+                'TECHNICAL_REVIEW',
+                'WAITING_FOR_MEDIA_REVIEW',
+                'MEDIA_MANAGER_REVIEW',
+                'WAITING_FOR_CLIENT_CONFIRMATION',
+              ].includes(viewModalEvent.status);
+
+              if (!isUnderReview) return null;
+
+              return (
+                <div className="bg-amber-50 border-2 border-amber-300 p-3.5 rounded-xl space-y-1 text-xs text-amber-950 shadow-xs flex items-start gap-3 animate-in fade-in duration-150">
+                  <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-extrabold text-amber-900 text-xs uppercase tracking-wide flex items-center gap-1.5">
+                      Under Review — Read-Only Mode
+                    </h4>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      This calendar event is currently undergoing formal review (Status: <strong className="font-mono font-bold text-amber-900">{viewModalEvent.status}</strong>). Direct content modifications and scheduling updates are locked in read-only mode until review decision is completed.
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Rejection Feedback Box with Re-submission Actions */}
             {(viewModalEvent.status === 'REJECTED' || viewModalEvent.approvalStatus === 'REJECTED') && (
               <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-3">
@@ -2794,66 +2844,6 @@ export default function CalendarPage() {
               </div>
             )}
 
-            {/* CREATOR INFORMATION HIGHLIGHT BOX */}
-            <div className="p-4 rounded-xl bg-blue-50/80 border border-blue-200 flex items-center justify-between shadow-xs">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-white border border-blue-200 flex items-center justify-center text-blue-600 shrink-0 shadow-xs">
-                  <User className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-blue-700 block">Created By (Event Owner)</span>
-                  <span className="text-sm font-bold text-slate-900 block">
-                    {viewModalEvent.createdBy?.name || (viewModalEvent.createdByRole ? viewModalEvent.createdByRole.replace(/_/g, ' ') : 'Media Operations Team')}
-                  </span>
-                  {viewModalEvent.createdBy?.email && (
-                    <span className="text-xs text-slate-600 block">{viewModalEvent.createdBy.email}</span>
-                  )}
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-white text-blue-800 border border-blue-200 uppercase font-bold block mb-1 shadow-xs">
-                  {viewModalEvent.createdBy?.role ? viewModalEvent.createdBy.role.replace(/_/g, ' ') : viewModalEvent.createdByRole ? viewModalEvent.createdByRole.replace(/_/g, ' ') : 'CREATOR'}
-                </span>
-                {viewModalEvent.createdAt && (
-                  <span className="text-[10px] text-slate-600 font-mono">
-                    Created: {new Date(viewModalEvent.createdAt).toLocaleDateString()}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* LAST EDITED BY & MODIFIED TIMESTAMP HIGHLIGHT BOX */}
-            {(viewModalEvent.lastModifiedBy || viewModalEvent.lastModifiedAt) && (
-              <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-between shadow-xs text-xs">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-white border border-purple-200 flex items-center justify-center text-purple-700 shrink-0">
-                    <Edit className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-purple-700 block">Last Edited By</span>
-                    <span className="text-sm font-bold text-slate-900">
-                      {viewModalEvent.lastModifiedBy?.name || 'Authorized Editor'}
-                    </span>
-                    {viewModalEvent.lastModifiedBy?.role && (
-                      <span className="text-[10px] text-purple-800 block font-mono">
-                        Role: {viewModalEvent.lastModifiedBy.role.replace(/_/g, ' ')}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {viewModalEvent.lastModifiedAt && (
-                  <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block mb-0.5">Edited On</span>
-                    <span className="text-xs text-purple-900 font-bold font-mono block">
-                      {new Date(viewModalEvent.lastModifiedAt).toLocaleDateString()}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {new Date(viewModalEvent.lastModifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Details Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
