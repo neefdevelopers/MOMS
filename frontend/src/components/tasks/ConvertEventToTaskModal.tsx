@@ -490,63 +490,10 @@ export default function ConvertEventToTaskModal({
             )}
           </div>
 
-          {/* Equipment Requirements / Allocation (For Graphic Requirements) */}
-          {eventData.parentType === 'GRAPHIC_REQ' && (() => {
+          {/* Equipment Allocation / Requirements (For Shoot Projects & Production Tasks) */}
+          {(() => {
             const availableEquipmentList = equipmentList.filter((eq) => eq.availability === 'AVAILABLE');
-            const hasEquipmentData = selectedEquipmentIds.length > 0;
-
-            return (
-              <div>
-                <label className="block text-slate-700 font-bold mb-1 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Camera className="w-4 h-4 text-purple-600" />
-                    <span>Required Equipment</span>
-                  </span>
-                  <span className="text-[10px] font-mono font-semibold text-slate-500">
-                    {hasEquipmentData
-                      ? `${selectedEquipmentIds.length} Selected (${availableEquipmentList.length} Available)`
-                      : 'No Equipment Required'}
-                  </span>
-                </label>
-
-                {hasEquipmentData ? (
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5 custom-scrollbar">
-                    {equipmentList
-                      .filter((eq) => selectedEquipmentIds.includes(eq.id))
-                      .map((eq) => (
-                        <div
-                          key={eq.id}
-                          className="flex items-center justify-between p-2 rounded-xl border bg-purple-50 border-purple-300 text-purple-900 font-bold text-xs"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Camera className="w-3.5 h-3.5 text-purple-600" />
-                            <span>{eq.name} <span className="font-mono text-[10px] text-slate-500">({eq.equipmentId})</span></span>
-                          </div>
-                          <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
-                            {eq.availability || 'AVAILABLE'}
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <div className="p-3 bg-slate-50/80 border border-slate-200 rounded-xl text-slate-600 space-y-1">
-                    <div className="flex items-center gap-2 font-semibold text-xs text-slate-700">
-                      <Camera className="w-4 h-4 text-slate-400 shrink-0" />
-                      <span>No equipment required / No equipment available</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500">
-                      No equipment is associated with or required for this Graphic Requirement.
-                    </p>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* Equipment Requirements / Allocation (For Shoot Projects Only) */}
-          {eventData.parentType === 'PROJECT' && (() => {
-            const availableEquipmentList = equipmentList.filter((eq) => eq.availability === 'AVAILABLE');
-            const isNoEquipmentAvailable = equipmentList.length === 0 || availableEquipmentList.length === 0;
+            const isNoEquipment = equipmentList.length === 0;
 
             return (
               <div>
@@ -555,50 +502,24 @@ export default function ConvertEventToTaskModal({
                     <Camera className="w-4 h-4 text-cyan-600" />
                     <span>Equipment Allocation / Requirements (Optional)</span>
                   </span>
-                  <span className={`text-[10px] font-mono font-semibold ${
-                    isNoEquipmentAvailable ? 'text-amber-700' : 'text-cyan-700'
-                  }`}>
-                    {isNoEquipmentAvailable
-                      ? 'No Equipment Available'
+                  <span className="text-[10px] font-mono font-semibold text-cyan-700">
+                    {isNoEquipment
+                      ? 'No Equipment in Inventory'
                       : `${selectedEquipmentIds.length} Selected (${availableEquipmentList.length} Available)`}
                   </span>
                 </label>
 
                 {loadingEquipment ? (
-                  <div className="p-3 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="p-3 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200 text-xs">
                     Loading equipment inventory…
                   </div>
-                ) : isNoEquipmentAvailable ? (
-                  <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl text-amber-900 space-y-1.5">
-                    <div className="flex items-center gap-2 font-bold text-xs">
-                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>No Equipment Available</span>
-                    </div>
-                    <p className="text-[11px] text-amber-700">
-                      {equipmentList.length === 0
-                        ? 'No equipment items are currently registered in the inventory.'
-                        : 'All equipment items are currently reserved, under maintenance, or unavailable for allocation.'}
-                    </p>
-                    {equipmentList.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-amber-200 space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
-                        {equipmentList.map((eq) => (
-                          <div
-                            key={eq.id}
-                            className="flex items-center justify-between p-1.5 rounded-lg bg-white/80 border border-amber-200/60 text-[11px]"
-                          >
-                            <span className="text-slate-700 font-medium">
-                              {eq.name} <span className="font-mono text-[10px] text-slate-500">({eq.equipmentId})</span>
-                            </span>
-                            <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 uppercase">
-                              {eq.availability || 'UNAVAILABLE'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                ) : isNoEquipment ? (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-xs flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span>No equipment items registered in the inventory.</span>
                   </div>
                 ) : (
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5 custom-scrollbar">
+                  <div className="space-y-1.5 max-h-44 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5 custom-scrollbar">
                     {equipmentList.map((eq) => {
                       const isAvailable = eq.availability === 'AVAILABLE';
                       const isChecked = selectedEquipmentIds.includes(eq.id);
@@ -611,27 +532,34 @@ export default function ConvertEventToTaskModal({
                               ? 'bg-cyan-50 border-cyan-300 text-cyan-900 font-bold'
                               : isAvailable
                               ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer'
-                              : 'bg-slate-100 border-slate-200 text-slate-400 opacity-50 cursor-not-allowed'
+                              : 'bg-slate-100/80 border-slate-200 text-slate-500 hover:bg-slate-100 cursor-pointer'
                           }`}
                         >
                           <div className="flex items-center gap-2 overflow-hidden">
                             <input
                               type="checkbox"
-                              disabled={!isAvailable}
                               checked={isChecked}
                               onChange={(e) => {
                                 if (e.target.checked) setSelectedEquipmentIds([...selectedEquipmentIds, eq.id]);
                                 else setSelectedEquipmentIds(selectedEquipmentIds.filter((id) => id !== eq.id));
                               }}
-                              className="w-4 h-4 accent-cyan-600 cursor-pointer disabled:cursor-not-allowed"
+                              className="w-4 h-4 accent-cyan-600 cursor-pointer rounded"
                             />
-                            <span className="truncate font-medium">{eq.name} <span className="font-mono text-[10px] text-slate-500">({eq.equipmentId})</span></span>
+                            <span className="truncate font-medium text-xs">
+                              {eq.name} <span className="font-mono text-[10px] text-slate-500">({eq.equipmentId || eq.equipmentCode || eq.category})</span>
+                            </span>
                           </div>
 
-                          <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase border ${
-                            isAvailable ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+                          <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase border shrink-0 ${
+                            isAvailable
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : eq.availability === 'RESERVED'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : eq.availability === 'ISSUED' || eq.availability === 'CHECKED_OUT' || eq.availability === 'IN_USE'
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : 'bg-rose-50 text-rose-700 border-rose-200'
                           }`}>
-                            {isAvailable ? 'AVAILABLE' : `${eq.availability} - UNAVAILABLE`}
+                            {eq.availability?.replace(/_/g, ' ') || 'AVAILABLE'}
                           </span>
                         </label>
                       );

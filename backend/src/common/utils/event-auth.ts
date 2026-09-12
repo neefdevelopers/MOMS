@@ -563,11 +563,7 @@ export function canUserViewScript(
     return true;
   }
 
-  if (user.role === 'STAFF') {
-    return false;
-  }
-
-  if (user.role === 'SOCIAL_MEDIA_MANAGER') {
+  if (user.role === 'STAFF' || user.role === 'SOCIAL_MEDIA_MANAGER') {
     const isAssigned =
       script.assignedToId === user.id ||
       script.writerId === user.id ||
@@ -580,9 +576,16 @@ export function canUserViewScript(
             t.assignedEmployees.some((e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id),
         )) ||
       (script.project &&
-        Array.isArray(script.project.assignedTeam) &&
-        script.project.assignedTeam.some((t: any) => t.userId === user.id || t.user?.id === user.id));
-    return isAssigned;
+        ((Array.isArray(script.project.assignedTeam) &&
+          script.project.assignedTeam.some((t: any) => t.userId === user.id || t.user?.id === user.id)) ||
+          script.project.createdById === user.id ||
+          (Array.isArray(script.project.tasks) &&
+            script.project.tasks.some(
+              (t: any) =>
+                Array.isArray(t.assignedEmployees) &&
+                t.assignedEmployees.some((e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id),
+            ))));
+    return Boolean(isAssigned);
   }
 
   return true;

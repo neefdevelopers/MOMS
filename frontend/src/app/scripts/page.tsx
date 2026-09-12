@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { FileText, UserPlus, X, MessageSquare, Send, Search, Filter, RotateCcw, SlidersHorizontal, Building2, Users, Layers, Check, Copy, Eye, ShieldCheck, Lock, ArrowRight } from 'lucide-react';
+import { FileText, UserPlus, X, MessageSquare, Send, Search, Filter, RotateCcw, SlidersHorizontal, Building2, Users, Layers, Check, Copy, Eye, ShieldCheck, Lock, ArrowRight, Clock, CheckCircle2, XCircle, AlertCircle, UserCheck, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
@@ -256,6 +256,100 @@ export default function ScriptsPage() {
       setScripts((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
     } catch (err: any) {
       alert(err.message || 'Failed to remove attachment link');
+    }
+  };
+
+  const handleAcceptScriptAssignment = async (scriptId: string) => {
+    try {
+      setSaving(true);
+      const updated = await fetchApi(`/scripts/${scriptId}/accept`, { method: 'POST' });
+      const refreshedScript = updated?.data || updated;
+      if (refreshedScript?.id) {
+        setSelectedScript(refreshedScript);
+        setScripts((prev) => prev.map((s) => (s.id === refreshedScript.id ? refreshedScript : s)));
+      }
+      await loadScripts();
+      alert('Script assignment accepted successfully! Production workflow initialized.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to accept script assignment');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeclineScriptAssignment = async (scriptId: string) => {
+    const reason = prompt('Please provide a reason for declining this script assignment (optional):');
+    if (reason === null) return;
+    try {
+      setSaving(true);
+      const updated = await fetchApi(`/scripts/${scriptId}/decline`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason.trim() || 'Declined by assigned employee' }),
+      });
+      const refreshedScript = updated?.data || updated;
+      if (refreshedScript?.id) {
+        setSelectedScript(refreshedScript);
+        setScripts((prev) => prev.map((s) => (s.id === refreshedScript.id ? refreshedScript : s)));
+      }
+      await loadScripts();
+      alert('Script assignment has been declined.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to decline script assignment');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAssignCrewMember = async () => {
+    if (!selectedScript || !assignUserId) {
+      alert('Please select a staff member to assign.');
+      return;
+    }
+    try {
+      setSaving(true);
+      await fetchApi(`/scripts/${selectedScript.id}/assignments`, {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: assignUserId,
+          responsibility: assignResponsibility,
+        }),
+      });
+      const refreshed = await fetchApi(`/scripts/${selectedScript.id}`);
+      const refreshedScript = refreshed?.data || refreshed;
+      if (refreshedScript?.id) {
+        setSelectedScript(refreshedScript);
+        setScripts((prev) => prev.map((s) => (s.id === refreshedScript.id ? refreshedScript : s)));
+      }
+      setAssignUserId('');
+      await loadScripts();
+      alert('Staff assigned to script with formal acceptance requirement!');
+    } catch (err: any) {
+      alert(err.message || 'Failed to assign crew member');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveCrewMember = async (userId: string, responsibility: string) => {
+    if (!selectedScript) return;
+    if (!confirm('Are you sure you want to remove this assigned crew member?')) return;
+    try {
+      setSaving(true);
+      await fetchApi(`/scripts/${selectedScript.id}/assignments`, {
+        method: 'DELETE',
+        body: JSON.stringify({ userId, responsibility }),
+      });
+      const refreshed = await fetchApi(`/scripts/${selectedScript.id}`);
+      const refreshedScript = refreshed?.data || refreshed;
+      if (refreshedScript?.id) {
+        setSelectedScript(refreshedScript);
+        setScripts((prev) => prev.map((s) => (s.id === refreshedScript.id ? refreshedScript : s)));
+      }
+      await loadScripts();
+    } catch (err: any) {
+      alert(err.message || 'Failed to remove assignment');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -568,6 +662,12 @@ export default function ScriptsPage() {
     return true;
   });
 
+  const pendingAcceptanceScripts = scripts.filter((s: any) =>
+    (s.scriptAssignments || []).some(
+      (a: any) => (a.userId === user?.id || a.user?.id === user?.id) && a.acceptanceStatus === 'NOT_YET_ACCEPTED'
+    )
+  );
+
   return (
     <div className="space-y-6 text-xs">
       <div className="bg-white border border-slate-200 p-6 rounded-xl flex items-center justify-between">
@@ -586,6 +686,38 @@ export default function ScriptsPage() {
           </button>
         )}
       </div>
+
+      {/* Script Assignments Pending Acceptance Banner for Logged-In User */}
+      {pendingAcceptanceScripts.length > 0 && (
+        <div className="p-4 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-2 border-amber-400 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-md animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-700 border border-amber-300 flex items-center justify-center shrink-0 font-bold text-lg shadow-xs">
+              <AlertCircle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-amber-950 flex items-center gap-2">
+                Script Assignments Pending Your Acceptance ({pendingAcceptanceScripts.length})
+                <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-mono font-bold animate-pulse">Action Required</span>
+              </h4>
+              <p className="text-xs text-amber-900/90 mt-0.5">
+                You have been assigned to {pendingAcceptanceScripts.length} script{pendingAcceptanceScripts.length > 1 ? 's' : ''}. Formal acceptance is required before production work begins.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {pendingAcceptanceScripts.slice(0, 3).map((ps: any) => (
+              <button
+                key={ps.id}
+                onClick={() => openInspector(ps)}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition-all"
+              >
+                <span>Accept/Inspect {ps.scriptId}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Technical Manager Script Review Session */}
       {(user?.role === 'TECHNICAL_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
@@ -1065,24 +1197,24 @@ export default function ScriptsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {paginate(sortData(filteredScripts, sortBy, sortOrder)).map((s) => {
-            const assignedStaffNames = Array.from(
-              new Set(
-                (s.tasks || [])
-                  .flatMap((t: any) => (t.assignedEmployees || []).map((e: any) => e.user?.name))
-                  .filter(Boolean),
-              ),
-            );
+            const scriptAssignments = s.scriptAssignments || [];
+            const userScriptAssignment = scriptAssignments.find((a: any) => a.userId === user?.id || a.user?.id === user?.id);
+            const isPendingMyAcceptance = userScriptAssignment && userScriptAssignment.acceptanceStatus === 'NOT_YET_ACCEPTED';
 
             return (
               <div
                 key={s.id}
                 id={s.id}
                 onClick={() => openInspector(s)}
-                className="bg-white border border-slate-200 p-5 rounded-xl space-y-3 flex flex-col justify-between cursor-pointer hover:border-purple-200 transition-all shadow-md"
+                className={`bg-white border p-5 rounded-xl space-y-3 flex flex-col justify-between cursor-pointer transition-all shadow-md ${
+                  isPendingMyAcceptance
+                    ? 'border-amber-400 ring-2 ring-amber-400/40 hover:border-amber-500'
+                    : 'border-slate-200 hover:border-purple-200'
+                }`}
               >
                 <div className="space-y-2">
                   <div className="flex justify-between items-start font-mono text-xs">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <FavoriteButton
                         entityType="SCRIPT"
                         entityId={s.id}
@@ -1095,6 +1227,11 @@ export default function ScriptsPage() {
                       <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded font-bold">
                         {s.scriptId}
                       </span>
+                      {isPendingMyAcceptance && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white font-extrabold text-[10px] animate-pulse flex items-center gap-1 shadow-xs">
+                          <Clock className="w-3 h-3" /> Acceptance Required
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded uppercase">
@@ -1122,8 +1259,41 @@ export default function ScriptsPage() {
                     <div><span className="text-slate-400">Est. Duration:</span> <strong className="text-cyan-700">{s.estimatedDuration || 'N/A'}</strong></div>
                     <div><span className="text-slate-400">Created By:</span> <strong className="text-indigo-700">{s.createdBy?.name || (s.createdById ? 'Staff Member' : 'Social Media Manager')}</strong></div>
                     <div><span className="text-slate-400">Category:</span> {s.category || 'Social Media'}</div>
-                    <div><span className="text-slate-400">Assigned Staff:</span> <strong className="text-amber-800">{assignedStaffNames.length > 0 ? assignedStaffNames.join(', ') : 'Not Assigned'}</strong></div>
-                    <div><span className="text-slate-400">Approval Status:</span> <strong className={`${s.status === 'APPROVED' ? 'text-green-400' : s.status === 'PENDING_MARKETING_APPROVAL' ? 'text-amber-600' : s.status === 'CHANGES_REQUESTED' ? 'text-orange-400' : 'text-blue-600'}`}>{s.status === 'PENDING_MARKETING_APPROVAL' ? 'Pending Marketing Manager Approval' : s.status}</strong></div>
+                    <div className="col-span-2">
+                      <span className="text-slate-400 block mb-1">Assigned Personnel &amp; Acceptance:</span>
+                      {scriptAssignments.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {scriptAssignments.map((a: any) => (
+                            <span
+                              key={a.id || a.userId}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                a.acceptanceStatus === 'ACCEPTED'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                  : a.acceptanceStatus === 'DECLINED'
+                                  ? 'bg-rose-50 text-rose-800 border-rose-300'
+                                  : 'bg-amber-50 text-amber-800 border-amber-300'
+                              }`}
+                            >
+                              {a.acceptanceStatus === 'ACCEPTED' ? (
+                                <Check className="w-2.5 h-2.5 text-emerald-600" />
+                              ) : a.acceptanceStatus === 'DECLINED' ? (
+                                <X className="w-2.5 h-2.5 text-rose-600" />
+                              ) : (
+                                <Clock className="w-2.5 h-2.5 text-amber-600" />
+                              )}
+                              <strong>{a.user?.name || 'User'}</strong>
+                              <span className="text-slate-500">({a.responsibility})</span>
+                              <span className="font-mono text-[9px] uppercase">
+                                {a.acceptanceStatus === 'ACCEPTED' ? '✓' : a.acceptanceStatus === 'DECLINED' ? '✗' : 'Pending'}
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <strong className="text-amber-800">Not Assigned</strong>
+                      )}
+                    </div>
+                    <div className="col-span-2"><span className="text-slate-400">Approval Status:</span> <strong className={`${s.status === 'APPROVED' ? 'text-green-400' : s.status === 'PENDING_MARKETING_APPROVAL' ? 'text-amber-600' : s.status === 'CHANGES_REQUESTED' ? 'text-orange-400' : 'text-blue-600'}`}>{s.status === 'PENDING_MARKETING_APPROVAL' ? 'Pending Marketing Manager Approval' : s.status}</strong></div>
                   </div>
 
                   {s.objective && (
@@ -1307,6 +1477,61 @@ export default function ScriptsPage() {
             </div>
 
             <div className="space-y-4">
+              {/* Script Assignment Acceptance Banner for Assigned User */}
+              {(() => {
+                const currentUserAssignment = (selectedScript.scriptAssignments || []).find(
+                  (a: any) => (a.userId === user?.id || a.user?.id === user?.id)
+                );
+                const isAssignmentPendingAcceptance =
+                  currentUserAssignment && currentUserAssignment.acceptanceStatus === 'NOT_YET_ACCEPTED';
+
+                if (!isAssignmentPendingAcceptance) return null;
+
+                return (
+                  <div className="p-4 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-2 border-amber-400 rounded-xl space-y-3 shadow-lg animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-amber-100 rounded-lg text-amber-700">
+                          <AlertCircle className="w-5 h-5 text-amber-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-amber-950 text-sm">
+                            Action Required: Script Assignment Acceptance
+                          </h4>
+                          <span className="text-[11px] text-amber-800 font-medium">
+                            Designated Role: <strong className="text-amber-950 font-bold">{currentUserAssignment.responsibility}</strong>
+                          </span>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-1 bg-amber-200 text-amber-900 border border-amber-400 rounded-full font-mono font-extrabold text-[10px] flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-amber-800" /> PENDING ACCEPTANCE
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-900 leading-relaxed">
+                      You have been assigned as <strong className="font-bold">{currentUserAssignment.responsibility}</strong> for script <strong className="font-mono font-bold">{selectedScript.scriptId}: {selectedScript.name}</strong>. Please review the story requirements below and accept the assignment to initiate production workflow.
+                    </p>
+                    <div className="flex items-center gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleAcceptScriptAssignment(selectedScript.id)}
+                        disabled={saving}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 text-xs"
+                      >
+                        <CheckCircle2 className="w-4 h-4" /> Accept Script Assignment
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeclineScriptAssignment(selectedScript.id)}
+                        disabled={saving}
+                        className="px-4 py-2.5 bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 font-bold rounded-lg shadow-xs transition-all flex items-center gap-1.5 text-xs"
+                      >
+                        <XCircle className="w-4 h-4" /> Decline Assignment
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Commercial & Script Attributes Summary Card (Important Info First + More Details Toggle) */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
@@ -1509,6 +1734,152 @@ export default function ScriptsPage() {
                       </span>
                     </div>
                   </div>
+                </div>
+
+                {/* Script Crew Assignments & Acceptance Status Section */}
+                <div className="p-4 bg-slate-50 border border-blue-200 rounded-xl space-y-3.5 shadow-md">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-blue-600" />
+                      <h4 className="font-bold text-slate-950 text-xs uppercase tracking-wider">
+                        Assigned Personnel &amp; Acceptance Status ({(selectedScript.scriptAssignments || []).length})
+                      </h4>
+                    </div>
+                    <span className="text-[10px] text-blue-700 font-mono font-bold">
+                      Formal Acceptance Required
+                    </span>
+                  </div>
+
+                  {/* Assignee Cards Grid */}
+                  {(selectedScript.scriptAssignments || []).length === 0 ? (
+                    <p className="text-slate-400 italic text-[11px] py-3 text-center bg-slate-100/50 rounded-lg">
+                      No staff or social media manager assigned to this script yet.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {(selectedScript.scriptAssignments || []).map((a: any) => {
+                        const isSelf = a.userId === user?.id || a.user?.id === user?.id;
+                        const isAccepted = a.acceptanceStatus === 'ACCEPTED';
+                        const isDeclined = a.acceptanceStatus === 'DECLINED';
+                        const isPending = !isAccepted && !isDeclined;
+
+                        return (
+                          <div
+                            key={a.id || `${a.userId}-${a.responsibility}`}
+                            className={`p-3 rounded-xl border flex items-center justify-between gap-2 shadow-xs transition-all ${
+                              isAccepted
+                                ? 'bg-emerald-50/70 border-emerald-300'
+                                : isDeclined
+                                ? 'bg-rose-50/70 border-rose-300'
+                                : 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-400/50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${
+                                isAccepted ? 'bg-emerald-600' : isDeclined ? 'bg-rose-600' : 'bg-amber-600'
+                              }`}>
+                                {a.user?.name?.[0]?.toUpperCase() || 'U'}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-slate-900 text-xs truncate">{a.user?.name}</span>
+                                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 border border-purple-200 font-semibold">
+                                    {a.responsibility}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  {isAccepted ? (
+                                    <span className="text-[10px] text-emerald-800 font-bold flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                      Accepted {a.acceptedAt ? new Date(a.acceptedAt).toLocaleDateString() : ''}
+                                    </span>
+                                  ) : isDeclined ? (
+                                    <span className="text-[10px] text-rose-800 font-bold flex items-center gap-1" title={a.declineReason || 'Declined'}>
+                                      <XCircle className="w-3 h-3 text-rose-600" />
+                                      Declined {a.declineReason ? `(${a.declineReason})` : ''}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-amber-800 font-bold flex items-center gap-1">
+                                      <Clock className="w-3 h-3 text-amber-600" />
+                                      Pending Acceptance
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isSelf && isPending && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAcceptScriptAssignment(selectedScript.id)}
+                                  disabled={saving}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[11px] flex items-center gap-1 shadow-xs transition-colors"
+                                >
+                                  <Check className="w-3 h-3" /> Accept
+                                </button>
+                              )}
+                              {(user?.role === 'MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCrewMember(a.userId, a.responsibility)}
+                                  disabled={saving}
+                                  className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                                  title="Remove assignment"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Assign Crew Form (Managers/Creators) */}
+                  {(user?.role === 'MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+                    <div className="pt-2.5 border-t border-slate-200">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          value={assignUserId}
+                          onChange={(e) => setAssignUserId(e.target.value)}
+                          className="flex-1 min-w-[160px] bg-slate-50 border border-slate-200 text-slate-800 px-3 py-1.5 rounded-lg text-xs font-medium focus:outline-none focus:border-blue-500 focus:bg-white"
+                        >
+                          <option value="">Select Staff / Media Manager to assign...</option>
+                          {usersList.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name} ({u.role.replace(/_/g, ' ')})
+                            </option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={assignResponsibility}
+                          onChange={(e) => setAssignResponsibility(e.target.value)}
+                          className="min-w-[140px] bg-slate-50 border border-slate-200 text-slate-800 px-3 py-1.5 rounded-lg text-xs font-medium focus:outline-none focus:border-blue-500 focus:bg-white"
+                        >
+                          <option value="Writer">Writer</option>
+                          <option value="Social Media Manager">Social Media Manager</option>
+                          <option value="Video Editor">Video Editor</option>
+                          <option value="Shooter">Shooter</option>
+                          <option value="Motion Designer">Motion Designer</option>
+                          <option value="Graphic Designer">Graphic Designer</option>
+                          <option value="Reviewer">Reviewer</option>
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={handleAssignCrewMember}
+                          disabled={!assignUserId || saving}
+                          className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" />
+                          <span>+ Assign Personnel</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* User-Friendly Dedicated Full Script Storyline & Narration Session */}

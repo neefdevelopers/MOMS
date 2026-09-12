@@ -169,7 +169,7 @@ export class ScriptsController {
     return this.scriptsService.addRemark(scriptId, userId, body.message);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.SOCIAL_MEDIA_MANAGER, Role.ADMINISTRATOR)
   @Post(':id/assignments')
   assignEmployee(
     @Param('id') scriptId: string,
@@ -178,13 +178,37 @@ export class ScriptsController {
     return this.scriptsService.assignEmployee(scriptId, body.userId, body.responsibility);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.SOCIAL_MEDIA_MANAGER, Role.ADMINISTRATOR)
   @Delete(':id/assignments')
   removeAssignment(
     @Param('id') scriptId: string,
     @Body() body: { userId: string; responsibility: string },
   ) {
     return this.scriptsService.removeAssignment(scriptId, body.userId, body.responsibility);
+  }
+
+  @Roles(Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/accept')
+  acceptScript(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.scriptsService.acknowledgeScriptAcceptance(id, user);
+  }
+
+  @Roles(Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
+  @Patch(':id/assignments/accept')
+  acceptAssignment(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.scriptsService.acknowledgeScriptAcceptance(id, user);
+  }
+
+  @Roles(Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/decline')
+  declineScript(@Param('id') id: string, @CurrentUser() user: any, @Body() body: { reason?: string }) {
+    return this.scriptsService.declineScriptAssignment(id, user, body?.reason);
+  }
+
+  @Roles(Role.STAFF, Role.SOCIAL_MEDIA_MANAGER, Role.MEDIA_MANAGER, Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
+  @Patch(':id/assignments/decline')
+  declineAssignment(@Param('id') id: string, @CurrentUser() user: any, @Body() body: { reason?: string }) {
+    return this.scriptsService.declineScriptAssignment(id, user, body?.reason);
   }
 
   // --- Deliverable Endpoints ---

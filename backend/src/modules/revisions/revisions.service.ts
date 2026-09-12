@@ -845,6 +845,40 @@ export class RevisionsService {
    * 7. Get Revisions History by Entity
    */
   async getRevisionsByEntity(entityType: string, entityId: string) {
+    if (entityType === 'PROJECT') {
+      return this.prisma.revision.findMany({
+        where: {
+          OR: [
+            { entityType: 'PROJECT', entityId },
+            { projectId: entityId },
+          ],
+        },
+        include: {
+          requestedBy: { select: { id: true, name: true, role: true, avatarUrl: true } },
+          originalAssignee: { select: { id: true, name: true, role: true, avatarUrl: true } },
+          assignedTo: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    if (entityType === 'TASK') {
+      return this.prisma.revision.findMany({
+        where: {
+          OR: [
+            { entityType: 'TASK', entityId },
+            { taskId: entityId },
+          ],
+        },
+        include: {
+          requestedBy: { select: { id: true, name: true, role: true, avatarUrl: true } },
+          originalAssignee: { select: { id: true, name: true, role: true, avatarUrl: true } },
+          assignedTo: { select: { id: true, name: true, role: true, avatarUrl: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
     return this.prisma.revision.findMany({
       where: { entityType, entityId },
       include: {
@@ -852,7 +886,7 @@ export class RevisionsService {
         originalAssignee: { select: { id: true, name: true, role: true, avatarUrl: true } },
         assignedTo: { select: { id: true, name: true, role: true, avatarUrl: true } },
       },
-      orderBy: { revisionNumber: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

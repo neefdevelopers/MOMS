@@ -142,14 +142,92 @@ export default function RevisionsTab({
   };
 
   const isRevisionItem = isRevision || (entityType === 'TASK' && (currentStatus === 'REVISION_REQUESTED' || currentStatus === 'CLIENT_REVISION_REQUESTED'));
-  const canRequestRevision = !readOnly && !isRevisionItem && (userRole === 'MEDIA_MANAGER' || userRole === 'TECHNICAL_MANAGER' || userRole === 'ADMIN' || userRole === 'ADMINISTRATOR');
+  const canRequestRevision = !readOnly && (userRole === 'MEDIA_MANAGER' || userRole === 'TECHNICAL_MANAGER' || userRole === 'ADMIN' || userRole === 'ADMINISTRATOR');
 
-  if (isRevisionItem && revisions.length === 0 && !loading) {
+  const isUndergoingRevision =
+    currentStatus === 'REVISION_REQUESTED' ||
+    currentStatus === 'CLIENT_REVISION_REQUESTED' ||
+    revisions.some((r) => r.status === 'REVISION_REQUESTED' || r.status === 'IN_PROGRESS' || r.status === 'SUBMITTED');
+
+  const activeRevision =
+    revisions.find((r) => r.status === 'REVISION_REQUESTED' || r.status === 'IN_PROGRESS' || r.status === 'SUBMITTED') ||
+    (revisions.length > 0 ? revisions[0] : null);
+
+  if (isRevisionItem && revisions.length === 0 && !loading && !isUndergoingRevision) {
     return null;
   }
 
   return (
     <div className="space-y-4 text-xs">
+      {/* Prominent Active Revision Session Banner when Undergoing Revision */}
+      {isUndergoingRevision && (
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-50 via-rose-50/40 to-amber-50 border-2 border-amber-300 rounded-2xl text-xs space-y-3.5 shadow-md animate-in fade-in duration-200">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="p-2.5 bg-amber-500 text-white rounded-xl shadow-xs shrink-0">
+                <RotateCcw className="w-5 h-5 animate-spin" />
+              </span>
+              <div>
+                <h4 className="text-amber-950 font-extrabold text-sm flex items-center gap-2">
+                  Active Revision Session — Currently Undergoing Revision
+                </h4>
+                <p className="text-amber-800 text-xs">
+                  {entityType === 'PROJECT' ? 'This project' : `This ${entityType.toLowerCase().replace(/_/g, ' ')}`} is actively undergoing revision changes requested during review.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-3 py-1 bg-amber-100 text-amber-950 border border-amber-300 rounded-lg font-mono font-extrabold text-xs">
+                Revision #{activeRevision?.revisionNumber || revisions.length || 1}
+              </span>
+              <span className="px-3 py-1 bg-rose-100 text-rose-800 border border-rose-200 rounded-lg font-bold text-xs uppercase tracking-wider">
+                {activeRevision?.status?.replace(/_/g, ' ') || currentStatus?.replace(/_/g, ' ') || 'UNDERGOING REVISION'}
+              </span>
+            </div>
+          </div>
+
+          {activeRevision ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-white/90 p-3.5 rounded-xl border border-amber-200 text-slate-700">
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Requested By</span>
+                <span className="font-semibold text-slate-900">{activeRevision.requestedBy?.name || 'Reviewer'} ({activeRevision.requestedBy?.role?.replace(/_/g, ' ') || 'Reviewer'})</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Assigned Staff</span>
+                <span className="font-semibold text-purple-700">{activeRevision.assignedTo?.name || originalAssigneeName || 'Assigned Staff'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Review Stage</span>
+                <span className="font-mono font-semibold text-blue-700">{activeRevision.reviewStage?.replace(/_/g, ' ')}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Due Date</span>
+                <span className="font-semibold text-amber-900">{activeRevision.dueDate ? new Date(activeRevision.dueDate).toLocaleDateString() : 'Immediate'}</span>
+              </div>
+              {activeRevision.reason && (
+                <div className="sm:col-span-2 lg:col-span-4 pt-2 border-t border-amber-100">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Revision Reason</span>
+                  <p className="font-bold text-slate-900 mt-0.5">{activeRevision.reason}</p>
+                </div>
+              )}
+              {activeRevision.detailedRequest && (
+                <div className="sm:col-span-2 lg:col-span-4 pt-1">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Detailed Change Request</span>
+                  <p className="text-slate-800 bg-slate-50 p-2.5 rounded-lg border border-slate-200 mt-0.5 whitespace-pre-wrap leading-relaxed">
+                    {activeRevision.detailedRequest}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white/80 p-3 rounded-xl border border-amber-200 text-slate-700">
+              <p className="font-semibold text-amber-950">Status: {currentStatus?.replace(/_/g, ' ')}</p>
+              <p className="text-xs text-slate-600 mt-0.5">Assigned team member: <strong>{originalAssigneeName || 'Production Staff'}</strong></p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Revisions Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
         <div className="space-y-1">
@@ -177,13 +255,32 @@ export default function RevisionsTab({
           Loading revision history...
         </div>
       ) : revisions.length === 0 ? (
-        <div className="p-8 text-center text-slate-500 bg-white border border-slate-200 rounded-2xl space-y-2 shadow-xs">
-          <RotateCcw className="w-8 h-8 text-slate-400 mx-auto" />
-          <p className="text-sm font-semibold text-slate-700">No revisions requested for this item</p>
-          <p className="text-xs text-slate-400">
-            Original production version is active. If changes are required, click &quot;Request Revision&quot;.
-          </p>
-        </div>
+        isUndergoingRevision ? (
+          <div className="p-8 text-center text-slate-700 bg-amber-50/50 border border-amber-200 rounded-2xl space-y-3 shadow-xs">
+            <RotateCcw className="w-8 h-8 text-amber-600 mx-auto animate-spin" />
+            <p className="text-sm font-bold text-amber-950">Currently Undergoing Revision</p>
+            <p className="text-xs text-amber-800 max-w-md mx-auto">
+              This item is flagged as <strong>{currentStatus?.replace(/_/g, ' ')}</strong>.
+              Revision workflow is active and production team is revising deliverables.
+            </p>
+            {canRequestRevision && (
+              <button
+                onClick={() => setIsRequestModalOpen(true)}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5 shadow-xs"
+              >
+                <Plus className="w-4 h-4" /> Log / Request Revision Instructions
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="p-8 text-center text-slate-500 bg-white border border-slate-200 rounded-2xl space-y-2 shadow-xs">
+            <RotateCcw className="w-8 h-8 text-slate-400 mx-auto" />
+            <p className="text-sm font-semibold text-slate-700">No revisions requested for this item</p>
+            <p className="text-xs text-slate-400">
+              Original production version is active. If changes are required, click &quot;Request Revision&quot;.
+            </p>
+          </div>
+        )
       ) : (
         <div className="space-y-4">
           {revisions.map((rev) => {

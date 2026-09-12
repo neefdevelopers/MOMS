@@ -25,6 +25,7 @@ import {
   CalendarDays,
   Receipt,
 } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
 import { recordRecentAccess } from '@/lib/recent-access';
@@ -36,6 +37,10 @@ import MyEquipmentPage from './my/page';
 
 export default function EquipmentPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams?.get('tab');
+  const requestIdParam = searchParams?.get('requestId') || searchParams?.get('request');
+
   const [equipment, setEquipment] = useState<any[]>([]);
   const [archivedEquipment, setArchivedEquipment] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +102,27 @@ export default function EquipmentPage() {
   const [showRequestsTab, setShowRequestsTab] = useState(true);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
+
+  useEffect(() => {
+    if (tabParam === 'requests' || requestIdParam) {
+      setShowRequestsTab(true);
+      if (requestIdParam) {
+        setReviewingId(requestIdParam);
+      }
+      setTimeout(() => {
+        const targetEl = requestIdParam
+          ? (document.getElementById(`request-${requestIdParam}`) || document.getElementById(requestIdParam))
+          : document.getElementById('equipment-requests-queue');
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          if (requestIdParam) {
+            targetEl.classList.add('ring-2', 'ring-emerald-500', 'shadow-2xl');
+            setTimeout(() => targetEl.classList.remove('ring-2', 'ring-emerald-500', 'shadow-2xl'), 3500);
+          }
+        }
+      }, 400);
+    }
+  }, [tabParam, requestIdParam, equipmentRequests]);
 
   const [inspectionTargetEqp, setInspectionTargetEqp] = useState<any | null>(null);
   const [inspectionForm, setInspectionForm] = useState({
@@ -758,7 +784,7 @@ export default function EquipmentPage() {
                   )}
                 </div>
               )}
-              {canManage && (eqp.availability === 'AVAILABLE' || eqp.availability === 'RESERVED') && (
+              {canManage && eqp.availability === 'AVAILABLE' && (
                 <div className="pt-2 border-t border-slate-200">
                   <button
                     onClick={() => {
@@ -778,6 +804,15 @@ export default function EquipmentPage() {
                   >
                     <ArrowRightLeft className="w-3.5 h-3.5" /> Allocate / Issue Equipment
                   </button>
+                </div>
+              )}
+
+              {eqp.availability === 'RESERVED' && (
+                <div className="pt-2 border-t border-slate-200">
+                  <div className="p-2 bg-purple-50 border border-purple-200 rounded-lg text-center text-[11px] text-purple-700 font-semibold flex items-center justify-center gap-1.5">
+                    <CalendarDays className="w-3.5 h-3.5 text-purple-600" />
+                    Reserved for Project {eqp.currentHolder ? `(${eqp.currentHolder})` : ''}
+                  </div>
                 </div>
               )}
 
@@ -835,9 +870,9 @@ export default function EquipmentPage() {
 
 
 
-      {/* Equipment Requests Queue Section (Media Manager Review Queue) */}
-      {(user?.role === 'MEDIA_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-md">
+      {/* Equipment Requests Queue Section (Media & Technical Manager Review Queue) */}
+      {(user?.role === 'MEDIA_MANAGER' || user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+        <div id="equipment-requests-queue" className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-md">
           <button
             onClick={() => setShowRequestsTab(!showRequestsTab)}
             className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-100/40 transition-colors"
@@ -845,7 +880,7 @@ export default function EquipmentPage() {
             <div className="flex items-center gap-2">
               <ArrowRightLeft className="w-4 h-4 text-emerald-600" />
               <span className="font-bold text-slate-900 text-sm">
-                Staff Equipment Requests Queue (Manager Approval)
+                Staff Equipment Requests Queue (Media &amp; Technical Manager Approval)
               </span>
               <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-bold">
                 {equipmentRequests.length} Total ({equipmentRequests.filter((r) => r.status === 'PENDING').length} Pending)
@@ -861,7 +896,7 @@ export default function EquipmentPage() {
               ) : (
                 <div className="space-y-3">
                   {equipmentRequests.map((req) => (
-                    <div key={req.id} className="p-4 bg-slate-50/80 border border-slate-200 rounded-xl space-y-2">
+                    <div key={req.id} id={`request-${req.id}`} className="p-4 bg-slate-50/80 border border-slate-200 rounded-xl space-y-2">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-200 pb-2">
                         <div>
                           <div className="flex items-center gap-2">
@@ -926,7 +961,7 @@ export default function EquipmentPage() {
                       {req.status === 'APPROVED' && (
                         <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
                           <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                            <BadgeCheck className="w-3.5 h-3.5" /> Approved by {req.reviewedBy?.name || 'Media Manager'}
+                            <BadgeCheck className="w-3.5 h-3.5" /> Approved by {req.reviewedBy?.name || 'Media / Technical Manager'}
                           </span>
                           <button
                             onClick={() => handleIssueEquipment(req.id)}
@@ -934,6 +969,30 @@ export default function EquipmentPage() {
                           >
                             <ArrowRightLeft className="w-3.5 h-3.5" /> Issue Equipment to Employee
                           </button>
+                        </div>
+                      )}
+
+                      {/* Checked Out Status Details */}
+                      {req.status === 'CHECKED_OUT' && (
+                        <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs text-blue-700">
+                          <span className="font-semibold flex items-center gap-1.5">
+                            <ArrowRightLeft className="w-3.5 h-3.5 text-blue-600" /> Issued &amp; Handed Over to {req.requestedBy?.name || 'Staff'}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-mono">
+                            Return Due: {new Date(req.expectedReturnDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Rejected Status Details */}
+                      {req.status === 'REJECTED' && (
+                        <div className="pt-2 border-t border-slate-200 text-xs text-rose-700 space-y-1">
+                          <div className="font-bold flex items-center gap-1">
+                            <X className="w-3.5 h-3.5 text-rose-600" /> Request Rejected {req.reviewedBy ? `by ${req.reviewedBy.name}` : ''}
+                          </div>
+                          {req.reviewNotes && (
+                            <p className="italic text-[11px] text-rose-600 pl-4">&quot;{req.reviewNotes}&quot;</p>
+                          )}
                         </div>
                       )}
                     </div>

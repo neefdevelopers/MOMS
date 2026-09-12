@@ -233,6 +233,14 @@ export class ProjectsService {
       clientConfirmations: { orderBy: { createdAt: 'desc' as const } },
       revisions: { orderBy: { createdAt: 'desc' as const } },
       equipmentReservations: { include: { equipment: true } },
+      equipmentRequests: {
+        include: {
+          equipment: true,
+          requestedBy: { select: { id: true, name: true, email: true, role: true } },
+          reviewedBy: { select: { id: true, name: true, email: true, role: true } },
+        },
+        orderBy: { createdAt: 'desc' as const },
+      },
       equipmentMovements: { include: { equipment: true, user: true }, orderBy: { timestamp: 'desc' as const } },
       files: { include: { uploadedBy: true }, orderBy: { createdAt: 'desc' as const } },
       communications: { include: { sender: true }, orderBy: { createdAt: 'desc' as const } },
@@ -257,13 +265,21 @@ export class ProjectsService {
 
     if (!project) throw new NotFoundException('Project not found');
 
-    // Also fetch any scripts, graphic requirements, and tasks linked via project code or calendar event
+    // Also fetch any scripts, graphic requirements, and tasks linked via project code, task relation, or calendar event
+    const taskScriptIds = (project.tasks || [])
+      .map((t: any) => t.scriptId)
+      .filter((sid: string) => Boolean(sid));
+
     const [extraScripts, extraGraphicReqs, extraTasks] = await Promise.all([
       this.prisma.script.findMany({
         where: {
           OR: [
             { projectId: project.id },
             { projectId: project.projectId },
+            ...(taskScriptIds.length > 0 ? [{ id: { in: taskScriptIds } }] : []),
+            ...(project.id ? [{ tasks: { some: { projectId: project.id } } }] : []),
+            ...(project.projectId ? [{ tasks: { some: { projectId: project.projectId } } }] : []),
+            ...(project.id ? [{ files: { some: { projectId: project.id } } }] : []),
           ],
         },
         include: {
@@ -355,7 +371,11 @@ export class ProjectsService {
         task.assignedEmployees?.some((e) => e.userId === currentUser.id),
       );
       const isScriptAssignee = project.scripts?.some(
-        (script) => (script as any).assignedEmployeeId === currentUser.id || (script as any).writerId === currentUser.id,
+        (script) =>
+          (script as any).assignedEmployeeId === currentUser.id ||
+          (script as any).writerId === currentUser.id ||
+          (script as any).scriptAssignments?.some((sa: any) => sa.userId === currentUser.id) ||
+          (script as any).tasks?.some((t: any) => t.assignedEmployees?.some((e: any) => e.userId === currentUser.id)),
       );
       const isReqAssignee = project.graphicRequirements?.some(
         (req: any) =>
@@ -368,31 +388,32 @@ export class ProjectsService {
         );
       }
 
-      // Filter child tasks: only show tasks assigned to this Staff member
-      if (Array.isArray(project.tasks)) {
+      // Filter child tasks: only show tasks assigned to this Staff member if not on project team / creator
+      if (!isCreator && !isTeamMember && Array.isArray(project.tasks)) {
         project.tasks = project.tasks.filter(
           (t: any) =>
             t.assignedEmployees?.some((e: any) => e.userId === currentUser.id),
         );
       }
 
-      // Filter child graphic requirements: only show requirements assigned to this Staff member
-      if (Array.isArray(project.graphicRequirements)) {
+      // Filter child graphic requirements: only show requirements assigned to this Staff member if not on project team / creator
+      if (!isCreator && !isTeamMember && Array.isArray(project.graphicRequirements)) {
         project.graphicRequirements = project.graphicRequirements.filter(
           (gr: any) =>
             gr.tasks?.some((t: any) => t.assignedEmployees?.some((e: any) => e.userId === currentUser.id)),
         );
       }
 
-      // Filter child scripts: only show scripts assigned to this Staff member
-      if (Array.isArray(project.scripts)) {
+      // Authorized crew/task assignees can view all shoot project scripts. Standalone script assignees only see their scripts:
+      if (!isCreator && !isTeamMember && !isTaskAssignee && Array.isArray(project.scripts)) {
         project.scripts = project.scripts.filter(
           (sc: any) =>
             sc.authorId === currentUser.id ||
             sc.createdById === currentUser.id ||
             sc.writerId === currentUser.id ||
             sc.assignedToId === currentUser.id ||
-            sc.scriptAssignments?.some((sa: any) => sa.userId === currentUser.id),
+            sc.scriptAssignments?.some((sa: any) => sa.userId === currentUser.id) ||
+            sc.tasks?.some((t: any) => t.assignedEmployees?.some((e: any) => e.userId === currentUser.id)),
         );
       }
     }
@@ -562,7 +583,7 @@ export class ProjectsService {
         create: {
           outdoorLocation: data.outdoorDetails.outdoorLocation,
           locationAddress: data.outdoorDetails.locationAddress || data.outdoorDetails.outdoorLocation,
-          permissionStatus: data.outdoorDetails.permissionStatus || PermissionStatus.PENDING,
+          permissionStatus: data.outdoorDetails.permissionStatus || PermissionStatus.APPROVED,
           weatherStatus: data.outdoorDetails.weatherStatus || WeatherStatus.FAVORABLE,
           transportationReq: data.outdoorDetails.transportationReq ?? true,
           driver: data.outdoorDetails.driver || null,

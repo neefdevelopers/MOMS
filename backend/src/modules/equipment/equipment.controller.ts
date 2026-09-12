@@ -160,12 +160,24 @@ export class EquipmentController {
 
   @Get('requests')
   findRequests(@CurrentUser() user: any) {
-    const isManager = user.role === Role.MEDIA_MANAGER || user.role === Role.TECHNICAL_MANAGER || user.role === Role.ADMINISTRATOR;
+    const isManager =
+      user.role === Role.MEDIA_MANAGER ||
+      user.role === Role.TECHNICAL_MANAGER ||
+      user.role === Role.ADMINISTRATOR ||
+      user.role === 'ADMIN' ||
+      user.role === 'ADMINISTRATOR' ||
+      user.role === 'MEDIA_MANAGER' ||
+      user.role === 'TECHNICAL_MANAGER';
     return this.equipmentService.findRequests(user.id, isManager);
   }
 
-  // ─── Request Review, Preparation, Issuing — Media Manager & Administrator Only ─
-  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Delete('requests/:id')
+  deleteRequest(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.equipmentService.deleteRequest(id, user.id, user.role);
+  }
+
+  // ─── Request Review, Preparation, Issuing — Media Manager, Technical Manager & Administrator ─
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Patch('requests/:id/review')
   reviewRequest(
     @Param('id') id: string,
@@ -175,7 +187,7 @@ export class EquipmentController {
     return this.equipmentService.reviewRequest(id, dto.status, dto.reviewNotes, reviewerId);
   }
 
-  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Post('requests/:id/prepare')
   prepareEquipment(
     @Param('id') id: string,
@@ -185,7 +197,7 @@ export class EquipmentController {
     return this.equipmentService.prepareEquipment(id, dto, preparedById);
   }
 
-  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Post('requests/:id/issue-handover')
   issueEquipmentWithHandover(
     @Param('id') id: string,
@@ -195,7 +207,7 @@ export class EquipmentController {
     return this.equipmentService.issueEquipmentWithHandover(id, issuerId, dto);
   }
 
-  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Post('requests/:id/issue')
   issueEquipment(
     @Param('id') id: string,
@@ -337,6 +349,15 @@ export class EquipmentController {
     @Body('notes') notes?: string,
   ) {
     return this.equipmentService.updateStatus(id, availability, notes);
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR, Role.STAFF, Role.MARKETING_MANAGER, Role.SOCIAL_MEDIA_MANAGER)
+  @Delete('reservations/:reservationId')
+  cancelReservation(
+    @Param('reservationId') reservationId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.equipmentService.cancelReservation(reservationId, user?.id, user?.role);
   }
 
   // ─── Business Rule 3: Equipment records shall never be deleted ──────────────

@@ -185,20 +185,39 @@ export class ScriptsService {
     const script = await this.findOne(scriptId);
     const result = await this.prisma.scriptAssignment.upsert({
       where: { scriptId_userId_responsibility: { scriptId, userId, responsibility } },
-      create: { scriptId, userId, responsibility },
-      update: { assignedAt: new Date() },
+      create: {
+        scriptId,
+        userId,
+        responsibility,
+        acceptanceStatus: 'NOT_YET_ACCEPTED',
+      },
+      update: {
+        assignedAt: new Date(),
+        acceptanceStatus: 'NOT_YET_ACCEPTED',
+        acceptedAt: null,
+        declinedAt: null,
+        declineReason: null,
+      },
       include: { user: { select: { id: true, name: true, role: true } } },
     });
-    await this.logTimeline(scriptId, 'ASSIGNED', `Assigned as ${responsibility}: ${result.user?.name}`, userId);
+
+    if (script.status === 'DRAFT' || script.status === 'READY') {
+      await this.prisma.script.update({
+        where: { id: scriptId },
+        data: { status: 'ASSIGNED' },
+      });
+    }
+
+    await this.logTimeline(scriptId, 'ASSIGNED', `Assigned as ${responsibility}: ${result.user?.name} (Acceptance Required)`, userId);
 
     // Operational Event Notification referencing originating SCRIPT entity
     await this.prisma.notification.create({
       data: {
         userId,
-        title: 'Assigned to Script',
-        message: `You were assigned as ${responsibility} on script ${script.scriptId}: ${script.name}`,
+        title: 'Script Assigned: Acceptance Required',
+        message: `You were assigned as ${responsibility} on script ${script.scriptId}: ${script.name}. Please review and accept this script assignment.`,
         type: 'INFO',
-        linkUrl: `/scripts`,
+        linkUrl: `/scripts?inspect=${script.id}`,
         eventType: 'SCRIPT_ASSIGNED',
         entityType: 'SCRIPT',
         entityId: script.id,
@@ -209,6 +228,100 @@ export class ScriptsService {
     });
 
     return result;
+  }
+
+  async acknowledgeScriptAcceptance(scriptId: string, user: any) {
+    const script = await this.findOne(scriptId);
+
+    // Update all assignments for this user on this script to ACCEPTED
+    const updatedAssignments = await this.prisma.scriptAssignment.updateMany({
+      where: { scriptId: script.id, userId: user.id },
+      data: {
+        acceptanceStatus: 'ACCEPTED',
+        acceptedAt: new Date(),
+        declinedAt: null,
+        declineReason: null,
+      },
+    });
+
+    // If script is in ASSIGNED or READY state, advance it to IN_PRODUCTION / IN_PROGRESS
+    if (script.status === 'ASSIGNED' || script.status === 'READY') {
+      await this.prisma.script.update({
+        where: { id: script.id },
+        data: {
+          status: 'IN_PRODUCTION',
+          preTechnicalReviewStatus: 'IN_PRODUCTION',
+        },
+      });
+    }
+
+    await this.logTimeline(
+      script.id,
+      'ASSIGNMENT_ACCEPTED',
+      `Script assignment accepted by ${user.name || 'Assigned Staff'}`,
+      user.id,
+    );
+
+    // Notify creator / manager if different from acceptor
+    if (script.createdById && script.createdById !== user.id) {
+      await this.prisma.notification.create({
+        data: {
+          userId: script.createdById,
+          title: 'Script Assignment Accepted',
+          message: `${user.name || 'Assigned staff'} accepted the script assignment on ${script.scriptId}: ${script.name}.`,
+          type: 'SUCCESS',
+          linkUrl: `/scripts?inspect=${script.id}`,
+          eventType: 'SCRIPT_ASSIGNMENT_ACCEPTED',
+          entityType: 'SCRIPT',
+          entityId: script.id,
+          entityCode: script.scriptId,
+          scriptId: script.id,
+          projectId: script.projectId || null,
+        },
+      });
+    }
+
+    return this.findOne(script.id);
+  }
+
+  async declineScriptAssignment(scriptId: string, user: any, reason?: string) {
+    const script = await this.findOne(scriptId);
+
+    await this.prisma.scriptAssignment.updateMany({
+      where: { scriptId: script.id, userId: user.id },
+      data: {
+        acceptanceStatus: 'DECLINED',
+        declinedAt: new Date(),
+        declineReason: reason || 'Declined by assigned employee',
+      },
+    });
+
+    await this.logTimeline(
+      script.id,
+      'ASSIGNMENT_DECLINED',
+      `Script assignment declined by ${user.name || 'Assigned Staff'}${reason ? `: ${reason}` : ''}`,
+      user.id,
+    );
+
+    if (script.createdById && script.createdById !== user.id) {
+      await this.prisma.notification.create({
+        data: {
+          userId: script.createdById,
+          title: 'Script Assignment Declined',
+          message: `${user.name || 'Staff'} declined assignment on script ${script.scriptId}: ${script.name}.${reason ? ` Reason: ${reason}` : ''}`,
+          type: 'WARNING',
+          linkUrl: `/scripts?inspect=${script.id}`,
+          eventType: 'SCRIPT_ASSIGNMENT_DECLINED',
+          entityType: 'SCRIPT',
+          entityId: script.id,
+          entityCode: script.scriptId,
+          scriptId: script.id,
+          projectId: script.projectId || null,
+        },
+      });
+    }
+
+    return this.findOne(script.id);
   }
 
   async removeAssignment(scriptId: string, userId: string, responsibility: string) {
@@ -247,6 +360,8 @@ export class ScriptsService {
     SCRIPT_CREATED: 'Script Created',
     SCRIPT_UPDATED: 'Script Updated',
     ASSIGNED: 'Assigned',
+    ASSIGNMENT_ACCEPTED: 'Assignment Accepted',
+    ASSIGNMENT_DECLINED: 'Assignment Declined',
     PRODUCTION_STARTED: 'Production Started',
     PRODUCTION_UPDATED: 'Production Updated',
     TECHNICAL_REVIEW_REQUESTED: 'Technical Review Requested',

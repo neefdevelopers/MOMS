@@ -95,7 +95,7 @@ export default function ProjectsPage() {
   // Outdoor specific form fields
   const [outdoorLocation, setOutdoorLocation] = useState('');
   const [locationAddress, setLocationAddress] = useState('');
-  const [permissionStatus, setPermissionStatus] = useState('PENDING');
+  const [permissionStatus, setPermissionStatus] = useState('APPROVED');
   const [weatherStatus, setWeatherStatus] = useState('RISK_RAIN');
   const [transportationReq, setTransportationReq] = useState(true);
   const [driver, setDriver] = useState('');
@@ -778,12 +778,16 @@ export default function ProjectsPage() {
                       className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${
                         proj.status === 'COMPLETED' || proj.status === 'APPROVED'
                           ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                          : proj.status === 'REVISION_REQUESTED' || proj.status === 'CLIENT_REVISION_REQUESTED'
+                          ? 'bg-rose-50 text-rose-700 border border-rose-300 font-extrabold flex items-center gap-1'
                           : proj.status === 'PLANNED' || proj.status === 'PENDING_CLIENT_APPROVAL' || proj.status === 'PENDING_MARKETING_APPROVAL' || proj.status === 'PENDING'
                           ? 'bg-amber-50 text-amber-800 border border-amber-200 shadow-sm'
                           : 'bg-blue-50 text-blue-600 border border-blue-200'
                       }`}
                     >
-                      {proj.status === 'PLANNED' || proj.status === 'PENDING_CLIENT_APPROVAL' || proj.status === 'PENDING_MARKETING_APPROVAL' || proj.status === 'PENDING'
+                      {proj.status === 'REVISION_REQUESTED' || proj.status === 'CLIENT_REVISION_REQUESTED'
+                        ? `UNDERGOING REVISION (REV #${proj.revisionCount || 1})`
+                        : proj.status === 'PLANNED' || proj.status === 'PENDING_CLIENT_APPROVAL' || proj.status === 'PENDING_MARKETING_APPROVAL' || proj.status === 'PENDING'
                         ? 'PENDING MARKETING MANAGER APPROVAL'
                         : proj.status ? proj.status.replace(/_/g, ' ') : 'PENDING MARKETING MANAGER APPROVAL'}
                     </span>
@@ -812,13 +816,6 @@ export default function ProjectsPage() {
                 {/* Warnings Section for Outdoor Shoots */}
                 {proj.shootType === 'OUTDOOR' && proj.outdoorDetails && (
                   <div className="space-y-1.5 pt-1">
-                    {proj.outdoorDetails.permissionStatus === 'PENDING' && (
-                      <div className="p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-800 flex items-center gap-1.5 font-medium">
-                        <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>Warning: Permit Application Pending</span>
-                      </div>
-                    )}
-
                     {proj.outdoorDetails.weatherStatus === 'RISK_RAIN' && (
                       <div className="p-2 bg-purple-50 border border-purple-200 rounded text-[11px] text-purple-700 flex items-center gap-1.5 font-medium">
                         <CloudRain className="w-3.5 h-3.5 text-purple-600 shrink-0" />
@@ -1361,19 +1358,6 @@ export default function ProjectsPage() {
                           onChange={(e) => setOutdoorLocation(e.target.value)}
                           className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                         />
-                      </div>
-
-                      <div>
-                        <label className="block text-slate-700 font-semibold mb-1">Permission Status</label>
-                        <select
-                          value={permissionStatus}
-                          onChange={(e) => setPermissionStatus(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-blue-500 focus:bg-white focus:outline-none"
-                        >
-                          <option value="PENDING">PENDING (Triggers Warning)</option>
-                          <option value="APPROVED">APPROVED</option>
-                          <option value="NOT_REQUIRED">NOT REQUIRED</option>
-                        </select>
                       </div>
 
                       <div>

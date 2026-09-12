@@ -159,6 +159,10 @@ export class EquipmentService {
       throw new NotFoundException('Project not found');
     }
 
+    if (eqp.availability === EquipmentAvailability.DAMAGED) {
+      throw new BadRequestException('Damaged equipment shall not be assigned until repaired.');
+    }
+
     // Ensure equipment is free (available) before reserving
     if (eqp.availability !== EquipmentAvailability.AVAILABLE) {
       throw new BadRequestException(`Cannot reserve equipment that is currently ${eqp.availability.toLowerCase()}.`);
@@ -196,6 +200,49 @@ export class EquipmentService {
       where: { id: data.equipmentId },
       data: { availability: EquipmentAvailability.RESERVED },
     });
+
+    // Also create/sync an EquipmentRequest record so it appears in the Equipment Request Queue
+    if (data.reservedById) {
+      await this.prisma.equipmentRequest.create({
+        data: {
+          equipmentId: data.equipmentId,
+          projectId: data.projectId,
+          requestedById: data.reservedById,
+          purpose: `Equipment requirement for project "${project.name}"`,
+          requiredDate: new Date(data.startDate),
+          expectedReturnDate: new Date(data.endDate),
+          status: 'PENDING',
+        },
+      }).catch(() => null);
+    }
+
+    // Notify Technical Managers, Media Managers & Administrators about the equipment reservation
+    try {
+      const reserver = await this.prisma.user.findUnique({ where: { id: data.reservedById } });
+      const managersToNotify = await this.prisma.user.findMany({
+        where: { role: { in: ['TECHNICAL_MANAGER', 'MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
+      });
+      for (const mgr of managersToNotify) {
+        await this.prisma.notification.create({
+          data: {
+            userId: mgr.id,
+            title: 'Equipment Reserved / Requested',
+            message: `${reserver?.name || 'A team member'} reserved "${eqp.name}" (${eqp.equipmentId}) for project "${project.name}".`,
+            type: 'ALERT',
+            category: 'EQUIPMENT',
+            priority: 'HIGH',
+            eventType: 'EQUIPMENT_RESERVED',
+            entityType: 'EQUIPMENT',
+            linkUrl: `/equipment?equipmentId=${eqp.id}`,
+            entityId: res.id,
+            equipmentId: eqp.id,
+            projectId: project.id,
+          },
+        }).catch(() => null);
+      }
+    } catch (e) {
+      console.error('Failed to notify Technical/Media managers of equipment reservation:', e);
+    }
 
     return res;
   }
@@ -303,6 +350,10 @@ export class EquipmentService {
       throw new BadRequestException('Cannot request retired/archived equipment.');
     }
 
+    if (eqp.availability === EquipmentAvailability.DAMAGED) {
+      throw new BadRequestException('Damaged equipment shall not be assigned until repaired.');
+    }
+
     if (eqp.availability !== EquipmentAvailability.AVAILABLE) {
       throw new BadRequestException(`Equipment "${eqp.name}" is currently ${eqp.availability} and cannot be requested.`);
     }
@@ -364,26 +415,29 @@ export class EquipmentService {
       },
     });
 
-    // Send notification to Media Managers about new Equipment Request
+    // Send notification to Media Managers & Technical Managers about new Equipment Request
     try {
-      const mediaManagers = await this.prisma.user.findMany({
-        where: { role: { in: ['MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
+      const managersToNotify = await this.prisma.user.findMany({
+        where: { role: { in: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
       });
-      for (const mm of mediaManagers) {
+      for (const mgr of managersToNotify) {
         await this.prisma.notification.create({
           data: {
-            userId: mm.id,
+            userId: mgr.id,
             title: 'Equipment Request Submitted',
-            message: `${user.name} requested "${eqp.name}" for project "${project.name}".`,
+            message: `${user.name} requested "${eqp.name}" for project "${project.name}". Manager review & approval required.`,
             type: 'SYSTEM',
+            eventType: 'EQUIPMENT_REQUEST_SUBMITTED',
+            entityType: 'EQUIPMENT',
             linkUrl: `/equipment?requestId=${request.id}`,
             entityId: request.id,
             equipmentId: eqp.id,
+            projectId: project.id,
           },
         }).catch(() => null);
       }
     } catch (e) {
-      console.error('Failed to notify Media Manager of equipment request:', e);
+      console.error('Failed to notify Managers of equipment request:', e);
     }
 
     return request;
@@ -421,6 +475,10 @@ export class EquipmentService {
     }
     if (req.status !== 'PENDING') {
       throw new BadRequestException(`Request has already been ${req.status.toLowerCase()}.`);
+    }
+
+    if (status === 'APPROVED' && req.equipment?.availability === EquipmentAvailability.DAMAGED) {
+      throw new BadRequestException('Damaged equipment shall not be assigned until repaired.');
     }
 
     const updated = await this.prisma.equipmentRequest.update({
@@ -484,6 +542,45 @@ export class EquipmentService {
     }
 
     return updated;
+  }
+
+  async deleteRequest(id: string, userId: string, userRole?: string) {
+    const req = await this.prisma.equipmentRequest.findUnique({
+      where: { id },
+      include: { equipment: true },
+    });
+    if (!req) {
+      throw new NotFoundException('Equipment request not found');
+    }
+
+    const isManager =
+      userRole === 'MEDIA_MANAGER' ||
+      userRole === 'TECHNICAL_MANAGER' ||
+      userRole === 'ADMINISTRATOR' ||
+      userRole === 'ADMIN';
+    if (!isManager && req.requestedById !== userId) {
+      throw new ForbiddenException('You are not authorized to delete this equipment request.');
+    }
+
+    if (req.status === 'PENDING' || req.status === 'APPROVED') {
+      const otherActive = await this.prisma.equipmentRequest.findFirst({
+        where: { equipmentId: req.equipmentId, id: { not: id }, status: { in: ['PENDING', 'APPROVED', 'CHECKED_OUT'] } },
+      });
+      if (!otherActive) {
+        await this.prisma.equipment.update({
+          where: { id: req.equipmentId },
+          data: { availability: EquipmentAvailability.AVAILABLE, status: 'AVAILABLE', currentHolder: null },
+        }).catch(() => null);
+      }
+    }
+
+    await this.prisma.equipmentReservation.deleteMany({
+      where: { equipmentId: req.equipmentId, projectId: req.projectId },
+    }).catch(() => null);
+
+    return this.prisma.equipmentRequest.delete({
+      where: { id },
+    });
   }
 
   // Media Manager Issue Equipment after Approval
@@ -597,7 +694,7 @@ export class EquipmentService {
         throw new BadRequestException('Equipment is under maintenance.');
       }
       if (eqp.availability === EquipmentAvailability.DAMAGED) {
-        throw new BadRequestException('Equipment is damaged and cannot be allocated.');
+        throw new BadRequestException('Damaged equipment shall not be assigned until repaired.');
       }
       throw new BadRequestException(`Equipment is currently ${eqp.availability} and cannot be allocated.`);
     }
@@ -656,6 +753,64 @@ export class EquipmentService {
           status: 'CHECKED_OUT',
         },
       }).catch(() => null);
+    }
+
+    // 4. Update any open EquipmentRequest records for this equipment to CHECKED_OUT
+    await this.prisma.equipmentRequest.updateMany({
+      where: {
+        equipmentId: data.equipmentId,
+        status: { in: ['PENDING', 'APPROVED'] },
+      },
+      data: {
+        status: 'CHECKED_OUT',
+        reviewedById: allocatorId,
+      },
+    }).catch(() => null);
+
+    // Notify Technical Managers, Media Managers & Assigned Employee
+    try {
+      const managersToNotify = await this.prisma.user.findMany({
+        where: { role: { in: ['TECHNICAL_MANAGER', 'MEDIA_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
+      });
+      for (const mgr of managersToNotify) {
+        if (mgr.id !== allocatorId) {
+          await this.prisma.notification.create({
+            data: {
+              userId: mgr.id,
+              title: 'Equipment Allocated',
+              message: `Equipment "${eqp.name}" was allocated to ${employee.name}${project ? ` for project "${project.name}"` : ''}.`,
+              type: 'ALERT',
+              category: 'EQUIPMENT',
+              priority: 'HIGH',
+              eventType: 'EQUIPMENT_ALLOCATED',
+              entityType: 'EQUIPMENT',
+              linkUrl: `/equipment?equipmentId=${eqp.id}`,
+              entityId: movement.id,
+              equipmentId: eqp.id,
+              projectId: project?.id,
+            },
+          }).catch(() => null);
+        }
+      }
+
+      await this.prisma.notification.create({
+        data: {
+          userId: employee.id,
+          title: 'Equipment Allocated to You',
+          message: `Equipment "${eqp.name}" (${eqp.equipmentId}) has been allocated to you. Expected return: ${returnDate.toISOString().split('T')[0]}.`,
+          type: 'ALERT',
+          category: 'EQUIPMENT',
+          priority: 'HIGH',
+          eventType: 'EQUIPMENT_ASSIGNED_TO_USER',
+          entityType: 'EQUIPMENT',
+          linkUrl: `/equipment/my`,
+          entityId: movement.id,
+          equipmentId: eqp.id,
+          projectId: project?.id,
+        },
+      }).catch(() => null);
+    } catch (e) {
+      console.error('Failed to notify on equipment allocation:', e);
     }
 
     return {
@@ -1708,5 +1863,31 @@ export class EquipmentService {
     });
 
     return updated;
+  }
+
+  // ─── Cancel Equipment Reservation ──────────────────────────────────────────
+  async cancelReservation(reservationId: string, userId: string, userRole: string) {
+    const reservation = await this.prisma.equipmentReservation.findUnique({
+      where: { id: reservationId },
+    });
+    if (!reservation) {
+      throw new NotFoundException('Equipment reservation not found.');
+    }
+
+    await this.prisma.equipmentReservation.delete({
+      where: { id: reservationId },
+    });
+
+    const otherActive = await this.prisma.equipmentReservation.findFirst({
+      where: { equipmentId: reservation.equipmentId, status: 'RESERVED' },
+    });
+    if (!otherActive) {
+      await this.prisma.equipment.update({
+        where: { id: reservation.equipmentId },
+        data: { availability: EquipmentAvailability.AVAILABLE },
+      });
+    }
+
+    return { message: 'Equipment reservation cancelled successfully.' };
   }
 }

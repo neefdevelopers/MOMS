@@ -434,13 +434,17 @@ model Script {
 }
 
 model ScriptAssignment {
-  id             String   @id @default(uuid())
-  scriptId       String
-  script         Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  responsibility String   @default("Writer") // Writer, Shooter, Video Editor, Motion Designer, Graphic Designer, Reviewer
-  assignedAt     DateTime @default(now())
+  id               String    @id @default(uuid())
+  scriptId         String
+  script           Script    @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  responsibility   String    @default("Writer") // Writer, Shooter, Video Editor, Motion Designer, Graphic Designer, Reviewer
+  acceptanceStatus String    @default("NOT_YET_ACCEPTED") // NOT_YET_ACCEPTED, ACCEPTED, DECLINED
+  acceptedAt       DateTime?
+  declinedAt       DateTime?
+  declineReason    String?
+  assignedAt       DateTime  @default(now())
 
   @@unique([scriptId, userId, responsibility])
 }

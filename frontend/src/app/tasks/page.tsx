@@ -913,6 +913,8 @@ export default function TasksPage() {
   const [taskBackupLocation, setTaskBackupLocation] = useState('');
   const [taskSpecialOutdoorRequirements, setTaskSpecialOutdoorRequirements] = useState('');
   const [taskEquipmentIds, setTaskEquipmentIds] = useState<string[]>([]);
+  const [equipmentSearchQuery, setEquipmentSearchQuery] = useState('');
+  const [equipmentCategoryFilter, setEquipmentCategoryFilter] = useState('ALL');
 
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [scriptsList, setScriptsList] = useState<any[]>([]);
@@ -1144,7 +1146,7 @@ export default function TasksPage() {
         expectedWeatherConditions: isShoot && taskShootType === 'OUTDOOR' ? taskExpectedWeatherConditions : undefined,
         backupLocation: isShoot && taskShootType === 'OUTDOOR' ? taskBackupLocation : undefined,
         specialOutdoorRequirements: isShoot && taskShootType === 'OUTDOOR' ? taskSpecialOutdoorRequirements : undefined,
-        equipmentIds: isShoot ? taskEquipmentIds : undefined,
+        equipmentIds: taskEquipmentIds.length > 0 ? taskEquipmentIds : undefined,
       };
 
       if (parentEntityType === 'PROJECT') {
@@ -2631,51 +2633,7 @@ export default function TasksPage() {
                     </div>
                   </div>
 
-                  {/* Section 3: Required Equipment */}
-                  <div className="space-y-3 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200 text-sm">
-                    <div className="flex items-center justify-between">
-                      <label className="text-slate-800 font-bold flex items-center gap-2 text-xs uppercase tracking-wider">
-                        <Camera className="w-4 h-4 text-purple-600" />
-                        <span>Required Equipment</span>
-                      </label>
-                      <span className="text-xs text-slate-500 font-mono font-bold">
-                        {taskEquipmentIds.length > 0 ? `${taskEquipmentIds.length} Selected` : 'No Equipment Required'}
-                      </span>
-                    </div>
-                    {taskEquipmentIds.length > 0 && equipmentList.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-3 bg-white rounded-lg border border-slate-200">
-                        {equipmentList.map((eq: any) => (
-                          <label
-                            key={eq.id}
-                            className="flex items-center gap-2.5 p-2 hover:bg-slate-50 rounded text-xs cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={taskEquipmentIds.includes(eq.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) setTaskEquipmentIds([...taskEquipmentIds, eq.id]);
-                                else setTaskEquipmentIds(taskEquipmentIds.filter((id) => id !== eq.id));
-                              }}
-                              className="w-4 h-4 accent-blue-600 rounded"
-                            />
-                            <span className="truncate">
-                              <strong>{eq.name}</strong> <span className="text-slate-500 font-mono text-[10px]">({eq.equipmentCode || eq.category})</span>
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="p-4 bg-white rounded-lg border border-slate-200 text-slate-600 space-y-1">
-                        <div className="flex items-center gap-2 font-semibold text-xs text-slate-700">
-                          <Camera className="w-4 h-4 text-slate-400 shrink-0" />
-                          <span>No equipment required / No equipment available</span>
-                        </div>
-                        <p className="text-xs text-slate-500">
-                          No equipment is associated with or required for this Graphic Requirement.
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                  {/* Graphic Deliverables Complete */}
                 </div>
               )}
 
@@ -3007,42 +2965,6 @@ export default function TasksPage() {
                     </div>
                   )}
 
-                  {/* Section 3: Required Equipment Selection */}
-                  {equipmentList.length > 0 && (
-                    <div className="space-y-3 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200 text-sm">
-                      <div className="flex items-center justify-between">
-                        <label className="text-slate-800 font-bold text-xs uppercase tracking-wider">
-                          Required Equipment Selection (Optional)
-                        </label>
-                        {taskEquipmentIds.length > 0 && (
-                          <span className="text-xs text-blue-600 font-bold font-mono">
-                            {taskEquipmentIds.length} Selected
-                          </span>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-3 bg-white rounded-lg border border-slate-200">
-                        {equipmentList.map((eq: any) => (
-                          <label
-                            key={eq.id}
-                            className="flex items-center gap-2.5 p-2 hover:bg-slate-50 rounded text-xs cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={taskEquipmentIds.includes(eq.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) setTaskEquipmentIds([...taskEquipmentIds, eq.id]);
-                                else setTaskEquipmentIds(taskEquipmentIds.filter((id) => id !== eq.id));
-                              }}
-                              className="w-4 h-4 accent-blue-600 rounded"
-                            />
-                            <span className="truncate">
-                              <strong>{eq.name}</strong> <span className="text-slate-500 font-mono text-[10px]">({eq.equipmentCode || eq.category})</span>
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -3518,6 +3440,158 @@ export default function TasksPage() {
                   </div>
                 </div>
               </div>
+
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {/* SECTION: REQUIRED EQUIPMENT & GEAR ALLOCATION (ALL TASK TYPES)             */}
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {(() => {
+                const equipmentCategories = Array.from(new Set(equipmentList.map((e) => e.category).filter(Boolean)));
+                const availableEquipmentCount = equipmentList.filter((e) => e.availability === 'AVAILABLE').length;
+
+                const filteredEquipmentList = equipmentList.filter((eq) => {
+                  if (equipmentCategoryFilter !== 'ALL' && eq.category !== equipmentCategoryFilter) return false;
+                  if (equipmentSearchQuery.trim()) {
+                    const q = equipmentSearchQuery.toLowerCase().trim();
+                    const match =
+                      eq.name?.toLowerCase().includes(q) ||
+                      eq.equipmentId?.toLowerCase().includes(q) ||
+                      eq.category?.toLowerCase().includes(q) ||
+                      eq.brand?.toLowerCase().includes(q) ||
+                      eq.model?.toLowerCase().includes(q) ||
+                      eq.serialNumber?.toLowerCase().includes(q);
+                    if (!match) return false;
+                  }
+                  return true;
+                });
+
+                return (
+                  <div className="space-y-4 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200 text-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                        <Camera className="w-4 h-4 text-cyan-600" /> Required Equipment &amp; Gear Allocation (Optional)
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">
+                          {availableEquipmentCount} Available
+                        </span>
+                        {taskEquipmentIds.length > 0 && (
+                          <span className="text-[11px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded">
+                            {taskEquipmentIds.length} Selected
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {equipmentList.length === 0 ? (
+                      <div className="p-4 bg-white rounded-xl border border-slate-200 text-slate-500 text-xs text-center flex items-center justify-center gap-2">
+                        <Camera className="w-4 h-4 text-slate-400" />
+                        <span>No equipment items registered in the inventory yet.</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Equipment Search & Filter Controls */}
+                        <div className="flex flex-col sm:flex-row items-center gap-2">
+                          <div className="relative flex-1 w-full">
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                            <input
+                              type="text"
+                              placeholder="Search equipment by name, ID, brand, model, serial #..."
+                              value={equipmentSearchQuery}
+                              onChange={(e) => setEquipmentSearchQuery(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-cyan-500 transition-colors"
+                            />
+                          </div>
+
+                          <select
+                            value={equipmentCategoryFilter}
+                            onChange={(e) => setEquipmentCategoryFilter(e.target.value)}
+                            className="w-full sm:w-48 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:border-cyan-500 transition-colors"
+                          >
+                            <option value="ALL">All Categories ({equipmentList.length})</option>
+                            {equipmentCategories.map((cat) => (
+                              <option key={cat} value={cat}>
+                                {cat}
+                              </option>
+                            ))}
+                          </select>
+
+                          {taskEquipmentIds.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setTaskEquipmentIds([])}
+                              className="text-xs text-rose-600 hover:text-rose-700 font-semibold px-2 py-1 underline whitespace-nowrap"
+                            >
+                              Clear Gear Selection
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Equipment Item Cards Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto p-2 bg-white rounded-xl border border-slate-200 custom-scrollbar">
+                          {filteredEquipmentList.length === 0 ? (
+                            <div className="col-span-full py-6 text-center text-xs text-slate-400">
+                              No equipment items match the search or filter criteria.
+                            </div>
+                          ) : (
+                            filteredEquipmentList.map((eq: any) => {
+                              const isAvailable = eq.availability === 'AVAILABLE';
+                              const isChecked = taskEquipmentIds.includes(eq.id);
+
+                              return (
+                                <label
+                                  key={eq.id}
+                                  className={`flex items-center justify-between gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                                    isChecked
+                                      ? 'bg-blue-50/90 border-blue-300 text-blue-900 font-bold shadow-2xs'
+                                      : isAvailable
+                                      ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                      : 'bg-slate-50/80 border-slate-200 text-slate-500 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        if (e.target.checked) setTaskEquipmentIds([...taskEquipmentIds, eq.id]);
+                                        else setTaskEquipmentIds(taskEquipmentIds.filter((id) => id !== eq.id));
+                                      }}
+                                      className="w-4 h-4 accent-blue-600 rounded cursor-pointer shrink-0"
+                                    />
+                                    <div className="min-w-0 truncate">
+                                      <div className="truncate font-semibold text-slate-900 leading-tight">
+                                        {eq.name}
+                                      </div>
+                                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                        {eq.equipmentId || eq.equipmentCode || 'EQ'} &bull; {eq.category || 'General'}
+                                        {eq.brand && <span> &bull; {eq.brand}</span>}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <span
+                                    className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border uppercase shrink-0 ${
+                                      isAvailable
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : eq.availability === 'RESERVED'
+                                        ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                        : eq.availability === 'ISSUED' || eq.availability === 'CHECKED_OUT' || eq.availability === 'IN_USE'
+                                        ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                                    }`}
+                                  >
+                                    {eq.availability?.replace(/_/g, ' ') || 'AVAILABLE'}
+                                  </span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="sticky bottom-0 bg-slate-50/95 -mx-6 sm:-mx-8 -mb-6 sm:-mb-8 p-4 sm:p-5 border-t border-slate-200 flex items-center justify-between gap-4 z-20 backdrop-blur-xs">
                 <span className="text-xs text-slate-500 font-mono">

@@ -32,6 +32,7 @@ import {
   History,
   FileBarChart,
   CalendarCheck,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 export type AppRole = 'MEDIA_MANAGER' | 'TECHNICAL_MANAGER' | 'STAFF' | 'SOCIAL_MEDIA_MANAGER' | 'MARKETING_MANAGER';
@@ -175,6 +176,12 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         name: 'All Equipment',
         href: '/equipment',
         icon: Camera,
+        roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
+      },
+      {
+        name: 'Equipment Requests',
+        href: '/equipment?tab=requests',
+        icon: ArrowRightLeft,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER'],
       },
       {

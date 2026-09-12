@@ -1299,6 +1299,56 @@ export class TasksService {
       }
     }
 
+    // 0. Process Equipment Reservations if equipmentIds passed
+    if (data.equipmentIds && Array.isArray(data.equipmentIds) && data.equipmentIds.length > 0) {
+      for (const eqId of data.equipmentIds) {
+        if (task.projectId) {
+          await this.prisma.equipmentReservation.create({
+            data: {
+              projectId: task.projectId,
+              equipmentId: eqId,
+              startDate: new Date(data.shootDate || data.dueDate || Date.now()),
+              endDate: new Date(data.shootDate || data.dueDate || Date.now()),
+              status: 'RESERVED',
+            },
+          }).catch(() => null);
+        }
+        await this.prisma.equipment.update({
+          where: { id: eqId },
+          data: { availability: 'RESERVED' },
+        }).catch(() => null);
+      }
+
+      // Notify Technical Managers & Media Managers about equipment reservation on task creation
+      try {
+        const mgrs = await this.prisma.user.findMany({
+          where: { role: { in: ['TECHNICAL_MANAGER', 'MEDIA_MANAGER', 'ADMINISTRATOR'] }, status: 'ACTIVE' },
+          select: { id: true },
+        });
+        for (const mgr of mgrs) {
+          await this.prisma.notification.create({
+            data: {
+              userId: mgr.id,
+              title: 'Equipment Allocated for Task',
+              message: `${data.equipmentIds.length} equipment item(s) allocated for task ${task.taskId}: "${task.title}".`,
+              type: 'ALERT',
+              category: 'EQUIPMENT',
+              priority: 'HIGH',
+              eventType: 'EQUIPMENT_ALLOCATED_FOR_TASK',
+              entityType: 'TASK',
+              linkUrl: '/equipment/monitoring',
+              entityId: task.id,
+              entityCode: task.taskId,
+              taskId: task.id,
+              projectId: task.projectId || undefined,
+            },
+          }).catch(() => null);
+        }
+      } catch (e) {
+        console.error('Failed to notify Technical/Media Managers on equipment task allocation:', e);
+      }
+    }
+
     // 1. Log TASK_CREATED
     await this.logTimelineEvent(task.id, 'TASK_CREATED', `Task ${task.taskId} ('${task.title}') created`, managerUserId);
 
