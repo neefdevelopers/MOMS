@@ -4,7 +4,7 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding MOMS database (SQLite)...');
+  console.log('Seeding MOMS database...');
 
   // Clean existing tables in reverse order
   await prisma.calendarApprovalHistory.deleteMany();
