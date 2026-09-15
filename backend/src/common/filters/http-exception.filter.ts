@@ -45,23 +45,33 @@ export class AllExceptionsFilter implements ExceptionFilter {
         details = resObj.details || null;
       }
 
-      // Classify error into 9 standardized operational categories
-      if (status === HttpStatus.UNAUTHORIZED) {
+      // Classify error into standardized operational categories
+      if (status === HttpStatus.NOT_FOUND) {
+        errorName = 'NotFoundError';
+      } else if (status === HttpStatus.UNAUTHORIZED) {
         errorName = 'AuthenticationError';
       } else if (status === HttpStatus.FORBIDDEN) {
         errorName = 'AuthorizationError';
       } else if (status === HttpStatus.BAD_REQUEST) {
-        if (Array.isArray(message) || (typeof message === 'string' && (message.includes('must') || message.includes('should') || message.includes('required')))) {
+        if (
+          Array.isArray(message) ||
+          (typeof message === 'string' &&
+            (message.includes('must') || message.includes('should') || message.includes('required') || message.includes('Validation')))
+        ) {
           errorName = 'ValidationError';
         } else {
-          errorName = 'BusinessRuleViolation';
+          errorName = 'BadRequest';
         }
+      } else if (status === HttpStatus.UNPROCESSABLE_ENTITY) {
+        errorName = 'ValidationError';
       } else if (status === HttpStatus.CONFLICT) {
-        errorName = 'BusinessRuleViolation';
+        errorName = 'ConflictError';
       } else if (status === HttpStatus.PAYLOAD_TOO_LARGE || (typeof message === 'string' && message.includes('file'))) {
         errorName = 'FileStorageError';
+      } else if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+        errorName = 'InternalServerError';
       } else {
-        errorName = 'BusinessRuleViolation';
+        errorName = 'HttpException';
       }
     } else if (exception instanceof Error) {
       // Log full stack trace internally for developers/monitoring
@@ -73,11 +83,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
       if (exception.name.includes('Prisma') || msg.includes('prisma') || msg.includes('database')) {
         errorName = 'DatabaseError';
         if (prismaCode === 'P2002') {
+          status = HttpStatus.CONFLICT;
           message = 'A database unique constraint conflict occurred (record already exists).';
         } else if (prismaCode === 'P2003') {
+          status = HttpStatus.BAD_REQUEST;
           message = 'A database relational integrity error occurred (referenced parent record not found).';
         } else if (prismaCode === 'P2025') {
+          status = HttpStatus.NOT_FOUND;
           message = 'The requested database record was not found or has been removed.';
+          errorName = 'NotFoundError';
         } else {
           message = 'A database communication error occurred while processing your request.';
         }
@@ -109,10 +123,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
         remediation = 'Please review your input values and correct any invalid or missing fields.';
         break;
       case HttpStatus.NOT_FOUND:
-        remediation = 'The requested record could not be found. Verify the ID or return to the module page.';
+        remediation = 'The requested route or record could not be found. Verify the URL or identifier.';
         break;
       case HttpStatus.CONFLICT:
         remediation = 'A record with these details already exists. Please use a unique name, code, or email.';
+        break;
+      case HttpStatus.UNPROCESSABLE_ENTITY:
+        remediation = 'Validation failed for the submitted data. Please correct the fields.';
         break;
       case HttpStatus.INTERNAL_SERVER_ERROR:
         remediation = 'The system encountered an error. If this persists, notify your Media Operations Administrator.';
@@ -127,10 +144,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const timestampStr = new Date().toISOString();
     const techDetails = exception instanceof Error ? exception.stack || exception.message : JSON.stringify(exception);
 
-    // Record structured technical log entry for administrators
-    this.logger.error(
-      `SYSTEM LOG ENTRY [${errorName}] | Time: ${timestampStr} | Module: ${moduleName} | User: ${userIdentifier} | ReqID: ${reqId} | Summary: ${Array.isArray(message) ? message.join('; ') : message} | Details: ${techDetails}`,
-    );
+    const logMessage = `SYSTEM LOG ENTRY [${errorName}] | Status: ${status} | Path: ${request.method} ${request.originalUrl || request.url} | User: ${userIdentifier} | ReqID: ${reqId} | Summary: ${Array.isArray(message) ? message.join('; ') : message}`;
+
+    // Use warning level for normal client errors (4xx) and error level for 5xx/server errors
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      this.logger.error(`${logMessage} | Details: ${techDetails}`);
+    } else if (status === HttpStatus.NOT_FOUND) {
+      this.logger.warn(`${logMessage}`);
+    } else {
+      this.logger.warn(`${logMessage}`);
+    }
 
     const errorPayload: StandardErrorResponse = {
       statusCode: status,

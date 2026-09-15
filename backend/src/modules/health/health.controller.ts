@@ -1,15 +1,25 @@
 import { Controller, Get } from '@nestjs/common';
 import { Public } from '../../common/decorators/public.decorator';
 
-@Controller('health')
+@Controller()
 export class HealthController {
   @Public()
   @Get()
-  check() {
+  getRoot() {
     return {
       status: 'ok',
-      service: 'MOMS Backend API',
-      timestamp: new Date().toISOString(),
+      service: 'MOMS Backend',
+      message: 'MOMS Backend API is running',
+    };
+  }
+
+  @Public()
+  @Get(['health', 'api/health', 'api/v1/health'])
+  getHealth() {
+    return {
+      status: 'ok',
+      service: 'MOMS Backend',
     };
   }
 }
+

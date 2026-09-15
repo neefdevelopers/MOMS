@@ -23,9 +23,9 @@ async function bootstrap() {
     next();
   });
 
-  // All endpoints strictly prefixed with /api/v1 (health check excluded for Render health checks)
+  // All endpoints strictly prefixed with /api/v1 (health check & root excluded for Render diagnostics)
   app.setGlobalPrefix('api/v1', {
-    exclude: ['health'],
+    exclude: ['health', 'api/health', 'api/v1/health', '', '/'],
   });
 
   const frontendEnv = process.env.FRONTEND_URL;
