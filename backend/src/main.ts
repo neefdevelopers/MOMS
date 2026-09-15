@@ -15,10 +15,20 @@ async function bootstrap() {
     logger: logLevels,
   });
 
-  // Backward-compatibility: Normalize unversioned /api/... requests to /api/v1/... (unless already /api/v1 or /api/v2)
+  // Backward-compatibility & URL Normalizer:
+  // Handles unversioned /api/... or direct /auth/login, /users, etc., rewriting them to /api/v1/... (excluding health and root)
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.url.startsWith('/api/') && !req.url.startsWith('/api/v1/') && !req.url.startsWith('/api/v2/')) {
-      req.url = req.url.replace('/api/', '/api/v1/');
+    const rawPath = req.url.split('?')[0];
+    const isExcluded = rawPath === '' || rawPath === '/' || rawPath === '/health' || rawPath.startsWith('/health');
+    if (!isExcluded) {
+      if (req.url.startsWith('/api/v1/') || req.url.startsWith('/api/v2/')) {
+        // Already versioned
+      } else if (req.url.startsWith('/api/')) {
+        req.url = req.url.replace('/api/', '/api/v1/');
+      } else {
+        // Direct un-prefixed request (e.g. /auth/login -> /api/v1/auth/login)
+        req.url = `/api/v1${req.url.startsWith('/') ? '' : '/'}${req.url}`;
+      }
     }
     next();
   });

@@ -1,4 +1,19 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+export function getApiBaseUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (!envUrl) {
+    return 'http://localhost:4000/api/v1';
+  }
+  const clean = envUrl.replace(/\/+$/, '');
+  if (clean.endsWith('/api/v1')) {
+    return clean;
+  }
+  if (clean.endsWith('/api')) {
+    return `${clean}/v1`;
+  }
+  return `${clean}/api/v1`;
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 export function resolveFileUrl(rawUrl?: string): string {
   if (!rawUrl) return '';
@@ -10,9 +25,10 @@ export function resolveFileUrl(rawUrl?: string): string {
   ) {
     return rawUrl;
   }
-  const apiRoot = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1').replace(/\/api(\/v1)?\/?$/, '');
+  const apiBase = getApiBaseUrl();
+  const origin = apiBase.replace(/\/api(\/v1)?\/?$/, '');
   const cleanPath = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
-  return `${apiRoot}${cleanPath}`;
+  return `${origin}${cleanPath}`;
 }
 
 export interface FetchApiOptions extends RequestInit {
@@ -160,16 +176,22 @@ export async function fetchApi(
         throw err;
       }
 
-      // Differentiate Network / Server / Cloudflare Tunnel Failure vs Standard HTTP Error
+      // Differentiate Network / Server Failure vs Standard HTTP Error
       if (err.name === 'AbortError') {
-        const netErr: any = new Error('Request timed out while waiting for Office Operations Server response.');
+        const netErr: any = new Error(`Request timed out while waiting for backend response (${API_BASE_URL}).`);
         netErr.isNetworkError = true;
-        netErr.remediation = 'Please check server latency or Cloudflare Tunnel status, then click Retry.';
+        netErr.remediation = 'If using Render free tier, the backend may be waking up from cold start (~50s). Please wait a moment and retry.';
         throw netErr;
       } else if (err.name === 'TypeError' || err.message?.includes('Failed to fetch')) {
-        const netErr: any = new Error('Network connection error: Office Operations Server or Cloudflare Tunnel is unavailable.');
+        const isLocalhostInProd = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && API_BASE_URL.includes('localhost');
+        const message = isLocalhostInProd
+          ? `Backend URL is pointing to localhost (${API_BASE_URL}). NEXT_PUBLIC_API_URL must be configured in Vercel.`
+          : `Cannot reach backend server at ${API_BASE_URL}.`;
+        const netErr: any = new Error(message);
         netErr.isNetworkError = true;
-        netErr.remediation = 'Check your internet connection, verify Cloudflare Tunnel status, and click Retry.';
+        netErr.remediation = isLocalhostInProd
+          ? 'Go to Vercel Project Settings → Environment Variables → Add NEXT_PUBLIC_API_URL (e.g. https://your-backend.onrender.com/api/v1) and trigger a Redeploy.'
+          : 'Check if your Render backend is active, or wait ~50s if the free tier container is waking up from inactivity.';
         throw netErr;
       }
 
