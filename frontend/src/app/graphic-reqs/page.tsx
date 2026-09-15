@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, API_BASE_URL, resolveFileUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -516,7 +516,7 @@ export default function GraphicReqsPage() {
       formData.append('attachmentCategory', categoryKey);
 
       const token = localStorage.getItem('moms_token');
-      const res = await fetch('http://localhost:4000/api/v1/files/upload', {
+      const res = await fetch(`${API_BASE_URL}/files/upload`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -2348,7 +2348,7 @@ export default function GraphicReqsPage() {
                           {catFiles.length > 0 && (
                             <div className="space-y-1 pt-1 border-t border-slate-200">
                               {catFiles.map((file: any) => {
-                                const fileHref = file.fileUrl || (file.storagePath?.startsWith('http') ? file.storagePath : `http://localhost:4000${file.storagePath}`);
+                                const fileHref = file.fileUrl || resolveFileUrl(file.storagePath);
                                 return (
                                   <div key={file.id} className="flex items-center justify-between gap-1.5 text-[10px] bg-white/80 p-1.5 rounded border border-slate-200">
                                     <span className="text-slate-700 font-medium truncate max-w-[170px]" title={file.fileName || 'Asset File'}>

@@ -174,7 +174,8 @@ export class FilesService {
 
     const folderCategory = data.folderCategory || 'Final Deliverables';
     const attachmentCategory = data.attachmentCategory || 'SCRIPT_DOCUMENT';
-    const uploadDir = path.join(process.cwd(), 'uploads', 'projects', project.projectId, folderCategory);
+    const baseUploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
+    const uploadDir = path.join(baseUploadDir, 'projects', project.projectId, folderCategory);
 
     // Create physical directory recursively on server disk
     if (!fs.existsSync(uploadDir)) {
@@ -214,7 +215,8 @@ export class FilesService {
     const oldFileNames: string[] = [];
     for (const oldFile of oldFiles) {
       oldFileNames.push(oldFile.fileName);
-      const oldPhysicalPath = path.join(process.cwd(), oldFile.storagePath.replace(/^\//, ''));
+      const cleanSubPath = oldFile.storagePath.replace(/^\/?uploads\/?/, '');
+      const oldPhysicalPath = path.join(baseUploadDir, cleanSubPath);
       if (fs.existsSync(oldPhysicalPath)) {
         try {
           fs.unlinkSync(oldPhysicalPath);

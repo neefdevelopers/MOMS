@@ -1,4 +1,19 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+
+export function resolveFileUrl(rawUrl?: string): string {
+  if (!rawUrl) return '';
+  if (
+    rawUrl.startsWith('http://') ||
+    rawUrl.startsWith('https://') ||
+    rawUrl.startsWith('data:') ||
+    rawUrl.startsWith('blob:')
+  ) {
+    return rawUrl;
+  }
+  const apiRoot = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1').replace(/\/api(\/v1)?\/?$/, '');
+  const cleanPath = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
+  return `${apiRoot}${cleanPath}`;
+}
 
 export interface FetchApiOptions extends RequestInit {
   skipCache?: boolean;

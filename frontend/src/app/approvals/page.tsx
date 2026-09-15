@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, resolveFileUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import {
   ShieldCheck,
@@ -194,11 +194,7 @@ export default function ApprovalsPage() {
       const rawUrl = d.fileUrl || d.url || d.storagePath;
       if (rawUrl && !seenUrls.has(rawUrl)) {
         seenUrls.add(rawUrl);
-        const resolvedUrl = rawUrl.startsWith('http')
-          ? rawUrl
-          : rawUrl.startsWith('/')
-          ? `http://localhost:4000${rawUrl}`
-          : `https://${rawUrl}`;
+        const resolvedUrl = resolveFileUrl(rawUrl);
 
         deliverableItems.push({
           id: d.id,
@@ -219,7 +215,7 @@ export default function ApprovalsPage() {
         deliverableItems.push({
           id: `${t.id}-active`,
           fileName: t.activeDeliverableFileName || `${t.title} Active Output`,
-          fileUrl: t.activeDeliverableUrl,
+          fileUrl: resolveFileUrl(t.activeDeliverableUrl),
           version: t.activeDeliverableVersion || 1,
           taskTitle: t.title,
           uploadedBy: t.assignedEmployees?.map((a: any) => a.user?.name).filter(Boolean).join(', ') || 'Staff Member',
@@ -234,7 +230,7 @@ export default function ApprovalsPage() {
             deliverableItems.push({
               id: h.id,
               fileName: h.fileName || `Deliverable v${h.version}`,
-              fileUrl: h.fileUrl,
+              fileUrl: resolveFileUrl(h.fileUrl),
               version: h.version,
               taskTitle: t.title,
               uploadedBy: h.user?.name || 'Staff Member',
@@ -250,9 +246,7 @@ export default function ApprovalsPage() {
       const rawUrl = f.fileUrl || f.url || f.storagePath;
       if (rawUrl && !seenUrls.has(rawUrl)) {
         seenUrls.add(rawUrl);
-        const resolvedUrl = rawUrl.startsWith('http')
-          ? rawUrl
-          : `http://localhost:4000${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+        const resolvedUrl = resolveFileUrl(rawUrl);
 
         deliverableItems.push({
           id: f.id,

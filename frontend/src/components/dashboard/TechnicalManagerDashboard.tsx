@@ -34,7 +34,7 @@ import {
   Download,
   Share2,
 } from 'lucide-react';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, resolveFileUrl } from '@/lib/api';
 import MyFavoritesWidget from './MyFavoritesWidget';
 import { RecentlyAccessedWidget } from './RecentlyAccessedWidget';
 
@@ -1325,7 +1325,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                       items.push({
                         id: d.id,
                         fileName: d.fileName || d.name || `${d.type || 'Deliverable'} Output`,
-                        fileUrl: rawUrl.startsWith('http') ? rawUrl : (rawUrl.startsWith('/') ? `http://localhost:4000${rawUrl}` : `https://${rawUrl}`),
+                        fileUrl: resolveFileUrl(rawUrl),
                         type: d.type || 'Deliverable',
                         uploadedBy: d.createdBy?.name || d.assignedStaff?.name || 'Staff Designer',
                         status: d.status || 'SUBMITTED',
@@ -1342,7 +1342,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                       items.push({
                         id: f.id,
                         fileName: f.fileName || f.name || 'Design File Asset',
-                        fileUrl: rawUrl.startsWith('http') ? rawUrl : `http://localhost:4000${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`,
+                        fileUrl: resolveFileUrl(rawUrl),
                         type: f.attachmentCategory?.replace(/_/g, ' ') || 'Attached File',
                         uploadedBy: f.uploadedBy?.name || 'Team Member',
                         status: 'ATTACHED',

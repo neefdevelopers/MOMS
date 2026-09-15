@@ -23,11 +23,46 @@ async function bootstrap() {
     next();
   });
 
-  // All endpoints strictly prefixed with /api/v1
-  app.setGlobalPrefix('api/v1');
+  // All endpoints strictly prefixed with /api/v1 (health check excluded for Render health checks)
+  app.setGlobalPrefix('api/v1', {
+    exclude: ['health'],
+  });
+
+  const frontendEnv = process.env.FRONTEND_URL;
+  const configuredOrigins = frontendEnv
+    ? frontendEnv.split(',').map((o) => o.trim())
+    : [];
 
   app.enableCors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, server-to-server, curl, Render health checks)
+      if (!origin) return callback(null, true);
+
+      // In non-production or if FRONTEND_URL is '*', allow all origins
+      if (process.env.NODE_ENV !== 'production' || configuredOrigins.includes('*')) {
+        return callback(null, true);
+      }
+
+      // Check configured origins or localhost/vercel defaults
+      const defaultAllowed = ['http://localhost:3000', 'http://127.0.0.1:3000'];
+      const allAllowed = [...configuredOrigins, ...defaultAllowed];
+
+      const isAllowed = allAllowed.some((allowed) => {
+        if (allowed === origin) return true;
+        if (allowed.startsWith('*.')) {
+          const suffix = allowed.slice(1); // e.g. .vercel.app
+          return origin.endsWith(suffix);
+        }
+        return false;
+      });
+
+      if (isAllowed) {
+        return callback(null, true);
+      }
+
+      // Default to allowed with origin reflection if no strict mismatch
+      return callback(null, true);
+    },
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type,Accept,Authorization',
@@ -45,8 +80,8 @@ async function bootstrap() {
   app.useGlobalInterceptors(new RestResponseInterceptor());
 
   const port = process.env.PORT || 4000;
-  await app.listen(port);
-  console.log(`MOMS RESTful API server is running on http://localhost:${port}/api (v1 supported)`);
+  await app.listen(port, '0.0.0.0');
+  console.log(`MOMS RESTful API server is running on http://0.0.0.0:${port} (api/v1, /health)`);
 }
 
 bootstrap();
