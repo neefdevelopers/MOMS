@@ -3,13 +3,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import { Tv, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Tv, Lock, Mail, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState('media.manager@example.com');
-  const [password, setPassword] = useState('Password123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -25,11 +25,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const quickFill = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('Password123!');
   };
 
   return (
@@ -57,9 +52,10 @@ export default function LoginPage() {
               <input
                 type="email"
                 required
+                placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 pl-9 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white focus:bg-white transition-colors"
+                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 pl-9 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
               />
             </div>
           </div>
@@ -71,9 +67,10 @@ export default function LoginPage() {
               <input
                 type="password"
                 required
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 pl-9 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white focus:bg-white transition-colors"
+                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 pl-9 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
               />
             </div>
           </div>
@@ -87,61 +84,6 @@ export default function LoginPage() {
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
-
-        {/* Quick Fill Demo Credentials */}
-        <div className="pt-4 border-t border-slate-100 space-y-3">
-          <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold">
-            <ShieldCheck className="w-4 h-4 text-blue-600" />
-            <span>Select Demo Role Account (Password: Password123!)</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => quickFill('media.manager@example.com')}
-              className="p-2.5 rounded-xl bg-purple-50 hover:bg-purple-100/80 border border-purple-200 text-purple-900 text-left transition-colors"
-            >
-              <div className="font-bold">Media Manager</div>
-              <div className="text-[10px] text-purple-600">media.manager@...</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => quickFill('technical.manager@example.com')}
-              className="p-2.5 rounded-xl bg-cyan-50 hover:bg-cyan-100/80 border border-cyan-200 text-cyan-900 text-left transition-colors"
-            >
-              <div className="font-bold">Tech Manager</div>
-              <div className="text-[10px] text-cyan-600">technical.manager@...</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => quickFill('smm@example.com')}
-              className="p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100/80 border border-blue-200 text-blue-900 text-left transition-colors"
-            >
-              <div className="font-bold">Social Media Mgr</div>
-              <div className="text-[10px] text-blue-600">smm@example.com</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => quickFill('marketing.manager@example.com')}
-              className="p-2.5 rounded-xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200 text-amber-900 text-left transition-colors"
-            >
-              <div className="font-bold">Marketing Mgr (Client)</div>
-              <div className="text-[10px] text-amber-600">marketing.manager@...</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => quickFill('staff1@example.com')}
-              className="p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-900 text-left transition-colors col-span-2"
-            >
-              <div className="font-bold">Staff: Ahmed Khan (Video Editor)</div>
-              <div className="text-[10px] text-emerald-600">staff1@example.com</div>
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
