@@ -46,9 +46,16 @@ import {
   Sparkles,
   CheckSquare,
   Tag,
+  Plus,
+  Trash2,
 } from 'lucide-react';
-
 import { useRouter } from 'next/navigation';
+import {
+  ProjectScript,
+  parseProjectScripts,
+  serializeProjectScripts,
+  formatScriptsAsSummaryText,
+} from '@/lib/project-scripts';
 
 export default function ClientReviewPage() {
   const { user } = useAuth();
@@ -56,6 +63,7 @@ export default function ClientReviewPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [editRequests, setEditRequests] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [activeReviewScriptIdx, setActiveReviewScriptIdx] = useState(0);
   const [selectedEditRequest, setSelectedEditRequest] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -926,53 +934,111 @@ export default function ClientReviewPage() {
                   </div>
                 </div>
               ) : (
-                /* Script Display Card */
-                <div className="p-4 bg-gradient-to-br from-amber-50/60 to-slate-50 border border-amber-200/90 rounded-2xl space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900 text-sm">
-                        {selectedEvent.title}
-                      </span>
-                      <span className="px-2 py-0.5 rounded font-bold text-amber-800 bg-amber-100 text-[10px]">
-                        {selectedEvent.contentType || 'Post'}
-                      </span>
-                      <span className="px-2 py-0.5 rounded font-bold text-indigo-800 bg-indigo-100 text-[10px]">
-                        {selectedEvent.platform || 'Instagram'}
-                      </span>
-                    </div>
+                /* Script Display Card (Multi-script aware) */
+                (() => {
+                  const reviewScripts: ProjectScript[] = parseProjectScripts(
+                    selectedEvent.caption || selectedEvent.shootProjects?.[0]?.notes,
+                    selectedEvent.title
+                  );
+                  const activeScript = reviewScripts[activeReviewScriptIdx] || reviewScripts[0];
 
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {(selectedEvent.caption || selectedEvent.shootProjects?.[0]?.notes || '').length} chars • {(selectedEvent.caption || selectedEvent.shootProjects?.[0]?.notes || '').trim() ? (selectedEvent.caption || selectedEvent.shootProjects?.[0]?.notes || '').trim().split(/\s+/).length : 0} words
-                    </span>
-                  </div>
+                  return (
+                    <div className="p-4 bg-gradient-to-br from-amber-50/60 to-slate-50 border border-amber-200/90 rounded-2xl space-y-3 shadow-xs">
+                      {/* Script Tabs if multiple scripts */}
+                      {reviewScripts.length > 1 && (
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin border-b border-amber-200/60 pb-2">
+                          {reviewScripts.map((s, idx) => (
+                            <button
+                              key={s.id || idx}
+                              type="button"
+                              onClick={() => setActiveReviewScriptIdx(idx)}
+                              className={`px-3 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition-all flex items-center gap-1.5 border ${
+                                activeReviewScriptIdx === idx
+                                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                                  : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-50'
+                              }`}
+                            >
+                              <span className="font-mono text-[10px] opacity-75">#{idx + 1}</span>
+                              <span>{s.title}</span>
+                              {s.duration && (
+                                <span className="text-[9px] px-1 py-0.2 rounded font-mono bg-black/10">
+                                  {s.duration}
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
-                  {selectedEvent.caption || selectedEvent.shootProjects?.[0]?.notes ? (
-                    <div className="p-3.5 bg-white/90 border border-amber-200/70 rounded-xl">
-                      <p className="text-slate-900 text-xs font-sans leading-relaxed whitespace-pre-wrap">
-                        {selectedEvent.caption || selectedEvent.shootProjects?.[0]?.notes}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="p-6 bg-white/60 border border-dashed border-amber-300 rounded-xl text-center space-y-1.5">
-                      <FileText className="w-6 h-6 text-amber-500/70 mx-auto" />
-                      <p className="text-slate-700 text-xs font-bold">No script text entered yet</p>
-                      <p className="text-slate-500 text-[11px]">
-                        Click the <strong>"✏️ Edit Script &amp; Copy"</strong> button above to write or paste the shooting script.
-                      </p>
-                    </div>
-                  )}
+                      <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 text-sm">
+                            {activeScript?.title || selectedEvent.title}
+                          </span>
+                          {(activeScript?.contentType || selectedEvent.contentType) && (
+                            <span className="px-2 py-0.5 rounded font-bold text-amber-800 bg-amber-100 text-[10px]">
+                              {activeScript?.contentType || selectedEvent.contentType}
+                            </span>
+                          )}
+                          {(activeScript?.targetPlatform || selectedEvent.platform) && (
+                            <span className="px-2 py-0.5 rounded font-bold text-indigo-800 bg-indigo-100 text-[10px]">
+                              {activeScript?.targetPlatform || selectedEvent.platform}
+                            </span>
+                          )}
+                          {activeScript?.duration && (
+                            <span className="px-2 py-0.5 rounded font-mono font-bold text-slate-700 bg-slate-100 text-[10px]">
+                              ⏱️ {activeScript.duration}
+                            </span>
+                          )}
+                        </div>
 
-                  {selectedEvent.productionNotes && (
-                    <div className="p-3 bg-amber-50/70 border border-amber-200/70 rounded-xl space-y-1 text-xs">
-                      <span className="text-[10px] font-bold text-amber-800 uppercase flex items-center gap-1">
-                        <MessageSquare className="w-3 h-3 text-amber-600" /> Director &amp; Production Instructions
-                      </span>
-                      <p className="text-slate-800 text-[11px] whitespace-pre-wrap italic">
-                        "{selectedEvent.productionNotes}"
-                      </p>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          {(activeScript?.scriptText || selectedEvent.caption || '').length} chars • {(activeScript?.scriptText || selectedEvent.caption || '').trim() ? (activeScript?.scriptText || selectedEvent.caption || '').trim().split(/\s+/).length : 0} words
+                        </span>
+                      </div>
+
+                      {/* Hook callout */}
+                      {activeScript?.hook && (
+                        <div className="p-2.5 bg-amber-50/80 rounded-lg border border-amber-200/80 text-[11px] space-y-0.5">
+                          <span className="font-bold text-amber-900 block flex items-center gap-1">
+                            🎣 Opening Hook (First 3 Seconds):
+                          </span>
+                          <p className="text-amber-950 font-medium italic">
+                            "{activeScript.hook}"
+                          </p>
+                        </div>
+                      )}
+
+                      {activeScript?.scriptText || selectedEvent.caption || selectedEvent.shootProjects?.[0]?.notes ? (
+                        <div className="p-3.5 bg-white/90 border border-amber-200/70 rounded-xl">
+                          <p className="text-slate-900 text-xs font-mono leading-relaxed whitespace-pre-wrap">
+                            {activeScript?.scriptText || selectedEvent.caption || selectedEvent.shootProjects?.[0]?.notes}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="p-6 bg-white/60 border border-dashed border-amber-300 rounded-xl text-center space-y-1.5">
+                          <FileText className="w-6 h-6 text-amber-500/70 mx-auto" />
+                          <p className="text-slate-700 text-xs font-bold">No script text entered yet</p>
+                          <p className="text-slate-500 text-[11px]">
+                            Click the <strong>"✏️ Edit Script &amp; Copy"</strong> button above to write or paste the shooting script.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Script or Production notes */}
+                      {(activeScript?.notes || selectedEvent.productionNotes) && (
+                        <div className="p-3 bg-amber-50/70 border border-amber-200/70 rounded-xl space-y-1 text-xs">
+                          <span className="text-[10px] font-bold text-amber-800 uppercase flex items-center gap-1">
+                            <MessageSquare className="w-3 h-3 text-amber-600" /> Director &amp; Production Instructions
+                          </span>
+                          <p className="text-slate-800 text-[11px] whitespace-pre-wrap italic">
+                            "{activeScript?.notes || selectedEvent.productionNotes}"
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  );
+                })()
               )}
             </div>
 

@@ -55,7 +55,15 @@ import {
   Tag,
   Layers,
   Edit,
+  Trash2,
+  PlusCircle,
 } from 'lucide-react';
+import {
+  ProjectScript,
+  parseProjectScripts,
+  serializeProjectScripts,
+  formatScriptsAsSummaryText,
+} from '@/lib/project-scripts';
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
@@ -74,12 +82,22 @@ export default function ProjectDetailPage() {
   const [commentText, setCommentText] = useState('');
   const [newFileName, setNewFileName] = useState('');
 
-  // Script Text Editing State (for Marketing Manager / PM)
+  // Multi-Script Management State
+  const [activeScriptIndex, setActiveScriptIndex] = useState(0);
   const [showEditScriptModal, setShowEditScriptModal] = useState(false);
-  const [scriptEditNotes, setScriptEditNotes] = useState('');
-  const [scriptEditName, setScriptEditName] = useState('');
+  const [editingScript, setEditingScript] = useState<ProjectScript>({
+    id: '',
+    title: '',
+    scriptText: '',
+    hook: '',
+    duration: '',
+    targetPlatform: '',
+    contentType: '',
+    notes: '',
+  });
   const [isSavingScript, setIsSavingScript] = useState(false);
-  const [copiedScript, setCopiedScript] = useState(false);
+  const [copiedScriptId, setCopiedScriptId] = useState<string | null>(null);
+  const [copiedAllScripts, setCopiedAllScripts] = useState(false);
 
   // Script Document Upload State
   const [uploadingScriptDoc, setUploadingScriptDoc] = useState(false);
@@ -117,35 +135,107 @@ export default function ProjectDetailPage() {
   const [closureReasonPreset, setClosureReasonPreset] = useState('Client cancelled remaining deliverables');
   const [customClosureReason, setCustomClosureReason] = useState('');
 
-  const openEditScriptModal = () => {
-    setScriptEditNotes(project?.notes || project?.calendarEvent?.caption || '');
-    setScriptEditName(project?.name || '');
+  // Parsed scripts from project notes
+  const parsedScripts: ProjectScript[] = parseProjectScripts(
+    project?.notes || project?.calendarEvent?.caption,
+    project?.name || 'Master Shooting Script #1'
+  );
+
+  const openCreateScriptModal = () => {
+    const nextNum = parsedScripts.length + 1;
+    setEditingScript({
+      id: `script-${Date.now()}`,
+      title: `Script #${nextNum}`,
+      scriptText: '',
+      hook: '',
+      sceneNumber: nextNum,
+      duration: '30s',
+      targetPlatform: project?.calendarEvent?.platform || 'Instagram Reel',
+      contentType: project?.calendarEvent?.contentType || 'Reel',
+      notes: '',
+    });
     setShowEditScriptModal(true);
   };
 
-  const handleSaveScriptText = async () => {
+  const openEditSpecificScriptModal = (script: ProjectScript) => {
+    setEditingScript({ ...script });
+    setShowEditScriptModal(true);
+  };
+
+  const handleSaveScriptItem = async () => {
     if (!project) return;
+    if (!editingScript.title.trim()) {
+      alert('Please provide a script title.');
+      return;
+    }
     try {
       setIsSavingScript(true);
+      const currentList = [...parsedScripts];
+      const existingIdx = currentList.findIndex((s) => s.id === editingScript.id);
+
+      let updatedList: ProjectScript[];
+      if (existingIdx >= 0) {
+        updatedList = currentList.map((s, idx) =>
+          idx === existingIdx ? { ...editingScript, updatedAt: new Date().toISOString() } : s
+        );
+      } else {
+        updatedList = [...currentList, { ...editingScript, createdAt: new Date().toISOString() }];
+      }
+
+      const serialized = serializeProjectScripts(updatedList);
+
       await fetchApi(`/projects/${project.id}`, {
         method: 'PUT',
         body: JSON.stringify({
-          notes: scriptEditNotes.trim(),
-          name: scriptEditName.trim() || project.name,
+          notes: serialized,
           bypassReviewLock: true,
         }),
       });
 
-      // Update local state
       setProject((prev: any) => ({
         ...prev,
-        notes: scriptEditNotes.trim(),
-        name: scriptEditName.trim() || prev.name,
+        notes: serialized,
       }));
 
       setShowEditScriptModal(false);
+      if (existingIdx < 0) {
+        setActiveScriptIndex(updatedList.length - 1);
+      }
     } catch (err: any) {
-      alert(err.message || 'Failed to update project script.');
+      alert(err.message || 'Failed to save script');
+    } finally {
+      setIsSavingScript(false);
+    }
+  };
+
+  const handleDeleteScriptItem = async (scriptId: string) => {
+    if (!project) return;
+    if (!confirm('Are you sure you want to delete this script? This action cannot be undone.')) {
+      return;
+    }
+    try {
+      setIsSavingScript(true);
+      const updatedList = parsedScripts.filter((s) => s.id !== scriptId);
+      const serialized = serializeProjectScripts(updatedList);
+
+      await fetchApi(`/projects/${project.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          notes: serialized,
+          bypassReviewLock: true,
+        }),
+      });
+
+      setProject((prev: any) => ({
+        ...prev,
+        notes: serialized,
+      }));
+
+      if (activeScriptIndex >= updatedList.length) {
+        setActiveScriptIndex(Math.max(0, updatedList.length - 1));
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete script');
     } finally {
       setIsSavingScript(false);
     }
@@ -1365,7 +1455,7 @@ export default function ProjectDetailPage() {
         {/* Tab 2: Scripts (Screenplay, Storyline Copy & Document Library) */}
         {activeTab === 'Scripts' && (
           <div className="space-y-6 text-xs">
-            {/* Main Script & Screenplay Storyline Card */}
+            {/* Main Multi-Script Management Card */}
             <div className="p-5 bg-gradient-to-br from-amber-50/70 via-purple-50/40 to-slate-50 border border-amber-200/90 rounded-2xl space-y-4 shadow-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/80 pb-3">
                 <div className="flex items-center gap-2.5">
@@ -1374,76 +1464,211 @@ export default function ProjectDetailPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                      Shooting Script &amp; Screenplay Storyline
+                      Shooting Scripts &amp; Screenplay Library
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-200/80 text-amber-900 font-extrabold">
+                        {parsedScripts.length} {parsedScripts.length === 1 ? 'Script' : 'Scripts'}
+                      </span>
                     </h3>
                     <p className="text-slate-500 text-[11px]">
-                      Master shooting script, dialogue lines, hook, and creative copy for this Shoot Project.
+                      Manage multiple scripts, scenes, hooks, and creative copies for this Shoot Project.
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const textToCopy = project.notes || project.calendarEvent?.caption || '';
-                      if (textToCopy) {
-                        navigator.clipboard.writeText(textToCopy);
-                        setCopiedScript(true);
-                        setTimeout(() => setCopiedScript(false), 2000);
-                      }
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold text-[11px] transition-colors flex items-center gap-1 shadow-xs"
-                  >
-                    {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedScript ? 'Copied' : 'Copy Script'}
-                  </button>
+                  {parsedScripts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allText = formatScriptsAsSummaryText(parsedScripts);
+                        navigator.clipboard.writeText(allText);
+                        setCopiedAllScripts(true);
+                        setTimeout(() => setCopiedAllScripts(false), 2000);
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold text-[11px] transition-colors flex items-center gap-1 shadow-xs"
+                      title="Copy all scripts to clipboard"
+                    >
+                      {copiedAllScripts ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedAllScripts ? 'Copied All' : 'Copy All Scripts'}
+                    </button>
+                  )}
 
                   <button
                     type="button"
-                    onClick={openEditScriptModal}
+                    onClick={openCreateScriptModal}
                     className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg font-extrabold text-[11px] transition-all flex items-center gap-1.5 shadow-sm"
                   >
-                    <Edit className="w-3.5 h-3.5" />
-                    ✏️ Edit Script &amp; Copy
+                    <Plus className="w-3.5 h-3.5" />
+                    + Add New Script
                   </button>
                 </div>
               </div>
 
-              {project.notes || project.calendarEvent?.caption ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-[11px] text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900">{project.name}</span>
-                      {project.calendarEvent?.contentType && (
-                        <span className="px-2 py-0.5 rounded font-bold text-amber-800 bg-amber-100 text-[10px]">
-                          {project.calendarEvent.contentType}
-                        </span>
-                      )}
-                      {project.calendarEvent?.platform && (
-                        <span className="px-2 py-0.5 rounded font-bold text-indigo-800 bg-indigo-100 text-[10px]">
-                          {project.calendarEvent.platform}
-                        </span>
-                      )}
-                    </div>
-                    <span className="font-mono">
-                      {(project.notes || project.calendarEvent?.caption || '').length} characters • {(project.notes || project.calendarEvent?.caption || '').trim().split(/\s+/).length} words
-                    </span>
+              {/* Script Tabs / Selector Pills */}
+              {parsedScripts.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin">
+                    {parsedScripts.map((s, idx) => {
+                      const isActive = activeScriptIndex === idx;
+                      return (
+                        <button
+                          key={s.id || idx}
+                          type="button"
+                          onClick={() => setActiveScriptIndex(idx)}
+                          className={`px-3 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition-all flex items-center gap-1.5 border ${
+                            isActive
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                              : 'bg-white/80 hover:bg-white text-slate-700 border-amber-200/80'
+                          }`}
+                        >
+                          <span className="font-mono text-[10px] opacity-75">#{idx + 1}</span>
+                          <span>{s.title || `Script #${idx + 1}`}</span>
+                          {s.targetPlatform && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded font-mono bg-black/10">
+                              {s.targetPlatform}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={openCreateScriptModal}
+                      className="px-2.5 py-1.5 rounded-xl text-amber-800 hover:text-amber-950 bg-amber-100/70 hover:bg-amber-100 font-bold text-xs whitespace-nowrap transition-colors flex items-center gap-1 border border-dashed border-amber-300"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add Script
+                    </button>
                   </div>
 
-                  <div className="p-4 bg-white/90 border border-amber-200 rounded-xl">
-                    <p className="text-slate-900 text-xs font-sans leading-relaxed whitespace-pre-wrap">
-                      {project.notes || project.calendarEvent?.caption}
-                    </p>
-                  </div>
+                  {/* Active Script Inspector Card */}
+                  {(() => {
+                    const currentScript = parsedScripts[activeScriptIndex] || parsedScripts[0];
+                    if (!currentScript) return null;
+
+                    const isCopiedThis = copiedScriptId === currentScript.id;
+
+                    return (
+                      <div className="p-4 bg-white/95 border border-amber-200/90 rounded-xl space-y-3.5 shadow-xs animate-in fade-in duration-150">
+                        {/* Script Header & Controls */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-slate-900 text-sm">
+                                {currentScript.title}
+                              </span>
+                              {currentScript.contentType && (
+                                <span className="px-2 py-0.5 rounded font-bold text-amber-800 bg-amber-100 text-[10px]">
+                                  {currentScript.contentType}
+                                </span>
+                              )}
+                              {currentScript.targetPlatform && (
+                                <span className="px-2 py-0.5 rounded font-bold text-indigo-800 bg-indigo-100 text-[10px]">
+                                  {currentScript.targetPlatform}
+                                </span>
+                              )}
+                              {currentScript.duration && (
+                                <span className="px-2 py-0.5 rounded font-mono font-bold text-slate-700 bg-slate-100 text-[10px]">
+                                  ⏱️ {currentScript.duration}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              {(currentScript.scriptText || '').length} characters • {(currentScript.scriptText || '').trim() ? (currentScript.scriptText || '').trim().split(/\s+/).length : 0} words
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(currentScript.scriptText || '');
+                                setCopiedScriptId(currentScript.id);
+                                setTimeout(() => setCopiedScriptId(null), 2000);
+                              }}
+                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-[11px] transition-colors flex items-center gap-1"
+                              title="Copy this script"
+                            >
+                              {isCopiedThis ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                              {isCopiedThis ? 'Copied' : 'Copy'}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => openEditSpecificScriptModal(currentScript)}
+                              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg font-bold text-[11px] transition-colors flex items-center gap-1"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                              Edit
+                            </button>
+
+                            {parsedScripts.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteScriptItem(currentScript.id)}
+                                className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg font-bold text-[11px] transition-colors flex items-center gap-1"
+                                title="Delete this script"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Hook Section (if present) */}
+                        {currentScript.hook && (
+                          <div className="p-2.5 bg-amber-50/80 rounded-lg border border-amber-200/80 text-[11px] space-y-0.5">
+                            <span className="font-bold text-amber-900 block flex items-center gap-1">
+                              🎣 Opening Hook / Attention Grabber:
+                            </span>
+                            <p className="text-amber-950 font-medium italic">
+                              "{currentScript.hook}"
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Screenplay / Dialogue Body */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-mono text-slate-400 uppercase font-bold">
+                            Script &amp; Dialogue Copy
+                          </label>
+                          <div className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 text-slate-900 text-xs font-mono leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
+                            {currentScript.scriptText || (
+                              <span className="text-slate-400 italic">No script dialogue or scene copy entered for this script yet.</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Directing Notes (if present) */}
+                        {currentScript.notes && (
+                          <div className="p-2.5 bg-purple-50/60 rounded-lg border border-purple-200/60 text-[11px] space-y-0.5">
+                            <span className="font-bold text-purple-900 block flex items-center gap-1">
+                              📝 Scene &amp; Directing Notes:
+                            </span>
+                            <p className="text-purple-950 leading-relaxed whitespace-pre-wrap">
+                              {currentScript.notes}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : (
-                <div className="p-6 bg-white/70 border border-dashed border-amber-300 rounded-xl text-center space-y-2">
-                  <FileText className="w-7 h-7 text-amber-500 mx-auto" />
-                  <h4 className="font-bold text-slate-800 text-xs">No Script Text Written Yet</h4>
-                  <p className="text-slate-500 text-[11px] max-w-sm mx-auto">
-                    Click <strong>"✏️ Edit Script &amp; Copy"</strong> to write or paste the script dialogue, scene outline, or storyboard notes for this shoot.
+                <div className="p-8 bg-white/70 border border-dashed border-amber-300 rounded-2xl text-center space-y-3">
+                  <FileText className="w-8 h-8 text-amber-500 mx-auto" />
+                  <h4 className="font-bold text-slate-800 text-sm">No Scripts Created for This Shoot Project</h4>
+                  <p className="text-slate-500 text-xs max-w-sm mx-auto">
+                    You can add one or multiple shooting scripts, hook reels, commercial cuts, and narration dialogue for this shoot.
                   </p>
+                  <button
+                    type="button"
+                    onClick={openCreateScriptModal}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-sm inline-flex items-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" /> Add First Script
+                  </button>
                 </div>
               )}
             </div>
@@ -2995,27 +3220,80 @@ export default function ProjectDetailPage() {
                   Verify script copy, campaign alignment, brand integrity, and messaging compliance. You can inspect and edit the shooting script below before granting approval.
                 </p>
 
-                {/* Script & Copy Inspection Section */}
-                <div className="p-3 bg-white/95 rounded-xl border border-amber-200 space-y-2 shadow-xs">
+                {/* Multi-Script & Copy Inspection Section */}
+                <div className="p-3.5 bg-white/95 rounded-xl border border-amber-200 space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5 text-amber-600" /> Script / Screenplay Copy:
-                    </span>
-                    <button
-                      type="button"
-                      onClick={openEditScriptModal}
-                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-md font-bold text-[10px] transition-all flex items-center gap-1 shadow-xs"
-                    >
-                      <Edit className="w-3 h-3" /> Edit Script
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-amber-600" /> Shoot Scripts ({parsedScripts.length}):
+                      </span>
+                      {parsedScripts.length > 0 && (
+                        <span className="text-[10px] font-mono text-slate-500">
+                          Reviewing Script #{activeScriptIndex + 1}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={openCreateScriptModal}
+                        className="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-md font-bold text-[10px] transition-all flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" /> + Add Script
+                      </button>
+                      {parsedScripts.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => openEditSpecificScriptModal(parsedScripts[activeScriptIndex] || parsedScripts[0])}
+                          className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-md font-bold text-[10px] transition-all flex items-center gap-1 shadow-xs"
+                        >
+                          <Edit className="w-3 h-3" /> Edit Script #{activeScriptIndex + 1}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  {project.notes || project.calendarEvent?.caption ? (
-                    <div className="p-2.5 bg-slate-50 rounded-lg text-slate-800 text-[11px] font-mono whitespace-pre-wrap max-h-36 overflow-y-auto border border-slate-200/70">
-                      {project.notes || project.calendarEvent?.caption}
+
+                  {/* Multi-script pill selector if multiple scripts */}
+                  {parsedScripts.length > 1 && (
+                    <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-thin">
+                      {parsedScripts.map((s, idx) => (
+                        <button
+                          key={s.id || idx}
+                          type="button"
+                          onClick={() => setActiveScriptIndex(idx)}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                            activeScriptIndex === idx
+                              ? 'bg-amber-500 text-slate-950 border-amber-500'
+                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          #{idx + 1} {s.title}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {parsedScripts.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {(() => {
+                        const curScript = parsedScripts[activeScriptIndex] || parsedScripts[0];
+                        return (
+                          <>
+                            {curScript.hook && (
+                              <div className="p-2 bg-amber-50/70 rounded-md border border-amber-200/60 text-[10px] text-amber-950 italic">
+                                <strong>Hook:</strong> "{curScript.hook}"
+                              </div>
+                            )}
+                            <div className="p-2.5 bg-slate-50 rounded-lg text-slate-800 text-[11px] font-mono whitespace-pre-wrap max-h-40 overflow-y-auto border border-slate-200/70">
+                              {curScript.scriptText || <span className="text-slate-400 italic">Empty script copy</span>}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   ) : (
                     <p className="text-[11px] text-slate-400 italic py-1">
-                      No script text has been entered yet. Click "Edit Script" to add one.
+                      No scripts have been added yet. Click "+ Add Script" to add one.
                     </p>
                   )}
                 </div>
@@ -3357,10 +3635,12 @@ export default function ProjectDetailPage() {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                    Edit Shooting Script &amp; Screenplay Storyline
+                    {editingScript.id && parsedScripts.some((s) => s.id === editingScript.id)
+                      ? `Edit Script: ${editingScript.title}`
+                      : 'Add New Shooting Script'}
                   </h3>
                   <p className="text-slate-500 text-xs">
-                    Update master script, hook, dialogue, and creative copy for this shoot project.
+                    Create or update script dialogue, hooks, duration, and creative copy for this shoot project.
                   </p>
                 </div>
               </div>
@@ -3375,42 +3655,124 @@ export default function ProjectDetailPage() {
 
             {/* Body */}
             <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              {/* Row 1: Title & Duration */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Script Title / Scene Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editingScript.title}
+                    onChange={(e) => setEditingScript((prev) => ({ ...prev, title: e.target.value }))}
+                    placeholder="e.g., Script #1: Main 15s Hook Reel"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Target Duration
+                  </label>
+                  <input
+                    type="text"
+                    value={editingScript.duration || ''}
+                    onChange={(e) => setEditingScript((prev) => ({ ...prev, duration: e.target.value }))}
+                    placeholder="e.g., 15s, 30s, 60s"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Platform & Content Type */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Target Platform
+                  </label>
+                  <select
+                    value={editingScript.targetPlatform || ''}
+                    onChange={(e) => setEditingScript((prev) => ({ ...prev, targetPlatform: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all bg-white"
+                  >
+                    <option value="">Select Platform</option>
+                    <option value="Instagram Reel">Instagram Reel</option>
+                    <option value="Instagram Story">Instagram Story</option>
+                    <option value="Instagram Post">Instagram Post</option>
+                    <option value="YouTube Shorts">YouTube Shorts</option>
+                    <option value="YouTube Longform">YouTube Longform</option>
+                    <option value="TikTok">TikTok</option>
+                    <option value="Facebook">Facebook</option>
+                    <option value="LinkedIn">LinkedIn</option>
+                    <option value="TVC / Commercial">TVC / Commercial</option>
+                    <option value="Internal / Brand">Internal / Brand</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Content Type / Format
+                  </label>
+                  <select
+                    value={editingScript.contentType || ''}
+                    onChange={(e) => setEditingScript((prev) => ({ ...prev, contentType: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all bg-white"
+                  >
+                    <option value="">Select Format</option>
+                    <option value="Reel">Reel / Short Video</option>
+                    <option value="Video">Standard Video</option>
+                    <option value="Story">Story</option>
+                    <option value="Carousel">Carousel Narrative</option>
+                    <option value="Voiceover">Voiceover Only</option>
+                    <option value="Interview">Interview / Testimonial</option>
+                    <option value="Commercial">Brand Commercial</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 3: Opening Hook */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Project / Script Title
+                  🎣 Opening Hook / Attention Grabber (First 3 Seconds)
                 </label>
                 <input
                   type="text"
-                  value={scriptEditName}
-                  onChange={(e) => setScriptEditName(e.target.value)}
-                  placeholder="e.g., Summer Brand Reel Shoot"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                  value={editingScript.hook || ''}
+                  onChange={(e) => setEditingScript((prev) => ({ ...prev, hook: e.target.value }))}
+                  placeholder="e.g., Stop scrolling if you want to double your workout results in 14 days..."
+                  className="w-full px-3 py-2 border border-amber-300 bg-amber-50/40 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                 />
               </div>
 
+              {/* Row 4: Master Script Dialogue / Screenplay */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-bold text-slate-700">
-                    Master Script &amp; Screenplay Copy
+                    Master Screenplay Dialogue &amp; Script Lines <span className="text-rose-500">*</span>
                   </label>
                   <span className="text-[11px] text-slate-400 font-mono">
-                    {scriptEditNotes.length} characters • {scriptEditNotes.trim() ? scriptEditNotes.trim().split(/\s+/).length : 0} words
+                    {(editingScript.scriptText || '').length} characters • {(editingScript.scriptText || '').trim() ? (editingScript.scriptText || '').trim().split(/\s+/).length : 0} words
                   </span>
                 </div>
                 <textarea
-                  rows={12}
-                  value={scriptEditNotes}
-                  onChange={(e) => setScriptEditNotes(e.target.value)}
-                  placeholder="Paste or write the shooting script, dialogue lines, hook, scene descriptions, voiceover notes, or call-to-action here..."
+                  rows={9}
+                  value={editingScript.scriptText || ''}
+                  onChange={(e) => setEditingScript((prev) => ({ ...prev, scriptText: e.target.value }))}
+                  placeholder="[SCENE 1 - INT. STUDIO]\nTALENT: (Facing camera with energy) 'Hey guys! Today we are testing...'\n\n[SCENE 2 - B-ROLL]\nVoiceover narration over product closeups..."
                   className="w-full p-3.5 border border-slate-300 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all leading-relaxed placeholder:font-sans"
                 />
               </div>
 
-              <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200/60 flex items-start gap-2.5">
-                <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-amber-900 leading-relaxed">
-                  <strong>Marketing Review Note:</strong> Saving will update the project script and automatically synchronize with linked media calendar events and client review workflows.
-                </p>
+              {/* Row 5: Directing / Operational Notes */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  📝 Scene &amp; Directing Notes (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={editingScript.notes || ''}
+                  onChange={(e) => setEditingScript((prev) => ({ ...prev, notes: e.target.value }))}
+                  placeholder="e.g., Shoot in 4K 60fps for slow-mo montage. Keep lighting high-key."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                />
               </div>
             </div>
 
@@ -3426,19 +3788,19 @@ export default function ProjectDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={handleSaveScriptText}
+                onClick={handleSaveScriptItem}
                 disabled={isSavingScript}
                 className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-extrabold rounded-xl text-xs shadow-sm transition-all flex items-center gap-1.5"
               >
                 {isSavingScript ? (
                   <>
                     <span className="w-3.5 h-3.5 border-2 border-slate-950/20 border-t-slate-950 rounded-full animate-spin" />
-                    Saving...
+                    Saving Script...
                   </>
                 ) : (
                   <>
                     <Check className="w-4 h-4" />
-                    Save Script &amp; Changes
+                    Save Script
                   </>
                 )}
               </button>
