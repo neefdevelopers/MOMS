@@ -56,20 +56,65 @@ export class CalendarController {
   @Post(':id/client-review')
   reviewClientEvent(
     @Param('id') id: string,
-    @Body() body: { action: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT'; comment?: string; deadline?: string; priority?: string },
+    @Body()
+    body: {
+      action: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT';
+      comment?: string;
+      deadline?: string;
+      priority?: string;
+      caption?: string;
+      title?: string;
+      productionNotes?: string;
+      contentType?: string;
+      platform?: string;
+    },
     @CurrentUser() user: any,
   ) {
-    return this.calendarService.reviewClientEvent(id, body.action, body.comment, user, body.deadline, body.priority);
+    return this.calendarService.reviewClientEvent(
+      id,
+      body.action,
+      body.comment,
+      user,
+      body.deadline,
+      body.priority,
+      body.caption,
+      body.title,
+      body.productionNotes,
+      body.contentType,
+      body.platform,
+    );
   }
 
   @Roles(Role.MARKETING_MANAGER)
   @Post(':id/approve')
   approveEvent(
     @Param('id') id: string,
-    @Body() body: { comment?: string; deadline?: string; priority?: string },
+    @Body()
+    body: {
+      comment?: string;
+      deadline?: string;
+      priority?: string;
+      caption?: string;
+      title?: string;
+      productionNotes?: string;
+      contentType?: string;
+      platform?: string;
+    },
     @CurrentUser() user: any,
   ) {
-    return this.calendarService.reviewClientEvent(id, 'APPROVE', body?.comment, user, body?.deadline, body?.priority);
+    return this.calendarService.reviewClientEvent(
+      id,
+      'APPROVE',
+      body?.comment,
+      user,
+      body?.deadline,
+      body?.priority,
+      body?.caption,
+      body?.title,
+      body?.productionNotes,
+      body?.contentType,
+      body?.platform,
+    );
   }
 
   @Roles(Role.MARKETING_MANAGER)

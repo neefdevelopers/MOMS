@@ -1319,14 +1319,35 @@ export default function ApprovalsPage() {
                 </div>
               </div>
 
-              {/* Description / Storyline / Brief */}
-              {(detailModalItem.description || detailModalItem.storyline || detailModalItem.brief) && (
+              {/* Script / Screenplay Copy */}
+              {(detailModalItem.notes || detailModalItem.calendarEvent?.caption) && (
+                <div className="bg-amber-50/70 border border-amber-200 p-4 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-amber-900 font-mono uppercase font-bold flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-amber-700" />
+                      Script &amp; Screenplay Storyline
+                    </span>
+                    <Link
+                      href={getItemDetailsUrl(detailModalItem)}
+                      className="text-[10px] font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1 underline"
+                    >
+                      Edit Script in Project ↗
+                    </Link>
+                  </div>
+                  <div className="bg-white/90 p-3 rounded-lg border border-amber-200/70 text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                    {detailModalItem.notes || detailModalItem.calendarEvent?.caption}
+                  </div>
+                </div>
+              )}
+
+              {/* Description / Storyline / Brief / Production Notes */}
+              {(detailModalItem.description || detailModalItem.storyline || detailModalItem.brief || detailModalItem.productionNotes) && (
                 <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2">
                   <span className="text-[10px] text-cyan-600 font-mono uppercase block font-bold">
-                    Description & Specifications
+                    Description &amp; Production Notes
                   </span>
                   <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
-                    {detailModalItem.description || detailModalItem.storyline || detailModalItem.brief}
+                    {detailModalItem.description || detailModalItem.storyline || detailModalItem.brief || detailModalItem.productionNotes}
                   </p>
                 </div>
               )}

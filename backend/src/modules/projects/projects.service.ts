@@ -706,8 +706,6 @@ export class ProjectsService {
     ].includes(existing.status);
 
     const isContentEdit =
-      data.name !== undefined ||
-      data.description !== undefined ||
       data.shootDate !== undefined ||
       data.teamUserIds !== undefined ||
       data.equipmentIds !== undefined ||
@@ -716,7 +714,7 @@ export class ProjectsService {
 
     if (isProjectUnderReview && isContentEdit && !data.bypassReviewLock) {
       throw new ForbiddenException(
-        'Shoot Project is currently under review and in read-only mode. Content updates and modifications are locked during review.',
+        'Shoot Project is currently under review and in read-only mode. Operational schedule updates are locked during review.',
       );
     }
 
@@ -876,6 +874,21 @@ export class ProjectsService {
       where: { id },
       data: updateData,
     });
+
+    if (updateData.notes !== undefined || updateData.name !== undefined) {
+      const calId = existing.calendarEventId || (existing.sourceForCalendarEvents && existing.sourceForCalendarEvents[0]?.id);
+      if (calId) {
+        await this.prisma.mediaCalendarEvent
+          .update({
+            where: { id: calId },
+            data: {
+              caption: updateData.notes || undefined,
+              title: updateData.name || undefined,
+            },
+          })
+          .catch(() => null);
+      }
+    }
 
     if (data.status && data.status !== existing.status) {
       let statusAction = 'STATUS_UPDATED';
@@ -1310,7 +1323,7 @@ export class ProjectsService {
   async reviewMarketing(
     projectId: string,
     user: { id: string; name?: string; role: string },
-    body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+    body: { action: 'APPROVE' | 'REJECT'; comment?: string; notes?: string; script?: string; caption?: string },
   ) {
     const { action, comment } = body;
     const project = await this.findOne(projectId, user);
@@ -1321,14 +1334,28 @@ export class ProjectsService {
     }
 
     const currentRound = (project.revisionCount || 0) + 1;
+    const scriptNotes = body.notes || body.script || body.caption;
 
     if (action === 'APPROVE') {
       const updated = await this.prisma.shootProject.update({
         where: { id: projectId },
         data: {
           status: 'WAITING_FOR_CLIENT_CONFIRMATION',
+          ...(scriptNotes ? { notes: scriptNotes } : {}),
         },
       });
+
+      if (scriptNotes && (project.calendarEventId || project.sourceForCalendarEvents?.[0]?.id)) {
+        const cId = project.calendarEventId || project.sourceForCalendarEvents?.[0]?.id;
+        if (cId) {
+          await this.prisma.mediaCalendarEvent
+            .update({
+              where: { id: cId },
+              data: { caption: scriptNotes },
+            })
+            .catch(() => null);
+        }
+      }
 
       await this.prisma.approval.create({
         data: {

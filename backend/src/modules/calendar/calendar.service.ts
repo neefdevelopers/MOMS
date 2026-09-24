@@ -747,9 +747,7 @@ export class CalendarService {
   async update(id: string, data: any, user?: any) {
     const existing = await this.findOne(id, user);
 
-    if (user && user.role === 'MARKETING_MANAGER') {
-      throw new ForbiddenException('Marketing Manager is a Client Representative role and cannot modify internal calendar content directly.');
-    }
+    const isMarketingManager = user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMIN' || user?.role === 'ADMINISTRATOR';
 
     const APPROVED_CALENDAR_STATUSES = [
       'APPROVED',
@@ -766,16 +764,14 @@ export class CalendarService {
     // SECURITY RULE #15 & #16: Block direct updates on approved events by Media Manager / SMM / non-admin
     if (
       isApprovedEvent &&
-      user?.role !== 'MARKETING_MANAGER' &&
-      user?.role !== 'ADMIN' &&
-      user?.role !== 'ADMINISTRATOR'
+      !isMarketingManager
     ) {
       throw new ForbiddenException(
         'Direct update of an approved Media Calendar Event is not allowed. Please submit an Edit Request for Marketing Manager approval.',
       );
     }
 
-    // APPROVAL LOCK: Prevent modification while pending review
+    // APPROVAL LOCK: Prevent modification while pending review (except for Marketing Manager who reviews/edits scripts)
     const isEventUnderReview = [
       'PENDING_CLIENT_REVIEW',
       'PENDING_CLIENT_APPROVAL',
@@ -788,7 +784,7 @@ export class CalendarService {
       'WAITING_FOR_CLIENT_CONFIRMATION',
     ].includes(existing.status);
 
-    if (isEventUnderReview && !data.resubmitForApproval && existing.status !== 'REJECTED') {
+    if (isEventUnderReview && !isMarketingManager && !data.resubmitForApproval && existing.status !== 'REJECTED') {
       throw new ForbiddenException(
         'Calendar event is currently under review and in read-only mode. Content updates and modifications are locked until the review decision is complete.',
       );
@@ -872,6 +868,49 @@ export class CalendarService {
       where: { id },
       data: updateData,
     });
+
+    if (isMarketingManager) {
+      const isScriptChange =
+        updateData.caption !== undefined ||
+        updateData.title !== undefined ||
+        updateData.productionNotes !== undefined ||
+        updateData.description !== undefined;
+
+      if (isScriptChange) {
+        await this.prisma.calendarApprovalHistory
+          .create({
+            data: {
+              calendarEventId: id,
+              version: existing.version,
+              userId: activeUserId || user.id,
+              role: user.role,
+              action: 'SCRIPT_EDITED',
+              previousStatus: existing.status,
+              newStatus: existing.status,
+              comment:
+                data.comment ||
+                data.editComment ||
+                'Script, caption, and production copy updated by Marketing Manager during review.',
+            },
+          })
+          .catch(() => null);
+
+        // Sync linked ShootProject notes if exists
+        const shootWhere = existing.shootId
+          ? { OR: [{ id: existing.shootId }, { calendarEventId: id }] }
+          : { calendarEventId: id };
+
+        await this.prisma.shootProject
+          .updateMany({
+            where: shootWhere,
+            data: {
+              notes: updateData.caption || updateData.productionNotes || updateData.description || undefined,
+              name: updateData.title ? updateData.title : undefined,
+            },
+          })
+          .catch(() => null);
+      }
+    }
 
     if (
       (updateData.status === 'WAITING_FOR_MEDIA_REVIEW' || updateData.status === 'MEDIA_MANAGER_REVIEW') &&
@@ -1454,11 +1493,16 @@ export class CalendarService {
     user?: any,
     updatedDeadline?: string,
     updatedPriority?: string,
+    updatedCaption?: string,
+    updatedTitle?: string,
+    updatedProductionNotes?: string,
+    updatedContentType?: string,
+    updatedPlatform?: string,
   ) {
     const event = await this.findOne(id, user);
 
     // SECURITY VERIFICATION: Only Marketing Manager (Client Representative) can grant client approval for Media Calendar events
-    if (user?.role !== 'MARKETING_MANAGER') {
+    if (user?.role !== 'MARKETING_MANAGER' && user?.role !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
       throw new ForbiddenException('Forbidden: Only Marketing Manager (Client Representative) is authorized to review and approve Media Calendar events.');
     }
 
@@ -1494,6 +1538,22 @@ export class CalendarService {
         approvalStatus: action === 'APPROVE' ? 'APPROVED' : action === 'REQUEST_CHANGES' ? 'CHANGES_REQUESTED' : 'REJECTED',
         reviewedAt: new Date(),
       };
+
+      if (updatedCaption !== undefined && updatedCaption.trim() !== (event.caption || '')) {
+        eventUpdates.caption = updatedCaption.trim();
+      }
+      if (updatedTitle !== undefined && updatedTitle.trim() !== (event.title || '')) {
+        eventUpdates.title = updatedTitle.trim();
+      }
+      if (updatedProductionNotes !== undefined && updatedProductionNotes.trim() !== (event.productionNotes || '')) {
+        eventUpdates.productionNotes = updatedProductionNotes.trim();
+      }
+      if (updatedContentType !== undefined && updatedContentType !== event.contentType) {
+        eventUpdates.contentType = updatedContentType;
+      }
+      if (updatedPlatform !== undefined && updatedPlatform !== event.platform) {
+        eventUpdates.platform = updatedPlatform;
+      }
 
       // Apply Client Deadline Edit ONLY IF specified during review and ACTUALLY changed
       if (updatedDeadline && updatedDeadline.trim()) {

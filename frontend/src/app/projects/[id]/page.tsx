@@ -54,6 +54,7 @@ import {
   Compass,
   Tag,
   Layers,
+  Edit,
 } from 'lucide-react';
 
 export default function ProjectDetailPage() {
@@ -61,7 +62,7 @@ export default function ProjectDetailPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { setBreadcrumbs } = useBreadcrumbs();
-    const [project, setProject] = useState<any>(null);
+  const [project, setProject] = useState<any>(null);
   const [filesTree, setFilesTree] = useState<any>(null);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [allEquipment, setAllEquipment] = useState<any[]>([]);
@@ -72,6 +73,13 @@ export default function ProjectDetailPage() {
   // Interactive Form States
   const [commentText, setCommentText] = useState('');
   const [newFileName, setNewFileName] = useState('');
+
+  // Script Text Editing State (for Marketing Manager / PM)
+  const [showEditScriptModal, setShowEditScriptModal] = useState(false);
+  const [scriptEditNotes, setScriptEditNotes] = useState('');
+  const [scriptEditName, setScriptEditName] = useState('');
+  const [isSavingScript, setIsSavingScript] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
 
   // Script Document Upload State
   const [uploadingScriptDoc, setUploadingScriptDoc] = useState(false);
@@ -108,6 +116,40 @@ export default function ProjectDetailPage() {
   const [pendingStatus, setPendingStatus] = useState('CLOSED');
   const [closureReasonPreset, setClosureReasonPreset] = useState('Client cancelled remaining deliverables');
   const [customClosureReason, setCustomClosureReason] = useState('');
+
+  const openEditScriptModal = () => {
+    setScriptEditNotes(project?.notes || project?.calendarEvent?.caption || '');
+    setScriptEditName(project?.name || '');
+    setShowEditScriptModal(true);
+  };
+
+  const handleSaveScriptText = async () => {
+    if (!project) return;
+    try {
+      setIsSavingScript(true);
+      await fetchApi(`/projects/${project.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          notes: scriptEditNotes.trim(),
+          name: scriptEditName.trim() || project.name,
+          bypassReviewLock: true,
+        }),
+      });
+
+      // Update local state
+      setProject((prev: any) => ({
+        ...prev,
+        notes: scriptEditNotes.trim(),
+        name: scriptEditName.trim() || prev.name,
+      }));
+
+      setShowEditScriptModal(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to update project script.');
+    } finally {
+      setIsSavingScript(false);
+    }
+  };
 
   const loadProject = async () => {
     setLoading(true);
@@ -1320,17 +1362,100 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* Tab 2: Scripts (PDF / Docs Library & View Only) */}
+        {/* Tab 2: Scripts (Screenplay, Storyline Copy & Document Library) */}
         {activeTab === 'Scripts' && (
           <div className="space-y-6 text-xs">
-            {/* Header */}
+            {/* Main Script & Screenplay Storyline Card */}
+            <div className="p-5 bg-gradient-to-br from-amber-50/70 via-purple-50/40 to-slate-50 border border-amber-200/90 rounded-2xl space-y-4 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/80 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-700 flex items-center justify-center font-black">
+                    <FileText className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                      Shooting Script &amp; Screenplay Storyline
+                    </h3>
+                    <p className="text-slate-500 text-[11px]">
+                      Master shooting script, dialogue lines, hook, and creative copy for this Shoot Project.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const textToCopy = project.notes || project.calendarEvent?.caption || '';
+                      if (textToCopy) {
+                        navigator.clipboard.writeText(textToCopy);
+                        setCopiedScript(true);
+                        setTimeout(() => setCopiedScript(false), 2000);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold text-[11px] transition-colors flex items-center gap-1 shadow-xs"
+                  >
+                    {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedScript ? 'Copied' : 'Copy Script'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={openEditScriptModal}
+                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg font-extrabold text-[11px] transition-all flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    ✏️ Edit Script &amp; Copy
+                  </button>
+                </div>
+              </div>
+
+              {project.notes || project.calendarEvent?.caption ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900">{project.name}</span>
+                      {project.calendarEvent?.contentType && (
+                        <span className="px-2 py-0.5 rounded font-bold text-amber-800 bg-amber-100 text-[10px]">
+                          {project.calendarEvent.contentType}
+                        </span>
+                      )}
+                      {project.calendarEvent?.platform && (
+                        <span className="px-2 py-0.5 rounded font-bold text-indigo-800 bg-indigo-100 text-[10px]">
+                          {project.calendarEvent.platform}
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-mono">
+                      {(project.notes || project.calendarEvent?.caption || '').length} characters • {(project.notes || project.calendarEvent?.caption || '').trim().split(/\s+/).length} words
+                    </span>
+                  </div>
+
+                  <div className="p-4 bg-white/90 border border-amber-200 rounded-xl">
+                    <p className="text-slate-900 text-xs font-sans leading-relaxed whitespace-pre-wrap">
+                      {project.notes || project.calendarEvent?.caption}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 bg-white/70 border border-dashed border-amber-300 rounded-xl text-center space-y-2">
+                  <FileText className="w-7 h-7 text-amber-500 mx-auto" />
+                  <h4 className="font-bold text-slate-800 text-xs">No Script Text Written Yet</h4>
+                  <p className="text-slate-500 text-[11px] max-w-sm mx-auto">
+                    Click <strong>"✏️ Edit Script &amp; Copy"</strong> to write or paste the script dialogue, scene outline, or storyboard notes for this shoot.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Header for Uploaded Docs */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-purple-600" /> Project Script Documents ({scriptFiles.length})
+                  <FileText className="w-4 h-4 text-purple-600" /> Attached Script Documents &amp; Storyboard Files ({scriptFiles.length})
                 </h3>
                 <p className="text-slate-500 text-[11px] mt-0.5">
-                  View and download shooting scripts, scene dialogues, and narration briefs attached to this shoot project.
+                  View and download shooting script PDFs, DOCs, and narration briefs attached to this shoot project.
                 </p>
               </div>
             </div>
@@ -1339,9 +1464,9 @@ export default function ProjectDetailPage() {
             {scriptFiles.length === 0 ? (
               <div className="p-8 bg-slate-50/60 border border-dashed border-slate-300 rounded-2xl text-center space-y-2">
                 <FileText className="w-8 h-8 text-slate-400 mx-auto" />
-                <h4 className="font-bold text-slate-700 text-sm">No Script Documents Attached</h4>
+                <h4 className="font-bold text-slate-700 text-sm">No Script Document Files Attached</h4>
                 <p className="text-slate-500 text-xs max-w-md mx-auto">
-                  No script document has been attached to this shoot project yet. Script documents can be attached when creating events, tasks, or during reviews.
+                  No PDF or Word script files attached to this shoot project yet. Script files can be uploaded or attached anytime.
                 </p>
               </div>
             ) : (
@@ -2857,7 +2982,7 @@ export default function ProjectDetailPage() {
 
             {/* Marketing Manager Action Panel (Level 3) */}
             {(project.status === 'WAITING_FOR_MARKETING_APPROVAL' || project.status === 'PENDING_APPROVAL' || project.status === 'PENDING_CLIENT_APPROVAL') && (user?.role === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
-              <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl space-y-3 shadow-md animate-in fade-in duration-200">
+              <div className="p-4 bg-amber-50/90 border border-amber-300 rounded-xl space-y-3 shadow-md animate-in fade-in duration-200">
                 <div className="flex items-center justify-between border-b border-amber-200 pb-2">
                   <h4 className="font-bold text-amber-900 text-xs flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-amber-600" /> Marketing Manager Approval Panel (Level 3)
@@ -2867,8 +2992,34 @@ export default function ProjectDetailPage() {
                   </span>
                 </div>
                 <p className="text-[11px] text-amber-800">
-                  Verify campaign alignment, brand integrity, and messaging compliance. Approval advances project to Client Confirmation.
+                  Verify script copy, campaign alignment, brand integrity, and messaging compliance. You can inspect and edit the shooting script below before granting approval.
                 </p>
+
+                {/* Script & Copy Inspection Section */}
+                <div className="p-3 bg-white/95 rounded-xl border border-amber-200 space-y-2 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-amber-600" /> Script / Screenplay Copy:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={openEditScriptModal}
+                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-md font-bold text-[10px] transition-all flex items-center gap-1 shadow-xs"
+                    >
+                      <Edit className="w-3 h-3" /> Edit Script
+                    </button>
+                  </div>
+                  {project.notes || project.calendarEvent?.caption ? (
+                    <div className="p-2.5 bg-slate-50 rounded-lg text-slate-800 text-[11px] font-mono whitespace-pre-wrap max-h-36 overflow-y-auto border border-slate-200/70">
+                      {project.notes || project.calendarEvent?.caption}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic py-1">
+                      No script text has been entered yet. Click "Edit Script" to add one.
+                    </p>
+                  )}
+                </div>
+
                 <div className="flex items-center gap-2.5 pt-1">
                   <button
                     type="button"
@@ -3194,6 +3345,108 @@ export default function ProjectDetailPage() {
             : null
         }
       />
+      {/* Script & Screenplay Editor Modal */}
+      {showEditScriptModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="p-4 bg-gradient-to-r from-amber-500/10 via-purple-500/5 to-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center font-black">
+                  <FileText className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    Edit Shooting Script &amp; Screenplay Storyline
+                  </h3>
+                  <p className="text-slate-500 text-xs">
+                    Update master script, hook, dialogue, and creative copy for this shoot project.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditScriptModal(false)}
+                className="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors text-base"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Project / Script Title
+                </label>
+                <input
+                  type="text"
+                  value={scriptEditName}
+                  onChange={(e) => setScriptEditName(e.target.value)}
+                  placeholder="e.g., Summer Brand Reel Shoot"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Master Script &amp; Screenplay Copy
+                  </label>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    {scriptEditNotes.length} characters • {scriptEditNotes.trim() ? scriptEditNotes.trim().split(/\s+/).length : 0} words
+                  </span>
+                </div>
+                <textarea
+                  rows={12}
+                  value={scriptEditNotes}
+                  onChange={(e) => setScriptEditNotes(e.target.value)}
+                  placeholder="Paste or write the shooting script, dialogue lines, hook, scene descriptions, voiceover notes, or call-to-action here..."
+                  className="w-full p-3.5 border border-slate-300 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all leading-relaxed placeholder:font-sans"
+                />
+              </div>
+
+              <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200/60 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-amber-900 leading-relaxed">
+                  <strong>Marketing Review Note:</strong> Saving will update the project script and automatically synchronize with linked media calendar events and client review workflows.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowEditScriptModal(false)}
+                disabled={isSavingScript}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveScriptText}
+                disabled={isSavingScript}
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-extrabold rounded-xl text-xs shadow-sm transition-all flex items-center gap-1.5"
+              >
+                {isSavingScript ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-slate-950/20 border-t-slate-950 rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Save Script &amp; Changes
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Request Revision Form Modal */}
       {showRevisionModal && project && (
         <RequestRevisionModal
