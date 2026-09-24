@@ -53,15 +53,7 @@ const getTaskTypeInfo = (task: any) => {
     };
   }
 
-  if (task.script || task.scriptId || task.sourceType === 'SCRIPT' || task.sourceType === 'SCRIPT_TASK' || task.taskType === 'SCRIPT') {
-    return {
-      type: 'SCRIPT',
-      label: 'Script Task',
-      shortLabel: 'Script',
-      badgeClass: 'bg-purple-50 text-purple-700 border-purple-300',
-      icon: Film
-    };
-  }
+  
 
   if (task.graphicRequirement || task.graphicRequirementId || task.sourceType === 'GRAPHIC_REQUIREMENT' || task.sourceType === 'GRAPHIC' || task.taskType === 'GRAPHIC_REQUIREMENT' || task.taskType === 'GRAPHIC') {
     return {
@@ -97,7 +89,7 @@ const TaskWorkflowTimeline = ({ task }: { task: any }) => {
 
   const isRevision = isTaskRevision(task);
   const isDirect = task.sourceType === 'DIRECT_TASK';
-  const isScriptTask = Boolean(task.script || task.scriptId);
+  const isScriptTask = false;
 
   const scriptStages = [
     { key: 'CREATED', label: '1. Created' },
@@ -162,7 +154,6 @@ const TaskWorkflowTimeline = ({ task }: { task: any }) => {
   }
 
   const parentTitle =
-    task.script?.name ||
     task.graphicRequirement?.name ||
     task.project?.name ||
     task.client?.name ||
@@ -313,75 +304,6 @@ export default function TasksPage() {
   const [targetUserIds, setTargetUserIds] = useState<string[]>([]);
   const [reassignReason, setReassignReason] = useState('');
 
-  // 7 Official Script Attachment Categories
-  const SCRIPT_ATTACHMENT_CATEGORIES = [
-    { key: 'SCRIPT_DOCUMENT', label: 'Script Document' },
-    { key: 'REFERENCE_IMAGES', label: 'Reference Images' },
-    { key: 'REFERENCE_VIDEOS', label: 'Reference Videos' },
-    { key: 'AUDIO_REFERENCES', label: 'Audio References' },
-    { key: 'BRAND_GUIDELINES', label: 'Brand Guidelines' },
-    { key: 'PRODUCT_INFORMATION', label: 'Product Information' },
-    { key: 'SUPPORTING_DOCUMENTS', label: 'Supporting Documents' },
-  ];
-  const [selectedScriptAttachmentCategory, setSelectedScriptAttachmentCategory] = useState('SCRIPT_DOCUMENT');
-  const [scriptAttachments, setScriptAttachments] = useState<any[]>([]);
-  const [uploadingScriptAttachment, setUploadingScriptAttachment] = useState(false);
-  const [showFullScriptDetailsInTask, setShowFullScriptDetailsInTask] = useState(false);
-
-  useEffect(() => {
-    if (inspectedTask?.script?.projectId || inspectedTask?.projectId) {
-      const targetProjId = inspectedTask.script?.projectId || inspectedTask.projectId;
-      fetchApi(`/files/project/${targetProjId}`)
-        .then((res: any) => {
-          if (res && Array.isArray(res.allFiles)) {
-            const targetScriptId = inspectedTask.script?.id || inspectedTask.scriptId;
-            if (targetScriptId) {
-              setScriptAttachments(res.allFiles.filter((f: any) => f.scriptId === targetScriptId));
-            } else {
-              setScriptAttachments(res.allFiles);
-            }
-          }
-        })
-        .catch(() => setScriptAttachments([]));
-    } else {
-      setScriptAttachments([]);
-    }
-  }, [inspectedTask]);
-
-  // Full Script Workspace State (Mirroring Script Inspect UI exactly)
-  const [fullScript, setFullScript] = useState<any>(null);
-  const [revisionModalScript, setRevisionModalScript] = useState<any | null>(null);
-  const [loadingFullScript, setLoadingFullScript] = useState(false);
-  const [scriptEditDescription, setScriptEditDescription] = useState('');
-  const [scriptEditDuration, setScriptEditDuration] = useState('30s');
-  const [scriptEditRemarks, setScriptEditRemarks] = useState('');
-  const [scriptEditStatus, setScriptEditStatus] = useState('DRAFT');
-  const [scriptEditPriority, setScriptEditPriority] = useState('MEDIUM');
-  const [savingScript, setSavingScript] = useState(false);
-  const [scriptStorylineTab, setScriptStorylineTab] = useState<'view' | 'edit'>('view');
-  const [scriptCopiedStoryline, setScriptCopiedStoryline] = useState(false);
-  const [showScriptDescriptionPopup, setShowScriptDescriptionPopup] = useState(false);
-
-  // Prerequisites
-  const [scriptProdComp, setScriptProdComp] = useState(false);
-  const [scriptTechAppr, setScriptTechAppr] = useState(false);
-  const [scriptMediaAppr, setScriptMediaAppr] = useState(false);
-  const [scriptClientConf, setScriptClientConf] = useState(false);
-
-  // Remarks
-  const [scriptNewRemarkText, setScriptNewRemarkText] = useState('');
-  const [scriptAddingRemark, setScriptAddingRemark] = useState(false);
-
-  // Deliverables
-  const [scriptNewDelivType, setScriptNewDelivType] = useState('Reel');
-  const [scriptNewDelivTitle, setScriptNewDelivTitle] = useState('');
-  const [scriptNewDelivDuration, setScriptNewDelivDuration] = useState('');
-
-  // Attachment Link State (replaces file upload)
-  const [scriptNewLinkName, setScriptNewLinkName] = useState('');
-  const [scriptNewLinkUrl, setScriptNewLinkUrl] = useState('');
-  const [scriptAddingLink, setScriptAddingLink] = useState(false);
-
   // Full Graphic Requirement Workspace State (For Staff Direction access & editing)
   const [fullGraphicReq, setFullGraphicReq] = useState<any>(null);
   const [loadingFullGraphicReq, setLoadingFullGraphicReq] = useState(false);
@@ -393,31 +315,6 @@ export default function TasksPage() {
   const [savingGraphicReq, setSavingGraphicReq] = useState(false);
 
   useEffect(() => {
-    if (inspectedTask?.script?.id || inspectedTask?.scriptId) {
-      const sId = inspectedTask.script?.id || inspectedTask.scriptId;
-      setLoadingFullScript(true);
-      fetchApi(`/scripts/${sId}`)
-        .then((res: any) => {
-          const item = res?.data || res;
-          if (item) {
-            setFullScript(item);
-            setScriptEditDescription(item.description || '');
-            setScriptEditDuration(item.estimatedDuration || '30s');
-            setScriptEditRemarks(item.remarks || '');
-            setScriptEditStatus(item.status || 'DRAFT');
-            setScriptEditPriority(item.priority || 'MEDIUM');
-            setScriptProdComp(item.status === 'COMPLETED' || item.status === 'APPROVED');
-            setScriptTechAppr(item.status === 'WAITING_FOR_MEDIA_REVIEW' || item.status === 'APPROVED' || item.status === 'COMPLETED');
-            setScriptMediaAppr(item.status === 'APPROVED' || item.status === 'COMPLETED');
-            setScriptClientConf(item.status === 'COMPLETED');
-          }
-        })
-        .catch(() => setFullScript(inspectedTask.script || null))
-        .finally(() => setLoadingFullScript(false));
-    } else {
-      setFullScript(null);
-    }
-
     const gId = inspectedTask?.graphicRequirement?.id || inspectedTask?.graphicRequirementId;
     if (gId) {
       setLoadingFullGraphicReq(true);
@@ -462,38 +359,7 @@ export default function TasksPage() {
     user?.role !== 'ADMINISTRATOR' &&
     (user?.role as string) !== 'ADMIN';
 
-  const handleSaveScriptDetailsInTask = async () => {
-    if (!fullScript) return;
-    if (isPendingAcceptance) {
-      alert('Task is in read-only mode. Please accept the task assignment first.');
-      return;
-    }
-    setSavingScript(true);
-    try {
-      let finalStatus = scriptEditStatus;
-      if (scriptProdComp && scriptTechAppr && scriptMediaAppr && scriptClientConf) {
-        finalStatus = 'COMPLETED';
-      }
-      await fetchApi(`/scripts/${fullScript.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          description: scriptEditDescription,
-          estimatedDuration: scriptEditDuration,
-          remarks: scriptEditRemarks,
-          status: finalStatus,
-          priority: scriptEditPriority,
-        }),
-      });
-      const updated = await fetchApi(`/scripts/${fullScript.id}`);
-      setFullScript(updated);
-      alert('Script details updated successfully!');
-      loadData();
-    } catch (err: any) {
-      alert(err.message || 'Failed to update script');
-    } finally {
-      setSavingScript(false);
-    }
-  };
+  
 
   const handleSaveGraphicDirectionInTask = async () => {
     const gId = fullGraphicReq?.id || inspectedTask?.graphicRequirement?.id || inspectedTask?.graphicRequirementId;
@@ -536,239 +402,9 @@ export default function TasksPage() {
     }
   };
 
-  const handleAddScriptRemarkInTask = async () => {
-    if (!fullScript || !scriptNewRemarkText.trim()) return;
-    if (isPendingAcceptance) {
-      alert('Task is in read-only mode. Please accept the task assignment before adding remarks.');
-      return;
-    }
-    setScriptAddingRemark(true);
-    try {
-      await fetchApi(`/scripts/${fullScript.id}/remarks`, {
-        method: 'POST',
-        body: JSON.stringify({ message: scriptNewRemarkText.trim() }),
-      });
-      const updated = await fetchApi(`/scripts/${fullScript.id}`);
-      setFullScript(updated);
-      setScriptNewRemarkText('');
-    } catch (err: any) {
-      alert(err.message || 'Failed to add remark');
-    } finally {
-      setScriptAddingRemark(false);
-    }
-  };
+  
 
-  const handleAddScriptAttachmentLink = async () => {
-    if (!fullScript || !scriptNewLinkName.trim() || !scriptNewLinkUrl.trim()) return;
-    if (isPendingAcceptance) {
-      alert('Task is in read-only mode. Please accept the task assignment before adding attachments.');
-      return;
-    }
-    setScriptAddingLink(true);
-    try {
-      const updated = await fetchApi(`/scripts/${fullScript.id}/attachment-links`, {
-        method: 'POST',
-        body: JSON.stringify({
-          name: scriptNewLinkName.trim(),
-          url: scriptNewLinkUrl.trim(),
-          attachmentCategory: selectedScriptAttachmentCategory,
-        }),
-      });
-      setFullScript(updated);
-      setScriptNewLinkName('');
-      setScriptNewLinkUrl('');
-    } catch (err: any) {
-      alert(err.message || 'Failed to add attachment link');
-    } finally {
-      setScriptAddingLink(false);
-    }
-  };
-
-  const handleDeleteScriptAttachmentLink = async (linkId: string) => {
-    if (!fullScript) return;
-    if (isPendingAcceptance) {
-      alert('Task is in read-only mode. Please accept the task assignment first.');
-      return;
-    }
-    try {
-      const updated = await fetchApi(`/scripts/attachment-links/${linkId}`, { method: 'DELETE' });
-      setFullScript(updated);
-    } catch (err: any) {
-      alert(err.message || 'Failed to remove attachment link');
-    }
-  };
-
-  const handleAddScriptDeliverableInTask = async () => {
-    if (!fullScript || !scriptNewDelivType) return;
-    try {
-      await fetchApi(`/scripts/${fullScript.id}/deliverables`, {
-        method: 'POST',
-        body: JSON.stringify({
-          type: scriptNewDelivType,
-          title: scriptNewDelivTitle || undefined,
-          duration: scriptNewDelivDuration || undefined,
-        }),
-      });
-      const updated = await fetchApi(`/scripts/${fullScript.id}`);
-      setFullScript(updated);
-      setScriptNewDelivTitle('');
-      setScriptNewDelivDuration('');
-    } catch (err: any) {
-      alert(err.message || 'Failed to add deliverable');
-    }
-  };
-
-  const handleDeleteScriptDeliverableInTask = async (deliverableId: string) => {
-    if (!fullScript) return;
-    try {
-      await fetchApi(`/scripts/deliverables/${deliverableId}`, { method: 'DELETE' });
-      const updated = await fetchApi(`/scripts/${fullScript.id}`);
-      setFullScript(updated);
-    } catch (err: any) {
-      alert(err.message || 'Failed to remove deliverable');
-    }
-  };
-
-  const handleSubmitTechnicalReviewInTask = async () => {
-    const targetScriptId = fullScript?.id || activeScript?.id || inspectedTask?.scriptId || inspectedTask?.script?.id;
-    if (isPendingAcceptance) {
-      alert('Task is in read-only mode. Please accept the task assignment first.');
-      return;
-    }
-
-    if (targetScriptId) {
-      setSavingScript(true);
-      try {
-        await fetchApi(`/scripts/${targetScriptId}/submit-technical`, { method: 'POST' });
-        const updated = await fetchApi(`/scripts/${targetScriptId}`).catch(() => null);
-        if (updated) {
-          setFullScript(updated);
-        }
-        if (inspectedTask) {
-          setInspectedTask((prev: any) => ({
-            ...prev,
-            status: 'WAITING_FOR_TECHNICAL_REVIEW',
-            script: updated || prev?.script,
-          }));
-        }
-        alert('Script successfully submitted for Technical Review!');
-        loadData();
-      } catch (err: any) {
-        alert(err.message || 'Failed to submit script for technical review');
-      } finally {
-        setSavingScript(false);
-      }
-    } else if (inspectedTask?.id) {
-      handleRequestTechnicalReview(inspectedTask.id);
-    }
-  };
-
-  const handleUpdateScriptStatusToInProgressInTask = async () => {
-    const targetScriptId = fullScript?.id || activeScript?.id || inspectedTask?.scriptId;
-    if (!targetScriptId) {
-      alert('No script found to update status');
-      return;
-    }
-    if (isPendingAcceptance) {
-      alert('Task is in read-only mode. Please accept the task assignment first.');
-      return;
-    }
-
-    setSavingScript(true);
-    try {
-      await fetchApi(`/scripts/${targetScriptId}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          status: 'IN_PROGRESS',
-          preTechnicalReviewStatus: 'IN_PROGRESS',
-        }),
-      });
-      const updated = await fetchApi(`/scripts/${targetScriptId}`).catch(() => null);
-      if (updated) {
-        setFullScript(updated);
-      }
-      setScriptEditStatus('IN_PROGRESS');
-      alert('Script status updated to IN PROGRESS!');
-      loadData();
-    } catch (err: any) {
-      alert(err.message || 'Failed to update script status');
-    } finally {
-      setSavingScript(false);
-    }
-  };
-
-  const handleReviewTechnicalInTask = async (action: 'APPROVE' | 'REJECT', comment?: string) => {
-    if (!fullScript) return;
-    setSavingScript(true);
-    try {
-      await fetchApi(`/scripts/${fullScript.id}/review-technical`, {
-        method: 'POST',
-        body: JSON.stringify({ action, comment }),
-      });
-      const updated = await fetchApi(`/scripts/${fullScript.id}`);
-      setFullScript(updated);
-      alert(`Technical Review action (${action}) completed!`);
-      loadData();
-    } catch (err: any) {
-      alert(err.message || 'Technical review action failed');
-    } finally {
-      setSavingScript(false);
-    }
-  };
-
-  const handleReviewMediaInTask = async (action: 'APPROVE' | 'REJECT', comment?: string) => {
-    if (!fullScript) return;
-    setSavingScript(true);
-    try {
-      await fetchApi(`/scripts/${fullScript.id}/review-media`, {
-        method: 'POST',
-        body: JSON.stringify({ action, comment }),
-      });
-      const updated = await fetchApi(`/scripts/${fullScript.id}`);
-      setFullScript(updated);
-      alert(`Media Manager Review action (${action}) completed!`);
-      loadData();
-    } catch (err: any) {
-      alert(err.message || 'Media Manager review action failed');
-    } finally {
-      setSavingScript(false);
-    }
-  };
-
-  const handleApproveScriptInTask = async (action: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT', comment?: string) => {
-    if (!fullScript) return;
-    setSavingScript(true);
-    try {
-      await fetchApi(`/scripts/${fullScript.id}/approve`, {
-        method: 'POST',
-        body: JSON.stringify({ action, comment }),
-      });
-      const updated = await fetchApi(`/scripts/${fullScript.id}`);
-      setFullScript(updated);
-      alert(`Script approval action (${action}) completed successfully!`);
-      loadData();
-    } catch (err: any) {
-      alert(err.message || 'Failed to perform approval action');
-    } finally {
-      setSavingScript(false);
-    }
-  };
-
-  const handleResubmitScriptInTask = async () => {
-    if (!fullScript) return;
-    setSavingScript(true);
-    try {
-      await fetchApi(`/scripts/${fullScript.id}/resubmit`, { method: 'POST' });
-      const updated = await fetchApi(`/scripts/${fullScript.id}`);
-      setFullScript(updated);
-      alert('Script resubmitted for Marketing Manager approval!');
-      loadData();
-    } catch (err: any) {
-      alert(err.message || 'Failed to resubmit script');
-    } finally {
-      setSavingScript(false);
-    }
-  };
+  
 
   // Technical Review State
   const [techReviewRemarks, setTechReviewRemarks] = useState('');
@@ -875,7 +511,7 @@ export default function TasksPage() {
 
   // Create Task Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [parentEntityType, setParentEntityType] = useState<'NONE' | 'PROJECT' | 'SCRIPT' | 'GRAPHIC_REQ'>('NONE');
+  const [parentEntityType, setParentEntityType] = useState<'PROJECT' | 'GRAPHIC_REQ'>('PROJECT');
   const [selectedParentId, setSelectedParentId] = useState('');
   const [selectedParentProjectId, setSelectedParentProjectId] = useState('');
   const [taskClientId, setTaskClientId] = useState('');
@@ -917,21 +553,80 @@ export default function TasksPage() {
   const [equipmentCategoryFilter, setEquipmentCategoryFilter] = useState('ALL');
 
   const [projectsList, setProjectsList] = useState<any[]>([]);
-  const [scriptsList, setScriptsList] = useState<any[]>([]);
+  
   const [graphicReqsList, setGraphicReqsList] = useState<any[]>([]);
   const [equipmentList, setEquipmentList] = useState<any[]>([]);
   const [staffUsersList, setStaffUsersList] = useState<any[]>([]);
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
   const [creating, setCreating] = useState(false);
   const [scriptCreationDetails, setScriptCreationDetails] = useState<any | null>(null);
-  const [loadingScriptCreationDetails, setLoadingScriptCreationDetails] = useState(false);
+  const [taskScriptDocFile, setTaskScriptDocFile] = useState<File | null>(null);
+  const [uploadingTaskScript, setUploadingTaskScript] = useState(false);
+  const [inspectedProjectFiles, setInspectedProjectFiles] = useState<any[]>([]);
+  const [loadingInspectedFiles, setLoadingInspectedFiles] = useState(false);
+
+  useEffect(() => {
+    if (inspectedTask) {
+      loadInspectedTaskFiles(inspectedTask);
+    } else {
+      setInspectedProjectFiles([]);
+    }
+  }, [inspectedTask?.id]);
+
+  const loadInspectedTaskFiles = async (taskObj: any) => {
+    if (!taskObj) return;
+    const projectId = taskObj.projectId || taskObj.project?.id || taskObj.graphicRequirement?.projectId;
+    if (projectId) {
+      try {
+        setLoadingInspectedFiles(true);
+        const res = await fetchApi(`/files/project/${projectId}`);
+        setInspectedProjectFiles(res.allFiles || []);
+      } catch {
+        setInspectedProjectFiles([]);
+      } finally {
+        setLoadingInspectedFiles(false);
+      }
+    } else {
+      setInspectedProjectFiles([]);
+    }
+  };
+
+  const handleUploadScriptDocForTask = async (file: File) => {
+    if (!file || !inspectedTask) return;
+    const projectId = inspectedTask.projectId || inspectedTask.project?.id || inspectedTask.graphicRequirement?.projectId;
+    try {
+      setUploadingTaskScript(true);
+      const fd = new FormData();
+      fd.append('file', file);
+      if (projectId) {
+        fd.append('projectId', projectId);
+      }
+      fd.append('taskId', inspectedTask.id);
+      fd.append('folderCategory', 'Script Documents');
+      fd.append('attachmentCategory', 'SCRIPT_DOCUMENT');
+      await fetchApi('/files/upload', {
+        method: 'POST',
+        body: fd,
+      });
+      alert('Script document uploaded successfully!');
+      if (projectId) {
+        const res = await fetchApi(`/files/project/${projectId}`);
+        setInspectedProjectFiles(res.allFiles || []);
+      }
+      loadTasks();
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload script document.');
+    } finally {
+      setUploadingTaskScript(false);
+    }
+  };
+  
 
   const loadReferenceData = async () => {
     try {
-      const [resCap, resProj, resScripts, resGraphic, resUsers, resClients, resBrands, resProducts, resEquip] = await Promise.all([
+      const [resCap, resProj, resGraphic, resUsers, resClients, resBrands, resProducts, resEquip] = await Promise.all([
         fetchApi('/tasks/capacity/overview'),
         fetchApi('/projects'),
-        fetchApi('/scripts'),
         fetchApi('/graphic-reqs'),
         fetchApi('/users'),
         fetchApi('/clients'),
@@ -941,7 +636,6 @@ export default function TasksPage() {
       ]);
       
       setProjectsList(Array.isArray(resProj) ? resProj : []);
-      setScriptsList(Array.isArray(resScripts) ? resScripts : []);
       setGraphicReqsList(Array.isArray(resGraphic) ? resGraphic : []);
       setStaffUsersList(Array.isArray(resUsers) ? resUsers : []);
       setClientsList(Array.isArray(resClients) ? resClients : []);
@@ -979,40 +673,7 @@ export default function TasksPage() {
   }, []);
 
   useEffect(() => {
-    if (parentEntityType === 'SCRIPT' && (selectedParentId || selectedParentProjectId)) {
-      const targetScriptId = selectedParentId || scriptsList.find((s) => s.projectId === selectedParentProjectId)?.id;
-      if (targetScriptId) {
-        if (targetScriptId !== selectedParentId) setSelectedParentId(targetScriptId);
-        setLoadingScriptCreationDetails(true);
-        fetchApi(`/scripts/${targetScriptId}`)
-          .then((res) => {
-            setScriptCreationDetails(res);
-            if (res?.name && (!taskTitle || taskTitle.trim() === '')) {
-              setTaskTitle(`[Task] ${res.name}`);
-            }
-            if (res?.description && (!taskDescription || taskDescription.trim() === '')) {
-              setTaskDescription(res.description);
-            }
-            if (res?.projectId && !selectedParentProjectId) setSelectedParentProjectId(res.projectId);
-            if (res?.clientId) setTaskClientId(res.clientId);
-            if (res?.brandId) setTaskBrandId(res.brandId);
-            if (res?.productId) setTaskProductId(res.productId);
-          })
-          .catch(() => setScriptCreationDetails(null))
-          .finally(() => setLoadingScriptCreationDetails(false));
-      } else if (selectedParentProjectId) {
-        const p = projectsList.find((x) => x.id === selectedParentProjectId);
-        if (p) {
-          if (!taskTitle || taskTitle.trim() === '') setTaskTitle(`[Task] ${p.name}`);
-          if (!taskDescription || taskDescription.trim() === '') setTaskDescription(p.notes || '');
-          if (p.clientId) setTaskClientId(p.clientId);
-          if (p.brandId) setTaskBrandId(p.brandId);
-          if (p.productId) setTaskProductId(p.productId);
-          if (p.priority) setTaskPriority(p.priority);
-        }
-        setScriptCreationDetails(null);
-      }
-    } else if (parentEntityType === 'PROJECT' && (selectedParentId || selectedParentProjectId)) {
+    if (parentEntityType === 'PROJECT' && (selectedParentId || selectedParentProjectId)) {
       const pId = selectedParentId || selectedParentProjectId;
       const p = projectsList.find((x) => x.id === pId);
       if (p) {
@@ -1027,7 +688,7 @@ export default function TasksPage() {
         if (p.locationCategory) setTaskLocationCategory(p.locationCategory);
       }
       setSelectedParentProjectId(pId);
-      setScriptCreationDetails(null);
+      
     } else if (parentEntityType === 'GRAPHIC_REQ' && selectedParentId) {
       const g = graphicReqsList.find((x) => x.id === selectedParentId);
       if (g) {
@@ -1042,18 +703,8 @@ export default function TasksPage() {
         if (g.productId) setTaskProductId(g.productId);
         if (g.priority) setTaskPriority(g.priority);
       }
-      setScriptCreationDetails(null);
-    } else if (selectedParentProjectId && parentEntityType === 'NONE') {
-      const p = projectsList.find((x) => x.id === selectedParentProjectId);
-      if (p) {
-        if (p.clientId && !taskClientId) setTaskClientId(p.clientId);
-        if (p.brandId && !taskBrandId) setTaskBrandId(p.brandId);
-        if (p.productId && !taskProductId) setTaskProductId(p.productId);
-      }
-    } else {
-      setScriptCreationDetails(null);
     }
-  }, [parentEntityType, selectedParentId, selectedParentProjectId, scriptsList, projectsList, graphicReqsList]);
+  }, [parentEntityType, selectedParentId, selectedParentProjectId, projectsList, graphicReqsList]);
 
   useEffect(() => {
     if (reassignUserParam) {
@@ -1104,7 +755,6 @@ export default function TasksPage() {
     e.preventDefault();
     setCreating(true);
     try {
-      const isOther = parentEntityType === 'NONE' || (parentEntityType as string) === 'OTHER';
       const isGraphic = parentEntityType === 'GRAPHIC_REQ';
       const isShoot = parentEntityType === 'PROJECT';
 
@@ -1114,9 +764,9 @@ export default function TasksPage() {
         priority: taskPriority,
         dueDate: taskDueDate || new Date(Date.now() + 86400000).toISOString(),
         estimatedHours: parseFloat(taskEstimatedHours) || 2.0,
-        parentEntityType: isOther ? 'NONE' : parentEntityType,
-        taskType: isOther ? 'OTHER' : (isShoot ? 'PROJECT' : (parentEntityType === 'SCRIPT' ? 'SCRIPT' : (isGraphic ? 'GRAPHIC_REQUIREMENT' : 'PRODUCTION_TASK'))),
-        sourceType: isOther ? 'DIRECT_TASK' : (isGraphic ? 'GRAPHIC_REQUIREMENT' : (isShoot ? 'SHOOT_PROJECT' : undefined)),
+        parentEntityType: parentEntityType,
+        taskType: isShoot ? 'PROJECT' : 'GRAPHIC_REQUIREMENT',
+        sourceType: isShoot ? 'SHOOT_PROJECT' : 'GRAPHIC_REQUIREMENT',
         clientId: taskClientId || undefined,
         brandId: taskBrandId || undefined,
         productId: taskProductId || undefined,
@@ -1151,30 +801,44 @@ export default function TasksPage() {
 
       if (parentEntityType === 'PROJECT') {
         payload.projectId = selectedParentId || selectedParentProjectId || undefined;
-      } else if (parentEntityType === 'SCRIPT') {
-        const scriptObj = selectedParentId
-          ? scriptsList.find((s) => s.id === selectedParentId)
-          : scriptsList.find((s) => s.projectId === selectedParentProjectId);
-        if (scriptObj) payload.scriptId = scriptObj.id;
-        if (selectedParentProjectId) payload.projectId = selectedParentProjectId;
       } else if (parentEntityType === 'GRAPHIC_REQ') {
         if (selectedParentId) payload.graphicRequirementId = selectedParentId;
         if (selectedParentProjectId) payload.projectId = selectedParentProjectId;
-      } else {
-        if (selectedParentProjectId) payload.projectId = selectedParentProjectId;
       }
 
-      await fetchApi('/tasks', {
+      const createdTask = await fetchApi('/tasks', {
         method: 'POST',
         body: JSON.stringify(payload),
       });
 
+      if (taskScriptDocFile && createdTask) {
+        const uploadFd = new FormData();
+        uploadFd.append('file', taskScriptDocFile);
+        if (createdTask.projectId || payload.projectId) {
+          uploadFd.append('projectId', createdTask.projectId || payload.projectId);
+        }
+        if (createdTask.id) {
+          uploadFd.append('taskId', createdTask.id);
+        }
+        uploadFd.append('folderCategory', 'Script Documents');
+        uploadFd.append('attachmentCategory', 'SCRIPT_DOCUMENT');
+        try {
+          await fetchApi('/files/upload', {
+            method: 'POST',
+            body: uploadFd,
+          });
+        } catch (uploadErr) {
+          console.warn('Task script document upload error:', uploadErr);
+        }
+      }
+
+      setTaskScriptDocFile(null);
       setShowCreateModal(false);
       setTaskTitle('');
       setTaskDescription('');
       setSelectedParentId('');
       setSelectedParentProjectId('');
-      setScriptCreationDetails(null);
+      
       setTaskClientId('');
       setTaskBrandId('');
       setTaskProductId('');
@@ -1393,46 +1057,7 @@ export default function TasksPage() {
     }
   };
 
-  const handleUploadScriptAttachment = async (file: File, category: string) => {
-    if ((!inspectedTask?.script && !inspectedTask?.scriptId) || !file) return;
-    if (isPendingAcceptance) {
-      alert('Task is in read-only mode. Please accept the task assignment before uploading attachments.');
-      return;
-    }
-    setUploadingScriptAttachment(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('projectId', inspectedTask.script?.projectId || inspectedTask.projectId);
-      formData.append('scriptId', inspectedTask.script?.id || inspectedTask.scriptId);
-      formData.append('attachmentCategory', category);
-
-      const token = localStorage.getItem('moms_token') || localStorage.getItem('token');
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
-      const res = await fetch(`${apiBase}/files/upload`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || 'Attachment upload failed');
-      }
-
-      alert(`File uploaded successfully under category "${category.replace(/_/g, ' ')}"!`);
-      const targetProjId = inspectedTask.script?.projectId || inspectedTask.projectId;
-      const resFiles = await fetchApi(`/files/project/${targetProjId}`);
-      if (resFiles && Array.isArray(resFiles.allFiles)) {
-        const targetScriptId = inspectedTask.script?.id || inspectedTask.scriptId;
-        setScriptAttachments(resFiles.allFiles.filter((f: any) => f.scriptId === targetScriptId));
-      }
-    } catch (err: any) {
-      alert(err.message || 'Failed to upload script attachment');
-    } finally {
-      setUploadingScriptAttachment(false);
-    }
-  };
+  
 
   const handleRequestTechnicalReview = async (taskId: string) => {
     const taskObj = tasks.find((t) => t.id === taskId) || inspectedTask;
@@ -1534,39 +1159,7 @@ export default function TasksPage() {
   // ONLY the task creator (who is not the assigned worker) or an Administrator can assign/request a revision!
   const canAssignRevision = (isAdminUser || isInspectedTaskCreator) && !isAssignedWorker;
 
-  const isInspectedTaskScript = Boolean(
-    inspectedTask?.script ||
-    inspectedTask?.scriptId ||
-    inspectedTask?.sourceType === 'SCRIPT_TASK' ||
-    inspectedTask?.taskType === 'SCRIPT' ||
-    inspectedTask?.sourceType === 'SCRIPT'
-  );
-
-  const activeScript = isInspectedTaskScript
-    ? fullScript || inspectedTask?.script || {
-        id: inspectedTask.scriptId || inspectedTask.id,
-        scriptId: inspectedTask.scriptId || `SCR-${inspectedTask.taskId}`,
-        name: inspectedTask.script?.name || inspectedTask.title,
-        description: inspectedTask.script?.description || '',
-        status: inspectedTask.script?.status || inspectedTask.status || 'DRAFT',
-        priority: inspectedTask.script?.priority || inspectedTask.priority || 'MEDIUM',
-        createdAt: inspectedTask.createdAt || new Date().toISOString(),
-        project: inspectedTask.project,
-        client: inspectedTask.client,
-        brand: inspectedTask.brand,
-        product: inspectedTask.product,
-        revisionCount: inspectedTask.script?.revisionCount || inspectedTask.revisionCount || 0,
-        scriptAssignments: inspectedTask.script?.scriptAssignments || inspectedTask.assignedEmployees || [],
-        scriptRemarks: inspectedTask.script?.scriptRemarks || inspectedTask.remarksHistory || [],
-        deliverables: inspectedTask.script?.deliverables || [],
-        timeline: inspectedTask.script?.timeline || inspectedTask.taskTimeline || [],
-        files: inspectedTask.script?.files || scriptAttachments || [],
-        language: inspectedTask.script?.language || 'English',
-        category: inspectedTask.script?.category || 'Social Media',
-        estimatedDuration: inspectedTask.script?.estimatedDuration || '30s',
-        remarks: inspectedTask.script?.remarks || '',
-      }
-    : null;
+  
 
   const visibleTasks = React.useMemo(() => {
     const filtered = tasks.filter((t) => {
@@ -2312,22 +1905,7 @@ export default function TasksPage() {
                 <label className="block text-slate-600 font-bold mb-2 text-xs uppercase tracking-wider">
                   Task Type / Workflow Origin *
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 bg-slate-100 rounded-xl border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setParentEntityType('SCRIPT');
-                      setSelectedParentId('');
-                    }}
-                    className={`py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-                      parentEntityType === 'SCRIPT'
-                        ? 'bg-purple-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                    }`}
-                  >
-                    <Film className="w-4 h-4 shrink-0" />
-                    <span>Script</span>
-                  </button>
+                <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-xl border border-slate-200">
 
                   <button
                     type="button"
@@ -2359,22 +1937,6 @@ export default function TasksPage() {
                   >
                     <Layers className="w-4 h-4 shrink-0" />
                     <span>Graphic Req</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setParentEntityType('NONE');
-                      setSelectedParentId('');
-                    }}
-                    className={`py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-                      parentEntityType === 'NONE'
-                        ? 'bg-slate-800 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                    }`}
-                  >
-                    <CheckSquare className="w-4 h-4 shrink-0" />
-                    <span>Other Task</span>
                   </button>
                 </div>
               </div>
@@ -2964,634 +2526,52 @@ export default function TasksPage() {
                       </div>
                     </div>
                   )}
-
                 </div>
               )}
 
-              {/* ══════════════════════════════════════════════════════════════════════════ */}
-              {/* FORM TYPE 3: SCRIPT TASK CREATION                                         */}
-              {/* ══════════════════════════════════════════════════════════════════════════ */}
-              {parentEntityType === 'SCRIPT' && (
-                <div className="space-y-5 animate-in fade-in duration-150">
-                  <div>
-                    <label className="block text-slate-600 font-bold mb-1.5 text-xs uppercase tracking-wider">
-                      Select Parent Shoot Project *
-                    </label>
-                    <select
-                      value={selectedParentProjectId}
-                      onChange={(e) => {
-                        const projId = e.target.value;
-                        setSelectedParentProjectId(projId);
-                        const matchingScript = scriptsList.find((s) => s.projectId === projId);
-                        setSelectedParentId(matchingScript ? matchingScript.id : '');
-                      }}
-                      className="w-full bg-white border border-purple-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm focus:bg-white transition-colors"
-                    >
-                      <option value="">-- Choose Shoot Project --</option>
-                      {projectsList.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.projectId}) - {p.status}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Script Assets & Storyline Preview Session */}
-                  {selectedParentId && (
-                    <div className="p-5 bg-gradient-to-br from-purple-50 via-indigo-50/40 to-slate-50 border border-purple-200 rounded-xl space-y-3">
-                      <div className="flex items-center justify-between border-b border-purple-200/80 pb-2.5">
-                        <h4 className="font-extrabold text-sm text-purple-900 flex items-center gap-2">
-                          <Sparkles className="w-4 h-4 text-purple-600" /> Script Assets &amp; Storyline Preview Session
-                        </h4>
-                        <span className="text-xs font-mono font-bold bg-purple-100 text-purple-800 px-2.5 py-1 rounded border border-purple-300">
-                          {scriptCreationDetails?.scriptId || 'SCRIPT ASSETS'}
-                        </span>
-                      </div>
-
-                      {loadingScriptCreationDetails ? (
-                        <div className="p-4 text-center text-slate-400 italic text-sm">
-                          Loading script assets and reference materials…
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {scriptCreationDetails?.description && (
-                            <div className="space-y-1.5">
-                              <span className="text-xs font-bold text-purple-950 uppercase tracking-wider block">
-                                Storyline / Script Narration:
-                              </span>
-                              <div className="p-3 bg-white/90 border border-purple-200/80 rounded-xl text-sm text-slate-800 leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap font-sans shadow-2xs">
-                                {scriptCreationDetails.description}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Commercial Classification */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Client (Optional)</label>
-                      <select
-                        value={taskClientId}
-                        onChange={(e) => {
-                          setTaskClientId(e.target.value);
-                          setTaskBrandId('');
-                          setTaskProductId('');
-                        }}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
-                      >
-                        <option value="">-- None (Optional) --</option>
-                        {clientsList.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Brand (Optional)</label>
-                      <select
-                        value={taskBrandId}
-                        onChange={(e) => {
-                          setTaskBrandId(e.target.value);
-                          setTaskProductId('');
-                        }}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
-                      >
-                        <option value="">-- None (Optional) --</option>
-                        {brandsList
-                          .filter((b) => !taskClientId || b.clientId === taskClientId)
-                          .map((b) => (
-                            <option key={b.id} value={b.id}>[{b.shortCode}] {b.name}</option>
-                          ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Product (Optional)</label>
-                      <select
-                        value={taskProductId}
-                        onChange={(e) => setTaskProductId(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
-                      >
-                        <option value="">-- None (Optional) --</option>
-                        {productsList
-                          .filter((p) => !taskBrandId || p.brandId === taskBrandId)
-                          .map((p) => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Task Title *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Script Review & Storyboarding"
-                      value={taskTitle}
-                      onChange={(e) => setTaskTitle(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 text-sm font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Description</label>
-                    <textarea
-                      rows={2}
-                      placeholder="Task instructions..."
-                      value={taskDescription}
-                      onChange={(e) => setTaskDescription(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 text-sm"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Due Date *</label>
-                      <input
-                        type="date"
-                        required
-                        value={taskDueDate}
-                        onChange={(e) => setTaskDueDate(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-900 font-mono text-sm font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Priority</label>
-                      <select
-                        value={taskPriority}
-                        onChange={(e) => setTaskPriority(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
-                      >
-                        <option value="LOW">LOW</option>
-                        <option value="MEDIUM">MEDIUM</option>
-                        <option value="HIGH">HIGH</option>
-                        <option value="CRITICAL">CRITICAL</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ══════════════════════════════════════════════════════════════════════════ */}
-              {/* FORM TYPE 4: OTHER / STANDALONE TASK CREATION                              */}
-              {/* ══════════════════════════════════════════════════════════════════════════ */}
-              {parentEntityType === 'NONE' && (
-                <div className="space-y-5 animate-in fade-in duration-150">
-                  <div>
-                    <label className="block text-slate-600 font-bold mb-1.5 text-xs uppercase tracking-wider">
-                      Parent Shoot Project (Optional Link)
-                    </label>
-                    <select
-                      value={selectedParentProjectId}
-                      onChange={(e) => setSelectedParentProjectId(e.target.value)}
-                      className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm focus:bg-white transition-colors"
-                    >
-                      <option value="">-- Standalone Task (No Parent Project) --</option>
-                      {projectsList.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.projectId}) - {p.status}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Client (Optional)</label>
-                      <select
-                        value={taskClientId}
-                        onChange={(e) => {
-                          setTaskClientId(e.target.value);
-                          setTaskBrandId('');
-                          setTaskProductId('');
-                        }}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
-                      >
-                        <option value="">-- None (Optional) --</option>
-                        {clientsList.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Brand (Optional)</label>
-                      <select
-                        value={taskBrandId}
-                        onChange={(e) => {
-                          setTaskBrandId(e.target.value);
-                          setTaskProductId('');
-                        }}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
-                      >
-                        <option value="">-- None (Optional) --</option>
-                        {brandsList
-                          .filter((b) => !taskClientId || b.clientId === taskClientId)
-                          .map((b) => (
-                            <option key={b.id} value={b.id}>[{b.shortCode}] {b.name}</option>
-                          ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Product (Optional)</label>
-                      <select
-                        value={taskProductId}
-                        onChange={(e) => setTaskProductId(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
-                      >
-                        <option value="">-- None (Optional) --</option>
-                        {productsList
-                          .filter((p) => !taskBrandId || p.brandId === taskBrandId)
-                          .map((p) => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Task Title *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Color Grading & Video Editing"
-                      value={taskTitle}
-                      onChange={(e) => setTaskTitle(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 text-sm font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Description</label>
-                    <textarea
-                      rows={2}
-                      placeholder="Task instructions..."
-                      value={taskDescription}
-                      onChange={(e) => setTaskDescription(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 text-sm"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Due Date *</label>
-                      <input
-                        type="date"
-                        required
-                        value={taskDueDate}
-                        onChange={(e) => setTaskDueDate(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-900 font-mono text-sm font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-600 font-semibold mb-1.5 text-xs">Priority</label>
-                      <select
-                        value={taskPriority}
-                        onChange={(e) => setTaskPriority(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
-                      >
-                        <option value="LOW">LOW</option>
-                        <option value="MEDIUM">MEDIUM</option>
-                        <option value="HIGH">HIGH</option>
-                        <option value="CRITICAL">CRITICAL</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ══════════════════════════════════════════════════════════════════════════ */}
-              {/* SECTION: CREATIVE ASSETS & REFERENCE FILES (For Graphic Req & Shoot)      */}
-              {/* ══════════════════════════════════════════════════════════════════════════ */}
-              {(parentEntityType === 'GRAPHIC_REQ' || parentEntityType === 'PROJECT') && (
-                <div className="space-y-4 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200 text-sm">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                    <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-2">
-                      <LinkIcon className="w-4 h-4 text-indigo-600" /> Creative Assets &amp; Reference Files (File Name &amp; Link Method)
-                    </span>
-                    <span className="text-xs text-slate-500 font-mono bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-200 text-indigo-800">
-                      Cloud / URL Reference
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-slate-800 font-bold block mb-1.5 text-xs">Creative Asset / File Name</label>
-                      <input
-                        type="text"
-                        value={taskCreativeAssetName}
-                        onChange={(e) => setTaskCreativeAssetName(e.target.value)}
-                        placeholder="e.g. Summer_Sale_Main_Creative_v1 or Campaign_Assets_Drive"
-                        className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-slate-800 font-bold block mb-1.5 text-xs">Asset Link / File URL (Cloud / Web Link)</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="url"
-                          value={taskCreativePreviewUrl}
-                          onChange={(e) => setTaskCreativePreviewUrl(e.target.value)}
-                          placeholder="https://drive.google.com/... or https://figma.com/..."
-                          className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-lg p-2.5 text-slate-800 font-mono text-xs sm:text-sm"
-                        />
-                        {taskCreativePreviewUrl && (
-                          <a
-                            href={taskCreativePreviewUrl.startsWith('http') ? taskCreativePreviewUrl : `https://${taskCreativePreviewUrl}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-3 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg font-bold text-xs flex items-center gap-1 shrink-0 transition-colors"
-                            title="Test and open link in new tab"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            <span>Test</span>
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Live Preview Card */}
-                  {taskCreativePreviewUrl && (
-                    <div className="p-3.5 bg-indigo-50/60 border border-indigo-200 rounded-xl flex items-center justify-between gap-3 text-sm">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center justify-center shrink-0">
-                          <LinkIcon className="w-4 h-4" />
-                        </div>
-                        <div className="truncate">
-                          <strong className="text-slate-900 block truncate text-sm">
-                            {taskCreativeAssetName || 'Creative Asset Reference'}
-                          </strong>
-                          <span className="text-xs font-mono text-indigo-700 truncate block">
-                            {taskCreativePreviewUrl}
-                          </span>
-                        </div>
-                      </div>
-                      <a
-                        href={taskCreativePreviewUrl.startsWith('http') ? taskCreativePreviewUrl : `https://${taskCreativePreviewUrl}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" /> Open Asset
-                      </a>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ══════════════════════════════════════════════════════════════════════════ */}
-              {/* SECTION: ASSIGN EMPLOYEES & WORKLOAD ESTIMATION                            */}
-              {/* ══════════════════════════════════════════════════════════════════════════ */}
-              <div className="space-y-4 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200 text-sm">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                    <Users className="w-4 h-4 text-blue-600" /> Assignment &amp; Workload Estimation *
+              {/* SCRIPT DOCUMENT UPLOAD (OPTIONAL) */}
+              <div className="space-y-3 bg-purple-50/50 p-5 rounded-xl border border-purple-200 text-xs">
+                <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
+                  <span className="text-xs font-black text-purple-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-purple-600" /> Script Document (Optional)
                   </span>
-                  <div className="flex items-center gap-2.5">
-                    <label className="text-slate-600 font-bold text-xs">Estimated Hours:</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={taskEstimatedHours}
-                      onChange={(e) => setTaskEstimatedHours(e.target.value)}
-                      className="w-20 bg-white border border-slate-200 rounded-lg p-1.5 text-slate-900 font-mono font-bold text-xs sm:text-sm text-center"
-                    />
-                  </div>
+                  <span className="text-[10px] text-purple-800 font-mono bg-purple-100 px-2 py-0.5 rounded border border-purple-200 font-bold">
+                    PDF / DOC / DOCX / TXT
+                  </span>
                 </div>
-
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-slate-600 font-semibold text-xs">Assign Employees (One or Multiple) *</label>
-                    {assignedStaffIds.length > 0 && (
-                      <span className="text-xs text-blue-600 font-bold font-mono">
-                        {assignedStaffIds.length} Selected
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Real-time Employee Search Input Box */}
-                  <div className="relative mb-3">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                  <label className="text-slate-800 font-bold block mb-1.5 text-xs">
+                    Upload Script File (Optional)
+                  </label>
+                  <div className="flex items-center gap-3">
                     <input
-                      type="text"
-                      placeholder="Search employee by name, role, or designation..."
-                      value={staffSearchQuery}
-                      onChange={(e) => setStaffSearchQuery(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-9 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-medium"
+                      type="file"
+                      id="taskScriptDocInput"
+                      accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                      onChange={(e) => setTaskScriptDocFile(e.target.files?.[0] || null)}
+                      className="text-xs text-slate-700 file:mr-3 file:py-2 file:px-3.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200 cursor-pointer"
                     />
-                    {staffSearchQuery && (
+                    {taskScriptDocFile && (
                       <button
                         type="button"
-                        onClick={() => setStaffSearchQuery('')}
-                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700"
+                        onClick={() => {
+                          setTaskScriptDocFile(null);
+                          const input = document.getElementById('taskScriptDocInput') as HTMLInputElement;
+                          if (input) input.value = '';
+                        }}
+                        className="text-xs text-rose-600 hover:text-rose-800 font-bold"
                       >
-                        <X className="w-4 h-4" />
+                        Remove
                       </button>
                     )}
                   </div>
-
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg p-2.5">
-                    {staffUsersList
-                      .filter((u) => ['STAFF', 'TECHNICAL_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER'].includes(u.role))
-                      .filter((u) => {
-                        if (!staffSearchQuery.trim()) return true;
-                        const q = staffSearchQuery.toLowerCase().trim();
-                        const nameMatch = (u.name || '').toLowerCase().includes(q);
-                        const roleMatch = (u.role || '').toLowerCase().includes(q);
-                        const desigMatch = (u.employeeProfile?.designation || '').toLowerCase().includes(q);
-                        return nameMatch || roleMatch || desigMatch;
-                      })
-                      .map((u) => {
-                        const empStatus = u.employeeProfile?.employmentStatus || u.status || 'ACTIVE';
-                        const isActive = empStatus === 'ACTIVE' && u.status === 'ACTIVE' && !u.isArchived;
-
-                        return (
-                          <label
-                            key={u.id}
-                            className={`flex items-center gap-2.5 text-xs sm:text-sm p-2 rounded-lg transition-colors ${
-                              isActive ? 'text-slate-900 cursor-pointer hover:bg-slate-50' : 'text-slate-400 bg-slate-50/60 cursor-not-allowed opacity-60'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              disabled={!isActive}
-                              checked={assignedStaffIds.includes(u.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) setAssignedStaffIds([...assignedStaffIds, u.id]);
-                                else setAssignedStaffIds(assignedStaffIds.filter((id) => id !== u.id));
-                              }}
-                              className="w-4 h-4 accent-blue-500 cursor-pointer disabled:cursor-not-allowed rounded"
-                            />
-                            <span className="flex-1 truncate">
-                              <strong>{u.name}</strong> <span className="text-slate-500 text-xs">({u.role?.replace(/_/g, ' ')})</span>
-                              {u.employeeProfile?.designation && <span className="text-slate-400 text-xs ml-1">• {u.employeeProfile.designation}</span>}
-                              {!isActive && <span className="text-amber-600 font-bold ml-1 font-mono text-xs">({empStatus} - Restricted)</span>}
-                            </span>
-                          </label>
-                        );
-                      })}
-                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1.5">
+                    Attach an optional script document (PDF, Word, Text) for this task. Marketing Managers can review and update scripts as needed.
+                  </p>
                 </div>
               </div>
 
               {/* ══════════════════════════════════════════════════════════════════════════ */}
-              {/* SECTION: REQUIRED EQUIPMENT & GEAR ALLOCATION (ALL TASK TYPES)             */}
-              {/* ══════════════════════════════════════════════════════════════════════════ */}
-              {(() => {
-                const equipmentCategories = Array.from(new Set(equipmentList.map((e) => e.category).filter(Boolean)));
-                const availableEquipmentCount = equipmentList.filter((e) => e.availability === 'AVAILABLE').length;
-
-                const filteredEquipmentList = equipmentList.filter((eq) => {
-                  if (equipmentCategoryFilter !== 'ALL' && eq.category !== equipmentCategoryFilter) return false;
-                  if (equipmentSearchQuery.trim()) {
-                    const q = equipmentSearchQuery.toLowerCase().trim();
-                    const match =
-                      eq.name?.toLowerCase().includes(q) ||
-                      eq.equipmentId?.toLowerCase().includes(q) ||
-                      eq.category?.toLowerCase().includes(q) ||
-                      eq.brand?.toLowerCase().includes(q) ||
-                      eq.model?.toLowerCase().includes(q) ||
-                      eq.serialNumber?.toLowerCase().includes(q);
-                    if (!match) return false;
-                  }
-                  return true;
-                });
-
-                return (
-                  <div className="space-y-4 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200 text-sm">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
-                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                        <Camera className="w-4 h-4 text-cyan-600" /> Required Equipment &amp; Gear Allocation (Optional)
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">
-                          {availableEquipmentCount} Available
-                        </span>
-                        {taskEquipmentIds.length > 0 && (
-                          <span className="text-[11px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded">
-                            {taskEquipmentIds.length} Selected
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {equipmentList.length === 0 ? (
-                      <div className="p-4 bg-white rounded-xl border border-slate-200 text-slate-500 text-xs text-center flex items-center justify-center gap-2">
-                        <Camera className="w-4 h-4 text-slate-400" />
-                        <span>No equipment items registered in the inventory yet.</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {/* Equipment Search & Filter Controls */}
-                        <div className="flex flex-col sm:flex-row items-center gap-2">
-                          <div className="relative flex-1 w-full">
-                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
-                            <input
-                              type="text"
-                              placeholder="Search equipment by name, ID, brand, model, serial #..."
-                              value={equipmentSearchQuery}
-                              onChange={(e) => setEquipmentSearchQuery(e.target.value)}
-                              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-cyan-500 transition-colors"
-                            />
-                          </div>
-
-                          <select
-                            value={equipmentCategoryFilter}
-                            onChange={(e) => setEquipmentCategoryFilter(e.target.value)}
-                            className="w-full sm:w-48 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:border-cyan-500 transition-colors"
-                          >
-                            <option value="ALL">All Categories ({equipmentList.length})</option>
-                            {equipmentCategories.map((cat) => (
-                              <option key={cat} value={cat}>
-                                {cat}
-                              </option>
-                            ))}
-                          </select>
-
-                          {taskEquipmentIds.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => setTaskEquipmentIds([])}
-                              className="text-xs text-rose-600 hover:text-rose-700 font-semibold px-2 py-1 underline whitespace-nowrap"
-                            >
-                              Clear Gear Selection
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Equipment Item Cards Grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto p-2 bg-white rounded-xl border border-slate-200 custom-scrollbar">
-                          {filteredEquipmentList.length === 0 ? (
-                            <div className="col-span-full py-6 text-center text-xs text-slate-400">
-                              No equipment items match the search or filter criteria.
-                            </div>
-                          ) : (
-                            filteredEquipmentList.map((eq: any) => {
-                              const isAvailable = eq.availability === 'AVAILABLE';
-                              const isChecked = taskEquipmentIds.includes(eq.id);
-
-                              return (
-                                <label
-                                  key={eq.id}
-                                  className={`flex items-center justify-between gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition-all ${
-                                    isChecked
-                                      ? 'bg-blue-50/90 border-blue-300 text-blue-900 font-bold shadow-2xs'
-                                      : isAvailable
-                                      ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                                      : 'bg-slate-50/80 border-slate-200 text-slate-500 hover:bg-slate-100'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={(e) => {
-                                        if (e.target.checked) setTaskEquipmentIds([...taskEquipmentIds, eq.id]);
-                                        else setTaskEquipmentIds(taskEquipmentIds.filter((id) => id !== eq.id));
-                                      }}
-                                      className="w-4 h-4 accent-blue-600 rounded cursor-pointer shrink-0"
-                                    />
-                                    <div className="min-w-0 truncate">
-                                      <div className="truncate font-semibold text-slate-900 leading-tight">
-                                        {eq.name}
-                                      </div>
-                                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                                        {eq.equipmentId || eq.equipmentCode || 'EQ'} &bull; {eq.category || 'General'}
-                                        {eq.brand && <span> &bull; {eq.brand}</span>}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <span
-                                    className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border uppercase shrink-0 ${
-                                      isAvailable
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                        : eq.availability === 'RESERVED'
-                                        ? 'bg-purple-50 text-purple-700 border-purple-200'
-                                        : eq.availability === 'ISSUED' || eq.availability === 'CHECKED_OUT' || eq.availability === 'IN_USE'
-                                        ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                        : 'bg-rose-50 text-rose-700 border-rose-200'
-                                    }`}
-                                  >
-                                    {eq.availability?.replace(/_/g, ' ') || 'AVAILABLE'}
-                                  </span>
-                                </label>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
 
               <div className="sticky bottom-0 bg-slate-50/95 -mx-6 sm:-mx-8 -mb-6 sm:-mb-8 p-4 sm:p-5 border-t border-slate-200 flex items-center justify-between gap-4 z-20 backdrop-blur-xs">
                 <span className="text-xs text-slate-500 font-mono">
@@ -3843,1041 +2823,19 @@ export default function TasksPage() {
             onClick={(e) => e.stopPropagation()}
             className="bg-white border border-slate-200 rounded-xl w-full max-w-3xl p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto"
           >
-            {isInspectedTaskScript ? (
-              /* EXACT SCRIPT INSPECT UI (Matching scripts/page.tsx) */
-              (() => {
-                const currentScriptStatus = activeScript?.status || fullScript?.status || inspectedTask?.script?.status || inspectedTask?.status;
-                const isScriptReviewLocked = ['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_MARKETING_APPROVAL', 'COMPLETED'].includes(currentScriptStatus);
-                const isStaffUser = user?.role === 'STAFF' || user?.role === 'SOCIAL_MEDIA_MANAGER';
-                const isScriptEditingLocked = (isScriptReviewLocked && isStaffUser) || isPendingAcceptance;
-                return (
-                  <>
-                <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full font-mono font-extrabold text-[10px] border flex items-center gap-1.5 bg-purple-50 text-purple-700 border-purple-300 shadow-xs">
-                      <Film className="w-3 h-3 text-purple-600" />
-                      Script Task
-                    </span>
-                    {inspectedTask.taskId && (
-                      <span className="font-mono text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                        Task: {inspectedTask.taskId}
-                      </span>
-                    )}
-                    {(activeScript?.scriptId || inspectedTask.scriptId) && (
-                      <span className="font-mono text-[10px] text-purple-600 font-bold bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
-                        Script: {activeScript?.scriptId || inspectedTask.scriptId}
-                      </span>
-                    )}
-                    <span className="font-mono text-[10px] text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
-                      Revisions: {inspectedTask?.revisions?.length || activeScript?.revisionCount || inspectedTask.revisionCount || 0}
-                    </span>
-                    {canAssignRevision && (
-                      <button
-                        type="button"
-                        onClick={() => setRevisionModalScript(fullScript || inspectedTask?.script || activeScript || inspectedTask)}
-                        className="px-2.5 py-0.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded text-[10px] flex items-center gap-1 shadow transition-colors"
-                      >
-                        <RotateCcw className="w-3 h-3" /> Request Revision
-                      </button>
-                    )}
-                    {user?.role === 'TECHNICAL_MANAGER' && (
-                      <Link
-                        href="/approvals"
-                        className="px-2.5 py-0.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-extrabold rounded text-[10px] flex items-center gap-1 shadow-md shadow-cyan-500/20 transition-all border border-cyan-400/40"
-                        title="Open Technical Manager Approval Session"
-                      >
-                        <ShieldCheck className="w-3 h-3 text-cyan-200" />
-                        <span>Go to Technical Manager Approval Session</span>
-                        <ArrowRight className="w-3 h-3 text-cyan-200" />
-                      </Link>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <h2 className="text-base font-bold text-slate-900 font-mono">{inspectedTask.title || activeScript?.name}</h2>
-                    {activeScript?.name && inspectedTask.title && inspectedTask.title !== activeScript.name && (
-                      <p className="text-[11px] text-purple-700 font-mono">Script: {activeScript.name}</p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setInspectedTask(null)}
-                    className="text-slate-500 hover:text-slate-900 font-bold text-lg ml-2"
-                  >
-                    ×
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Task / Revision Acceptance Banner */}
-                  {isPendingAcceptance && (
-                    <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-300 p-4 rounded-xl space-y-3 text-xs shadow-md animate-in fade-in duration-150">
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="p-1.5 bg-purple-100 text-purple-700 rounded-lg">
-                            <Sparkles className="w-4 h-4 text-purple-600" />
-                          </span>
-                          <div>
-                            <h4 className="text-purple-950 font-black text-sm">
-                              {(inspectedTask.revisions?.length > 0 || (inspectedTask.revisionCount || 0) > 0) ? 'Task Revision Assigned — Acceptance Required' : 'Script Task Assigned — Acceptance Required'}
-                            </h4>
-                            <span className="text-[11px] text-purple-700 font-medium">Task Type: <strong>Script Task</strong></span>
-                          </div>
-                        </div>
-                        <span className="px-2.5 py-0.5 bg-purple-200 text-purple-900 border border-purple-300 rounded-full font-mono font-extrabold text-[10px]">
-                          {(inspectedTask.revisions?.length > 0 || (inspectedTask.revisionCount || 0) > 0) ? `Revision #${inspectedTask.revisionCount || inspectedTask.revisions?.length || 1}` : 'Pending Acceptance'}
-                        </span>
-                      </div>
-                      
-                      {inspectedTask.revisions && inspectedTask.revisions.length > 0 && (
-                        <div className="p-3 bg-white/80 border border-purple-200 rounded-lg space-y-1 text-slate-800">
-                          <div className="flex items-center justify-between text-[10px] text-purple-700 font-mono">
-                            <span>Requested by: <strong className="text-purple-950">{inspectedTask.revisions[0].requestedBy?.name || 'Manager'}</strong></span>
-                            <span>{new Date(inspectedTask.revisions[0].createdAt).toLocaleString()}</span>
-                          </div>
-                          <p className="text-xs text-slate-800 font-medium whitespace-pre-wrap">
-                            <strong className="text-purple-950">Revision Instructions:</strong> {inspectedTask.revisions[0].reason}
-                          </p>
-                        </div>
-                      )}
-
-                      <p className="text-slate-700 text-xs leading-relaxed font-medium">
-                        You have been assigned to this script task. Please click <strong className="text-purple-950 font-bold">Accept Task Assignment</strong> below to unlock storyline editing, file uploads, and review submission.
-                      </p>
-                      
-                      <button
-                        type="button"
-                        onClick={() => handleAcknowledgeAcceptance(inspectedTask.id)}
-                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg shadow-md hover:shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 text-xs"
-                      >
-                        <Check className="w-4 h-4" /> Accept Task Assignment &amp; Start Work
-                      </button>
-                    </div>
-                  )}
-                  {/* Dedicated Task Description Section */}
-                  <div className="bg-slate-50 border border-blue-200 p-4 rounded-xl space-y-2.5 shadow-md">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-blue-200 pb-2">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-blue-600" />
-                        <h3 className="font-bold text-blue-900 text-xs uppercase tracking-wider">
-                          Task Description
-                        </h3>
-                        {inspectedTask.taskId && (
-                          <span className="font-mono text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                            {inspectedTask.taskId}
-                          </span>
-                        )}
-                        <span className="text-[9px] text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded font-bold border border-blue-200 uppercase tracking-wider">Task</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-[10px] font-mono text-slate-500">
-                        {inspectedTask.dueDate && (
-                          <span>Due: <strong className="text-slate-800">{new Date(inspectedTask.dueDate).toLocaleDateString()}</strong></span>
-                        )}
-                        {inspectedTask.estimatedHours && (
-                          <span>Est: <strong className="text-emerald-600">{inspectedTask.estimatedHours}h</strong></span>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      {inspectedTask.title && inspectedTask.title !== activeScript?.name && (
-                        <div className="text-xs font-bold text-blue-700 mb-1.5 font-mono">
-                          Task: {inspectedTask.title}
-                        </div>
-                      )}
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-slate-800 leading-relaxed font-normal whitespace-pre-wrap">
-                        {inspectedTask.description?.trim() || 'No specific task description provided.'}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Commercial & Script Attributes Summary Card */}
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
-                      <div>
-                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Script ID</span>
-                        <strong className="text-blue-600 font-mono text-xs">{activeScript?.scriptId || 'N/A'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Script Name</span>
-                        <strong className="text-slate-900 font-mono text-xs block truncate">{activeScript?.name || inspectedTask.title}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Shoot Project</span>
-                        <strong className="text-slate-800 text-xs block truncate">{activeScript?.project?.name || inspectedTask.project?.name || 'N/A'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Status &amp; Priority</span>
-                        <div className="flex items-center gap-1 mt-0.5 font-mono">
-                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded font-bold text-[10px]">
-                            {activeScript?.status || inspectedTask.status}
-                          </span>
-                          <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded font-bold text-[10px]">
-                            {activeScript?.priority || inspectedTask.priority}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between items-center pt-2.5 border-t border-slate-200 text-xs">
-                      <span className="text-slate-500 text-[11px]">
-                        Assigned Staff: <strong className="text-amber-800">
-                          {activeScript?.scriptAssignments?.map((a: any) => a.user?.name || a.name).filter(Boolean).join(', ') ||
-                            inspectedTask?.assignedEmployees?.map((a: any) => a.user?.name || a.name).filter(Boolean).join(', ') || 'Not Assigned'}
-                        </strong>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setShowFullScriptDetailsInTask(!showFullScriptDetailsInTask)}
-                        className="px-3 py-1 bg-slate-50 hover:bg-slate-100 text-purple-700 border border-purple-200 rounded-lg font-semibold text-[11px] flex items-center gap-1 transition-all shadow"
-                      >
-                        <span>{showFullScriptDetailsInTask ? 'Show Less Details ▴' : 'More Details ▾'}</span>
-                      </button>
-                    </div>
-
-                    {/* Expanded Full Details Grid */}
-                    {showFullScriptDetailsInTask && (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-200 text-[11px] animate-in fade-in duration-150">
-                        <div><span className="text-slate-400 block text-[10px]">Client:</span> <strong className="text-slate-800">{activeScript?.client?.name || inspectedTask.client?.name || 'N/A'}</strong></div>
-                        <div><span className="text-slate-400 block text-[10px]">Brand:</span> <strong className="text-purple-600">[{activeScript?.brand?.shortCode || 'BR'}] {activeScript?.brand?.name || 'Brand'}</strong></div>
-                        <div><span className="text-slate-400 block text-[10px]">Product:</span> <strong className="text-emerald-600">{activeScript?.product?.name || 'N/A'}</strong></div>
-                        <div><span className="text-slate-400 block text-[10px]">Campaign:</span> <strong className="text-indigo-700">{activeScript?.campaign?.name || 'N/A (Optional)'}</strong></div>
-                        <div><span className="text-slate-400 block text-[10px]">Language:</span> <strong className="text-purple-700">{activeScript?.language || 'English'}</strong></div>
-                        <div><span className="text-slate-400 block text-[10px]">Category / Purpose:</span> <strong className="text-amber-800">{activeScript?.category || 'Social Media'}</strong></div>
-                        <div><span className="text-slate-400 block text-[10px]">Objective:</span> <strong className="text-cyan-700">{activeScript?.objective || 'N/A'}</strong></div>
-                        <div><span className="text-slate-400 block text-[10px]">Est. Duration:</span> <strong className="text-cyan-700">{scriptEditDuration || activeScript?.estimatedDuration || '30s'}</strong></div>
-                        <div><span className="text-slate-400 block text-[10px]">Created By:</span> <strong className="text-slate-800">{activeScript?.createdBy?.name || 'Writer'}</strong></div>
-                        <div><span className="text-slate-400 block text-[10px]">Created At:</span> <strong className="text-slate-700">{activeScript?.createdAt ? new Date(activeScript.createdAt).toLocaleDateString() : 'N/A'}</strong></div>
-                        <div><span className="text-slate-400 block text-[10px]">Remarks:</span> <strong className="text-amber-800">{scriptEditRemarks || activeScript?.remarks || 'None'}</strong></div>
-                        <div><span className="text-slate-400 block text-[10px]">Total Revisions:</span> <strong className="text-amber-800 font-bold">{activeScript?.revisionCount || inspectedTask.revisionCount || 0}</strong></div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Active Revision Requested Status Banner */}
-                  {(activeScript?.status === 'REVISION_REQUESTED' || activeScript?.status === 'CLIENT_REVISION_REQUESTED' || inspectedTask.status === 'REVISION_REQUESTED' || inspectedTask.status === 'CLIENT_REVISION_REQUESTED') && (
-                    <div className="bg-amber-50 border border-amber-500 p-4 rounded-xl space-y-2 text-xs shadow-xl animate-in fade-in duration-200">
-                      <div className="flex items-center justify-between">
-                        <span className="text-amber-800 font-extrabold text-xs flex items-center gap-2">
-                          <RotateCcw className="w-4 h-4 text-amber-600 animate-spin" /> Active Workflow Status: REVISION REQUESTED
-                        </span>
-                        <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded font-mono font-bold text-[10px]">
-                          Revision #{activeScript?.revisionCount || inspectedTask.revisionCount || 1}
-                        </span>
-                      </div>
-                      <p className="text-slate-800 leading-relaxed">
-                        Reviewer requested changes for this script. The assigned script writer is making requested revisions before re-submitting.
-                      </p>
-                      {canAssignRevision && (
-                        <div className="flex items-center gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => setRevisionModalScript(fullScript || inspectedTask?.script || activeScript || inspectedTask)}
-                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow transition-colors"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" /> Request Another Revision
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Script Workflow Progress Stepper (Matching Script Inspect UI) */}
-                  <div className="p-4 bg-slate-50 border border-purple-200 rounded-xl space-y-3 shadow-lg">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                      <h4 className="font-bold text-purple-700 text-xs flex items-center gap-1.5">
-                        Script Workflow Progress
-                      </h4>
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded border bg-purple-50 text-purple-700 border-purple-200">
-                        Current Status: {activeScript?.status || inspectedTask.status || 'IN_PRODUCTION'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between overflow-x-auto py-2 px-1 gap-1">
-                      {[
-                        { key: 'IN_PRODUCTION', label: '1. Production' },
-                        { key: 'IN_PROGRESS', label: '2. In Progress' },
-                        { key: 'WAITING_FOR_TECHNICAL_REVIEW', label: '3. Technical Review' },
-                        { key: 'WAITING_FOR_MEDIA_REVIEW', label: '4. Media Review' },
-                        { key: 'WAITING_FOR_CLIENT_CONFIRMATION', label: '5. Client Confirmation' },
-                        { key: 'COMPLETED', label: '6. Completed' },
-                      ].map((stage, i) => {
-                        const sStatus = activeScript?.status || inspectedTask.status;
-                        let currentIdx = 0;
-                        if (sStatus === 'COMPLETED' || (scriptProdComp && scriptTechAppr && scriptMediaAppr && scriptClientConf)) currentIdx = 5;
-                        else if (sStatus === 'WAITING_FOR_CLIENT_CONFIRMATION' || scriptClientConf) currentIdx = 4;
-                        else if (sStatus === 'WAITING_FOR_MEDIA_REVIEW' || sStatus === 'APPROVED' || scriptMediaAppr) currentIdx = 3;
-                        else if (sStatus === 'WAITING_FOR_TECHNICAL_REVIEW' || scriptTechAppr) currentIdx = 2;
-                        else if (sStatus === 'IN_PROGRESS') currentIdx = 1;
-                        else currentIdx = 0;
-
-                        const isCurrent = currentIdx === i;
-                        const isPassed = currentIdx >= 0 && i < currentIdx;
-
-                        return (
-                          <React.Fragment key={stage.key}>
-                            <div className="flex flex-col items-center min-w-[85px] text-center">
-                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
-                                isCurrent
-                                  ? 'bg-purple-500 text-white font-extrabold ring-2 ring-purple-400 animate-pulse shadow-lg shadow-purple-500/50'
-                                  : isPassed
-                                  ? 'bg-emerald-600 text-white'
-                                  : 'bg-slate-50 text-slate-400 border border-slate-200'
-                              }`}>
-                                {i + 1}
-                              </div>
-                              <span className={`text-[10px] mt-1 font-semibold leading-tight ${
-                                isCurrent ? 'text-purple-700 font-bold' : isPassed ? 'text-emerald-600' : 'text-slate-400'
-                              }`}>
-                                {stage.label}
-                              </span>
-                            </div>
-
-                            {i < 5 && (
-                              <div className={`h-0.5 flex-1 min-w-[12px] ${
-                                currentIdx >= 0 && i < currentIdx ? 'bg-emerald-500' : 'bg-slate-100'
-                              }`} />
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Read-Only Notice for Scripts Under Review */}
-                  {isScriptEditingLocked && (
-                    <div className="p-3.5 bg-amber-50 border border-amber-600/80 rounded-xl text-amber-900 text-xs font-semibold flex items-center gap-2.5 shadow-md">
-                      <Lock className="w-4 h-4 text-amber-600 shrink-0" />
-                      <div>
-                        <span className="font-bold">Script Under Review (Read-Only Mode):</span>
-                        <p className="text-[11px] text-amber-800/80 font-normal mt-0.5">
-                          This script has been submitted for technical/media/marketing review ({currentScriptStatus}). Editing is disabled for assigned staff members until review is finalized or returned for revision.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Script & Task Metrics (Read-Only Synchronized Display) */}
-                  <div className="space-y-3 pt-2">
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-3 space-y-1">
-                        <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Estimated Duration</span>
-                        <div className="text-xs font-bold text-cyan-700 font-mono">
-                          {activeScript?.estimatedDuration || scriptEditDuration || '30s'}
-                        </div>
-                      </div>
-                      <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-3 space-y-1">
-                        <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Current Status</span>
-                        <div>
-                          <span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded font-mono font-bold text-[11px]">
-                            {(activeScript?.status || scriptEditStatus || inspectedTask.status)?.replace(/_/g, ' ')}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-3 space-y-1">
-                        <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Priority</span>
-                        <div>
-                          <span className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-[11px] ${
-                            (activeScript?.priority || scriptEditPriority || inspectedTask.priority) === 'CRITICAL' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                            (activeScript?.priority || scriptEditPriority || inspectedTask.priority) === 'HIGH' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
-                            (activeScript?.priority || scriptEditPriority || inspectedTask.priority) === 'LOW' ? 'bg-slate-50 text-slate-700 border border-slate-200' :
-                            'bg-blue-50 text-blue-700 border border-blue-200'
-                          }`}>
-                            {activeScript?.priority || scriptEditPriority || inspectedTask.priority || 'MEDIUM'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Dedicated Full Script Storyline & Narration Session */}
-                    <div className="p-4 bg-slate-50 border border-purple-200 rounded-2xl space-y-3 shadow-lg">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-purple-600" />
-                          <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
-                            Script Storyline &amp; Scene Narration
-                          </h3>
-                          <span className="text-[9px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded font-bold border border-purple-200 uppercase tracking-wider">Script</span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(scriptEditDescription || activeScript?.description || '');
-                              setScriptCopiedStoryline(true);
-                              setTimeout(() => setScriptCopiedStoryline(false), 2000);
-                            }}
-                            className="px-2.5 py-1 bg-purple-50 hover:bg-purple-900/80 border border-purple-200 text-purple-700 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-colors"
-                          >
-                            {scriptCopiedStoryline ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-purple-600" />}
-                            <span>{scriptCopiedStoryline ? 'Copied to Clipboard!' : 'Copy Script Text'}</span>
-                          </button>
-
-                          <div className="flex bg-slate-50 border border-slate-200 p-0.5 rounded-lg text-[10px] font-semibold">
-                            <button
-                              type="button"
-                              onClick={() => setScriptStorylineTab('view')}
-                              className={`px-2 py-0.5 rounded transition-colors ${scriptStorylineTab === 'view' ? 'bg-purple-600 text-white font-bold' : 'text-slate-500 hover:text-slate-900'}`}
-                            >
-                              Formatted View
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setScriptStorylineTab('edit')}
-                              className={`px-2 py-0.5 rounded transition-colors ${scriptStorylineTab === 'edit' ? 'bg-purple-600 text-white font-bold' : 'text-slate-500 hover:text-slate-900'}`}
-                            >
-                              Edit Script Storyline
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {scriptStorylineTab === 'view' ? (
-                        <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-4 max-h-64 overflow-y-auto custom-scrollbar">
-                          {scriptEditDescription?.trim() ? (
-                            <div className="whitespace-pre-wrap font-sans text-slate-800 text-xs leading-relaxed tracking-wide">
-                              {scriptEditDescription}
-                            </div>
-                          ) : (
-                            <p className="text-slate-400 italic text-[11px] text-center py-4">
-                              No storyline or scene narration entered for this script yet. Switch to Edit tab to add details.
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <textarea
-                            rows={6}
-                            value={scriptEditDescription}
-                            disabled={isScriptEditingLocked}
-                            onChange={(e) => setScriptEditDescription(e.target.value)}
-                            placeholder="Enter scene narration, voiceover dialogues, shots..."
-                            className="w-full bg-slate-50 border border-purple-200 text-white p-3 rounded-xl text-xs font-mono focus:outline-none focus:border-purple-500 focus:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-                          />
-                          <div className="flex items-center justify-between font-mono text-[10px] text-slate-500">
-                            <span>Tip: Use [Scene X] headers and VO: for voiceover dialogues</span>
-                            <div className="flex items-center gap-3">
-                              <span>{scriptEditDescription?.length || 0} characters</span>
-                              <button
-                                type="button"
-                                onClick={handleSaveScriptDetailsInTask}
-                                disabled={savingScript || isScriptEditingLocked}
-                                className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg shadow text-xs flex items-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {savingScript ? 'Saving...' : isScriptEditingLocked ? 'Read Only' : 'Save Storyline'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-700 font-semibold mb-1">Remarks</label>
-                      <input
-                        type="text"
-                        value={scriptEditRemarks}
-                        disabled={isScriptEditingLocked}
-                        onChange={(e) => setScriptEditRemarks(e.target.value)}
-                        placeholder="Enter operational remarks..."
-                        className="w-full bg-slate-100 border border-slate-200 text-white px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Operational Timeline Section */}
-                  {(() => {
-                    const rawEvents = activeScript?.timeline || activeScript?.taskTimeline || inspectedTask?.timeline || inspectedTask?.taskTimeline || [];
-                    const timelineEntries: TimelineEntry[] = rawEvents.map((t: any, idx: number) => ({
-                      id: t.id || `st-${idx}`,
-                      createdAt: t.createdAt,
-                      action: t.event || t.action || 'WORKFLOW_EVENT',
-                      user: t.user || t.triggeredBy,
-                      description: t.description || t.remarks || t.message,
-                      remarks: t.remarks,
-                    }));
-                    return (
-                      <TimelineView
-                        entries={timelineEntries}
-                        title="Operational Timeline & Audit Trail"
-                        order="desc"
-                        emptyMessage="No operational timeline events recorded yet."
-                      />
-                    );
-                  })()}
-
-                  {/* Permanent Remarks Section */}
-                  <div className="p-4 bg-slate-50 border border-amber-200 rounded-xl space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                      <h4 className="font-bold text-amber-800 text-xs flex items-center gap-1.5">
-                        <MessageSquare className="w-4 h-4 text-amber-600" /> Remarks History
-                      </h4>
-                      <span className="text-[10px] text-slate-400 italic">Permanent — assigned employees &amp; managers</span>
-                    </div>
-
-                    <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                      {(() => {
-                        const remarksList = activeScript?.scriptRemarks || activeScript?.remarksHistory || inspectedTask?.remarksHistory || [];
-                        if (remarksList.length === 0) {
-                          return <p className="text-slate-400 italic text-[11px]">No remarks yet. Be the first to add one.</p>;
-                        }
-                        return remarksList.map((r: any, idx: number) => {
-                          const date = r.createdAt ? new Date(r.createdAt) : new Date();
-                          const userName = r.user?.name || r.name || 'Staff';
-                          return (
-                            <div key={r.id || idx} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 space-y-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-1.5">
-                                  <div className="w-5 h-5 rounded-full bg-amber-700 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
-                                    {userName[0]?.toUpperCase()}
-                                  </div>
-                                  <span className="text-amber-900 font-semibold text-[11px]">{userName}</span>
-                                  <span className="text-slate-400 text-[10px]">·</span>
-                                  <span className="text-slate-400 text-[10px] font-mono">
-                                    {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                </div>
-                              </div>
-                              <p className="text-slate-700 text-[11px] leading-relaxed pl-[26px]">{r.message}</p>
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-
-                    {/* Add New Remark */}
-                    <div className="flex items-end gap-2 pt-1 border-t border-slate-200">
-                      <textarea
-                        value={scriptNewRemarkText}
-                        disabled={isScriptEditingLocked}
-                        onChange={(e) => setScriptNewRemarkText(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddScriptRemarkInTask(); } }}
-                        placeholder={isScriptEditingLocked ? "Task is in read-only mode. Please accept the task to add remarks." : "Add a remark… (Enter to submit, Shift+Enter for new line)"}
-                        rows={2}
-                        className="flex-1 bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg text-[11px] resize-none focus:border-amber-500 focus:bg-white focus:outline-none placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                      <button
-                        onClick={handleAddScriptRemarkInTask}
-                        disabled={!scriptNewRemarkText.trim() || scriptAddingRemark || isScriptEditingLocked}
-                        className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg text-[11px] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 h-[52px]"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        {scriptAddingRemark ? '…' : isScriptEditingLocked ? 'Locked' : 'Send'}
-                      </button>
-                    </div>
-                  </div>
-
-
-
-                  {/* Linked Script Attachments & Production Files Section (Link-based) */}
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4 pt-3">
-                    <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                      <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                        <FileText className="w-4 h-4 text-purple-600" /> Linked Script Attachments &amp; Production Files
-                      </h4>
-                      <span className="text-[10px] text-purple-600 font-mono font-bold">
-                        Add links by name under each category
-                      </span>
-                    </div>
-
-                    {/* Add Link Control Card */}
-                    <div className="p-3.5 bg-slate-50 border border-purple-200 rounded-xl space-y-2.5 shadow-md">
-                      <span className="text-purple-700 font-bold text-xs block">Add Deliverable Output Link:</span>
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <select
-                          value={selectedScriptAttachmentCategory}
-                          disabled={isScriptEditingLocked}
-                          onChange={(e) => setSelectedScriptAttachmentCategory(e.target.value)}
-                          className="bg-slate-50 border border-purple-200 text-slate-900 px-3 py-2 rounded-lg text-xs font-semibold focus:outline-none focus:border-purple-500 focus:bg-white shadow-inner disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <option value="SCRIPT_DOCUMENT">1. Script Document</option>
-                          <option value="REFERENCE_IMAGE">2. Reference Images</option>
-                          <option value="REFERENCE_VIDEO">3. Reference Videos</option>
-                          <option value="AUDIO_REFERENCE">4. Audio References</option>
-                          <option value="BRAND_GUIDELINES">5. Brand Guidelines</option>
-                          <option value="PRODUCT_INFORMATION">6. Product Information</option>
-                          <option value="SUPPORTING_DOCUMENT">7. Supporting Documents</option>
-                        </select>
-                        <input
-                          type="text"
-                          value={scriptNewLinkName}
-                          disabled={isScriptEditingLocked}
-                          onChange={(e) => setScriptNewLinkName(e.target.value)}
-                          placeholder="Link name (e.g. Final Script v3)"
-                          className="flex-1 min-w-[150px] bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg text-xs focus:border-purple-500 focus:bg-white focus:outline-none placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                        />
-                        <input
-                          type="url"
-                          value={scriptNewLinkUrl}
-                          disabled={isScriptEditingLocked}
-                          onChange={(e) => setScriptNewLinkUrl(e.target.value)}
-                          placeholder="https://drive.google.com/..."
-                          className="flex-1 min-w-[180px] bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg text-xs focus:border-purple-500 focus:bg-white focus:outline-none placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                        />
-                        <button
-                          disabled={isScriptEditingLocked || scriptAddingLink || !scriptNewLinkName.trim() || !scriptNewLinkUrl.trim()}
-                          onClick={handleAddScriptAttachmentLink}
-                          className="px-4 py-2 font-bold rounded-lg text-xs flex items-center gap-1.5 shadow transition-all bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {scriptAddingLink ? 'Adding…' : isScriptEditingLocked ? 'Locked' : '+ Add Link'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* All 7 Categories Link Display */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[11px]">
-                      {[
-                        { key: 'SCRIPT_DOCUMENT', label: '1. Script Document', color: 'text-blue-700' },
-                        { key: 'REFERENCE_IMAGE', label: '2. Reference Images', color: 'text-purple-700' },
-                        { key: 'REFERENCE_VIDEO', label: '3. Reference Videos', color: 'text-emerald-700' },
-                        { key: 'AUDIO_REFERENCE', label: '4. Audio References', color: 'text-cyan-700' },
-                        { key: 'BRAND_GUIDELINES', label: '5. Brand Guidelines', color: 'text-amber-800' },
-                        { key: 'PRODUCT_INFORMATION', label: '6. Product Information', color: 'text-indigo-700' },
-                        { key: 'SUPPORTING_DOCUMENT', label: '7. Supporting Documents', color: 'text-slate-700' },
-                      ].map((cat) => {
-                        const activeScriptData = fullScript || activeScript;
-                        const catLinks = (activeScriptData?.attachmentLinks || []).filter(
-                          (l: any) => l.attachmentCategory === cat.key
-                        );
-                        return (
-                          <div key={cat.key} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5">
-                            <div className="flex justify-between items-center">
-                              <span className={`font-bold ${cat.color}`}>{cat.label}</span>
-                              <span className="text-[10px] text-slate-500">({catLinks.length})</span>
-                            </div>
-                            {catLinks.length > 0 ? (
-                              catLinks.map((l: any) => (
-                                <div key={l.id} className="flex items-center justify-between gap-1 bg-slate-50 p-1.5 rounded border border-slate-200 group">
-                                  <a
-                                    href={l.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-purple-700 hover:text-purple-900 font-mono text-[10px] truncate underline underline-offset-2 flex-1"
-                                    title={l.url}
-                                  >
-                                    {l.name}
-                                  </a>
-                                  {!isScriptEditingLocked && (
-                                    <button
-                                      onClick={() => handleDeleteScriptAttachmentLink(l.id)}
-                                      className="text-red-500 hover:text-rose-700 text-[10px] font-bold ml-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                                      title="Remove link"
-                                    >
-                                      ×
-                                    </button>
-                                  )}
-                                </div>
-                              ))
-                            ) : (
-                              <span className="text-slate-400 italic text-[10px]">No links added</span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Technical Review Rejected — Revision Required Status Card */}
-                  {(activeScript?.status === 'REVISION_REQUESTED' || (Boolean(activeScript?.rejectionReason) && !activeScript?.technicalReviewApproved && ['IN_PRODUCTION', 'IN_PROGRESS', 'ASSIGNED', 'DRAFT', 'READY'].includes(activeScript?.status))) && (
-                    <div className="p-4 bg-rose-50 border border-rose-300 rounded-xl space-y-2.5 text-rose-900 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-xs flex items-center gap-2 text-rose-800">
-                          Technical Review Rejected — Revision Required
-                        </span>
-                        <span className="text-[10px] bg-rose-100 text-rose-800 border border-rose-300 px-2 py-0.5 rounded font-mono font-bold">
-                          Status: {activeScript?.status}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-rose-900 font-semibold">
-                        The Technical Manager has rejected this script. Please review the rejection remarks, make the required changes, and resubmit the script for Technical Manager approval.
-                      </p>
-                      <div className="p-3 bg-white border border-rose-200 rounded-lg text-xs space-y-1">
-                        <span className="text-[10px] uppercase font-bold text-rose-800 block">Technical Manager Rejection Remarks:</span>
-                        <p className="text-slate-900 font-medium whitespace-pre-wrap">
-                          {activeScript?.rejectionReason || activeScript?.remarks || 'No specific rejection reason supplied. Please update storyline or attachments and resubmit.'}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ══════════════════════════════════════════════════════
-                       TECHNICAL APPROVAL REQUEST SUBMISSION SESSION (IN TASK INSPECTOR)
-                     ══════════════════════════════════════════════════════ */}
-                  <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-3 shadow-sm">
-                    <div className="flex items-center justify-between border-b border-purple-200 pb-2">
-                      <h4 className="font-extrabold text-purple-800 text-xs flex items-center gap-2">
-                        <Send className="w-4 h-4 text-purple-600" /> Technical Approval Request Submission Session
-                      </h4>
-                      <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-2 py-0.5 rounded font-mono font-bold">
-                        Script Status: {activeScript?.status}
-                      </span>
-                    </div>
-
-                    {activeScript?.status === 'WAITING_FOR_TECHNICAL_REVIEW' ? (
-                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2 text-blue-900">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-xs flex items-center gap-1.5 text-blue-800">
-                            Technical Approval Request Submitted (Round #{activeScript?.technicalReviewRound || 1})
-                          </span>
-                          <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-mono font-bold border border-blue-200">
-                            Under Technical Review
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-blue-900 font-normal">
-                          This script task has been submitted and is currently waiting for Technical Manager review.
-                        </p>
-                      </div>
-                    ) : (activeScript?.status === 'WAITING_FOR_MEDIA_REVIEW' || activeScript?.status === 'WAITING_FOR_MARKETING_APPROVAL' || activeScript?.status === 'APPROVED' || activeScript?.status === 'COMPLETED') ? (
-                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg space-y-1 text-emerald-900">
-                        <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-800">
-                          Technical Approval Completed
-                        </span>
-                        <p className="text-[11px] text-emerald-800 font-normal">
-                          This script task has passed Level 1 Technical Review and is advancing through the subsequent manager approval stages.
-                        </p>
-                      </div>
-                    ) : isPendingAcceptance ? (
-                      <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-purple-900 font-semibold text-xs flex items-center gap-2">
-                        <Lock className="w-4 h-4 text-purple-600 shrink-0" />
-                        <span>Read-Only Mode: Please accept the task assignment to unlock technical review submission.</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-2.5">
-                        <p className="text-[11px] text-slate-700 leading-relaxed">
-                          {activeScript?.technicalReviewRound > 0 || activeScript?.rejectionReason || ['REVISION_REQUESTED', 'CHANGES_REQUESTED'].includes(activeScript?.status)
-                            ? `Revisions were requested. Edit the script storyline or attachments above, then click below to resubmit for Technical Manager Approval (Round #${(activeScript?.technicalReviewRound || 0) + 1}).`
-                            : 'Once storyline narration and reference files are complete, submit this script task to initiate Level 1: Technical Manager Review & Approval.'}
-                        </p>
-                        <div className="flex items-center gap-2 flex-wrap pt-1">
-                          {activeScript?.status !== 'IN_PROGRESS' && (
-                            <button
-                              type="button"
-                              onClick={handleUpdateScriptStatusToInProgressInTask}
-                              disabled={savingScript}
-                              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
-                            >
-                              Update Status to IN PROGRESS
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={handleSubmitTechnicalReviewInTask}
-                            disabled={savingScript}
-                            className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-lg shadow-lg shadow-purple-600/30 transition-all flex items-center gap-2 text-xs"
-                          >
-                            {activeScript?.technicalReviewRound > 0 || activeScript?.rejectionReason || ['REVISION_REQUESTED', 'CHANGES_REQUESTED'].includes(activeScript?.status)
-                              ? `Submit Revised Script for Technical Approval (Round #${(activeScript?.technicalReviewRound || 0) + 1})`
-                              : 'Submit Script for Technical Review'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ══════════════════════════════════════════════════════
-                       TECHNICAL REVIEW RESULTS LIST (IN TASK INSPECTOR)
-                    ══════════════════════════════════════════════════════ */}
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 shadow-lg">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                      <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                        <ShieldCheck className="w-4 h-4 text-blue-600" /> Technical Review Results &amp; Decision History
-                      </h4>
-                      <span className="text-[10px] text-blue-600 font-mono font-bold">
-                        Level 1 Technical Compliance Log
-                      </span>
-                    </div>
-
-                    {(() => {
-                      const techReviews = (fullScript?.approvals || activeScript?.approvals || []).filter(
-                        (a: any) => (a.stage === 'TECHNICAL_REVIEW' || a.approvalType === 'TECHNICAL_REVIEW') && (a.status === 'APPROVED' || a.status === 'REJECTED'),
-                      );
-
-                      const sorted = [...techReviews].sort((a: any, b: any) => {
-                        if ((b.round || 0) !== (a.round || 0)) return (b.round || 0) - (a.round || 0);
-                        return new Date(b.reviewedAt || b.createdAt).getTime() - new Date(a.reviewedAt || a.createdAt).getTime();
-                      });
-
-                      if (sorted.length === 0 && !activeScript?.rejectionReason) {
-                        return (
-                          <div className="p-6 text-center bg-slate-50/60 border border-slate-200 rounded-xl space-y-1.5">
-                            <ShieldCheck className="w-8 h-8 text-gray-600 mx-auto" />
-                            <p className="text-xs font-semibold text-slate-700">No Technical Review Decisions Recorded Yet</p>
-                            <p className="text-[11px] text-slate-400">
-                              This script task has not completed any Technical Manager review rounds. Submit for Technical Approval above to begin Level 1 review.
-                            </p>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div className="space-y-3">
-                          {sorted.length > 0 ? (
-                            sorted.map((rev: any, idx: number) => {
-                              const isApproved = rev.status === 'APPROVED';
-                              const roundNum = rev.round || sorted.length - idx;
-                              const reviewerName = rev.reviewer?.name || rev.requestedBy?.name || 'Technical Manager';
-                              const reviewerRole = (rev.reviewer?.role || 'TECHNICAL_MANAGER').replace(/_/g, ' ');
-                              const dateStr = rev.reviewedAt
-                                ? new Date(rev.reviewedAt).toLocaleString()
-                                : rev.createdAt
-                                ? new Date(rev.createdAt).toLocaleString()
-                                : '—';
-                              const remarksText = rev.remarks || (isApproved ? 'Technical review requirements verified and approved.' : activeScript?.rejectionReason || 'No detailed reason supplied.');
-
-                              return (
-                                <div
-                                  key={rev.id || idx}
-                                  className={`p-4 rounded-xl border-2 space-y-3 shadow-md transition-all ${
-                                    isApproved
-                                      ? 'bg-emerald-50 border-emerald-600/60'
-                                      : 'bg-rose-50 border-red-600/60'
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                                    <div className="flex items-center gap-2">
-                                      <span className={`px-2.5 py-0.5 text-[10px] font-mono font-extrabold rounded border uppercase ${
-                                        isApproved
-                                          ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
-                                          : 'bg-rose-100 border-rose-300 text-rose-800'
-                                      }`}>
-                                        {isApproved ? 'ACCEPTED WITH REASON' : 'REJECTED WITH REASON'}
-                                      </span>
-                                      <span className="font-bold text-xs text-slate-900 font-mono">
-                                        Technical Review — Round #{roundNum}
-                                      </span>
-                                    </div>
-                                    <span className="text-[10px] text-slate-500 font-mono">{dateStr}</span>
-                                  </div>
-
-                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-[11px]">
-                                    <div>
-                                      <span className="text-slate-400 text-[10px] uppercase font-bold block">Reviewer</span>
-                                      <strong className="text-slate-900">{reviewerName}</strong>
-                                      <span className="text-[10px] text-slate-500 block font-mono">({reviewerRole})</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-slate-400 text-[10px] uppercase font-bold block">Decision Outcome</span>
-                                      <strong className={isApproved ? 'text-emerald-600 font-extrabold' : 'text-rose-600 font-extrabold'}>
-                                        {isApproved ? 'ACCEPTED / APPROVED' : 'REJECTED — REVISION REQUIRED'}
-                                      </strong>
-                                    </div>
-                                    {!isApproved && rev.returnedStatus && (
-                                      <div>
-                                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Returned To Status</span>
-                                        <span className="text-amber-800 font-mono font-bold text-[10px] bg-amber-50 border border-amber-200 px-2 py-0.5 rounded inline-block">
-                                          {rev.returnedStatus}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  <div className={`p-3 rounded-lg border text-xs space-y-1 ${
-                                    isApproved
-                                      ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                                      : 'bg-rose-50 border-rose-300 text-rose-800'
-                                  }`}>
-                                    <span className="text-[10px] uppercase font-bold block flex items-center gap-1 tracking-wider">
-                                      {isApproved ? 'Approval Reason / Notes:' : 'Rejection Reason / Revision Instructions:'}
-                                    </span>
-                                    <p className="text-slate-800 font-medium text-[11px] whitespace-pre-wrap leading-relaxed">
-                                      {remarksText}
-                                    </p>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          ) : (
-                            <div className="p-4 rounded-xl border-2 bg-rose-50 border-red-600/60 space-y-3">
-                              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                                <span className="px-2.5 py-0.5 text-[10px] font-mono font-extrabold rounded border uppercase bg-rose-100 border-rose-300 text-rose-800">
-                                  REJECTED WITH REASON
-                                </span>
-                              </div>
-                              <div className="p-3 bg-red-900/30 border border-rose-300 rounded-lg space-y-1">
-                                <span className="text-[10px] uppercase font-bold text-rose-700 block">Rejection Reason:</span>
-                                <p className="text-slate-800 font-medium text-[11px] whitespace-pre-wrap">
-                                  {activeScript?.rejectionReason || activeScript?.remarks || 'Script task rejected during Technical Review. Revisions required.'}
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Sequential Multi-Level Approval Chain Controls */}
-                  <div className="space-y-3">
-                    {/* Step 2: Technical Manager Review Action */}
-                    {activeScript?.status === 'WAITING_FOR_TECHNICAL_REVIEW' && (
-                      (user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
-                        <div className="p-4 bg-blue-50 border-2 border-blue-600/80 rounded-xl space-y-3 shadow-sm animate-in fade-in duration-200">
-                          <div className="flex items-center justify-between border-b border-blue-200 pb-2">
-                            <h4 className="font-extrabold text-blue-800 text-xs flex items-center gap-2">
-                              <ShieldCheck className="w-4 h-4 text-blue-600" /> Level 1: Technical Manager Review Decision Controls
-                            </h4>
-                            <span className="text-[10px] bg-blue-100 text-blue-800 border border-blue-300 px-2.5 py-0.5 rounded font-mono font-bold">
-                              Status: WAITING_FOR_TECHNICAL_REVIEW
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-blue-900 leading-relaxed font-normal">
-                            This script task has been submitted for Technical Manager approval. Inspect storyline narration and attached reference deliverables, then approve or reject with revision remarks.
-                          </p>
-                          <div className="flex items-center gap-2 flex-wrap pt-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const note = prompt('Optional: Enter approval reason / notes for technical compliance:');
-                                handleReviewTechnicalInTask('APPROVE', note || 'Technical Review Approved');
-                              }}
-                              disabled={savingScript}
-                              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg shadow-lg transition-all flex items-center gap-2 text-xs"
-                            >
-                              <Check className="w-4 h-4" /> Accept &amp; Approve Technical Review
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const comment = prompt('Rejection reason is mandatory. Enter rejection reason for script revision:');
-                                if (comment && comment.trim()) {
-                                  handleReviewTechnicalInTask('REJECT', comment.trim());
-                                } else if (comment !== null) {
-                                  alert('Rejection reason is mandatory.');
-                                }
-                              }}
-                              disabled={savingScript}
-                              className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-extrabold rounded-lg shadow-lg transition-all flex items-center gap-2 text-xs"
-                            >
-                              <RotateCcw className="w-4 h-4" /> Reject Technical Review
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between shadow-md">
-                          <span className="text-blue-700 font-semibold text-xs flex items-center gap-2">
-                            Waiting for Technical Review
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-mono">Technical Manager Authority Required</span>
-                        </div>
-                      )
-                    )}
-
-                    {/* Step 3: Media Manager Review Action */}
-                    {activeScript?.status === 'WAITING_FOR_MEDIA_REVIEW' && (
-                      (user?.role === 'MEDIA_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
-                        <div className="p-4 bg-indigo-50 border border-indigo-800/60 rounded-xl space-y-3 shadow-lg">
-                          <div className="flex items-center justify-between border-b border-indigo-800/60 pb-2">
-                            <h4 className="font-bold text-indigo-700 text-xs flex items-center gap-1.5">
-                              Level 2: Media Manager Review Session
-                            </h4>
-                            <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded font-mono font-bold">
-                              Status: WAITING_FOR_MEDIA_REVIEW
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-indigo-800 leading-relaxed font-normal">
-                            Technical review approved. Review creative storyline &amp; deliverables for Media Manager sign-off.
-                          </p>
-                          <div className="flex items-center gap-2 flex-wrap pt-1">
-                            <button
-                              type="button"
-                              onClick={() => handleReviewMediaInTask('APPROVE')}
-                              disabled={savingScript}
-                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
-                            >
-                              <Check className="w-4 h-4" /> Approve Script
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const comment = prompt('Rejection reason is mandatory. Enter rejection reason:');
-                                if (comment && comment.trim()) {
-                                  handleReviewMediaInTask('REJECT', comment.trim());
-                                } else if (comment !== null) {
-                                  alert('Rejection reason is mandatory.');
-                                }
-                              }}
-                              disabled={savingScript}
-                              className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
-                            >
-                              <RotateCcw className="w-4 h-4" /> Reject Script
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-3 bg-indigo-50 border border-indigo-800/40 rounded-xl flex items-center justify-between">
-                          <span className="text-indigo-700 font-semibold text-xs flex items-center gap-2">
-                            Technical Review Approved — Waiting for Media Review
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-mono">Media Manager Review</span>
-                        </div>
-                      )
-                    )}
-
-                    {/* Step 4: Marketing Manager Review Action */}
-                    {(activeScript?.status === 'WAITING_FOR_MARKETING_APPROVAL' || activeScript?.status === 'PENDING_MARKETING_APPROVAL') && (
-                      (user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') ? (
-                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3 shadow-lg">
-                          <div className="flex items-center justify-between border-b border-amber-200 pb-2">
-                            <h4 className="font-bold text-amber-800 text-xs flex items-center gap-1.5">
-                              Level 3: Marketing Manager Approval Session
-                            </h4>
-                            <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded font-mono font-bold">
-                              Status: Waiting for Marketing Manager Approval
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 flex-wrap pt-1">
-                            <button
-                              type="button"
-                              onClick={() => handleApproveScriptInTask('APPROVE')}
-                              disabled={savingScript}
-                              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
-                            >
-                              <Check className="w-4 h-4" /> Approve Script
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const comment = prompt('Enter revisions requested:');
-                                if (comment && comment.trim()) {
-                                  handleApproveScriptInTask('REQUEST_CHANGES', comment.trim());
-                                }
-                              }}
-                              disabled={savingScript}
-                              className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 text-xs"
-                            >
-                              <RotateCcw className="w-4 h-4" /> Request Revisions
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
-                          <span className="text-amber-800 font-semibold text-xs flex items-center gap-2">
-                            Media Manager Approved — Waiting for Marketing Manager Approval
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-mono">Marketing Approval</span>
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
-
-                {/* Footer Actions */}
-                <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
-                  <button type="button" onClick={() => setInspectedTask(null)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg">Close</button>
-                </div>
-              </>
-            );
-          })()) : (
-            /* STANDARD DIRECT / GENERAL TASK INSPECTOR UI */
+            {
             (() => {
                 const activeGraphicReq = fullGraphicReq || inspectedTask.graphicRequirement;
                 const graphicReqId = activeGraphicReq?.reqId || activeGraphicReq?.id || inspectedTask.graphicRequirementId;
-                const linkedProject = inspectedTask.project || inspectedTask.script?.project || inspectedTask.graphicRequirement?.project || activeGraphicReq?.project;
+                const linkedProject = inspectedTask.project || inspectedTask.graphicRequirement?.project || activeGraphicReq?.project;
                 const linkedCalEvent = inspectedTask.project?.calendarEvent || inspectedTask.graphicRequirement?.calendarEvent || activeGraphicReq?.calendarEvent || inspectedTask.calendarEvent;
                 const linkedOutdoor = inspectedTask.project?.outdoorDetails || linkedProject?.outdoorDetails;
                 const linkedIndoor = inspectedTask.project?.indoorDetails || linkedProject?.indoorDetails;
                 const linkedEquipment = inspectedTask.project?.equipmentReservations || linkedProject?.equipmentReservations || [];
                 const linkedTeam = inspectedTask.project?.assignedTeam || linkedProject?.assignedTeam || [];
-                const clientObj = inspectedTask.client || linkedProject?.client || inspectedTask.graphicRequirement?.client || activeGraphicReq?.client || inspectedTask.script?.client;
-                const brandObj = inspectedTask.brand || linkedProject?.brand || inspectedTask.graphicRequirement?.brand || activeGraphicReq?.brand || inspectedTask.script?.brand;
-                const productObj = inspectedTask.product || linkedProject?.product || inspectedTask.graphicRequirement?.product || activeGraphicReq?.product || inspectedTask.script?.product;
+                const clientObj = inspectedTask.client || linkedProject?.client || inspectedTask.graphicRequirement?.client || activeGraphicReq?.client ;
+                const brandObj = inspectedTask.brand || linkedProject?.brand || inspectedTask.graphicRequirement?.brand || activeGraphicReq?.brand ;
+                const productObj = inspectedTask.product || linkedProject?.product || inspectedTask.graphicRequirement?.product || activeGraphicReq?.product ;
                 const createdByObj = inspectedTask.createdBy || inspectedTask.project?.createdBy || linkedCalEvent?.createdBy || inspectedTask.graphicRequirement?.createdBy || activeGraphicReq?.createdBy;
                 const shootDateVal = inspectedTask.project?.shootDate || linkedCalEvent?.shootDate;
                 const callTimeVal = linkedOutdoor?.callTime || linkedIndoor?.reportingTime || linkedCalEvent?.startTime || inspectedTask.project?.reportingTime;
@@ -4919,10 +2877,6 @@ export default function TasksPage() {
                   if (isGraphicReqTask) {
                     (activeGraphicReq?.files || inspectedTask.graphicRequirement?.files || []).forEach((f: any) =>
                       addFile(f, 'Graphic Requirement Asset')
-                    );
-                  } else if (inspectedTask.script || inspectedTask.scriptId || inspectedTask.sourceType === 'SCRIPT') {
-                    (fullScript?.files || inspectedTask.script?.files || []).forEach((f: any) =>
-                      addFile(f, 'Script Asset')
                     );
                   } else {
                     (inspectedTask.project?.files || linkedProject?.files || []).forEach((f: any) =>
@@ -5741,6 +3695,95 @@ export default function TasksPage() {
                         </div>
                       )}
 
+                      {/* SCRIPT DOCUMENTS REVIEW & UPLOAD CARD */}
+                      <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3 text-xs">
+                        <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                            <FileText className="w-4 h-4 text-purple-700" /> Attached Script Documents
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <label className={`px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-all shadow-xs ${uploadingTaskScript ? 'opacity-50 pointer-events-none' : ''}`}>
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>{uploadingTaskScript ? 'Uploading...' : '+ Add New Script'}</span>
+                              <input
+                                type="file"
+                                accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleUploadScriptDocForTask(file);
+                                  e.target.value = '';
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+
+                        {loadingInspectedFiles ? (
+                          <div className="text-slate-500 py-2 text-center text-xs">Loading script files...</div>
+                        ) : (() => {
+                          const scriptFiles = (inspectedProjectFiles || []).filter(
+                            (f: any) =>
+                              f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+                              f.folderCategory === 'Script Documents' ||
+                              f.storagePath?.includes('Script Documents') ||
+                              f.fileName?.toLowerCase().endsWith('.pdf') ||
+                              f.fileName?.toLowerCase().endsWith('.doc') ||
+                              f.fileName?.toLowerCase().endsWith('.docx')
+                          );
+
+                          if (scriptFiles.length === 0) {
+                            return (
+                              <div className="p-3 bg-white/80 border border-purple-100 rounded-lg text-slate-500 flex items-center justify-between">
+                                <span>No script documents attached to this task/project yet.</span>
+                                <span className="text-[10px] text-purple-700 font-semibold">Marketing Manager can review or attach scripts at any time</span>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-2">
+                              {scriptFiles.map((sf: any) => {
+                                const fileUrl = sf.storagePath?.startsWith('http')
+                                  ? sf.storagePath
+                                  : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${sf.storagePath?.replace(/^\/?/, '')}`;
+
+                                return (
+                                  <div
+                                    key={sf.id || sf.fileName}
+                                    className="p-3 bg-white border border-purple-200 rounded-lg flex items-center justify-between gap-3 shadow-xs"
+                                  >
+                                    <div className="flex items-center gap-2.5 overflow-hidden">
+                                      <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                                        <FileText className="w-4 h-4" />
+                                      </div>
+                                      <div className="truncate">
+                                        <span className="font-bold text-slate-900 block truncate">{sf.fileName}</span>
+                                        <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                                          {sf.fileSize && <span>{(sf.fileSize / 1024).toFixed(1)} KB</span>}
+                                          {sf.uploadedBy && <span>• Uploaded by {sf.uploadedBy.name || sf.uploadedBy.role}</span>}
+                                          {sf.createdAt && <span>• {new Date(sf.createdAt).toLocaleDateString()}</span>}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <a
+                                        href={fileUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all"
+                                      >
+                                        <Eye className="w-3.5 h-3.5" /> View Script
+                                      </a>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
+
                       {/* SECTION 7: TASK DESCRIPTION & PRODUCTION NOTES */}
                       <div className="space-y-3">
                         <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1.5">
@@ -5897,149 +3940,14 @@ export default function TasksPage() {
                     </div>
                   </>
                 );
-              })())
+              })()
             }
           </div>
         </div>
       )}
 
       {/* Request Revision Form Modal */}
-      {revisionModalScript && (
-        <RequestRevisionModal
-          isOpen={Boolean(revisionModalScript)}
-          onClose={() => setRevisionModalScript(null)}
-          onSuccess={() => {
-            loadData();
-            if (fullScript?.id === revisionModalScript.id) {
-              fetchApi(`/scripts/${fullScript.id}`).then(setFullScript).catch(() => null);
-            }
-          }}
-          entityType="SCRIPT"
-          entityId={revisionModalScript.id || revisionModalScript.scriptId}
-          entityTitle={revisionModalScript.name || revisionModalScript.title || 'Script'}
-          originalAssigneeId={revisionModalScript.assignedUserId || revisionModalScript.createdById}
-          originalAssigneeName={revisionModalScript.assignedUser?.name || revisionModalScript.createdBy?.name}
-        />
-      )}
-
-      {/* Dedicated Task Progress & Status Update Modal */}
-      {updatingTask && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-6 w-full max-w-lg space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-mono text-xs font-bold">
-                  {updatingTask.taskId}
-                </span>
-                <h3 className="font-bold text-slate-900 text-base">Update Task Status &amp; Progress</h3>
-              </div>
-              <button
-                onClick={() => setUpdatingTask(null)}
-                className="text-slate-500 hover:text-slate-900"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveTaskUpdate} className="space-y-4 text-xs">
-              {/* Task Title preview */}
-              <div className="bg-slate-50/80 p-3 rounded-lg border border-slate-200 space-y-1">
-                <span className="text-[10px] text-slate-400 font-bold uppercase block">Task Title</span>
-                <p className="font-bold text-slate-900 text-sm">{updatingTask.title}</p>
-                {updatingTask.description && (
-                  <p className="text-slate-500 text-xs mt-0.5">{updatingTask.description}</p>
-                )}
-              </div>
-
-              {/* Status Select */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-slate-800 block text-xs">New Task Status:</label>
-                  {user?.role === 'STAFF' && (
-                    <span className="text-[10px] text-amber-600 font-mono font-bold">
-                      Staff Manual Control: In Progress / On Hold
-                    </span>
-                  )}
-                </div>
-
-                <select
-                  value={editStatus}
-                  onChange={(e) => {
-                    const newSt = e.target.value;
-                    setEditStatus(newSt);
-                    if (newSt === 'COMPLETED') setEditProgress(100);
-                  }}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 font-bold text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
-                >
-                  {!['IN_PROGRESS', 'WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_REVIEW', 'COMPLETED', 'CANCELLED'].includes(updatingTask?.status?.toUpperCase()) && (
-                    <option value="IN_PROGRESS">In Progress</option>
-                  )}
-                  <option value="ON_HOLD">On Hold</option>
-                  <option value="COMPLETED">Completed</option>
-                  {user?.role !== 'STAFF' && <option value="CANCELLED">Cancelled</option>}
-                </select>
-
-                {user?.role === 'STAFF' && (
-                  <p className="text-[10px] text-slate-500 leading-relaxed bg-slate-50/60 p-2 rounded border border-slate-200">
-                    <strong>Automated Transitions:</strong> Other statuses (Accepted, Waiting for Review, Completed, Cancelled) update automatically based on actions (accepting task, uploading deliverable, manager review).
-                  </p>
-                )}
-              </div>
-
-              {/* Progress Percentage */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="font-bold text-slate-800 block text-xs">Completion Progress:</label>
-                  <span className="font-mono font-bold text-amber-600 text-sm">{editProgress}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="5"
-                  value={editProgress}
-                  onChange={(e) => setEditProgress(parseInt(e.target.value))}
-                  className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                />
-                <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-                  <span>0% (Not Started)</span>
-                  <span>50% (Halfway)</span>
-                  <span>100% (Completed)</span>
-                </div>
-              </div>
-
-              {/* Status Update Note / Remark */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-800 block text-xs">Status Remark / Log Note (Optional):</label>
-                <textarea
-                  rows={2}
-                  placeholder="Explain status change, work progress, or blocking issues for audit trail..."
-                  value={editRemark}
-                  onChange={(e) => setEditRemark(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setUpdatingTask(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingTaskUpdate}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-amber-600/30"
-                >
-                  {savingTaskUpdate ? 'Saving Update...' : 'Save Task Update'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      
 
       {/* Dedicated Upload Work Deliverable Output Modal */}
       {uploadTask && (

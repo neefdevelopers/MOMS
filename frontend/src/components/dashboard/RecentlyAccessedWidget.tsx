@@ -28,13 +28,7 @@ const ENTITY_ICONS: Record<
     color: 'text-blue-600',
     badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
   },
-  SCRIPT: {
-    label: 'Script',
-    icon: FileText,
-    color: 'text-purple-600',
-    badgeBg: 'bg-purple-50 text-purple-700 border-purple-200',
-  },
-  REPORT: {
+    REPORT: {
     label: 'Report',
     icon: BarChart3,
     color: 'text-pink-600',
@@ -110,7 +104,7 @@ export function RecentlyAccessedWidget({ className = '' }: { className?: string 
           >
             All
           </button>
-          {(['PROJECT', 'SCRIPT', 'REPORT', 'EQUIPMENT'] as RecentEntityType[]).map(
+          {(['PROJECT', 'REPORT', 'EQUIPMENT'] as RecentEntityType[]).map(
             (type) => (
               <button
                 key={type}
@@ -180,7 +174,7 @@ export function RecentlyAccessedWidget({ className = '' }: { className?: string 
                   </div>
 
                   {/* Favorite Star Button (for supported types) */}
-                  {['PROJECT', 'SCRIPT', 'GRAPHIC_REQUIREMENT', 'TASK', 'REPORT'].includes(
+                  {['PROJECT', 'GRAPHIC_REQUIREMENT', 'TASK', 'REPORT'].includes(
                     rec.entityType
                   ) && (
                     <FavoriteButton

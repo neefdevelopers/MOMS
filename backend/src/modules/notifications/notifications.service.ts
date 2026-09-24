@@ -4,7 +4,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 export type OperationalEntityType =
   | 'PROJECT'
   | 'TASK'
-  | 'SCRIPT'
   | 'GRAPHIC_REQUIREMENT'
   | 'EQUIPMENT'
   | 'ATTENDANCE'
@@ -25,11 +24,6 @@ export type OperationalEventType =
   | 'TASK_STATUS_CHANGED'
   | 'TASK_DEADLINE_APPROACHING'
   | 'TASK_OVERDUE'
-  // Script Events
-  | 'SCRIPT_ASSIGNED'
-  | 'SCRIPT_SUBMITTED'
-  | 'SCRIPT_APPROVED'
-  | 'SCRIPT_REJECTED'
   // Graphic Requirement Events
   | 'GRAPHIC_REQ_CREATED'
   | 'GRAPHIC_REQ_SUBMITTED'
@@ -137,7 +131,7 @@ export function deriveNotificationCategory(
   const entity = (entityType || '').toUpperCase();
 
   if (event.includes('ANNOUNCEMENT')) return 'ANNOUNCEMENT';
-  if (event.includes('TASK_ASSIGNED') || event.includes('TASK_REASSIGNED') || event.includes('SCRIPT_ASSIGNED') || event.includes('PROJECT_TEAM_ASSIGNED')) return 'TASK_ASSIGNMENT';
+  if (event.includes('TASK_ASSIGNED') || event.includes('TASK_REASSIGNED') || event.includes('PROJECT_TEAM_ASSIGNED')) return 'TASK_ASSIGNMENT';
   if (event.includes('APPROVAL_REQUEST')) return 'APPROVAL_REQUEST';
   if (event.includes('APPROVAL_ACCEPTED') || event.includes('APPROVAL_REJECTED') || event.includes('APPROVED')) return 'APPROVAL_COMPLETED';
   if (event.includes('REVISION')) return 'REVISION_REQUEST';
@@ -171,7 +165,6 @@ export interface CreateOperationalNotificationDto {
   // Foreign keys
   projectId?: string;
   taskId?: string;
-  scriptId?: string;
   graphicRequirementId?: string;
   equipmentId?: string;
   attendanceId?: string;
@@ -232,7 +225,6 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     // Auto-derive foreign keys based on entityType if not explicitly passed
     const projectId = dto.projectId || (dto.entityType === 'PROJECT' ? dto.entityId : undefined);
     const taskId = dto.taskId || (dto.entityType === 'TASK' ? dto.entityId : undefined);
-    const scriptId = dto.scriptId || (dto.entityType === 'SCRIPT' ? dto.entityId : undefined);
     const graphicRequirementId = dto.graphicRequirementId || (dto.entityType === 'GRAPHIC_REQUIREMENT' ? dto.entityId : undefined);
     const equipmentId = dto.equipmentId || (dto.entityType === 'EQUIPMENT' ? dto.entityId : undefined);
     const attendanceId = dto.attendanceId || (dto.entityType === 'ATTENDANCE' ? dto.entityId : undefined);
@@ -249,9 +241,6 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           break;
         case 'TASK':
           linkUrl = `/tasks?taskId=${encodeURIComponent(dto.entityId)}`;
-          break;
-        case 'SCRIPT':
-          linkUrl = `/scripts?scriptId=${encodeURIComponent(dto.entityId)}`;
           break;
         case 'GRAPHIC_REQUIREMENT':
           linkUrl = `/graphic-reqs?id=${encodeURIComponent(dto.entityId)}`;
@@ -290,7 +279,6 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         metadata: dto.metadata ? JSON.stringify(dto.metadata) : null,
         projectId,
         taskId,
-        scriptId,
         graphicRequirementId,
         equipmentId,
         attendanceId,
@@ -1082,29 +1070,6 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     }
 
     // ── 3. Pending Reviews ──
-    // 3a. Technical Review (Scripts, Tasks, Graphic Reqs, Shoot Projects)
-    const pendingTechScripts = await this.prisma.script.findMany({
-      where: { status: 'WAITING_FOR_TECHNICAL_REVIEW' },
-      include: { project: { select: { id: true, projectId: true } } },
-    });
-    for (const sc of pendingTechScripts) {
-      if (!(await hasRecentReminder('SCRIPT', sc.id, 'TECHNICAL_REVIEW_REQUIRED'))) {
-        await this.notifyTechnicalManagers({
-          title: `Pending Technical Review: ${sc.scriptId}`,
-          message: `Script '${sc.name}' is waiting for technical review and sign-off.`,
-          type: 'INFO',
-          category: 'APPROVAL_REQUEST',
-          eventType: 'TECHNICAL_REVIEW_REQUIRED',
-          entityType: 'SCRIPT',
-          entityId: sc.id,
-          entityCode: sc.scriptId,
-          scriptId: sc.id,
-          projectId: sc.projectId || undefined,
-          linkUrl: '/approvals',
-        });
-        dispatchedCount++;
-      }
-    }
 
     const pendingTechTasks = await this.prisma.task.findMany({
       where: { status: 'WAITING_FOR_TECHNICAL_REVIEW' },
@@ -1177,36 +1142,12 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     }
 
     // 3b. Media Manager Review (Tasks, Scripts, Graphic Reqs, Shoot Projects, Calendar Events)
-    const pendingMediaScripts = await this.prisma.script.findMany({
-      where: { status: 'WAITING_FOR_MEDIA_REVIEW' },
-      include: { project: { select: { id: true, projectId: true } } },
-    });
-    for (const sc of pendingMediaScripts) {
-      if (!(await hasRecentReminder('SCRIPT', sc.id, 'MEDIA_REVIEW_REQUIRED'))) {
-        await this.notifyMediaManagers({
-          title: `Pending Media Manager Review: ${sc.scriptId} 🎬`,
-          message: `Script '${sc.name}' is awaiting Media Manager final review.`,
-          type: 'ALERT',
-          category: 'APPROVAL_REQUEST',
-          priority: 'HIGH',
-          eventType: 'MEDIA_REVIEW_REQUIRED',
-          entityType: 'SCRIPT',
-          entityId: sc.id,
-          entityCode: sc.scriptId,
-          scriptId: sc.id,
-          projectId: sc.projectId || undefined,
-          linkUrl: '/scripts',
-        });
-        dispatchedCount++;
-      }
-    }
 
     const pendingMediaTasks = await this.prisma.task.findMany({
       where: { status: 'WAITING_FOR_MEDIA_REVIEW' },
       include: {
         project: { select: { id: true, projectId: true, name: true } },
         graphicRequirement: { select: { id: true, requirementId: true, name: true } },
-        script: { select: { id: true, scriptId: true, name: true } },
       },
     });
     for (const task of pendingMediaTasks) {
@@ -1223,7 +1164,6 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           entityCode: task.taskId,
           taskId: task.id,
           projectId: task.projectId || undefined,
-          scriptId: task.scriptId || undefined,
           graphicRequirementId: task.graphicRequirementId || undefined,
           linkUrl: '/tasks',
         });
@@ -1311,27 +1251,6 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     }
 
     // ── 4. Pending Client Confirmation ──
-    const pendingClientScripts = await this.prisma.script.findMany({
-      where: { status: 'WAITING_FOR_CLIENT_CONFIRMATION' },
-      include: { project: { select: { id: true, projectId: true } }, client: { select: { name: true } } },
-    });
-    for (const sc of pendingClientScripts) {
-      if (!(await hasRecentReminder('SCRIPT', sc.id, 'CLIENT_CONFIRMATION_PENDING'))) {
-        await this.notifyMediaManagers({
-          title: `Pending Client Confirmation: ${sc.scriptId}`,
-          message: `Script '${sc.name}' for client '${sc.client?.name || 'Client'}' is pending client confirmation.`,
-          type: 'INFO',
-          category: 'REMINDER',
-          eventType: 'CLIENT_CONFIRMATION_PENDING',
-          entityType: 'SCRIPT',
-          entityId: sc.id,
-          entityCode: sc.scriptId,
-          scriptId: sc.id,
-          projectId: sc.projectId || undefined,
-        });
-        dispatchedCount++;
-      }
-    }
 
     // ── 5. Equipment Return Due ──
     const returnHorizon = new Date(now.getTime() + equipReturnHours * 3600 * 1000);

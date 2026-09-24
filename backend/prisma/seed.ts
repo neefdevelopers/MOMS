@@ -24,7 +24,6 @@ async function main() {
   await prisma.taskAssignment.deleteMany();
   await prisma.task.deleteMany();
   await prisma.graphicRequirement.deleteMany();
-  await prisma.script.deleteMany();
   await prisma.indoorShootDetails.deleteMany();
   await prisma.outdoorShootDetails.deleteMany();
   await prisma.projectAssignment.deleteMany();

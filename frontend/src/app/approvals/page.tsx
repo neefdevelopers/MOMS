@@ -29,6 +29,8 @@ import {
   User as UserIcon,
   ArrowUpRight,
   Sparkles,
+  Eye,
+  Plus,
 } from 'lucide-react';
 import { RoleGuard } from '@/components/common/RoleGuard';
 
@@ -276,6 +278,66 @@ export default function ApprovalsPage() {
     }
 
     return deliverableItems;
+  };
+
+  const getScriptDocumentItems = (item: any) => {
+    if (!item) return [];
+    const files = item.files || item.project?.files || [];
+    const scriptItems: any[] = [];
+    const seenUrls = new Set<string>();
+
+    files.forEach((f: any) => {
+      const isScript =
+        f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+        f.folderCategory === 'Script Documents' ||
+        f.storagePath?.includes('Script Documents') ||
+        f.fileName?.toLowerCase().endsWith('.pdf') ||
+        f.fileName?.toLowerCase().endsWith('.doc') ||
+        f.fileName?.toLowerCase().endsWith('.docx') ||
+        f.fileName?.toLowerCase().endsWith('.txt');
+
+      const rawUrl = f.storagePath || f.fileUrl;
+      if (isScript && rawUrl && !seenUrls.has(rawUrl)) {
+        seenUrls.add(rawUrl);
+        scriptItems.push({
+          id: f.id,
+          fileName: f.fileName || 'Script Document',
+          fileUrl: resolveFileUrl(rawUrl),
+          uploadedBy: f.uploadedBy?.name || f.uploadedBy?.role || 'Staff Member',
+          fileSize: f.fileSize,
+          createdAt: f.createdAt,
+        });
+      }
+    });
+
+    return scriptItems;
+  };
+
+  const handleUploadScriptForApprovalItem = async (file: File, item: any) => {
+    if (!file || !item) return;
+    const projectId = item.projectId || item.id || item.project?.id;
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      if (projectId) {
+        fd.append('projectId', projectId);
+      }
+      if (item.taskId || item.sourceType === 'TASK') {
+        fd.append('taskId', item.id);
+      } else if (item.requirementId || item.sourceType === 'GRAPHIC_REQUIREMENT') {
+        fd.append('graphicRequirementId', item.id);
+      }
+      fd.append('folderCategory', 'Script Documents');
+      fd.append('attachmentCategory', 'SCRIPT_DOCUMENT');
+      await fetchApi('/files/upload', {
+        method: 'POST',
+        body: fd,
+      });
+      alert('Script document uploaded successfully!');
+      loadQueue();
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload script document.');
+    }
   };
 
   const getItemType = (item: any): 'TASK' | 'SCRIPT' | 'GRAPHIC_REQ' | 'PROJECT' => {
@@ -1296,6 +1358,77 @@ export default function ApprovalsPage() {
                   </div>
                 </div>
               )}
+
+              {/* Script Documents Review Card */}
+              <div className="bg-purple-50/70 border border-purple-200 p-4 rounded-xl space-y-3">
+                <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                  <span className="text-[10px] text-purple-900 font-mono uppercase block font-bold flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-purple-700" />
+                    Attached Script Documents (PDF/DOC/DOCX/TXT)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <label className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-[11px] flex items-center gap-1 cursor-pointer transition-all shadow-xs">
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Upload Script</span>
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadScriptForApprovalItem(file, detailModalItem);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {(() => {
+                  const scriptFiles = getScriptDocumentItems(detailModalItem);
+                  if (scriptFiles.length === 0) {
+                    return (
+                      <div className="p-3 bg-white/80 border border-purple-100 rounded-lg text-slate-500 flex items-center justify-between text-xs">
+                        <span>No script documents attached to this item.</span>
+                        <span className="text-[10px] text-purple-700 font-semibold">Managers can upload or update scripts at any time</span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                      {scriptFiles.map((sf: any) => (
+                        <div
+                          key={sf.id || sf.fileName}
+                          className="p-2.5 rounded-xl border border-purple-200 bg-white flex items-center justify-between text-xs shadow-xs"
+                        >
+                          <div className="truncate max-w-[70%]">
+                            <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                              <FileText className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                              <span className="truncate">{sf.fileName}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                              {sf.fileSize && <span>{(sf.fileSize / 1024).toFixed(1)} KB</span>}
+                              <span>• By <strong className="text-slate-700">{sf.uploadedBy}</strong></span>
+                              {sf.createdAt && <span>• {new Date(sf.createdAt).toLocaleDateString()}</span>}
+                            </div>
+                          </div>
+
+                          <a
+                            href={sf.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-[11px] transition-all flex items-center gap-1 shrink-0"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View Script</span>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
 
               {/* Deliverable Assets List */}
               <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2.5">

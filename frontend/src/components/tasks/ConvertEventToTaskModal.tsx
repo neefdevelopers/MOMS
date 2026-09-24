@@ -28,7 +28,7 @@ interface ConvertEventToTaskModalProps {
   onSuccess?: () => void;
   eventData: {
     title: string;
-    parentType: 'PROJECT' | 'GRAPHIC_REQ' | 'SCRIPT';
+    parentType: 'PROJECT' | 'GRAPHIC_REQ';
     parentId: string;
     parentCode?: string;
     calendarEventId?: string;
@@ -61,14 +61,15 @@ export default function ConvertEventToTaskModal({
   const [staffUsersList, setStaffUsersList] = useState<any[]>([]);
   const [loadingStaff, setLoadingStaff] = useState(false);
 
-  // Script Full Assets Details
-  const [scriptDetails, setScriptDetails] = useState<any | null>(null);
-  const [loadingScriptDetails, setLoadingScriptDetails] = useState(false);
+  
 
   // Equipment selection for Shoot Projects
   const [equipmentList, setEquipmentList] = useState<any[]>([]);
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [loadingEquipment, setLoadingEquipment] = useState(false);
+
+  // Script doc upload state
+  const [scriptDocFile, setScriptDocFile] = useState<File | null>(null);
 
   const [creating, setCreating] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -85,6 +86,7 @@ export default function ConvertEventToTaskModal({
       setTaskEstimatedHours('3.0');
       setAssignedStaffIds([]);
       setSelectedEquipmentIds([]);
+      setScriptDocFile(null);
       setErrorMsg('');
 
       // Fetch active staff list & equipment list
@@ -102,22 +104,6 @@ export default function ConvertEventToTaskModal({
           setLoadingStaff(false);
           setLoadingEquipment(false);
         });
-
-      // If parent is SCRIPT, load full script assets
-      if (eventData.parentType === 'SCRIPT' && eventData.parentId) {
-        setLoadingScriptDetails(true);
-        fetchApi(`/scripts/${eventData.parentId}`)
-          .then((res) => {
-            setScriptDetails(res);
-            if (res?.description && !eventData.notes) {
-              setTaskDescription(res.description);
-            }
-          })
-          .catch(() => setScriptDetails(null))
-          .finally(() => setLoadingScriptDetails(false));
-      } else {
-        setScriptDetails(null);
-      }
     }
   }, [isOpen, eventData]);
 
@@ -161,14 +147,33 @@ export default function ConvertEventToTaskModal({
         payload.projectId = validParentId;
       } else if (eventData.parentType === 'GRAPHIC_REQ' && validParentId) {
         payload.graphicRequirementId = validParentId;
-      } else if (eventData.parentType === 'SCRIPT' && validParentId) {
-        payload.scriptId = validParentId;
       }
 
-      await fetchApi('/tasks', {
+      const createdTask = await fetchApi('/tasks', {
         method: 'POST',
         body: JSON.stringify(payload),
       });
+
+      if (scriptDocFile && createdTask) {
+        const uploadFd = new FormData();
+        uploadFd.append('file', scriptDocFile);
+        if (validParentId || createdTask.projectId) {
+          uploadFd.append('projectId', validParentId || createdTask.projectId);
+        }
+        if (createdTask.id) {
+          uploadFd.append('taskId', createdTask.id);
+        }
+        uploadFd.append('folderCategory', 'Script Documents');
+        uploadFd.append('attachmentCategory', 'SCRIPT_DOCUMENT');
+        try {
+          await fetchApi('/files/upload', {
+            method: 'POST',
+            body: uploadFd,
+          });
+        } catch (scriptErr) {
+          console.warn('Script upload error on conversion:', scriptErr);
+        }
+      }
 
       // Reserve equipment if equipment selected during event conversion
       if (selectedEquipmentIds.length > 0 && eventData.parentType === 'PROJECT' && validParentId) {
@@ -217,8 +222,6 @@ export default function ConvertEventToTaskModal({
               <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-slate-100 border border-slate-200 text-slate-700">
                 {eventData.parentType === 'PROJECT'
                   ? 'Shoot Project'
-                  : eventData.parentType === 'SCRIPT'
-                  ? 'Script & Storyline'
                   : 'Graphic Requirement'}
               </span>
             </div>
@@ -242,122 +245,7 @@ export default function ConvertEventToTaskModal({
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════════════════
-            ASSETS PREVIEW SESSION (FOR SCRIPT TASK CONVERSION)
-        ══════════════════════════════════════════════════════════ */}
-        {eventData.parentType === 'SCRIPT' && (
-          <div className="p-4 bg-gradient-to-br from-purple-50/70 via-blue-50/40 to-slate-50 border border-purple-200 rounded-2xl space-y-3 shadow-xs">
-            <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
-              <h4 className="font-extrabold text-xs text-purple-900 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-purple-600" />
-                Script Assets &amp; Storyline Preview Session
-              </h4>
-              <span className="text-[10px] font-mono font-bold bg-purple-100 text-purple-800 px-2 py-0.5 rounded border border-purple-300">
-                {scriptDetails?.scriptId || eventData.parentCode || 'SCRIPT ASSETS'}
-              </span>
-            </div>
 
-            {loadingScriptDetails ? (
-              <div className="p-4 text-center text-slate-400 italic text-xs">
-                Loading script assets and reference materials…
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {/* Script Storyline Narration Box */}
-                {(scriptDetails?.description || eventData.notes) && (
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-purple-950 uppercase tracking-wider block">
-                      Storyline / Script Narration:
-                    </span>
-                    <div className="p-3 bg-white/90 border border-purple-200/80 rounded-xl text-xs text-slate-800 leading-relaxed max-h-32 overflow-y-auto whitespace-pre-wrap font-sans shadow-2xs">
-                      {scriptDetails?.description || eventData.notes}
-                    </div>
-                  </div>
-                )}
-
-                {/* Script Reference Attachment Links */}
-                {scriptDetails?.attachmentLinks && scriptDetails.attachmentLinks.length > 0 && (
-                  <div className="space-y-1.5 pt-1 border-t border-purple-200/60">
-                    <span className="text-[10px] font-bold text-purple-950 uppercase tracking-wider block">
-                      Attached Reference Documents &amp; External Assets ({scriptDetails.attachmentLinks.length}):
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {scriptDetails.attachmentLinks.map((link: any) => (
-                        <a
-                          key={link.id}
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2.5 bg-white border border-purple-200 hover:border-purple-400 hover:shadow-xs rounded-xl flex items-center justify-between text-[11px] text-purple-900 transition-all group"
-                        >
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <LinkIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                            <div className="truncate">
-                              <span className="font-bold block truncate group-hover:text-purple-700">{link.name}</span>
-                              <span className="text-[9px] text-slate-500 font-mono">{link.attachmentCategory?.replace(/_/g, ' ')}</span>
-                            </div>
-                          </div>
-                          <ExternalLink className="w-3.5 h-3.5 text-purple-400 group-hover:text-purple-600 shrink-0" />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Script Planned Deliverables */}
-                {scriptDetails?.deliverables && scriptDetails.deliverables.length > 0 && (
-                  <div className="space-y-1.5 pt-1 border-t border-purple-200/60">
-                    <span className="text-[10px] font-bold text-purple-950 uppercase tracking-wider block">
-                      Planned Deliverables &amp; Output Specs ({scriptDetails.deliverables.length}):
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {scriptDetails.deliverables.map((del: any) => (
-                        <div key={del.id} className="p-2.5 bg-white border border-purple-200 rounded-xl flex items-center justify-between text-[11px]">
-                          <div className="flex items-center gap-2">
-                            <Film className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                            <div>
-                              <strong className="text-slate-900 block">{del.name || del.title || 'Deliverable'}</strong>
-                              <span className="text-[10px] text-slate-500 font-mono">{del.type} • {del.duration || '30s'}</span>
-                            </div>
-                          </div>
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 uppercase">
-                            {del.status}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Attached Files Tree */}
-                {scriptDetails?.files && scriptDetails.files.length > 0 && (
-                  <div className="space-y-1.5 pt-1 border-t border-purple-200/60">
-                    <span className="text-[10px] font-bold text-purple-950 uppercase tracking-wider block">
-                      Attached Media Assets &amp; Files ({scriptDetails.files.length}):
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {scriptDetails.files.map((f: any) => (
-                        <a
-                          key={f.id}
-                          href={f.storagePath?.startsWith('http') ? f.storagePath : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${f.storagePath}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2.5 bg-white border border-slate-200 hover:border-emerald-300 rounded-xl flex items-center justify-between text-[11px] transition-all group"
-                        >
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <FileText className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            <span className="truncate font-semibold text-slate-800 group-hover:text-emerald-700">{f.fileName}</span>
-                          </div>
-                          <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0" />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Parent Entity Read-Only Box */}
@@ -387,7 +275,7 @@ export default function ConvertEventToTaskModal({
               required
               value={taskTitle}
               onChange={(e) => setTaskTitle(e.target.value)}
-              placeholder="e.g. Script Narration Production & Storyboarding"
+              placeholder="e.g. Graphic Banner Design / Video Production"
               className="w-full bg-slate-50 border border-purple-200 rounded-xl p-2.5 text-slate-900 font-semibold focus:outline-none focus:border-purple-500 focus:bg-white transition-colors"
             />
           </div>
@@ -569,6 +457,40 @@ export default function ConvertEventToTaskModal({
               </div>
             );
           })()}
+
+          {/* Script Document Upload (Optional) */}
+          <div className="p-3 bg-purple-50/50 border border-purple-200 rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-purple-700 font-bold uppercase flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-purple-600" /> Script Document (Optional)
+              </span>
+              <span className="text-[9px] font-mono text-purple-800 bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200 font-bold">
+                PDF / DOC / DOCX / TXT
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                id="convertScriptDocInput"
+                accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                onChange={(e) => setScriptDocFile(e.target.files?.[0] || null)}
+                className="text-xs text-slate-700 file:mr-3 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200 cursor-pointer"
+              />
+              {scriptDocFile && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScriptDocFile(null);
+                    const input = document.getElementById('convertScriptDocInput') as HTMLInputElement;
+                    if (input) input.value = '';
+                  }}
+                  className="text-xs text-rose-600 hover:text-rose-800 font-bold"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
 
           {/* Task Brief / Instructions */}
           <div>

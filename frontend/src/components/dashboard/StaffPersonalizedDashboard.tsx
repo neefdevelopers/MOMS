@@ -103,7 +103,7 @@ export default function StaffPersonalizedDashboard({ user }: StaffPersonalizedDa
   const pendingTasks = data?.pendingTasks || [];
   const upcomingDeadlines = data?.upcomingDeadlines || [];
   const assignedProjects = data?.currentProjects || [];
-  const assignedScripts = data?.assignedScripts || [];
+  
   const assignedGraphicReqs = data?.assignedGraphicRequirements || [];
   const recentRemarks = data?.recentCommunications || [];
   const notifications = data?.notifications || [];

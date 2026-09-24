@@ -4,7 +4,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 export interface ToggleFavoriteDto {
   entityType:
     | 'PROJECT'
-    | 'SCRIPT'
     | 'GRAPHIC_REQUIREMENT'
     | 'TASK'
     | 'CALENDAR_EVENT'

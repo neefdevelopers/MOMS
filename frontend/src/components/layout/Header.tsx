@@ -253,7 +253,7 @@ export function Header() {
             <input
               id="global-search-input"
               type="text"
-              placeholder="Global Search (Projects, Scripts, Tasks, Equipment)..."
+              placeholder="Global Search (Projects, Tasks, Equipment)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-slate-100 border border-slate-200 rounded-lg pl-9 pr-16 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-500 transition-colors"

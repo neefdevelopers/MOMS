@@ -6,7 +6,6 @@ import { useAuth } from './auth-context';
 
 export type FavoriteEntityType =
   | 'PROJECT'
-  | 'SCRIPT'
   | 'GRAPHIC_REQUIREMENT'
   | 'TASK'
   | 'CALENDAR_EVENT'

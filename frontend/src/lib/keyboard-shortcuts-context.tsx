@@ -44,13 +44,6 @@ export const SHORTCUTS_LIST: ShortcutDefinition[] = [
     actionName: 'Projects',
   },
   {
-    id: 'nav-scripts',
-    category: 'NAVIGATION',
-    keys: ['Alt', 'S'],
-    description: 'Navigate to Scripts repository',
-    actionName: 'Scripts',
-  },
-  {
     id: 'nav-tasks',
     category: 'NAVIGATION',
     keys: ['Alt', 'T'],
@@ -204,10 +197,7 @@ export function KeyboardShortcutsProvider({ children }: { children: React.ReactN
             e.preventDefault();
             router.push('/projects');
             break;
-          case 's':
-            e.preventDefault();
-            router.push('/scripts');
-            break;
+          
           case 't':
             e.preventDefault();
             router.push('/tasks');

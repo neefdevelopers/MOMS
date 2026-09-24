@@ -727,7 +727,11 @@ export class CalendarService {
       return event;
     });
 
-    if (initialStatus === 'PENDING_MARKETING_APPROVAL') {
+    if (initialStatus === 'APPROVED') {
+      this.notifyTechnicalManagersForEquipmentAssignment(createdEvent.id).catch((err) => {
+        console.error('Error notifying technical managers for equipment assignment on event creation:', err);
+      });
+    } else if (initialStatus === 'PENDING_MARKETING_APPROVAL') {
       await this.sendNotification(
         [],
         'MARKETING_MANAGER',
@@ -1639,7 +1643,204 @@ export class CalendarService {
       }
 
       return updated;
-    }).then(() => this.findOne(id, user));
+    });
+
+    if (action === 'APPROVE') {
+      this.notifyTechnicalManagersForEquipmentAssignment(event.id).catch((err) => {
+        console.error('Error notifying technical managers for equipment assignment on review approval:', err);
+      });
+    }
+
+    return this.findOne(id, user);
+  }
+
+  async notifyTechnicalManagersForEquipmentAssignment(calendarEventId: string) {
+    try {
+      // 1. Fetch all active Technical Managers
+      const techManagers = await this.prisma.user.findMany({
+        where: {
+          role: 'TECHNICAL_MANAGER',
+          status: 'ACTIVE',
+        },
+        select: { id: true, name: true, email: true },
+      });
+
+      if (!techManagers || techManagers.length === 0) {
+        return;
+      }
+
+      // 2. Fetch comprehensive Event & Shoot details
+      const event = await this.prisma.mediaCalendarEvent.findUnique({
+        where: { id: calendarEventId },
+        include: {
+          client: { select: { id: true, name: true } },
+          brand: { select: { id: true, name: true } },
+          product: { select: { id: true, name: true } },
+          shoot: {
+            include: {
+              indoorDetails: true,
+              outdoorDetails: true,
+              equipmentReservations: { include: { equipment: true } },
+            },
+          },
+          shootProjects: {
+            include: {
+              indoorDetails: true,
+              outdoorDetails: true,
+              equipmentReservations: { include: { equipment: true } },
+            },
+          },
+          graphicRequirement: true,
+          createdBy: { select: { id: true, name: true, role: true } },
+        },
+      });
+
+      if (!event) return;
+
+      const shootProj = event.shoot || (event.shootProjects && event.shootProjects.length > 0 ? event.shootProjects[0] : null);
+      const isOutdoor = event.shootType === 'OUTDOOR' || event.shootType === 'Outdoor Shoot' || shootProj?.shootType === 'OUTDOOR';
+
+      // 3. Fetch any attached script documents or references
+      let scriptDocs: any[] = [];
+      if (shootProj?.id) {
+        scriptDocs = await this.prisma.fileMetadata.findMany({
+          where: {
+            projectId: shootProj.id,
+            activeVersion: true,
+            OR: [
+              { attachmentCategory: 'SCRIPT_DOCUMENT' },
+              { attachmentCategory: 'DOCUMENT' },
+              { attachmentCategory: 'REFERENCES' },
+            ],
+          },
+          select: {
+            id: true,
+            fileName: true,
+            fileSize: true,
+            fileType: true,
+            storagePath: true,
+            attachmentCategory: true,
+          },
+        });
+      }
+
+      const shootDateVal = shootProj?.shootDate || event.shootDate;
+      const formattedShootDate = shootDateVal
+        ? new Date(shootDateVal).toLocaleDateString('en-US', {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          })
+        : 'To Be Scheduled';
+
+      let callTime = '09:00 AM';
+      let wrapTime = '06:00 PM';
+      let location = 'Studio Bay';
+      let locationAddress = '';
+      const locationCategory = shootProj?.locationCategory || (isOutdoor ? 'Outdoor' : 'Indoor Studio');
+
+      if (isOutdoor && shootProj?.outdoorDetails) {
+        const od = shootProj.outdoorDetails;
+        callTime = od.callTime || '07:00 AM';
+        wrapTime = od.expectedWrapTime || '05:00 PM';
+        location = od.outdoorLocation || od.locationAddress || shootProj.shootLocation || 'Outdoor Location';
+        locationAddress = od.exactLocationAddress || od.locationAddress || '';
+      } else if (shootProj?.indoorDetails) {
+        const idDetails = shootProj.indoorDetails;
+        callTime = idDetails.reportingTime || '09:00 AM';
+        wrapTime = idDetails.wrapUpTime || '06:00 PM';
+        location = idDetails.studioName || shootProj.shootLocation || 'Main Studio Bay';
+        locationAddress = idDetails.studioAddress || '';
+      } else if (shootProj?.shootLocation) {
+        location = shootProj.shootLocation;
+      }
+
+      const talent = event.influencerTalent || shootProj?.influencerTalent || 'None / In-House';
+      const priority = event.priority || shootProj?.priority || 'MEDIUM';
+      const notes = event.productionNotes || event.description || shootProj?.notes || 'No extra production notes';
+      const clientName = event.client?.name || 'N/A';
+      const brandName = event.brand?.name || 'N/A';
+      const productName = event.product?.name ? ` (${event.product.name})` : '';
+
+      const notifTitle = `Action Required: Assign Equipment for Approved Event '${event.title}'`;
+      const notifMessage = `Marketing Manager approved event '${event.title}' (${event.eventId || 'CAL-EVENT'}). Please review full shoot logistics and assign the required production equipment.\n\n• Client / Brand: ${clientName} - ${brandName}${productName}\n• Shoot Date: ${formattedShootDate} (Call: ${callTime} | Wrap: ${wrapTime})\n• Type & Location: ${isOutdoor ? 'Outdoor Shoot' : 'Indoor Studio'} @ ${location}${locationAddress ? ` (${locationAddress})` : ''}\n• Talent: ${talent}\n• Priority: ${priority}\n• Production Notes: ${notes}${scriptDocs.length > 0 ? `\n• Script / Docs: ${scriptDocs.map((s) => s.fileName).join(', ')}` : ''}`;
+
+      const metadataPayload = {
+        actionRequired: 'ASSIGN_EQUIPMENT',
+        calendarEventId: event.id,
+        eventId: event.eventId || event.id,
+        projectId: shootProj?.id || null,
+        projectCode: shootProj?.projectId || null,
+        eventTitle: event.title,
+        clientName,
+        brandName,
+        productName: event.product?.name || null,
+        contentType: event.contentType || 'Post',
+        platform: event.platform || 'Instagram',
+        shootDate: shootDateVal,
+        formattedShootDate,
+        shootType: isOutdoor ? 'OUTDOOR' : 'INDOOR',
+        callTime,
+        expectedWrapTime: wrapTime,
+        location,
+        locationAddress,
+        locationCategory,
+        influencerTalent: talent,
+        priority,
+        productionNotes: notes,
+        creativePreviewUrl: event.creativePreviewUrl || null,
+        scriptDocs: scriptDocs.map((d) => ({
+          id: d.id,
+          fileName: d.fileName,
+          storagePath: d.storagePath,
+          fileType: d.fileType,
+          attachmentCategory: d.attachmentCategory,
+        })),
+        outdoorDetails: isOutdoor && shootProj?.outdoorDetails ? {
+          exactLocationAddress: shootProj.outdoorDetails.exactLocationAddress,
+          locationContact: shootProj.outdoorDetails.locationContact || shootProj.outdoorDetails.locationContactPerson,
+          permitRequired: shootProj.outdoorDetails.permitRequired,
+          permitStatus: shootProj.outdoorDetails.permitStatus || shootProj.outdoorDetails.permissionStatus,
+          weatherStatus: shootProj.outdoorDetails.weatherStatus || shootProj.outdoorDetails.expectedWeatherConditions,
+          backupLocation: shootProj.outdoorDetails.backupLocation,
+          droneRequirement: shootProj.outdoorDetails.droneRequirement,
+          specialOutdoorRequirements: shootProj.outdoorDetails.specialOutdoorRequirements,
+        } : null,
+        indoorDetails: !isOutdoor && shootProj?.indoorDetails ? {
+          studioName: shootProj.indoorDetails.studioName,
+          studioAddress: shootProj.indoorDetails.studioAddress,
+          indoorEquipmentReqs: shootProj.indoorDetails.indoorEquipmentReqs,
+          lightingRequirements: shootProj.indoorDetails.lightingRequirements,
+          indoorChecklist: shootProj.indoorDetails.indoorChecklist,
+        } : null,
+      };
+
+      for (const tm of techManagers) {
+        await this.prisma.notification.create({
+          data: {
+            userId: tm.id,
+            title: notifTitle,
+            message: notifMessage,
+            type: 'ALERT',
+            category: 'EQUIPMENT_REQUEST',
+            priority: priority === 'CRITICAL' || priority === 'HIGH' ? 'CRITICAL' : 'HIGH',
+            eventType: 'EQUIPMENT_REQUESTED',
+            entityType: 'CALENDAR_EVENT',
+            entityId: event.id,
+            entityCode: event.eventId || undefined,
+            calendarEventId: event.id,
+            projectId: shootProj?.id || undefined,
+            linkUrl: `/equipment?eventId=${encodeURIComponent(event.id)}&projectId=${encodeURIComponent(shootProj?.id || '')}`,
+            metadata: JSON.stringify(metadataPayload),
+          },
+        }).catch((err) => {
+          console.error(`Failed to create equipment notification for Technical Manager ${tm.id}:`, err);
+        });
+      }
+    } catch (error) {
+      console.error('Failed to notify Technical Managers for equipment assignment:', error);
+    }
   }
 
   async cancel(id: string) {

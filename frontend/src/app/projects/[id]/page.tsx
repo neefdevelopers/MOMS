@@ -15,6 +15,9 @@ import RevisionsTab from '@/components/revisions/RevisionsTab';
 import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
 import {
   Film,
+  FileUp,
+  Download,
+  Loader2,
   Calendar,
   FileText,
   Palette,
@@ -58,27 +61,22 @@ export default function ProjectDetailPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { setBreadcrumbs } = useBreadcrumbs();
-  const canCreateScript = Boolean(user && ['SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'].includes(user.role as string));
-  const [project, setProject] = useState<any>(null);
+    const [project, setProject] = useState<any>(null);
   const [filesTree, setFilesTree] = useState<any>(null);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [allEquipment, setAllEquipment] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [accessDeniedError, setAccessDeniedError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('Overview');
-  const [selectedScriptRecord, setSelectedScriptRecord] = useState<any>(null);
 
   // Interactive Form States
   const [commentText, setCommentText] = useState('');
   const [newFileName, setNewFileName] = useState('');
-  const [newScriptTitle, setNewScriptTitle] = useState('');
-  const [newScriptLanguage, setNewScriptLanguage] = useState('Malayalam (KL)');
-  const [newScriptCategory, setNewScriptCategory] = useState('Advertisement');
-  const [newScriptObjective, setNewScriptObjective] = useState('Generate Sales');
-  const [newScriptDescription, setNewScriptDescription] = useState('');
-  const [newScriptDuration, setNewScriptDuration] = useState('30s');
-  const [newScriptPriority, setNewScriptPriority] = useState('MEDIUM');
-  const [newScriptRemarks, setNewScriptRemarks] = useState('');
+
+  // Script Document Upload State
+  const [uploadingScriptDoc, setUploadingScriptDoc] = useState(false);
+  const [selectedScriptFile, setSelectedScriptFile] = useState<File | null>(null);
+  const [scriptDocNotes, setScriptDocNotes] = useState('');
 
   // Graphic Requirements Creation State
   const [newGraphicTitle, setNewGraphicTitle] = useState('');
@@ -94,7 +92,7 @@ export default function ProjectDetailPage() {
   const [showConvertTaskModal, setShowConvertTaskModal] = useState(false);
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [teamFilter, setTeamFilter] = useState<'ALL' | 'ACCEPTED' | 'PENDING'>('ALL');
-  const [taskFilter, setTaskFilter] = useState<'ALL' | 'SHOOT' | 'SCRIPT' | 'GRAPHIC' | 'ACTIVE' | 'COMPLETED'>('ALL');
+  const [taskFilter, setTaskFilter] = useState<'ALL' | 'SHOOT' | 'GRAPHIC' | 'ACTIVE' | 'COMPLETED'>('ALL');
 
   // Deliverables State
   const [deliverableName, setDeliverableName] = useState('');
@@ -102,8 +100,6 @@ export default function ProjectDetailPage() {
   const [deliverableVideoUrl, setDeliverableVideoUrl] = useState('');
   const [isSubmittingDeliverable, setIsSubmittingDeliverable] = useState(false);
   const [copiedDeliverableId, setCopiedDeliverableId] = useState<string | null>(null);
-  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
-  const [linkedScriptId, setLinkedScriptId] = useState('');
   const [linkedGraphicReqId, setLinkedGraphicReqId] = useState('');
   const [showCreateDeliverableModal, setShowCreateDeliverableModal] = useState(false);
 
@@ -161,36 +157,78 @@ export default function ProjectDetailPage() {
       { label: 'Projects', href: '/projects' },
       {
         label: projectDisplay,
-        href: activeTab === 'Overview' && !selectedScriptRecord ? undefined : `/projects/${project.id}`,
+        href: activeTab === 'Overview' ? undefined : `/projects/${project.id}`,
         onClick:
-          activeTab === 'Overview' && !selectedScriptRecord
+          activeTab === 'Overview'
             ? undefined
             : () => {
                 setActiveTab('Overview');
-                setSelectedScriptRecord(null);
-              },
-        isCurrent: activeTab === 'Overview' && !selectedScriptRecord,
+                },
+        isCurrent: activeTab === 'Overview',
       },
     ];
 
     if (activeTab !== 'Overview') {
       crumbs.push({
         label: activeTab,
-        href: selectedScriptRecord ? `/projects/${project.id}` : undefined,
-        onClick: selectedScriptRecord ? () => setSelectedScriptRecord(null) : undefined,
-        isCurrent: !selectedScriptRecord,
-      });
-    }
-
-    if (selectedScriptRecord) {
-      crumbs.push({
-        label: selectedScriptRecord.scriptId || selectedScriptRecord.name,
+        
+        
         isCurrent: true,
       });
     }
 
+    
     setBreadcrumbs(crumbs);
-  }, [project, activeTab, selectedScriptRecord, setBreadcrumbs]);
+  }, [project, activeTab, setBreadcrumbs]);
+
+  
+  // Filter all uploaded Script Documents for this project
+  const scriptFiles = (filesTree?.allFiles || project?.files || []).filter((f: any) =>
+    f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+    f.folderCategory === 'Script Documents' ||
+    f.storagePath?.toLowerCase().includes('script') ||
+    (f.fileName?.toLowerCase().endsWith('.pdf') && !f.deliverableType) ||
+    f.fileName?.toLowerCase().endsWith('.doc') ||
+    f.fileName?.toLowerCase().endsWith('.docx')
+  );
+
+  const handleUploadScriptDoc = async (fileToUpload?: File) => {
+    const file = fileToUpload || selectedScriptFile;
+    if (!file) {
+      alert('Please select a PDF or Document file to upload.');
+      return;
+    }
+    setUploadingScriptDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('projectId', project.id);
+      formData.append('folderCategory', 'Script Documents');
+      formData.append('attachmentCategory', 'SCRIPT_DOCUMENT');
+
+      const token = localStorage.getItem('moms_token') || localStorage.getItem('token');
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+      const res = await fetch(`${apiBase}/files/upload`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Failed to upload script document');
+      }
+
+      alert(`Script Document "${file.name}" uploaded successfully!`);
+      setSelectedScriptFile(null);
+      setScriptDocNotes('');
+      await loadProject();
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload script document');
+    } finally {
+      setUploadingScriptDoc(false);
+    }
+  };
 
   const handleToggleTeamUser = async (targetUserId: string) => {
     const currentTeamUserIds = (project.assignedTeam || []).map((t: any) => t.userId);
@@ -282,7 +320,6 @@ export default function ProjectDetailPage() {
           projectId: project.id,
           fileName: deliverableName.trim(),
           deliverableType,
-          scriptId: linkedScriptId || undefined,
           graphicRequirementId: linkedGraphicReqId || undefined,
           storagePath: deliverableVideoUrl.trim(),
         }),
@@ -290,7 +327,6 @@ export default function ProjectDetailPage() {
 
       setDeliverableName('');
       setDeliverableVideoUrl('');
-      setLinkedScriptId('');
       setLinkedGraphicReqId('');
       setShowCreateDeliverableModal(false);
       loadProject();
@@ -736,7 +772,7 @@ export default function ProjectDetailPage() {
       <div className="flex border-b border-slate-200 overflow-x-auto gap-1 text-xs font-semibold">
         {tabs.map((tab) => {
           let countBadge: number | null = null;
-          if (tab === 'Scripts') countBadge = project.scripts?.length || 0;
+          if (tab === 'Scripts') countBadge = scriptFiles.length;
           if (tab === 'Graphic Requirements') countBadge = project.graphicRequirements?.length || 0;
           if (tab === 'Tasks') countBadge = project.tasks?.length || 0;
           if (tab === 'Deliverables') countBadge = project.files?.length || 0;
@@ -1018,7 +1054,7 @@ export default function ProjectDetailPage() {
                     className="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-lg font-bold text-[11px] transition-colors flex items-center gap-1"
                   >
                     <FileText className="w-3.5 h-3.5 text-purple-600" />
-                    Scripts ({project.scripts?.length || 0})
+                    Script Docs ({scriptFiles.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('Graphic Requirements')}
@@ -1031,48 +1067,58 @@ export default function ProjectDetailPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Linked Scripts Column */}
+                {/* Linked Script Documents Column */}
                 <div className="p-3.5 bg-white border border-purple-200/90 rounded-xl space-y-2.5">
                   <div className="flex items-center justify-between border-b border-purple-100 pb-2">
                     <span className="font-bold text-xs text-purple-950 flex items-center gap-1.5">
                       <FileText className="w-3.5 h-3.5 text-purple-600" />
-                      Production Scripts ({project.scripts?.length || 0})
+                      Project Script Documents ({scriptFiles.length})
                     </span>
                     <button
                       onClick={() => setActiveTab('Scripts')}
                       className="text-[10px] text-purple-600 hover:text-purple-800 font-bold flex items-center gap-0.5"
                     >
-                      View All <ArrowRight className="w-3 h-3" />
+                      View Script Docs <ArrowRight className="w-3 h-3" />
                     </button>
                   </div>
 
-                  {(!project.scripts || project.scripts.length === 0) ? (
-                    <div className="py-4 text-center text-slate-400 italic text-[11px]">
-                      No scripts linked to this shoot project yet.
+                  {scriptFiles.length === 0 ? (
+                    <div className="py-4 text-center">
+                      <p className="text-slate-400 italic text-[11px]">No script documents attached to this shoot project.</p>
                     </div>
                   ) : (
-                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                      {project.scripts.map((sc: any) => (
-                        <div
-                          key={sc.id}
-                          className="p-2 bg-slate-50/80 border border-slate-200 rounded-lg flex items-center justify-between gap-2 hover:bg-purple-50/40 transition-colors"
-                        >
-                          <div className="truncate">
-                            <span className="font-mono text-[10px] text-purple-700 font-bold mr-1.5">[{sc.scriptId}]</span>
-                            <span className="font-bold text-slate-900 text-xs truncate">{sc.name}</span>
-                            <div className="text-[10px] text-slate-500 font-mono">{sc.language || 'English'} • {sc.category || 'Script'}</div>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {scriptFiles.map((sf: any) => {
+                        const isPdf = sf.fileName?.toLowerCase().endsWith('.pdf') || sf.fileType?.includes('pdf');
+                        const isDoc = sf.fileName?.toLowerCase().endsWith('.doc') || sf.fileName?.toLowerCase().endsWith('.docx');
+                        const fileUrl = sf.storagePath?.startsWith('http')
+                          ? sf.storagePath
+                          : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${sf.storagePath?.replace(/^\/?/, '')}`;
+
+                        return (
+                          <div
+                            key={sf.id}
+                            className="p-2.5 bg-slate-50/80 border border-slate-200 rounded-lg flex items-center justify-between gap-2 hover:bg-purple-50/40 transition-colors"
+                          >
+                            <div className="truncate flex items-center gap-2">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase ${
+                                isPdf ? 'bg-rose-100 text-rose-800' : isDoc ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                              }`}>
+                                {isPdf ? 'PDF' : isDoc ? 'DOC' : 'FILE'}
+                              </span>
+                              <span className="font-bold text-slate-900 text-xs truncate">{sf.fileName}</span>
+                            </div>
+                            <a
+                              href={fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded font-bold text-[10px] shrink-0 flex items-center gap-1 transition-colors"
+                            >
+                              <Eye className="w-3 h-3" /> Open Script
+                            </a>
                           </div>
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold font-mono uppercase shrink-0 border ${
-                            sc.status === 'APPROVED' || sc.status === 'COMPLETED'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                              : sc.status === 'IN_PROGRESS' || sc.status === 'IN_PRODUCTION'
-                              ? 'bg-blue-50 text-blue-700 border-blue-300'
-                              : 'bg-amber-50 text-amber-800 border-amber-300'
-                          }`}>
-                            {sc.status}
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1274,378 +1320,98 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* Tab 2: Scripts */}
+        {/* Tab 2: Scripts (PDF / Docs Library & View Only) */}
         {activeTab === 'Scripts' && (
           <div className="space-y-6 text-xs">
+            {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-purple-600" /> Associated Project Scripts ({project.scripts?.length || 0})
+                  <FileText className="w-4 h-4 text-purple-600" /> Project Script Documents ({scriptFiles.length})
                 </h3>
                 <p className="text-slate-500 text-[11px] mt-0.5">
-                  Production scripts, dialogues, storylines, and scenes associated with this shoot project.
+                  View and download shooting scripts, scene dialogues, and narration briefs attached to this shoot project.
                 </p>
               </div>
-              <Link
-                href="/scripts"
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg transition-colors flex items-center gap-1.5 text-xs self-start sm:self-auto"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                Scripts Studio Directory
-              </Link>
             </div>
 
-            {/* Full Script Creation Panel (Restricted to Managers / Admins) */}
-            {canCreateScript ? (
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  try {
-                    await fetchApi('/scripts', {
-                      method: 'POST',
-                      body: JSON.stringify({
-                        projectId: project.id,
-                        name: newScriptTitle.trim(), // blank uses auto formula
-                        language: newScriptLanguage || 'Malayalam (KL)',
-                        category: newScriptCategory || 'Advertisement',
-                        objective: newScriptObjective || 'Generate Sales',
-                        description: newScriptDescription,
-                        estimatedDuration: newScriptDuration || '30s',
-                        priority: newScriptPriority || 'MEDIUM',
-                        remarks: newScriptRemarks,
-                      }),
-                    });
-                    setNewScriptTitle('');
-                    setNewScriptDescription('');
-                    setNewScriptRemarks('');
-                    await loadProject();
-                  } catch (err: any) {
-                    alert(err.message || 'Failed to create script');
-                  }
-                }}
-                className="p-5 bg-slate-50 border border-purple-200 rounded-xl space-y-4 shadow-md text-xs"
-              >
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <h4 className="font-bold text-purple-700 text-xs flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-purple-600" /> Create New Production Script (All Fields)
-                  </h4>
-                  <span className="font-mono text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded">
-                    Format: BrandCode-Date-ProductCode-LanguageCode-Seq
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                  {/* Purpose / Category */}
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Purpose / Category *</label>
-                    <select
-                      value={newScriptCategory}
-                      onChange={(e) => setNewScriptCategory(e.target.value)}
-                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
-                    >
-                      <option value="Advertisement">Advertisement</option>
-                      <option value="Awareness">Awareness</option>
-                      <option value="Educational">Educational</option>
-                      <option value="Promotional">Promotional</option>
-                      <option value="Testimonial">Testimonial</option>
-                      <option value="Product Demo">Product Demo</option>
-                      <option value="Festival Campaign">Festival Campaign</option>
-                      <option value="Social Media">Social Media</option>
-                      <option value="Branding">Branding</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-
-                  {/* Target Language */}
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Target Language *</label>
-                    <select
-                      value={newScriptLanguage}
-                      onChange={(e) => setNewScriptLanguage(e.target.value)}
-                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
-                    >
-                      <option value="Malayalam (KL)">Malayalam (KL)</option>
-                      <option value="English (EN)">English (EN)</option>
-                      <option value="Hindi (HI)">Hindi (HI)</option>
-                      <option value="Tamil (TN)">Tamil (TN)</option>
-                      <option value="Kannada (KA)">Kannada (KA)</option>
-                      <option value="Telugu (TE)">Telugu (TE)</option>
-                      <option value="Arabic (AR)">Arabic (AR)</option>
-                    </select>
-                  </div>
-
-                  {/* Strategic Objective */}
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Strategic Objective *</label>
-                    <select
-                      value={newScriptObjective}
-                      onChange={(e) => setNewScriptObjective(e.target.value)}
-                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
-                    >
-                      <option value="Generate Sales">Generate Sales</option>
-                      <option value="Increase Awareness">Increase Awareness</option>
-                      <option value="Launch Product">Launch Product</option>
-                      <option value="Customer Education">Customer Education</option>
-                      <option value="Engagement">Engagement</option>
-                      <option value="Retargeting">Retargeting</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-
-                  {/* Duration & Priority */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-slate-700 font-semibold mb-1">Duration</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. 30s"
-                        value={newScriptDuration}
-                        onChange={(e) => setNewScriptDuration(e.target.value)}
-                        className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-2.5 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-700 font-semibold mb-1">Priority</label>
-                      <select
-                        value={newScriptPriority}
-                        onChange={(e) => setNewScriptPriority(e.target.value)}
-                        className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-2 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
-                      >
-                        <option value="LOW">LOW</option>
-                        <option value="MEDIUM">MEDIUM</option>
-                        <option value="HIGH">HIGH</option>
-                        <option value="CRITICAL">CRITICAL</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {/* Description & Storyline */}
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Script Storyline / Scenes Description</label>
-                    <textarea
-                      rows={2}
-                      placeholder="Enter narration dialogues, scene shots, visual requirements..."
-                      value={newScriptDescription}
-                      onChange={(e) => setNewScriptDescription(e.target.value)}
-                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 p-2.5 rounded-lg focus:border-purple-500 focus:bg-white focus:outline-none"
-                    />
-                  </div>
-
-                  {/* Custom Title & Remarks */}
-                  <div className="space-y-2">
-                    <div>
-                      <label className="block text-slate-700 font-semibold mb-1">Custom Title / Code (Optional)</label>
-                      <input
-                        type="text"
-                        placeholder="Leave blank for auto formula: DW-130726-OJ-KL-001"
-                        value={newScriptTitle}
-                        onChange={(e) => setNewScriptTitle(e.target.value)}
-                        className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-700 font-semibold mb-1">Operational Remarks</label>
-                      <input
-                        type="text"
-                        placeholder="Enter props needed, location hints, actor notes..."
-                        value={newScriptRemarks}
-                        onChange={(e) => setNewScriptRemarks(e.target.value)}
-                        className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-purple-500 focus:bg-white focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-1">
-                  <button
-                    type="submit"
-                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-lg shadow-md shadow-purple-600/30 transition-colors flex items-center gap-1.5"
-                  >
-                    <Plus className="w-4 h-4" /> Generate & Save Complete Script
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs text-slate-600">
-                <div className="flex items-center gap-2.5">
-                  <ShieldAlert className="w-4 h-4 text-slate-400 shrink-0" />
-                  <div>
-                    <span className="font-semibold text-slate-800">Script Creation Restricted</span>
-                    <p className="text-[11px] text-slate-500">Only Media Managers, Social Media Managers, and Marketing Managers have permission to author or create new scripts for this project.</p>
-                  </div>
-                </div>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-slate-200 text-slate-600 font-mono">READ ONLY</span>
-              </div>
-            )}
-
-            {project.scripts?.length === 0 ? (
-              <div className="p-8 bg-slate-50/60 border border-dashed border-slate-300 rounded-xl text-center space-y-2">
+            {/* Script Documents List / Grid */}
+            {scriptFiles.length === 0 ? (
+              <div className="p-8 bg-slate-50/60 border border-dashed border-slate-300 rounded-2xl text-center space-y-2">
                 <FileText className="w-8 h-8 text-slate-400 mx-auto" />
-                <h4 className="font-bold text-slate-700 text-sm">No Scripts Created for this Project</h4>
+                <h4 className="font-bold text-slate-700 text-sm">No Script Documents Attached</h4>
                 <p className="text-slate-500 text-xs max-w-md mx-auto">
-                  When a script is created and associated with this shoot project (from here or the Scripts Studio), it will automatically appear in this session.
+                  No script document has been attached to this shoot project yet. Script documents can be attached when creating events, tasks, or during reviews.
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {project.scripts?.map((s: any) => {
-                    const isSelected = selectedScriptRecord?.id === s.id;
-                    const statusColor =
-                      s.status === 'APPROVED' || s.status === 'COMPLETED'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                        : s.status === 'IN_PRODUCTION' || s.status === 'IN_PROGRESS'
-                        ? 'bg-blue-50 text-blue-700 border-blue-300'
-                        : s.status === 'REVISION_REQUESTED' || s.status === 'CLIENT_REVISION_REQUESTED'
-                        ? 'bg-rose-50 text-rose-700 border-rose-300'
-                        : 'bg-amber-50 text-amber-800 border-amber-300';
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {scriptFiles.map((sf: any) => {
+                  const isPdf = sf.fileName?.toLowerCase().endsWith('.pdf') || sf.fileType?.includes('pdf');
+                  const isDoc = sf.fileName?.toLowerCase().endsWith('.doc') || sf.fileName?.toLowerCase().endsWith('.docx') || sf.fileType?.includes('word');
+                  const fileUrl = sf.storagePath?.startsWith('http')
+                    ? sf.storagePath
+                    : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${sf.storagePath?.replace(/^\/?/, '')}`;
 
-                    return (
-                      <div
-                        key={s.id}
-                        onClick={() => setSelectedScriptRecord(isSelected ? null : s)}
-                        className={`p-4 bg-slate-50 border rounded-xl space-y-3 cursor-pointer transition-all ${
-                          isSelected
-                            ? 'border-purple-500 ring-2 ring-purple-500/40 bg-purple-50/60 shadow-lg'
-                            : 'border-slate-200 hover:border-purple-300 hover:bg-slate-50/90'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-xs text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded border border-purple-200">
-                              {s.scriptId}
-                            </span>
-                            <span className="text-[10px] font-semibold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
-                              {s.language || 'English'}
-                            </span>
-                          </div>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase border ${statusColor}`}>
-                            {s.status}
+                  return (
+                    <div
+                      key={sf.id}
+                      className="p-4 bg-white border border-slate-200 hover:border-purple-300 rounded-2xl space-y-3.5 flex flex-col justify-between shadow-xs transition-all group"
+                    >
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase flex items-center gap-1 border ${
+                            isPdf
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : isDoc
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-purple-50 text-purple-700 border-purple-200'
+                          }`}>
+                            <FileText className="w-3 h-3" />
+                            {isPdf ? 'PDF SCRIPT' : isDoc ? 'WORD DOC' : 'SCRIPT DOC'}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {sf.fileSize ? `${(sf.fileSize / 1024 / 1024).toFixed(2)} MB` : 'Doc'}
                           </span>
                         </div>
 
                         <div>
-                          <h4 className="font-bold text-slate-900 text-sm font-mono">{s.name}</h4>
-                          <p className="text-slate-600 text-xs line-clamp-2 mt-1">
-                            {s.objective || s.description || 'No detailed objective provided'}
-                          </p>
-                        </div>
-
-                        {/* Metadata row */}
-                        <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 bg-white/70 p-2 rounded-lg border border-slate-200/80">
-                          <div>
-                            <span className="text-slate-400 block text-[9px] uppercase font-bold">Category</span>
-                            <span className="font-medium text-slate-700">{s.category || 'General'}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 block text-[9px] uppercase font-bold">Duration</span>
-                            <span className="font-medium text-slate-700">{s.estimatedDuration || '30s'}</span>
-                          </div>
-                        </div>
-
-                        {/* Assigned crew members */}
-                        {s.scriptAssignments && s.scriptAssignments.length > 0 && (
-                          <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                            <span className="text-[10px] text-slate-400 font-semibold">Assigned:</span>
-                            {s.scriptAssignments.map((sa: any) => (
-                              <span key={sa.id} className="text-[10px] bg-white text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 flex items-center gap-1 font-medium">
-                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                                {sa.user?.name || 'Crew'} ({sa.responsibility})
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        <div className="text-[10px] text-slate-400 pt-2 border-t border-slate-200 flex justify-between items-center">
-                          <span className="text-purple-700 font-semibold">
-                            {isSelected ? '✓ Inspector Active Below' : 'Click to inspect details'}
-                          </span>
-                          <Link
-                            href={`/scripts?inspect=${s.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 hover:underline"
-                          >
-                            Open in Studio <ExternalLink className="w-3 h-3" />
-                          </Link>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Script Inspector Panel when a script is selected */}
-                {selectedScriptRecord && (
-                  <div className="p-5 bg-gradient-to-br from-purple-50/80 via-white to-purple-50/40 border-2 border-purple-400 rounded-xl space-y-4 shadow-lg animate-in fade-in duration-200">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-200 pb-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 bg-purple-600 text-white rounded font-mono font-bold text-xs">
-                            {selectedScriptRecord.scriptId}
-                          </span>
-                          <h4 className="font-bold text-slate-900 text-sm font-mono">
-                            {selectedScriptRecord.name}
+                          <h4 className="font-bold text-slate-900 text-xs leading-snug break-words group-hover:text-purple-700 transition-colors">
+                            {sf.fileName}
                           </h4>
+                          <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-2">
+                            <span>Uploaded {sf.createdAt ? new Date(sf.createdAt).toLocaleDateString() : 'Recently'}</span>
+                            {sf.uploadedBy?.name && (
+                              <span>• By {sf.uploadedBy.name}</span>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-slate-500 text-[11px] mt-0.5">
-                          Detailed Script Session &amp; Storyline Overview
-                        </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Link
-                          href={`/scripts?inspect=${selectedScriptRecord.id}`}
-                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow-xs"
+
+                      <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <a
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 py-1.5 px-2.5 bg-purple-50 hover:bg-purple-100 text-purple-800 rounded-lg font-bold text-[11px] text-center flex items-center justify-center gap-1 transition-colors"
                         >
-                          <FileText className="w-3.5 h-3.5" /> Open Full Studio Inspector &rarr;
-                        </Link>
-                        <button
-                          onClick={() => setSelectedScriptRecord(null)}
-                          className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg text-xs"
+                          <Eye className="w-3.5 h-3.5 text-purple-600" />
+                          <span>View Script</span>
+                        </a>
+                        <a
+                          href={fileUrl}
+                          download={sf.fileName}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors"
+                          title="Download Script File"
                         >
-                          Close
-                        </button>
+                          <Download className="w-3.5 h-3.5" />
+                        </a>
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                      <div className="p-2.5 bg-white border border-purple-200 rounded-lg">
-                        <span className="text-slate-400 block text-[9px] uppercase font-bold">Language</span>
-                        <span className="font-bold text-slate-800">{selectedScriptRecord.language || 'English'}</span>
-                      </div>
-                      <div className="p-2.5 bg-white border border-purple-200 rounded-lg">
-                        <span className="text-slate-400 block text-[9px] uppercase font-bold">Category</span>
-                        <span className="font-bold text-slate-800">{selectedScriptRecord.category || 'General'}</span>
-                      </div>
-                      <div className="p-2.5 bg-white border border-purple-200 rounded-lg">
-                        <span className="text-slate-400 block text-[9px] uppercase font-bold">Duration</span>
-                        <span className="font-bold text-slate-800">{selectedScriptRecord.estimatedDuration || '30s'}</span>
-                      </div>
-                      <div className="p-2.5 bg-white border border-purple-200 rounded-lg">
-                        <span className="text-slate-400 block text-[9px] uppercase font-bold">Status</span>
-                        <span className="font-bold text-purple-700 uppercase font-mono">{selectedScriptRecord.status}</span>
-                      </div>
-                    </div>
-
-                    {/* Storyline / Narration / Scenes */}
-                    <div className="space-y-1.5 bg-white p-4 rounded-xl border border-purple-200">
-                      <h5 className="font-bold text-slate-900 text-xs flex items-center gap-1.5 text-purple-900">
-                        <FileText className="w-3.5 h-3.5 text-purple-600" /> Storyline &amp; Scenes Content
-                      </h5>
-                      <div className="text-slate-800 text-xs whitespace-pre-wrap font-sans bg-slate-50 p-3 rounded-lg border border-slate-200 max-h-60 overflow-y-auto leading-relaxed">
-                        {selectedScriptRecord.description || selectedScriptRecord.objective || 'No script storyline content provided.'}
-                      </div>
-                    </div>
-
-                    {selectedScriptRecord.remarks && (
-                      <div className="bg-amber-50/70 border border-amber-200 p-3 rounded-xl text-xs text-amber-900">
-                        <span className="font-bold block mb-0.5">Operational Remarks:</span>
-                        <span>{selectedScriptRecord.remarks}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1673,7 +1439,7 @@ export default function ProjectDetailPage() {
             </div>
 
             {/* Graphic Requirement Creation Form */}
-            {canCreateScript && (
+            {Boolean(user && ['SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'].includes(user.role as string)) && (
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
@@ -1883,11 +1649,9 @@ export default function ProjectDetailPage() {
           const shootTasks = allTasks.filter(
             (t: any) =>
               t.sourceType === 'SHOOT_PROJECT' ||
-              (t.taskType === 'PROJECT' && !t.scriptId && !t.graphicRequirementId) ||
-              (!t.scriptId && !t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'SCRIPT')
-          );
-          const scriptTasks = allTasks.filter((t: any) => t.scriptId || t.sourceType === 'SCRIPT' || t.taskType === 'SCRIPT');
-          const graphicTasks = allTasks.filter(
+              (t.taskType === 'PROJECT' && !t.graphicRequirementId) ||
+              (!t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT')
+          );          const graphicTasks = allTasks.filter(
             (t: any) => t.graphicRequirementId || t.sourceType === 'GRAPHIC_REQUIREMENT' || t.taskType === 'GRAPHIC_REQUIREMENT'
           );
 
@@ -1898,11 +1662,10 @@ export default function ProjectDetailPage() {
             if (taskFilter === 'SHOOT') {
               return (
                 t.sourceType === 'SHOOT_PROJECT' ||
-                (t.taskType === 'PROJECT' && !t.scriptId && !t.graphicRequirementId) ||
-                (!t.scriptId && !t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'SCRIPT')
+                (t.taskType === 'PROJECT' && !t.graphicRequirementId) ||
+                (!t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'SCRIPT')
               );
             }
-            if (taskFilter === 'SCRIPT') return t.scriptId || t.sourceType === 'SCRIPT' || t.taskType === 'SCRIPT';
             if (taskFilter === 'GRAPHIC') return t.graphicRequirementId || t.sourceType === 'GRAPHIC_REQUIREMENT' || t.taskType === 'GRAPHIC_REQUIREMENT';
             if (taskFilter === 'ACTIVE') return t.status !== 'COMPLETED' && t.status !== 'CANCELLED';
             if (taskFilter === 'COMPLETED') return t.status === 'COMPLETED';
@@ -1918,7 +1681,7 @@ export default function ProjectDetailPage() {
                     <CheckSquare className="w-4 h-4 text-blue-600" /> Project Tasks &amp; Production Execution Sessions ({allTasks.length})
                   </h3>
                   <p className="text-slate-500 text-[11px] mt-0.5">
-                    All shoot execution tasks, outdoor on-location sessions, script writing, and graphic deliverables linked to this project.
+                    All shoot execution tasks, outdoor on-location sessions and graphic deliverables linked to this project.
                   </p>
                 </div>
 
@@ -1967,20 +1730,6 @@ export default function ProjectDetailPage() {
                   <Compass className="w-3.5 h-3.5" />
                   <span>Shoot Sessions</span>
                   <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-200/40">{shootTasks.length}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setTaskFilter('SCRIPT')}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                    taskFilter === 'SCRIPT'
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Script Tasks</span>
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-200/40">{scriptTasks.length}</span>
                 </button>
 
                 <button
@@ -2050,9 +1799,8 @@ export default function ProjectDetailPage() {
                   {filteredTasks.map((t: any) => {
                     const isShootTask =
                       t.sourceType === 'SHOOT_PROJECT' ||
-                      (t.taskType === 'PROJECT' && !t.scriptId && !t.graphicRequirementId) ||
-                      (!t.scriptId && !t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'SCRIPT');
-                    const isScriptTask = Boolean(t.scriptId || t.sourceType === 'SCRIPT' || t.taskType === 'SCRIPT');
+                      (t.taskType === 'PROJECT' && !t.graphicRequirementId) ||
+                      (!t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'SCRIPT');
                     const isGraphicTask = Boolean(t.graphicRequirementId || t.sourceType === 'GRAPHIC_REQUIREMENT' || t.taskType === 'GRAPHIC_REQUIREMENT');
 
                     const isOutdoorTask = isShootTask && (t.title?.toLowerCase().includes('outdoor') || t.description?.toLowerCase().includes('outdoor') || t.project?.shootType === 'OUTDOOR');
@@ -2086,10 +1834,6 @@ export default function ProjectDetailPage() {
                               ) : isShootTask ? (
                                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1">
                                   <Building2 className="w-3 h-3 text-blue-600" /> Shoot Task
-                                </span>
-                              ) : isScriptTask ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300 flex items-center gap-1">
-                                  <FileText className="w-3 h-3 text-indigo-600" /> Script Task
                                 </span>
                               ) : isGraphicTask ? (
                                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-100 text-pink-800 border border-pink-300 flex items-center gap-1">
@@ -2575,7 +2319,7 @@ export default function ProjectDetailPage() {
                   <Film className="w-4 h-4 text-emerald-600" /> Project Deliverables &amp; Media Assets
                 </h3>
                 <p className="text-slate-500 text-[11px] mt-0.5">
-                  Each deliverable is linked to its corresponding Script or Graphic Requirement.
+                  Each deliverable is linked to its corresponding Graphic Requirement.
                 </p>
               </div>
 
@@ -2641,32 +2385,10 @@ export default function ProjectDetailPage() {
                   </div>
 
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Link to Script</label>
-                    <select
-                      value={linkedScriptId}
-                      onChange={(e) => {
-                        setLinkedScriptId(e.target.value);
-                        if (e.target.value) setLinkedGraphicReqId('');
-                      }}
-                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none"
-                    >
-                      <option value="">None (Unlinked)</option>
-                      {project.scripts?.map((s: any) => (
-                        <option key={s.id} value={s.id}>
-                          [{s.scriptId}] {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
                     <label className="block text-slate-700 font-semibold mb-1">Link to Graphic Req</label>
                     <select
                       value={linkedGraphicReqId}
-                      onChange={(e) => {
-                        setLinkedGraphicReqId(e.target.value);
-                        if (e.target.value) setLinkedScriptId('');
-                      }}
+                      onChange={(e) => setLinkedGraphicReqId(e.target.value)}
                       className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none"
                     >
                       <option value="">None (Unlinked)</option>
@@ -2745,7 +2467,6 @@ export default function ProjectDetailPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {project.files?.map((f: any) => {
-                  const linkedScript = project.scripts?.find((s: any) => s.id === f.scriptId);
                   const linkedGraphic = project.graphicRequirements?.find((g: any) => g.id === f.graphicRequirementId);
                   const isUrl = f.storagePath && (f.storagePath.startsWith('http://') || f.storagePath.startsWith('https://'));
                   const linkInfo = getDeliverableLinkInfo(f.storagePath);
@@ -2835,12 +2556,7 @@ export default function ProjectDetailPage() {
                         )}
 
                         <div className="space-y-1 text-[11px] pt-1">
-                          {linkedScript && (
-                            <div className="p-2 bg-purple-50/70 border border-purple-200 rounded-lg text-purple-800 font-semibold flex items-center justify-between">
-                              <span>Linked Script:</span>
-                              <span className="font-mono text-slate-900">[{linkedScript.scriptId}] {linkedScript.name}</span>
-                            </div>
-                          )}
+                          
 
                           {linkedGraphic && (
                             <div className="p-2 bg-indigo-50/70 border border-indigo-200 rounded-lg text-indigo-800 font-semibold flex items-center justify-between">
@@ -2849,7 +2565,7 @@ export default function ProjectDetailPage() {
                             </div>
                           )}
 
-                          {!linkedScript && !linkedGraphic && (
+                          {!linkedGraphic && (
                             <div className="text-slate-400 italic text-[10px]">General Project Deliverable</div>
                           )}
                         </div>

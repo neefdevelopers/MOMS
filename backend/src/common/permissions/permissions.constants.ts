@@ -16,17 +16,6 @@ export const MODULE_SUPPORTED_PERMISSIONS: Record<ModuleType, PermissionType[]> 
     PermissionType.ARCHIVE,
     PermissionType.RESTORE,
   ],
-  [ModuleType.SCRIPTS]: [
-    PermissionType.VIEW,
-    PermissionType.CREATE,
-    PermissionType.EDIT,
-    PermissionType.DELETE,
-    PermissionType.APPROVE,
-    PermissionType.ASSIGN,
-    PermissionType.EXPORT,
-    PermissionType.ARCHIVE,
-    PermissionType.RESTORE,
-  ],
   [ModuleType.GRAPHIC_REQUIREMENTS]: [
     PermissionType.VIEW,
     PermissionType.CREATE,
@@ -147,16 +136,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
       PermissionType.ARCHIVE,
       PermissionType.RESTORE,
     ],
-    [ModuleType.SCRIPTS]: [
-      PermissionType.VIEW,
-      PermissionType.CREATE,
-      PermissionType.EDIT,
-      PermissionType.DELETE,
-      PermissionType.ASSIGN,
-      PermissionType.EXPORT,
-      PermissionType.ARCHIVE,
-      PermissionType.RESTORE,
-    ],
     [ModuleType.GRAPHIC_REQUIREMENTS]: [
       PermissionType.VIEW,
       PermissionType.CREATE,
@@ -266,12 +245,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
       PermissionType.APPROVE,
       PermissionType.EXPORT,
     ],
-    [ModuleType.SCRIPTS]: [
-      PermissionType.VIEW,
-      PermissionType.EDIT,
-      PermissionType.APPROVE,
-      PermissionType.EXPORT,
-    ],
     [ModuleType.GRAPHIC_REQUIREMENTS]: [
       PermissionType.VIEW,
       PermissionType.EDIT,
@@ -306,7 +279,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   [Role.STAFF]: {
     [ModuleType.DASHBOARD]: [PermissionType.VIEW],
     [ModuleType.PROJECTS]: [PermissionType.VIEW],
-    [ModuleType.SCRIPTS]: [PermissionType.VIEW, PermissionType.EDIT],
     [ModuleType.GRAPHIC_REQUIREMENTS]: [PermissionType.VIEW, PermissionType.EDIT],
     [ModuleType.TASKS]: [PermissionType.VIEW, PermissionType.EDIT],
     [ModuleType.EQUIPMENT]: [PermissionType.VIEW],
@@ -323,7 +295,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   [Role.HR_MANAGER]: {
     [ModuleType.DASHBOARD]: [PermissionType.VIEW, PermissionType.EXPORT],
     [ModuleType.PROJECTS]: [PermissionType.VIEW, PermissionType.EXPORT],
-    [ModuleType.SCRIPTS]: [PermissionType.VIEW],
     [ModuleType.GRAPHIC_REQUIREMENTS]: [PermissionType.VIEW],
     [ModuleType.TASKS]: [PermissionType.VIEW, PermissionType.ASSIGN, PermissionType.EXPORT],
     [ModuleType.EQUIPMENT]: [PermissionType.VIEW, PermissionType.EXPORT],
@@ -355,7 +326,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   [Role.FINANCE_MANAGER]: {
     [ModuleType.DASHBOARD]: [PermissionType.VIEW, PermissionType.CONFIGURE, PermissionType.EXPORT],
     [ModuleType.PROJECTS]: [PermissionType.VIEW, PermissionType.APPROVE, PermissionType.EXPORT],
-    [ModuleType.SCRIPTS]: [PermissionType.VIEW, PermissionType.EXPORT],
     [ModuleType.GRAPHIC_REQUIREMENTS]: [PermissionType.VIEW, PermissionType.EXPORT],
     [ModuleType.TASKS]: [PermissionType.VIEW, PermissionType.EXPORT],
     [ModuleType.EQUIPMENT]: [PermissionType.VIEW, PermissionType.EXPORT],
@@ -372,7 +342,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   [Role.SOCIAL_MEDIA_MANAGER]: {
     [ModuleType.DASHBOARD]: [PermissionType.VIEW],
     [ModuleType.PROJECTS]: [PermissionType.VIEW],
-    [ModuleType.SCRIPTS]: [PermissionType.VIEW, PermissionType.CREATE, PermissionType.EDIT],
     [ModuleType.GRAPHIC_REQUIREMENTS]: [PermissionType.VIEW, PermissionType.CREATE, PermissionType.EDIT],
     [ModuleType.TASKS]: [PermissionType.VIEW],
     [ModuleType.EQUIPMENT]: [PermissionType.VIEW],
@@ -389,7 +358,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   [Role.MARKETING_MANAGER]: {
     [ModuleType.DASHBOARD]: [PermissionType.VIEW],
     [ModuleType.PROJECTS]: [PermissionType.VIEW],
-    [ModuleType.SCRIPTS]: [PermissionType.VIEW, PermissionType.CREATE, PermissionType.EDIT, PermissionType.APPROVE],
     [ModuleType.GRAPHIC_REQUIREMENTS]: [],
     [ModuleType.TASKS]: [],
     [ModuleType.EQUIPMENT]: [],
@@ -406,7 +374,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   [Role.SALES_MANAGER]: {
     [ModuleType.DASHBOARD]: [PermissionType.VIEW, PermissionType.EXPORT],
     [ModuleType.PROJECTS]: [PermissionType.VIEW, PermissionType.CREATE, PermissionType.EDIT, PermissionType.EXPORT],
-    [ModuleType.SCRIPTS]: [PermissionType.VIEW, PermissionType.EXPORT],
     [ModuleType.GRAPHIC_REQUIREMENTS]: [PermissionType.VIEW, PermissionType.EXPORT],
     [ModuleType.TASKS]: [PermissionType.VIEW, PermissionType.EXPORT],
     [ModuleType.EQUIPMENT]: [PermissionType.VIEW, PermissionType.EXPORT],
@@ -447,7 +414,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   [Role.CLIENT_COORDINATOR]: {
     [ModuleType.DASHBOARD]: [PermissionType.VIEW],
     [ModuleType.PROJECTS]: [PermissionType.VIEW, PermissionType.EDIT, PermissionType.APPROVE, PermissionType.EXPORT],
-    [ModuleType.SCRIPTS]: [PermissionType.VIEW, PermissionType.EDIT, PermissionType.APPROVE, PermissionType.EXPORT],
     [ModuleType.GRAPHIC_REQUIREMENTS]: [PermissionType.VIEW, PermissionType.EDIT, PermissionType.APPROVE, PermissionType.EXPORT],
     [ModuleType.TASKS]: [PermissionType.VIEW, PermissionType.EDIT, PermissionType.EXPORT],
     [ModuleType.EQUIPMENT]: [PermissionType.VIEW],
@@ -469,17 +435,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   [Role.ADMINISTRATOR]: {
     [ModuleType.DASHBOARD]: [PermissionType.VIEW, PermissionType.CONFIGURE, PermissionType.EXPORT],
     [ModuleType.PROJECTS]: [
-      PermissionType.VIEW,
-      PermissionType.CREATE,
-      PermissionType.EDIT,
-      PermissionType.DELETE,
-      PermissionType.APPROVE,
-      PermissionType.ASSIGN,
-      PermissionType.EXPORT,
-      PermissionType.ARCHIVE,
-      PermissionType.RESTORE,
-    ],
-    [ModuleType.SCRIPTS]: [
       PermissionType.VIEW,
       PermissionType.CREATE,
       PermissionType.EDIT,

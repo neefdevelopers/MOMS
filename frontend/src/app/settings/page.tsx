@@ -457,9 +457,7 @@ function SettingsContent() {
                 </div>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <span className="text-[11px] text-slate-500 uppercase font-bold tracking-wider block">Script ID</span>
-                  <div className="text-blue-700 font-bold text-sm">
-                    {settingValues['SCRIPT_ID_PREFIX'] || 'SC-'}000001
-                  </div>
+                  <div className="text-blue-700 font-bold text-sm"></div>
                 </div>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <span className="text-[11px] text-slate-500 uppercase font-bold tracking-wider block">Shoot Project ID</span>

@@ -46,13 +46,13 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [hubMode, setHubMode] = useState<'AWAITING' | 'APPROVED'>('AWAITING');
-  const [reviewTab, setReviewTab] = useState<'ALL' | 'SCRIPTS' | 'GRAPHICS' | 'DELIVERABLES' | 'ASSIGNED'>('ALL');
-  const [approvedTab, setApprovedTab] = useState<'ALL' | 'GRAPHICS' | 'SCRIPTS' | 'TASKS' | 'PROJECTS'>('ALL');
+  const [reviewTab, setReviewTab] = useState<'ALL' | 'GRAPHICS' | 'DELIVERABLES' | 'ASSIGNED'>('ALL');
+  const [approvedTab, setApprovedTab] = useState<'ALL' | 'GRAPHICS' | 'TASKS' | 'PROJECTS'>('ALL');
 
   // Active Technical Review Modal state
   const [activeReviewItem, setActiveReviewItem] = useState<{
     id: string;
-    type: 'SCRIPT' | 'GRAPHIC' | 'APPROVAL';
+    type: 'GRAPHIC' | 'APPROVAL';
     code: string;
     title: string;
     description?: string;
@@ -96,7 +96,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
       await fetchApi('/communications', {
         method: 'POST',
         body: JSON.stringify({
-          entityType: activeReviewItem.type === 'SCRIPT' ? 'SCRIPT' : activeReviewItem.type === 'GRAPHIC' ? 'GRAPHIC_REQUIREMENT' : 'APPROVAL',
+          entityType: activeReviewItem.type === 'GRAPHIC' ? 'GRAPHIC_REQUIREMENT' : 'APPROVAL',
           entityId: activeReviewItem.id,
           subject: `Technical Remark: ${activeReviewItem.code || activeReviewItem.title}`,
           content: `[TECHNICAL REMARK by ${user?.name || 'Technical Manager'}]: ${technicalRemark.trim()}`,
@@ -125,11 +125,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
           method: 'PATCH',
           body: JSON.stringify({ status: 'WAITING_FOR_MEDIA_REVIEW', technicalReviewApproved: true }),
         });
-      } else if (activeReviewItem.type === 'SCRIPT') {
-        await fetchApi(`/scripts/${activeReviewItem.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ status: 'WAITING_FOR_MEDIA_REVIEW', approvalStatus: 'TECHNICAL_REVIEW_APPROVED', technicalReviewApproved: true }),
-        });
+      
       } else if (activeReviewItem.type === 'APPROVAL') {
         await fetchApi(`/approvals/${activeReviewItem.id}/status`, {
           method: 'PATCH',
@@ -160,11 +156,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
           method: 'PATCH',
           body: JSON.stringify({ status: 'REVISION_REQUIRED', remark: notes }),
         });
-      } else if (activeReviewItem.type === 'SCRIPT') {
-        await fetchApi(`/scripts/${activeReviewItem.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ status: 'REVISION_REQUIRED', remarks: notes }),
-        });
+
       } else if (activeReviewItem.type === 'APPROVAL') {
         await fetchApi(`/approvals/${activeReviewItem.id}/status`, {
           method: 'PATCH',
@@ -195,11 +187,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
           method: 'PATCH',
           body: JSON.stringify({ status: 'IN_PROGRESS', remark: notes }),
         });
-      } else if (activeReviewItem.type === 'SCRIPT') {
-        await fetchApi(`/scripts/${activeReviewItem.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ status: 'IN_PROGRESS', remarks: notes }),
-        });
+      
       } else if (activeReviewItem.type === 'APPROVAL') {
         await fetchApi(`/approvals/${activeReviewItem.id}/status`, {
           method: 'PATCH',
@@ -233,7 +221,6 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
   const metrics = data?.metricsSummary || {
     totalWaitingForTechnicalReviewCount: 0,
     pendingReviewsCount: 0,
-    scriptsAwaitingCount: 0,
     graphicsAwaitingCount: 0,
     projectsAttentionCount: 0,
     upcomingDeadlinesCount: 0,
@@ -242,11 +229,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
     totalApprovedCount: 0,
   };
 
-  const pendingApprovals = data?.pendingTechnicalReviews || [];
-  const scriptsAwaiting = (data?.scriptsAwaitingTechnicalReview || []).filter(
-    (sc: any) => sc.status === 'WAITING_FOR_TECHNICAL_REVIEW' || sc.status === 'TECHNICAL_REVIEW' || sc.status === 'TECHNICAL_REVIEW_PENDING' || sc.status === 'SUBMITTED_FOR_REVIEW'
-  );
-  const graphicsAwaiting = (data?.graphicRequirementsAwaitingTechnicalReview || []).filter(
+  const pendingApprovals = data?.pendingTechnicalReviews || [];  const graphicsAwaiting = (data?.graphicRequirementsAwaitingTechnicalReview || []).filter(
     (gr: any) => gr.status === 'WAITING_FOR_TECHNICAL_REVIEW' || gr.status === 'TECHNICAL_REVIEW'
   );
   const projectsAttention = data?.projectsRequiringTechnicalAttention || [];
@@ -263,16 +246,15 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
   const activityLog = data?.recentTechnicalActivity || [];
 
   const approvedGraphics = data?.approvedGraphics || [];
-  const approvedScripts = data?.approvedScripts || [];
-  const approvedTasks = data?.approvedTasks || [];
+    const approvedTasks = data?.approvedTasks || [];
   const approvedProjects = data?.approvedProjects || [];
   const totalApprovedCount =
     data?.approvedTechnicalItems?.totalCount ||
-    approvedGraphics.length + approvedScripts.length + approvedTasks.length + approvedProjects.length;
+    approvedGraphics.length + approvedTasks.length + approvedProjects.length;
 
   const totalWaitingCount =
     metrics.totalWaitingForTechnicalReviewCount ||
-    pendingApprovals.length + scriptsAwaiting.length + graphicsAwaiting.length;
+    pendingApprovals.length + graphicsAwaiting.length;
 
   return (
     <div className="space-y-6">
@@ -302,8 +284,8 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
         </div>
       </div>
 
-      {/* KPI Metric Counter Bar (7 Cards) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+      {/* KPI Metric Counter Bar (5 Cards) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-2xl space-y-1 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between text-emerald-700">
             <span className="text-[10px] font-bold uppercase tracking-wider">Waiting Review</span>
@@ -320,15 +302,6 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
           </div>
           <div className="text-2xl font-black text-slate-900 font-mono">{totalApprovedCount}</div>
           <span className="text-[10px] text-teal-700 font-semibold block">Tracking Updates</span>
-        </div>
-
-        <div className="p-3.5 bg-white border border-slate-200 rounded-2xl space-y-1 shadow-xs">
-          <div className="flex items-center justify-between text-slate-600">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Scripts Awaiting</span>
-            <FileText className="w-4 h-4 text-purple-600" />
-          </div>
-          <div className="text-xl font-black text-slate-900 font-mono">{scriptsAwaiting.length}</div>
-          <span className="text-[10px] text-purple-700 font-semibold block">Script Tech Review</span>
         </div>
 
         <div className="p-3.5 bg-white border border-slate-200 rounded-2xl space-y-1 shadow-xs">
@@ -351,20 +324,11 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
 
         <div className="p-3.5 bg-white border border-slate-200 rounded-2xl space-y-1 shadow-xs">
           <div className="flex items-center justify-between text-slate-600">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Tech Deadlines</span>
-            <Clock className="w-4 h-4 text-rose-600" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Sign-Offs Awaiting</span>
+            <FileCheck className="w-4 h-4 text-cyan-600" />
           </div>
-          <div className="text-xl font-black text-slate-900 font-mono">{upcomingDeadlines.length}</div>
-          <span className="text-[10px] text-rose-700 font-semibold block">Due Next 7 Days</span>
-        </div>
-
-        <div className="p-3.5 bg-white border border-slate-200 rounded-2xl space-y-1 shadow-xs">
-          <div className="flex items-center justify-between text-slate-600">
-            <span className="text-[10px] font-bold uppercase tracking-wider">Technical Tasks</span>
-            <CheckSquare className="w-4 h-4 text-cyan-600" />
-          </div>
-          <div className="text-xl font-black text-slate-900 font-mono">{technicalTasks.length}</div>
-          <span className="text-[10px] text-cyan-700 font-semibold block">In Production</span>
+          <div className="text-xl font-black text-slate-900 font-mono">{pendingApprovals.length}</div>
+          <span className="text-[10px] text-cyan-700 font-semibold block">Direct Reviews</span>
         </div>
       </div>
 
@@ -428,16 +392,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                 >
                   All ({totalWaitingCount})
                 </button>
-                <button
-                  onClick={() => setReviewTab('SCRIPTS')}
-                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                    reviewTab === 'SCRIPTS'
-                      ? 'bg-white text-purple-700 border border-purple-200 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Scripts ({scriptsAwaiting.length})
-                </button>
+                
                 <button
                   onClick={() => setReviewTab('GRAPHICS')}
                   className={`px-3 py-1 rounded-lg font-bold transition-all ${
@@ -484,16 +439,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                 >
                   Graphics ({approvedGraphics.length})
                 </button>
-                <button
-                  onClick={() => setApprovedTab('SCRIPTS')}
-                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                    approvedTab === 'SCRIPTS'
-                      ? 'bg-white text-purple-700 border border-purple-200 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Scripts ({approvedScripts.length})
-                </button>
+                
                 <button
                   onClick={() => setApprovedTab('TASKS')}
                   className={`px-3 py-1 rounded-lg font-bold transition-all ${
@@ -594,60 +540,6 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                 </div>
               ))}
 
-            {/* 2. Scripts Awaiting Technical Review */}
-            {(reviewTab === 'ALL' || reviewTab === 'SCRIPTS') &&
-              scriptsAwaiting.map((sc: any) => (
-                <div
-                  key={sc.id}
-                  className="bg-white hover:border-purple-300 border border-purple-200 p-4 rounded-2xl space-y-3 transition-all flex flex-col justify-between shadow-xs group"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 uppercase flex items-center gap-1">
-                        <FileText className="w-3.5 h-3.5 text-purple-600" />
-                        Script Technical Review
-                      </span>
-                      <span className="text-[10px] font-mono text-purple-700 font-bold">
-                        {sc.scriptId || 'SCRIPT'}
-                      </span>
-                    </div>
-
-                    <h4 className="font-bold text-slate-900 text-xs leading-snug group-hover:text-purple-800 transition-colors">
-                      {sc.name}
-                    </h4>
-
-                    <p className="text-[11px] text-slate-500">
-                      Project: <span className="text-slate-800 font-medium">{sc.project?.name || 'Independent'}</span>
-                    </p>
-
-                    <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 text-[10px] text-slate-600">
-                      Awaiting technical validation of shooting script format, scene breakdown & technical requirements.
-                    </div>
-                  </div>
-
-                  <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5">
-                    <button
-                      onClick={() =>
-                        setActiveReviewItem({
-                          id: sc.id,
-                          type: 'SCRIPT',
-                          code: sc.scriptId || 'SCRIPT',
-                          title: sc.name,
-                          description: sc.description,
-                          status: sc.status,
-                          projectId: sc.projectId,
-                          projectName: sc.project?.name,
-                          rawData: sc,
-                        })
-                      }
-                      className="w-full text-xs font-semibold py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 flex items-center justify-center gap-1.5 shadow-xs transition-all"
-                    >
-                      <Wrench className="w-3.5 h-3.5 text-purple-700" />
-                      <span>Perform Technical Review</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
 
             {/* 3. Pending Technical Sign-offs & Deliverable Approvals */}
             {(reviewTab === 'ALL' || reviewTab === 'DELIVERABLES' || reviewTab === 'ASSIGNED') &&
@@ -706,7 +598,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                 <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
                 <h4 className="text-sm font-bold text-slate-900">All Technical Reviews Complete</h4>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  No scripts, graphic requirements, production deliverables, or review requests are currently awaiting technical review.
+                  No graphic requirements, production deliverables, or review requests are currently awaiting technical review.
                 </p>
               </div>
             )}
@@ -779,57 +671,6 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                 </div>
               ))}
 
-            {/* Approved Scripts */}
-            {(approvedTab === 'ALL' || approvedTab === 'SCRIPTS') &&
-              approvedScripts.map((sc: any) => (
-                <div
-                  key={sc.id}
-                  className="bg-white border border-teal-200 p-4 rounded-2xl space-y-3 shadow-xs flex flex-col justify-between"
-                >
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200 uppercase flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
-                        Script Tech Approved
-                      </span>
-                      <span className="text-[10px] font-mono text-slate-500 font-bold">{sc.scriptId}</span>
-                    </div>
-
-                    <h4 className="font-bold text-slate-900 text-xs">{sc.name}</h4>
-                    <p className="text-[11px] text-slate-500">
-                      Project: <span className="text-slate-800">{sc.project?.name || 'Independent'}</span>
-                    </p>
-
-                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                      <div className="flex items-center justify-between text-[9px] font-mono">
-                        <span className="text-slate-500 uppercase font-bold">Downstream Status:</span>
-                        <span className="text-teal-700 font-bold">{sc.status}</span>
-                      </div>
-                      <div className="text-[10px] text-slate-600">
-                        Approval: <strong className="text-teal-700">{sc.approvalStatus || 'APPROVED'}</strong>
-                      </div>
-                    </div>
-
-                    {sc.scriptRemarks && sc.scriptRemarks.length > 0 && (
-                      <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 text-[10px] text-slate-600">
-                        <span className="text-slate-400 font-mono">Latest Update: </span>
-                        <span className="text-slate-700 italic line-clamp-1">{sc.scriptRemarks[0]?.content}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-teal-700 font-bold">Status: {sc.status}</span>
-                    <Link
-                      href={`/scripts?id=${sc.id}`}
-                      className="text-[11px] font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 font-mono"
-                    >
-                      <span>Track Updates</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </Link>
-                  </div>
-                </div>
-              ))}
 
             {/* Approved Tasks */}
             {(approvedTab === 'ALL' || approvedTab === 'TASKS') &&
@@ -849,7 +690,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
 
                     <h4 className="font-bold text-slate-900 text-xs">{t.title}</h4>
                     <p className="text-[11px] text-slate-500">
-                      Project: <span className="text-slate-800">{t.project?.name || t.script?.name || t.graphicRequirement?.name || 'General Task'}</span>
+                      Project: <span className="text-slate-800">{t.project?.name || t.graphicRequirement?.name || 'General Task'}</span>
                     </p>
 
                     <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-[10px]">
@@ -923,7 +764,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                 <Activity className="w-10 h-10 text-teal-600 mx-auto" />
                 <h4 className="text-sm font-bold text-slate-900">No Approved Items Tracking</h4>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  When you approve scripts, graphic requirements, tasks, or projects, they will show here with their latest downstream updates and progress.
+                  When you approve graphic requirements, tasks, or projects, they will show here with their latest downstream updates and progress.
                 </p>
               </div>
             )}
@@ -1502,21 +1343,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                     </div>
                   </Link>
 
-                  {/* Action 2: Open Script */}
-                  <Link
-                    href={activeReviewItem.type === 'SCRIPT' ? `/scripts?scriptId=${activeReviewItem.id}` : '/scripts'}
-                    target="_blank"
-                    className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition-all group flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between text-purple-600">
-                      <FileText className="w-4 h-4" />
-                      <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-slate-900 block">2. Open Script</span>
-                      <span className="text-[10px] text-slate-500 block">Inspect script editor & scene text</span>
-                    </div>
-                  </Link>
+                  
 
                   {/* Action 3: Open Graphic Requirement */}
                   <Link

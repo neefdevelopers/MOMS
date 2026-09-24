@@ -78,13 +78,6 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         roles: ['MARKETING_MANAGER'],
       },
       {
-        name: 'Script Approvals Session',
-        clientName: 'Script Approvals Session',
-        href: '/scripts?status=PENDING_MARKETING_APPROVAL',
-        icon: FileText,
-        roles: ['MARKETING_MANAGER'],
-      },
-      {
         name: 'Media Calendar',
         staffName: 'Media Calendar',
         techName: 'Calendar',
@@ -108,14 +101,6 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         href: '/projects',
         icon: Film,
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
-      },
-      {
-        name: 'Scripts',
-        smmName: 'Content Scripts',
-        clientName: 'Production Scripts',
-        href: '/scripts',
-        icon: FileText,
-        roles: ['MEDIA_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
       {
         name: 'Graphic Requirements',

@@ -25,7 +25,6 @@ const BreadcrumbsContext = createContext<BreadcrumbsContextType>({
 const ROUTE_LABELS: Record<string, string> = {
   calendar: 'Media Calendar',
   projects: 'Projects',
-  scripts: 'Scripts',
   'graphic-reqs': 'Graphic Requirements',
   tasks: 'Tasks',
   clients: 'Clients',

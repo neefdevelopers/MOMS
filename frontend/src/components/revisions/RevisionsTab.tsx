@@ -18,7 +18,7 @@ import { fetchApi } from '@/lib/api';
 import RequestRevisionModal from './RequestRevisionModal';
 
 interface RevisionsTabProps {
-  entityType: string; // PROJECT, TASK, SCRIPT, GRAPHIC_REQ
+  entityType: string; // PROJECT, TASK, GRAPHIC_REQ
   entityId: string;
   entityTitle: string;
   originalAssigneeId?: string;

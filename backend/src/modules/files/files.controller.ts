@@ -21,7 +21,6 @@ export class FilesController {
       projectId: string;
       fileName: string;
       deliverableType: string;
-      scriptId?: string;
       graphicRequirementId?: string;
       fileSize?: number;
       fileType?: string;
@@ -38,7 +37,7 @@ export class FilesController {
   @UseInterceptors(FileInterceptor('file'))
   uploadFile(
     @UploadedFile() file: MulterFile,
-    @Body() data: { projectId: string; scriptId?: string; graphicRequirementId?: string; folderCategory?: string; attachmentCategory?: string },
+    @Body() data: { projectId: string; graphicRequirementId?: string; folderCategory?: string; attachmentCategory?: string },
     @CurrentUser() user: any,
   ) {
     return this.filesService.saveFileMetadataAndPhysicalDisk(file, data, user);

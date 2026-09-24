@@ -38,9 +38,6 @@ model User {
   approvalsRequested Approval[]          @relation("ApprovalRequester")
   approvalsReviewed  Approval[]          @relation("Approver")
   equipmentMovements EquipmentMovement[]
-  scriptAssignments  ScriptAssignment[]
-  scriptTimelines    ScriptTimeline[]
-  scriptRemarks      ScriptRemark[]
   taskRemarks        TaskRemark[]
   deliverableUploads TaskDeliverableHistory[]
   taskTimelines      TaskTimeline[]
@@ -74,10 +71,6 @@ model User {
   reviewedEditRequests        CalendarEditRequest[]   @relation("CalendarEditReviewedBy")
   editHistoriesRequested      CalendarEditHistory[]   @relation("CalendarEditHistoryRequestedBy")
   editHistoriesApproved       CalendarEditHistory[]   @relation("CalendarEditHistoryApprovedBy")
-  createdScripts            Script[]                  @relation("ScriptCreator")
-  approvedScripts           Script[]                  @relation("ScriptApprover")
-  createdScriptDeliverables   ScriptDeliverable[]       @relation("ScriptDeliverableCreatedBy")
-  assignedScriptDeliverables  ScriptDeliverable[]       @relation("ScriptDeliverableAssignedStaff")
   createdGraphicDeliverables  GraphicRequirementDeliverable[] @relation("GraphicDeliverableCreatedBy")
   assignedGraphicDeliverables GraphicRequirementDeliverable[] @relation("GraphicDeliverableAssignedStaff")
   createdGraphicReqs          GraphicRequirement[]            @relation("GraphicReqCreator")
@@ -148,7 +141,6 @@ model Client {
   brands         Brand[]
   projects       ShootProject[]
   calendarEvents MediaCalendarEvent[]
-  scripts        Script[]
   graphicReqs    GraphicRequirement[]
   tasks          Task[]
   assignedUsers  ClientAssignment[]
@@ -171,7 +163,6 @@ model Brand {
   products       Product[]
   projects       ShootProject[]
   calendarEvents MediaCalendarEvent[]
-  scripts        Script[]
   graphicReqs    GraphicRequirement[]
   tasks          Task[]
 }
@@ -190,7 +181,6 @@ model Product {
 
   projects       ShootProject[]
   calendarEvents MediaCalendarEvent[]
-  scripts        Script[]
   graphicReqs    GraphicRequirement[]
   tasks          Task[]
 
@@ -206,7 +196,6 @@ model Campaign {
   createdAt   DateTime @default(now())
 
   projects    ShootProject[]
-  scripts     Script[]
   graphicReqs GraphicRequirement[]
 }
 
@@ -310,7 +299,6 @@ model ShootProject {
   indoorDetails          IndoorShootDetails?
   outdoorDetails         OutdoorShootDetails?
   assignedTeam           ProjectAssignment[]
-  scripts                Script[]
   graphicRequirements    GraphicRequirement[]
   tasks                  Task[]
   equipmentReservations  EquipmentReservation[]
@@ -381,127 +369,6 @@ model ProjectAssignment {
   assignedAt DateTime     @default(now())
 
   @@unique([projectId, userId])
-}
-
-model Script {
-  id                 String       @id @default(uuid())
-  scriptId           String       @unique
-  name               String
-  projectId          String
-  project            ShootProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  clientId           String
-  client             Client       @relation(fields: [clientId], references: [id])
-  brandId            String
-  brand              Brand        @relation(fields: [brandId], references: [id])
-  productId          String?
-  product            Product?     @relation(fields: [productId], references: [id])
-  campaignId         String?
-  campaign           Campaign?    @relation(fields: [campaignId], references: [id])
-  language           String       @default("English")
-  category           String       @default("Social Media")
-  objective          String?
-  description        String?
-  estimatedDuration  String?
-  status                      String       @default("DRAFT")
-  priority                    String       @default("MEDIUM")
-  remarks                    String?
-  revisionCount              Int          @default(0)
-  preTechnicalReviewStatus   String?      @default("IN_PRODUCTION")
-  technicalReviewRound       Int          @default(0)
-  productionCompleted        Boolean      @default(false)
-  technicalReviewApproved    Boolean      @default(false)
-  mediaManagerReviewApproved Boolean      @default(false)
-  marketingManagerApproved   Boolean      @default(false)
-  clientConfirmationRecorded Boolean      @default(false)
-  createdById                String?
-  createdBy                  User?        @relation("ScriptCreator", fields: [createdById], references: [id])
-  approvedById               String?
-  approvedBy                  User?        @relation("ScriptApprover", fields: [approvedById], references: [id])
-  approvedAt                 DateTime?
-  rejectedAt                 DateTime?
-  rejectionReason            String?
-  createdAt                  DateTime     @default(now())
-  updatedAt                  DateTime     @updatedAt
-
-  tasks              Task[]
-  files              FileMetadata[]
-  scriptAssignments  ScriptAssignment[]
-  timeline           ScriptTimeline[]
-  scriptRemarks      ScriptRemark[]
-  deliverables       ScriptDeliverable[]
-  attachmentLinks    ScriptAttachmentLink[]
-  approvals          Approval[]   @relation("ScriptApprovals")
-}
-
-model ScriptAssignment {
-  id               String    @id @default(uuid())
-  scriptId         String
-  script           Script    @relation(fields: [scriptId], references: [id], onDelete: Cascade)
-  userId           String
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  responsibility   String    @default("Writer") // Writer, Shooter, Video Editor, Motion Designer, Graphic Designer, Reviewer
-  acceptanceStatus String    @default("NOT_YET_ACCEPTED") // NOT_YET_ACCEPTED, ACCEPTED, DECLINED
-  acceptedAt       DateTime?
-  declinedAt       DateTime?
-  declineReason    String?
-  assignedAt       DateTime  @default(now())
-
-  @@unique([scriptId, userId, responsibility])
-}
-
-model ScriptTimeline {
-  id          String    @id @default(uuid())
-  scriptId    String
-  script      Script    @relation(fields: [scriptId], references: [id], onDelete: Cascade)
-  event       String    // SCRIPT_CREATED, ASSIGNED, PRODUCTION_STARTED, PRODUCTION_UPDATED, TECHNICAL_REVIEW, MEDIA_REVIEW, CLIENT_CONFIRMATION, REVISION_REQUESTED, COMPLETED, CLOSED
-  description String?
-  triggeredById String?
-  triggeredBy   User?   @relation(fields: [triggeredById], references: [id])
-  createdAt   DateTime  @default(now())
-}
-
-model ScriptRemark {
-  id        String   @id @default(uuid())
-  scriptId  String
-  script    Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  message   String
-  createdAt DateTime @default(now())
-}
-
-model ScriptDeliverable {
-  id             String    @id @default(uuid())
-  scriptId       String
-  script         Script    @relation(fields: [scriptId], references: [id], onDelete: Cascade)
-  name           String?
-  type           String?   // Reel, Advertisement Video, Long-form Video, Short-form Video, Story, Teaser, Custom
-  title          String?   // Optional custom title
-  description    String?
-  duration       String?   // e.g. "30s", "1m", "3m"
-  fileUrl        String?
-  fileName       String?
-  fileSize       Int?
-  status         String    @default("DRAFT") // DRAFT, IN_PROGRESS, COMPLETED, SUBMITTED
-  remarks        String?
-  submissionDate DateTime?
-  createdById    String?
-  createdBy      User?     @relation("ScriptDeliverableCreatedBy", fields: [createdById], references: [id])
-  assignedStaffId String?
-  assignedStaff  User?     @relation("ScriptDeliverableAssignedStaff", fields: [assignedStaffId], references: [id])
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-}
-
-model ScriptAttachmentLink {
-  id                 String   @id @default(uuid())
-  scriptId           String
-  script             Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
-  name               String
-  url                String
-  attachmentCategory String   @default("SCRIPT_DOCUMENT") // SCRIPT_DOCUMENT, REFERENCE_IMAGE, REFERENCE_VIDEO, AUDIO_REFERENCE, BRAND_GUIDELINES, PRODUCT_INFORMATION, SUPPORTING_DOCUMENT
-  addedById          String?
-  createdAt          DateTime @default(now())
 }
 
 model GraphicRequirement {
@@ -598,8 +465,6 @@ model Task {
   description         String?
   projectId           String?
   project             ShootProject?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  scriptId            String?
-  script              Script?            @relation(fields: [scriptId], references: [id])
   graphicRequirementId String?
   graphicRequirement  GraphicRequirement? @relation(fields: [graphicRequirementId], references: [id])
   clientId            String?
@@ -894,11 +759,9 @@ model Approval {
   id            String        @id @default(uuid())
   projectId     String?
   project       ShootProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  scriptId      String?
-  script        Script?       @relation("ScriptApprovals", fields: [scriptId], references: [id], onDelete: Cascade)
   graphicRequirementId String?
   graphicRequirement   GraphicRequirement? @relation("GraphicReqApprovals", fields: [graphicRequirementId], references: [id], onDelete: Cascade)
-  entityType    String        @default("PROJECT") // PROJECT, SCRIPT, GRAPHIC_REQ, TASK, EQUIPMENT
+  entityType    String        @default("PROJECT") // PROJECT, GRAPHIC_REQ, TASK, EQUIPMENT
   entityId      String?
   approvalType  String        @default("TECHNICAL_REVIEW") // TECHNICAL_REVIEW, MEDIA_MANAGER_REVIEW, MARKETING_MANAGER_REVIEW
   stage         String?       // TECHNICAL_REVIEW, MEDIA_REVIEW, MARKETING_REVIEW
@@ -931,7 +794,7 @@ model ClientConfirmation {
 
 model Revision {
   id                     String        @id @default(uuid())
-  entityType             String        @default("PROJECT") // PROJECT, TASK, SCRIPT, GRAPHIC_REQ, CALENDAR, DELIVERABLE
+  entityType             String        @default("PROJECT") // PROJECT, TASK, GRAPHIC_REQ, CALENDAR, DELIVERABLE
   entityId               String
   projectId              String?
   project                ShootProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -968,11 +831,9 @@ model FileMetadata {
   fileType             String
   storagePath          String
   activeVersion        Boolean             @default(true)
-  attachmentCategory   String              @default("SCRIPT_DOCUMENT")
+  attachmentCategory   String              @default("DOCUMENT")
   projectId            String
   project              ShootProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  scriptId             String?
-  script               Script?             @relation(fields: [scriptId], references: [id])
   graphicRequirementId String?
   graphicRequirement  GraphicRequirement? @relation(fields: [graphicRequirementId], references: [id])
   uploadedById         String
@@ -982,7 +843,7 @@ model FileMetadata {
 
 model Communication {
   id                   String            @id @default(uuid())
-  entityType           String            // PROJECT, SCRIPT, GRAPHIC_REQ, TASK, EQUIPMENT, APPROVAL, REVIEW (Related Module)
+  entityType           String            // PROJECT, GRAPHIC_REQ, TASK, EQUIPMENT, APPROVAL, REVIEW (Related Module)
   entityId             String
   projectId            String?
   project              ShootProject?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1049,16 +910,15 @@ model Notification {
   archivedAt            DateTime?
 
   // ── Operational Event & Originating Entity Mandatory References (Business Rule) ──
-  eventType             String   @default("GENERAL_EVENT") // e.g. PROJECT_CREATED, TASK_ASSIGNED, SCRIPT_APPROVED, etc.
-  entityType            String   @default("SYSTEM")        // PROJECT, TASK, SCRIPT, GRAPHIC_REQUIREMENT, EQUIPMENT, ATTENDANCE, CALENDAR_EVENT, APPROVAL, COMMUNICATION
+  eventType             String   @default("GENERAL_EVENT") // e.g. PROJECT_CREATED, TASK_ASSIGNED, etc.
+  entityType            String   @default("SYSTEM")        // PROJECT, TASK, GRAPHIC_REQUIREMENT, EQUIPMENT, ATTENDANCE, CALENDAR_EVENT, APPROVAL, COMMUNICATION
   entityId              String   @default("")              // ID of originating entity
-  entityCode            String?                            // e.g. SP-000001, TSK-000001, GR-000001, EQ-000001, SC-000001
+  entityCode            String?                            // e.g. SP-000001, TSK-000001, GR-000001, EQ-000001
   metadata              String?                            // JSON metadata describing the event snapshot
 
   // Foreign keys linking to specific operational entities
   projectId             String?
   taskId                String?
-  scriptId              String?
   graphicRequirementId String?
   equipmentId           String?
   attendanceId          String?

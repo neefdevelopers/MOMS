@@ -60,11 +60,9 @@ export class ActivityService {
           break;
         case 'REVIEWS':
           where.OR = [
-            { entity: 'SCRIPT' },
             { entity: 'GRAPHIC_REQ' },
             { entity: 'REVIEW' },
             { action: { contains: 'REVIEW' } },
-            { action: { contains: 'SCRIPT' } },
           ];
           break;
         case 'EQUIPMENT':
@@ -128,7 +126,7 @@ export class ActivityService {
       } else if (log.entity === 'APPROVAL' || log.action?.includes('APPROVAL')) {
         targetUrl = `/approvals`;
         formattedCategory = 'APPROVALS';
-      } else if (log.entity === 'SCRIPT' || log.entity === 'GRAPHIC_REQ') {
+      } else if (log.entity === 'GRAPHIC_REQ') {
         targetUrl = `/scripts`;
         formattedCategory = 'REVIEWS';
       }

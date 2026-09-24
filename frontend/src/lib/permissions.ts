@@ -26,7 +26,6 @@ export type PermissionType =
 export type ModuleType =
   | 'DASHBOARD'
   | 'PROJECTS'
-  | 'SCRIPTS'
   | 'GRAPHIC_REQUIREMENTS'
   | 'TASKS'
   | 'EQUIPMENT'
@@ -147,7 +146,6 @@ export const PERMISSION_TYPES_CONFIG: Record<PermissionType, PermissionMeta> = {
 export const MODULE_SUPPORTED_PERMISSIONS: Record<ModuleType, PermissionType[]> = {
   DASHBOARD: ['VIEW', 'CONFIGURE', 'EXPORT'],
   PROJECTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
-  SCRIPTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
   GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
   TASKS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
   EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
@@ -170,7 +168,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   MEDIA_MANAGER: {
     DASHBOARD: ['VIEW', 'CONFIGURE', 'EXPORT'],
     PROJECTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
-    SCRIPTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     TASKS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
@@ -188,7 +185,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   TECHNICAL_MANAGER: {
     DASHBOARD: ['VIEW', 'EXPORT'],
     PROJECTS: ['VIEW', 'EDIT', 'EXPORT'],
-    SCRIPTS: ['VIEW', 'EDIT', 'EXPORT'],
     GRAPHIC_REQUIREMENTS: ['VIEW', 'EDIT', 'EXPORT'],
     TASKS: ['VIEW', 'EDIT', 'EXPORT'],
     EQUIPMENT: ['VIEW', 'EDIT'],
@@ -206,7 +202,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   STAFF: {
     DASHBOARD: ['VIEW'],
     PROJECTS: ['VIEW'],
-    SCRIPTS: [],
     GRAPHIC_REQUIREMENTS: ['VIEW'],
     TASKS: ['VIEW', 'EDIT'],
     EQUIPMENT: ['VIEW'],
@@ -224,7 +219,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   HR_MANAGER: {
     DASHBOARD: ['VIEW', 'EXPORT'],
     PROJECTS: ['VIEW'],
-    SCRIPTS: ['VIEW'],
     GRAPHIC_REQUIREMENTS: ['VIEW'],
     TASKS: ['VIEW'],
     EQUIPMENT: ['VIEW'],
@@ -242,7 +236,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   FINANCE_MANAGER: {
     DASHBOARD: ['VIEW', 'EXPORT'],
     PROJECTS: ['VIEW'],
-    SCRIPTS: ['VIEW'],
     GRAPHIC_REQUIREMENTS: ['VIEW'],
     TASKS: ['VIEW'],
     EQUIPMENT: ['VIEW'],
@@ -260,7 +253,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   SOCIAL_MEDIA_MANAGER: {
     DASHBOARD: ['VIEW'],
     PROJECTS: ['VIEW', 'CREATE', 'EDIT'],
-    SCRIPTS: ['VIEW', 'CREATE', 'EDIT'],
     GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT'],
     TASKS: ['VIEW', 'EDIT'],
     EQUIPMENT: ['VIEW'],
@@ -278,7 +270,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   MARKETING_MANAGER: {
     DASHBOARD: ['VIEW'],
     PROJECTS: ['VIEW', 'APPROVE'],
-    SCRIPTS: ['VIEW', 'APPROVE'],
     GRAPHIC_REQUIREMENTS: ['VIEW', 'APPROVE', 'EDIT'],
     TASKS: [],
     EQUIPMENT: [],
@@ -296,7 +287,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   SALES_MANAGER: {
     DASHBOARD: ['VIEW', 'EXPORT'],
     PROJECTS: ['VIEW'],
-    SCRIPTS: ['VIEW'],
     GRAPHIC_REQUIREMENTS: ['VIEW'],
     TASKS: ['VIEW'],
     EQUIPMENT: ['VIEW'],
@@ -314,7 +304,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   CLIENT_COORDINATOR: {
     DASHBOARD: ['VIEW'],
     PROJECTS: ['VIEW'],
-    SCRIPTS: ['VIEW'],
     GRAPHIC_REQUIREMENTS: ['VIEW'],
     TASKS: ['VIEW'],
     EQUIPMENT: ['VIEW'],
@@ -332,7 +321,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   ADMINISTRATOR: {
     DASHBOARD: ['VIEW', 'CONFIGURE', 'EXPORT'],
     PROJECTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
-    SCRIPTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     TASKS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
@@ -350,7 +338,6 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
   ADMIN: {
     DASHBOARD: ['VIEW', 'CONFIGURE', 'EXPORT'],
     PROJECTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
-    SCRIPTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     GRAPHIC_REQUIREMENTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     TASKS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     EQUIPMENT: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'APPROVE', 'ASSIGN', 'CONFIGURE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
@@ -389,7 +376,6 @@ export function canAccessRoute(role: string, route: string): boolean {
   if (route.startsWith('/brands')) return hasModuleAccess(role, 'BRANDS');
   if (route.startsWith('/products')) return hasModuleAccess(role, 'PRODUCTS');
   if (route.startsWith('/projects')) return hasModuleAccess(role, 'PROJECTS');
-  if (route.startsWith('/scripts')) return hasModuleAccess(role, 'SCRIPTS');
   if (route.startsWith('/graphic-reqs')) return hasModuleAccess(role, 'GRAPHIC_REQUIREMENTS');
   if (route.startsWith('/tasks')) return hasModuleAccess(role, 'TASKS');
   if (route.startsWith('/reports')) return hasModuleAccess(role, 'REPORTS');

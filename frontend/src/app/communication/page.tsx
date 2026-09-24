@@ -434,7 +434,6 @@ export default function CommunicationPage() {
   const entityPresets = [
     { id: 'ALL', label: 'All Activities', icon: Layers },
     { id: 'PROJECT', label: 'Projects', icon: Film },
-    { id: 'SCRIPT', label: 'Scripts', icon: FileText },
     { id: 'GRAPHIC_REQ', label: 'Graphic Reqs', icon: ImageIcon },
     { id: 'TASK', label: 'Tasks', icon: CheckSquare },
     { id: 'EQUIPMENT', label: 'Equipment', icon: Wrench },
@@ -1278,7 +1277,6 @@ export default function CommunicationPage() {
               >
                 <option value="ALL">All Entity Types</option>
                 <option value="PROJECT">Shoot Project</option>
-                <option value="SCRIPT">Script / Video Document</option>
                 <option value="GRAPHIC_REQ">Graphic Requirement</option>
                 <option value="TASK">Task Assignment</option>
                 <option value="EQUIPMENT">Equipment Item</option>
@@ -2078,7 +2076,6 @@ export default function CommunicationPage() {
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-800 text-xs focus:outline-none focus:border-blue-500 focus:bg-white"
                   >
                     <option value="PROJECT">Shoot Project</option>
-                    <option value="SCRIPT">Script / Video Document</option>
                     <option value="GRAPHIC_REQ">Graphic Requirement</option>
                     <option value="TASK">Task Assignment</option>
                     <option value="EQUIPMENT">Equipment Item</option>

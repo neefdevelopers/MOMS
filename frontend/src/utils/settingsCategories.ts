@@ -53,7 +53,7 @@ export const SETTINGS_CATEGORIES: SettingsCategoryMeta[] = [
   {
     id: 'naming',
     title: 'Naming Standards',
-    description: 'Automated naming patterns and prefix conventions for projects, scripts, requirements, and assets',
+    description: 'Automated naming patterns and prefix conventions for projects, requirements, and assets',
     iconName: 'Tag',
     badge: 'Prefix Rules',
   },
@@ -291,15 +291,6 @@ export const SYSTEM_SETTING_FIELDS: SettingFieldDefinition[] = [
     type: 'text',
     defaultValue: 'GR-',
     placeholder: 'GR-, ART-, GFX-',
-  },
-  {
-    key: 'SCRIPT_ID_PREFIX',
-    label: 'Script ID Prefix',
-    category: 'naming',
-    description: 'Prefix used when auto-generating Script IDs (e.g. SC-000001)',
-    type: 'text',
-    defaultValue: 'SC-',
-    placeholder: 'SC-, SCR-',
   },
   {
     key: 'PROJECT_ID_PREFIX',

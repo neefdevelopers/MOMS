@@ -342,29 +342,6 @@ export function canUserViewProject(
     );
   if (isTaskAssigned) return true;
 
-  const isScriptAssigned =
-    Array.isArray(project.scripts) &&
-    project.scripts.some(
-      (s: any) =>
-        s.authorId === user.id ||
-        s.createdById === user.id ||
-        s.writerId === user.id ||
-        (user.role !== 'STAFF' && s.assignedToId === user.id) ||
-        (Array.isArray(s.scriptAssignments) &&
-          s.scriptAssignments.some((sa: any) => sa.userId === user.id || sa.user?.id === user.id)) ||
-        (Array.isArray(s.tasks) &&
-          s.tasks.some(
-            (t: any) =>
-              Array.isArray(t.assignedEmployees) &&
-              t.assignedEmployees.some(
-                (e: any) =>
-                  (e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id) &&
-                  (user.role !== 'STAFF' || e.acceptanceStatus === 'ACCEPTED'),
-              ),
-          )),
-    );
-  if (isScriptAssigned) return true;
-
   const isGraphicReqAssigned =
     Array.isArray(project.graphicRequirements) &&
     project.graphicRequirements.some(
@@ -508,84 +485,6 @@ export function canUserViewTask(
 
   if (user.role === 'STAFF' || user.role === 'SOCIAL_MEDIA_MANAGER') {
     return isAssigned;
-  }
-
-  return true;
-}
-
-/**
- * Centralized Authorization for Scripts
- */
-export function canUserViewScript(
-  user: { id: string; role: string } | undefined | null,
-  script: any,
-): boolean {
-  if (!user || !script) return false;
-
-  if (user.role === 'ADMIN' || user.role === 'ADMINISTRATOR') return true;
-
-  // 2. TECHNICAL_MANAGER: Strictly show scripts that have reached the stage of
-  // waiting for technical manager approval or after that
-  if (user.role === 'TECHNICAL_MANAGER') {
-    const TECH_MANAGER_ALLOWED_SCRIPT_STATUSES = [
-      'WAITING_FOR_TECHNICAL_REVIEW',
-      'TECHNICAL_REVIEW',
-      'TECHNICAL_REVIEW_PENDING',
-      'SUBMITTED_FOR_REVIEW',
-      'WAITING_FOR_MEDIA_REVIEW',
-      'MEDIA_MANAGER_REVIEW',
-      'WAITING_FOR_MARKETING_APPROVAL',
-      'PENDING_MARKETING_APPROVAL',
-      'WAITING_FOR_CLIENT_CONFIRMATION',
-      'PENDING_CLIENT_APPROVAL',
-      'CLIENT_REVIEW',
-      'APPROVED',
-      'COMPLETED',
-      'CLOSED',
-    ];
-    return (
-      TECH_MANAGER_ALLOWED_SCRIPT_STATUSES.includes(script.status) ||
-      Boolean(script.technicalReviewApproved) ||
-      ['TECHNICAL_REVIEW_APPROVED', 'MEDIA_REVIEW_APPROVED', 'MARKETING_APPROVED', 'CLIENT_APPROVED', 'COMPLETED'].includes(script.approvalStatus)
-    );
-  }
-
-  const isCreator =
-    Boolean(script.authorId && script.authorId === user.id) ||
-    Boolean(script.createdById && script.createdById === user.id) ||
-    Boolean(script.writerId && script.writerId === user.id);
-  if (isCreator) return true;
-
-  if (
-    user.role === 'MEDIA_MANAGER' ||
-    user.role === 'MARKETING_MANAGER'
-  ) {
-    return true;
-  }
-
-  if (user.role === 'STAFF' || user.role === 'SOCIAL_MEDIA_MANAGER') {
-    const isAssigned =
-      script.assignedToId === user.id ||
-      script.writerId === user.id ||
-      (Array.isArray(script.scriptAssignments) &&
-        script.scriptAssignments.some((sa: any) => sa.userId === user.id || sa.user?.id === user.id)) ||
-      (Array.isArray(script.tasks) &&
-        script.tasks.some(
-          (t: any) =>
-            Array.isArray(t.assignedEmployees) &&
-            t.assignedEmployees.some((e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id),
-        )) ||
-      (script.project &&
-        ((Array.isArray(script.project.assignedTeam) &&
-          script.project.assignedTeam.some((t: any) => t.userId === user.id || t.user?.id === user.id)) ||
-          script.project.createdById === user.id ||
-          (Array.isArray(script.project.tasks) &&
-            script.project.tasks.some(
-              (t: any) =>
-                Array.isArray(t.assignedEmployees) &&
-                t.assignedEmployees.some((e: any) => e.userId === user.id || e.employeeId === user.id || e.user?.id === user.id),
-            ))));
-    return Boolean(isAssigned);
   }
 
   return true;

@@ -37,7 +37,7 @@ export function getConfirmationDetails(
           'Are you sure you want to archive this production project? The project status will be set to ARCHIVED.',
         consequences:
           customConsequences ||
-          'Consequence: The project will become read-only. Active task updates, script changes, and new deliverable uploads will be disabled for assigned crew.',
+          'Consequence: The project will become read-only. Active task updates and new deliverable uploads will be disabled for assigned crew.',
         confirmLabel: 'Archive Project',
         icon: Archive,
         variant: 'warning' as const,

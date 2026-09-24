@@ -133,8 +133,6 @@ export class ProjectsService {
           { createdById: params.userId },
           { assignedTeam: { some: { userId: params.userId } } },
           { tasks: { some: { assignedEmployees: { some: { userId: params.userId, acceptanceStatus: 'ACCEPTED' } } } } },
-          { scripts: { some: { scriptAssignments: { some: { userId: params.userId } } } } },
-          { scripts: { some: { tasks: { some: { assignedEmployees: { some: { userId: params.userId, acceptanceStatus: 'ACCEPTED' } } } } } } },
           { graphicRequirements: { some: { tasks: { some: { assignedEmployees: { some: { userId: params.userId, acceptanceStatus: 'ACCEPTED' } } } } } } },
         ],
       });
@@ -178,12 +176,10 @@ export class ProjectsService {
         outdoorDetails: true,
         assignedTeam: { include: { user: true } },
         tasks: { include: { assignedEmployees: { include: { user: true } } } },
-        scripts: { include: { scriptAssignments: true } },
         graphicRequirements: { include: { tasks: { include: { assignedEmployees: true } } } },
         _count: {
           select: {
             tasks: true,
-            scripts: true,
             graphicRequirements: true,
             files: true,
           },
@@ -211,15 +207,6 @@ export class ProjectsService {
       indoorDetails: true,
       outdoorDetails: true,
       assignedTeam: { include: { user: { include: { employeeProfile: { include: { department: true } } } } } },
-      scripts: {
-        include: {
-          tasks: { include: { assignedEmployees: { include: { user: true } } } },
-          files: true,
-          scriptAssignments: { include: { user: true } },
-          createdBy: { select: { id: true, name: true, role: true, email: true } },
-        },
-        orderBy: { createdAt: 'desc' as const },
-      },
       graphicRequirements: {
         include: {
           tasks: { include: { assignedEmployees: { include: { user: true } } } },
@@ -265,31 +252,8 @@ export class ProjectsService {
 
     if (!project) throw new NotFoundException('Project not found');
 
-    // Also fetch any scripts, graphic requirements, and tasks linked via project code, task relation, or calendar event
-    const taskScriptIds = (project.tasks || [])
-      .map((t: any) => t.scriptId)
-      .filter((sid: string) => Boolean(sid));
-
-    const [extraScripts, extraGraphicReqs, extraTasks] = await Promise.all([
-      this.prisma.script.findMany({
-        where: {
-          OR: [
-            { projectId: project.id },
-            { projectId: project.projectId },
-            ...(taskScriptIds.length > 0 ? [{ id: { in: taskScriptIds } }] : []),
-            ...(project.id ? [{ tasks: { some: { projectId: project.id } } }] : []),
-            ...(project.projectId ? [{ tasks: { some: { projectId: project.projectId } } }] : []),
-            ...(project.id ? [{ files: { some: { projectId: project.id } } }] : []),
-          ],
-        },
-        include: {
-          tasks: { include: { assignedEmployees: { include: { user: true } } } },
-          files: true,
-          scriptAssignments: { include: { user: true } },
-          createdBy: { select: { id: true, name: true, role: true, email: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-      }).catch(() => []),
+    // Also fetch any graphic requirements and tasks linked via project code, task relation, or calendar event
+    const [extraGraphicReqs, extraTasks] = await Promise.all([
       this.prisma.graphicRequirement.findMany({
         where: {
           OR: [
@@ -329,11 +293,6 @@ export class ProjectsService {
       }).catch(() => []),
     ]);
 
-    const scriptMap = new Map<string, any>();
-    (project.scripts || []).forEach((s: any) => scriptMap.set(s.id, s));
-    extraScripts.forEach((s: any) => scriptMap.set(s.id, s));
-    project.scripts = Array.from(scriptMap.values());
-
     const grMap = new Map<string, any>();
     (project.graphicRequirements || []).forEach((g: any) => grMap.set(g.id, g));
     extraGraphicReqs.forEach((g: any) => grMap.set(g.id, g));
@@ -342,12 +301,7 @@ export class ProjectsService {
     const taskMap = new Map<string, any>();
     (project.tasks || []).forEach((t: any) => taskMap.set(t.id, t));
     extraTasks.forEach((t: any) => taskMap.set(t.id, t));
-    // Also include tasks nested in scripts and graphic requirements
-    project.scripts.forEach((s: any) => {
-      (s.tasks || []).forEach((t: any) => {
-        if (!taskMap.has(t.id)) taskMap.set(t.id, { ...t, script: s });
-      });
-    });
+    // Also include tasks nested in graphic requirements
     project.graphicRequirements.forEach((g: any) => {
       (g.tasks || []).forEach((t: any) => {
         if (!taskMap.has(t.id)) taskMap.set(t.id, { ...t, graphicRequirement: g });
@@ -370,19 +324,12 @@ export class ProjectsService {
       const isTaskAssignee = project.tasks?.some((task) =>
         task.assignedEmployees?.some((e) => e.userId === currentUser.id),
       );
-      const isScriptAssignee = project.scripts?.some(
-        (script) =>
-          (script as any).assignedEmployeeId === currentUser.id ||
-          (script as any).writerId === currentUser.id ||
-          (script as any).scriptAssignments?.some((sa: any) => sa.userId === currentUser.id) ||
-          (script as any).tasks?.some((t: any) => t.assignedEmployees?.some((e: any) => e.userId === currentUser.id)),
-      );
       const isReqAssignee = project.graphicRequirements?.some(
         (req: any) =>
           req.tasks?.some((t: any) => t.assignedEmployees?.some((e: any) => e.userId === currentUser.id)),
       );
 
-      if (!isCreator && !isTeamMember && !isTaskAssignee && !isScriptAssignee && !isReqAssignee) {
+      if (!isCreator && !isTeamMember && !isTaskAssignee && !isReqAssignee) {
         throw new ForbiddenException(
           'Staff members shall not view projects unrelated to their assignments.',
         );
@@ -401,19 +348,6 @@ export class ProjectsService {
         project.graphicRequirements = project.graphicRequirements.filter(
           (gr: any) =>
             gr.tasks?.some((t: any) => t.assignedEmployees?.some((e: any) => e.userId === currentUser.id)),
-        );
-      }
-
-      // Authorized crew/task assignees can view all shoot project scripts. Standalone script assignees only see their scripts:
-      if (!isCreator && !isTeamMember && !isTaskAssignee && Array.isArray(project.scripts)) {
-        project.scripts = project.scripts.filter(
-          (sc: any) =>
-            sc.authorId === currentUser.id ||
-            sc.createdById === currentUser.id ||
-            sc.writerId === currentUser.id ||
-            sc.assignedToId === currentUser.id ||
-            sc.scriptAssignments?.some((sa: any) => sa.userId === currentUser.id) ||
-            sc.tasks?.some((t: any) => t.assignedEmployees?.some((e: any) => e.userId === currentUser.id)),
         );
       }
     }
@@ -446,11 +380,6 @@ export class ProjectsService {
     const isReadyForCompletion =
       allTasksCompleted && techReviewApproved && mediaReviewApproved && clientConfirmationRecorded;
 
-    const scriptsTotal = project.scripts.length;
-    const scriptsCompleted = project.scripts.filter(
-      (s: any) => s.status === 'APPROVED' || s.status === 'COMPLETED' || s.status === 'READY_FOR_PRODUCTION',
-    ).length;
-
     const graphicsTotal = project.graphicRequirements.length;
     const graphicsCompleted = project.graphicRequirements.filter(
       (g: any) => g.status === 'APPROVED' || g.status === 'COMPLETED' || g.status === 'READY_FOR_PRODUCTION',
@@ -478,7 +407,6 @@ export class ProjectsService {
     };
 
     const completionStatistics = {
-      scripts: { completed: scriptsCompleted, total: scriptsTotal, text: `${scriptsCompleted} / ${scriptsTotal} Completed` },
       graphics: { completed: graphicsCompleted, total: graphicsTotal, text: `${graphicsCompleted} / ${graphicsTotal} Completed` },
       tasks: { completed: tasksCompleted, total: tasksTotal, text: `${tasksCompleted} / ${tasksTotal} Completed` },
       deliverables: { completed: deliverablesCompleted, total: deliverablesTotal, text: `${deliverablesCompleted} / ${deliverablesTotal} Completed` },

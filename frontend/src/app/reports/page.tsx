@@ -20,7 +20,6 @@ export default function ReportsPage() {
   const { user } = useAuth();
   const allowedTabs = getAllowedReportTabs(user?.role);
   const [data, setData] = useState<any>(null);
-  const [scriptAnalytics, setScriptAnalytics] = useState<any>(null);
   const [graphicAnalytics, setGraphicAnalytics] = useState<any>(null);
   const [employeeReports, setEmployeeReports] = useState<any[]>([]);
   const [brandReports, setBrandReports] = useState<any[]>([]);
@@ -226,24 +225,6 @@ export default function ReportsPage() {
         ];
         break;
 
-      case 'scripts':
-        exportData = (scriptAnalytics?.employeeProductivity || []).map((s: any) => ({
-          ...s,
-          name: s.name || s.employeeName || 'Unknown',
-          role: s.role || 'N/A',
-          assignedCount: s.assignedCount ?? 0,
-          completedCount: s.completedCount ?? 0,
-          revisionCount: s.revisionCount ?? 0,
-        }));
-        columns = [
-          { header: 'Name', key: 'name' },
-          { header: 'Role', key: 'role' },
-          { header: 'Assigned', key: 'assignedCount' },
-          { header: 'Completed', key: 'completedCount' },
-          { header: 'Revisions', key: 'revisionCount' }
-        ];
-        break;
-
       case 'graphics':
         exportData = (graphicAnalytics?.employeeProductivity || []).map((g: any) => ({
           ...g,
@@ -404,7 +385,6 @@ export default function ReportsPage() {
 
       case 'my_deliverables':
         exportData = [
-          ...(data?.assignedScripts || []).map((s: any) => ({ title: s.name, code: s.scriptId, type: 'Script', status: s.status })),
           ...(data?.assignedGraphicRequirements || []).map((g: any) => ({ title: g.name, code: g.requirementId, type: 'Graphic Requirement', status: g.status })),
         ];
         columns = [
@@ -527,9 +507,8 @@ export default function ReportsPage() {
           setRevisionReports(resRev);
           setData(resTechDash);
         } else {
-          const [resProd, resScript, resGraphic, resEmp, resBrand, resClient, resProduct, resDept, resProjects, resAtt, resEq, resApp, resCap, resRev, resTime] = await Promise.all([
+          const [resProd, resGraphic, resEmp, resBrand, resClient, resProduct, resDept, resProjects, resAtt, resEq, resApp, resCap, resRev, resTime] = await Promise.all([
             fetchApi(`/reports/production${query}`).catch(() => null),
-            fetchApi(`/reports/script-analytics${query}`).catch(() => null),
             fetchApi(`/reports/graphic-analytics${query}`).catch(() => null),
             fetchApi(`/reports/productivity${query}`).catch(() => []),
             fetchApi(`/reports/brands${query}`).catch(() => []),
@@ -545,7 +524,6 @@ export default function ReportsPage() {
             fetchApi(`/reports/timelines${query}`).catch(() => null),
           ]);
           setData(resProd);
-          setScriptAnalytics(resScript);
           setGraphicAnalytics(resGraphic);
           setEmployeeReports(Array.isArray(resEmp) ? resEmp : []);
           setBrandReports(Array.isArray(resBrand) ? resBrand : []);
@@ -918,7 +896,6 @@ export default function ReportsPage() {
         {/* Group: Performance */}
         {([
           { id: 'employee', label: 'Employees', color: 'purple' },
-          { id: 'scripts', label: 'Scripts', color: 'blue' },
           { id: 'graphics', label: 'Graphics', color: 'amber' },
         ] as const).filter(t => isReportTabAllowed(t.id)).length > 0 && (
           <>
@@ -926,7 +903,6 @@ export default function ReportsPage() {
             <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Performance</span>
             {([
               { id: 'employee', label: 'Employees', color: 'purple' },
-              { id: 'scripts', label: 'Scripts', color: 'blue' },
               { id: 'graphics', label: 'Graphics', color: 'amber' },
             ] as const).filter(t => isReportTabAllowed(t.id)).map(t => (
               <button
@@ -2485,136 +2461,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* SCRIPT ANALYTICS TAB */}
-      {activeTab === 'scripts' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Users className="w-4 h-4 text-blue-600" /> 1. Employee Productivity Reports</h2>
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {(scriptAnalytics?.employeeProductivity || []).length === 0 ? (
-                  <p className="text-slate-400 italic">No employee assignments recorded yet.</p>
-                ) : (
-                  (scriptAnalytics?.employeeProductivity || []).map((emp: any) => (
-                    <div key={emp.userId} className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
-                      <div>
-                        <strong className="text-slate-900 text-xs block">{emp.name}</strong>
-                        <span className="text-[10px] text-slate-500">{emp.role}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-[11px] font-mono">
-                        <div><span className="text-slate-400">Assigned:</span> <strong className="text-blue-700">{emp.assignedCount}</strong></div>
-                        <div><span className="text-slate-400">Completed:</span> <strong className="text-emerald-600">{emp.completedCount}</strong></div>
-                        <div><span className="text-slate-400">Revisions:</span> <strong className="text-amber-800">{emp.revisionCount}</strong></div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Building2 className="w-4 h-4 text-purple-600" /> 2. Brand Performance Reports</h2>
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {(scriptAnalytics?.brandPerformance || []).length === 0 ? (
-                  <p className="text-slate-400 italic">No brand script data available.</p>
-                ) : (
-                  (scriptAnalytics?.brandPerformance || []).map((b: any) => (
-                    <div key={b.brandId} className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
-                      <div>
-                        <strong className="text-purple-700 text-xs block">[{b.shortCode}] {b.name}</strong>
-                        <span className="text-[10px] text-slate-500">{b.deliverableCount} Deliverables Planned</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-[11px] font-mono">
-                        <div><span className="text-slate-500">Scripts:</span> <strong className="text-slate-900">{b.scriptCount}</strong></div>
-                        <div><span className="text-slate-400">Completed:</span> <strong className="text-emerald-600">{b.completedCount}</strong></div>
-                        <div><span className="text-slate-400">Revisions:</span> <strong className="text-amber-800">{b.totalRevisions}</strong></div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Layers className="w-4 h-4 text-cyan-600" /> 3. Product Performance Reports</h2>
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {(scriptAnalytics?.productPerformance || []).length === 0 ? (
-                  <p className="text-slate-400 italic">No product script data available.</p>
-                ) : (
-                  (scriptAnalytics?.productPerformance || []).map((p: any) => (
-                    <div key={p.productId} className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
-                      <div>
-                        <strong className="text-cyan-700 text-xs block">{p.name}</strong>
-                        <span className="text-[10px] text-slate-500">Code: {p.productCode}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-[11px] font-mono">
-                        <div><span className="text-slate-500">Scripts:</span> <strong className="text-slate-900">{p.scriptCount}</strong></div>
-                        <div><span className="text-slate-400">Completed:</span> <strong className="text-emerald-600">{p.completedCount}</strong></div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-600" /> 4. Language-wise Reports</h2>
-              <div className="grid grid-cols-2 gap-2 text-[11px]">
-                {(scriptAnalytics?.languageWiseReports || []).map((l: any) => (
-                  <div key={l.language} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
-                    <span className="font-bold text-emerald-700 block">{l.language}</span>
-                    <div className="text-slate-500 text-[10px]">Total: <strong className="text-slate-900">{l.totalScripts}</strong> | Done: <strong className="text-emerald-600">{l.completedScripts}</strong></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><PieChart className="w-4 h-4 text-amber-600" /> 5. Category-wise Reports</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {(scriptAnalytics?.categoryWiseReports || []).map((c: any) => (
-                  <div key={c.category} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
-                    <span className="font-semibold text-amber-800 block text-[11px]">{c.category}</span>
-                    <div className="text-xl font-bold text-slate-900 font-mono">{c.totalScripts}</div>
-                    <div className="text-[9px] text-slate-500">Completed: {c.completedScripts} | Revisions: {c.totalRevisions}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><BarChart3 className="w-4 h-4 text-blue-600" /> 6. Production Capacity Reports</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-[11px]">
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">In Pipeline</span><strong className="text-lg text-blue-600 font-mono">{scriptAnalytics?.productionCapacity?.totalPipelineScripts || 0}</strong></div>
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">In Production</span><strong className="text-lg text-amber-600 font-mono">{scriptAnalytics?.productionCapacity?.inProductionCount || 0}</strong></div>
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Ready</span><strong className="text-lg text-purple-600 font-mono">{scriptAnalytics?.productionCapacity?.readyCount || 0}</strong></div>
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Deliverables</span><strong className="text-lg text-cyan-600 font-mono">{scriptAnalytics?.productionCapacity?.totalDeliverablesPlanned || 0}</strong></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><RotateCcw className="w-4 h-4 text-rose-600" /> 7. Revision Reports</h2>
-              <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Total Revisions</span><strong className="text-lg text-amber-800 font-mono">{scriptAnalytics?.revisionReports?.totalRevisions || 0}</strong></div>
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Avg / Script</span><strong className="text-lg text-blue-600 font-mono">{scriptAnalytics?.revisionReports?.avgRevisionsPerScript || 0}</strong></div>
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Pending Revisions</span><strong className="text-lg text-rose-600 font-mono">{scriptAnalytics?.revisionReports?.pendingRevisionRequestCount || 0}</strong></div>
-              </div>
-            </div>
-            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-emerald-600" /> 8. Approval Reports</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-[11px]">
-                <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Tech Approved</span><strong className="text-purple-700 font-mono">{scriptAnalytics?.approvalReports?.technicalApprovedCount || 0}</strong></div>
-                <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Media Approved</span><strong className="text-indigo-300 font-mono">{scriptAnalytics?.approvalReports?.mediaApprovedCount || 0}</strong></div>
-                <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Client Confirmed</span><strong className="text-cyan-700 font-mono">{scriptAnalytics?.approvalReports?.clientConfirmedCount || 0}</strong></div>
-                <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Fully Approved</span><strong className="text-emerald-600 font-mono">{scriptAnalytics?.approvalReports?.fullyApprovedCount || 0}</strong></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* GRAPHIC REQUIREMENTS ANALYTICS TAB */}
       {activeTab === 'graphics' && (

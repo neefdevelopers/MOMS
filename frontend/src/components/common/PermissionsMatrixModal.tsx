@@ -58,8 +58,7 @@ const ALL_PERMISSION_TYPES: PermissionType[] = [
 const ALL_MODULES: { id: ModuleType; label: string; description: string }[] = [
   { id: 'DASHBOARD', label: 'Dashboard', description: 'Main operational overview & widgets' },
   { id: 'PROJECTS', label: 'Projects', description: 'Indoor & outdoor shoot projects' },
-  { id: 'SCRIPTS', label: 'Scripts', description: 'Multi-lingual script repository & revisions' },
-  { id: 'GRAPHIC_REQUIREMENTS', label: 'Graphic Reqs', description: 'Design briefs & deliverables' },
+    { id: 'GRAPHIC_REQUIREMENTS', label: 'Graphic Reqs', description: 'Design briefs & deliverables' },
   { id: 'TASKS', label: 'Tasks', description: 'Daily production assignments & capacity' },
   { id: 'EQUIPMENT', label: 'Equipment', description: 'Hardware inventory & maintenance' },
   { id: 'CLIENTS', label: 'Clients', description: 'Enterprise client relationships' },

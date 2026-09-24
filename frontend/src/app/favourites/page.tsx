@@ -36,13 +36,6 @@ const ENTITY_CONFIG: Record<
     badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
     buttonLabel: 'Open Project',
   },
-  SCRIPT: {
-    label: 'Scripts',
-    icon: FileText,
-    color: 'text-purple-600',
-    badgeBg: 'bg-purple-50 text-purple-700 border-purple-200',
-    buttonLabel: 'Open Script',
-  },
   GRAPHIC_REQUIREMENT: {
     label: 'Graphic Reqs',
     icon: Palette,
@@ -162,7 +155,6 @@ export default function FavouritesPage() {
           {[
             { key: 'ALL', label: `All (${favorites.length})` },
             { key: 'PROJECT', label: 'Projects' },
-            { key: 'SCRIPT', label: 'Scripts' },
             { key: 'TASK', label: 'Tasks' },
             { key: 'GRAPHIC_REQUIREMENT', label: 'Graphic Reqs' },
             { key: 'CALENDAR_EVENT', label: 'Media Calendar' },

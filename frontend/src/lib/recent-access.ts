@@ -5,7 +5,6 @@ import { fetchApi } from './api';
 
 export type RecentEntityType =
   | 'PROJECT'
-  | 'SCRIPT'
   | 'REPORT'
   | 'EQUIPMENT'
   | 'GRAPHIC_REQUIREMENT'

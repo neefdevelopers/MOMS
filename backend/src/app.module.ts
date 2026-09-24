@@ -9,7 +9,6 @@ import { BrandsModule } from './modules/brands/brands.module';
 import { ProductsModule } from './modules/products/products.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { ProjectsModule } from './modules/projects/projects.module';
-import { ScriptsModule } from './modules/scripts/scripts.module';
 import { GraphicReqsModule } from './modules/graphic-reqs/graphic-reqs.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { ApprovalsModule } from './modules/approvals/approvals.module';
@@ -42,7 +41,6 @@ import { PermissionsGuard } from './common/permissions/permissions.guard';
     ProductsModule,
     CalendarModule,
     ProjectsModule,
-    ScriptsModule,
     GraphicReqsModule,
     TasksModule,
     ApprovalsModule,

@@ -119,46 +119,6 @@ export class ApprovalsService {
       },
     });
 
-    const scriptTechQueue = await this.prisma.script.findMany({
-      where: { status: 'WAITING_FOR_TECHNICAL_REVIEW' },
-      include: {
-        client: true,
-        brand: true,
-        files: {
-          include: { uploadedBy: { select: { id: true, name: true, role: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
-        deliverables: {
-          include: {
-            createdBy: { select: { id: true, name: true, role: true } },
-            assignedStaff: { select: { id: true, name: true, role: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-        tasks: taskIncludes,
-      },
-    });
-
-    const scriptMediaQueue = await this.prisma.script.findMany({
-      where: { status: 'WAITING_FOR_MEDIA_REVIEW' },
-      include: {
-        client: true,
-        brand: true,
-        files: {
-          include: { uploadedBy: { select: { id: true, name: true, role: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
-        deliverables: {
-          include: {
-            createdBy: { select: { id: true, name: true, role: true } },
-            assignedStaff: { select: { id: true, name: true, role: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-        tasks: taskIncludes,
-      },
-    });
-
     const clientQueue = await this.prisma.shootProject.findMany({
       where: { status: ProjectStatus.WAITING_FOR_CLIENT_CONFIRMATION },
       include: { client: true, brand: true, files: true, tasks: taskIncludes },
@@ -233,33 +193,9 @@ export class ApprovalsService {
       isStandaloneTask: true,
     }));
 
-    const mappedScriptTech = scriptTechQueue.map((s) => ({
-      id: s.id,
-      projectId: s.scriptId,
-      name: s.name,
-      client: s.client,
-      brand: s.brand,
-      status: s.status,
-      files: s.files,
-      tasks: s.tasks,
-      isScript: true,
-    }));
-
-    const mappedScriptMedia = scriptMediaQueue.map((s) => ({
-      id: s.id,
-      projectId: s.scriptId,
-      name: s.name,
-      client: s.client,
-      brand: s.brand,
-      status: s.status,
-      files: s.files,
-      tasks: s.tasks,
-      isScript: true,
-    }));
-
     return {
-      technicalReviewQueue: [...techQueue, ...mappedGrTech, ...mappedTaskTech, ...mappedScriptTech],
-      mediaReviewQueue: [...mediaQueue, ...mappedGrMedia, ...mappedTaskMedia, ...mappedScriptMedia],
+      technicalReviewQueue: [...techQueue, ...mappedGrTech, ...mappedTaskTech],
+      mediaReviewQueue: [...mediaQueue, ...mappedGrMedia, ...mappedTaskMedia],
       clientConfirmationQueue: clientQueue,
       revisionQueue: revisionQueue,
     };
@@ -291,7 +227,6 @@ export class ApprovalsService {
     let project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
     let gReq = null;
     let task = null;
-    let script = null;
 
     if (!project) {
       gReq = await this.prisma.graphicRequirement.findUnique({ where: { id: data.projectId } });
@@ -299,12 +234,9 @@ export class ApprovalsService {
     if (!project && !gReq) {
       task = await this.prisma.task.findUnique({ where: { id: data.projectId } });
     }
-    if (!project && !gReq && !task) {
-      script = await this.prisma.script.findUnique({ where: { id: data.projectId } });
-    }
 
-    const targetId = project?.id || gReq?.id || task?.id || script?.id;
-    const targetEntity = script ? 'SCRIPT' : task ? 'TASK' : gReq ? 'GRAPHIC_REQ' : 'PROJECT';
+    const targetId = project?.id || gReq?.id || task?.id;
+    const targetEntity = task ? 'TASK' : gReq ? 'GRAPHIC_REQ' : 'PROJECT';
     const pendingApproval = await this.prisma.approval.findFirst({
       where: {
         OR: [
@@ -333,8 +265,7 @@ export class ApprovalsService {
           entityType: targetEntity,
           entityId: targetId,
           graphicRequirementId: gReq ? gReq.id : null,
-          scriptId: script ? script.id : null,
-          projectId: project ? project.id : task?.projectId || script?.projectId || gReq?.projectId || null,
+          projectId: project ? project.id : task?.projectId || gReq?.projectId || null,
           approvalType: ApprovalType.TECHNICAL_REVIEW,
           stage: 'TECHNICAL_REVIEW',
           round: gReq ? (gReq.technicalReviewRound || 1) : 1,
@@ -416,42 +347,11 @@ export class ApprovalsService {
           technicalReviewApproved: data.status === 'APPROVED',
         },
       });
-
-      if (task.scriptId) {
-        await this.prisma.script.update({
-          where: { id: task.scriptId },
-          data: {
-            status: newTaskStatus,
-            preTechnicalReviewStatus: null,
-            technicalReviewApproved: data.status === 'APPROVED',
-            rejectionReason: data.status === 'REJECTED' ? (data.remarks || 'Technical review rejected').trim() : null,
-            rejectedAt: data.status === 'REJECTED' ? new Date() : null,
-          },
-        }).catch(() => null);
-      }
-    }
-
-    if (script) {
-      const newScriptStatus = data.status === 'APPROVED' ? 'WAITING_FOR_MEDIA_REVIEW' : 'IN_PROGRESS';
-      await this.prisma.script.update({
-        where: { id: script.id },
-        data: {
-          status: newScriptStatus,
-          preTechnicalReviewStatus: null,
-          technicalReviewApproved: data.status === 'APPROVED',
-          rejectionReason: data.status === 'REJECTED' ? (data.remarks || 'Technical review rejected').trim() : null,
-          rejectedAt: data.status === 'REJECTED' ? new Date() : null,
-        },
-      });
-      await this.prisma.task.updateMany({
-        where: { scriptId: script.id },
-        data: { status: newScriptStatus, technicalReviewApproved: data.status === 'APPROVED' },
-      }).catch(() => null);
     }
 
     if (data.status === 'REJECTED' && targetId) {
       await this.prisma.task.updateMany({
-        where: { OR: [{ id: targetId }, { projectId: targetId }, { graphicRequirementId: targetId }, { scriptId: targetId }] },
+        where: { OR: [{ id: targetId }, { projectId: targetId }, { graphicRequirementId: targetId }] },
         data: { status: 'IN_PROGRESS', technicalReviewApproved: false },
       }).catch(() => null);
     }
@@ -466,10 +366,6 @@ export class ApprovalsService {
 
       const affectedTaskIds: string[] = [];
       if (task) affectedTaskIds.push(task.id);
-      if (script) {
-        const sTasks = await this.prisma.task.findMany({ where: { scriptId: script.id }, select: { id: true } });
-        affectedTaskIds.push(...sTasks.map((t) => t.id));
-      }
       if (gReq) {
         const gTasks = await this.prisma.task.findMany({ where: { graphicRequirementId: gReq.id }, select: { id: true } });
         affectedTaskIds.push(...gTasks.map((t) => t.id));
@@ -500,8 +396,8 @@ export class ApprovalsService {
         select: { id: true },
       });
       if (mediaManagers.length > 0) {
-        const entityLabel = task ? `Task ${task.taskId} ('${task.title}')` : script ? `Script "${script.scriptId}: ${script.name}"` : project ? `Project "${project.name}"` : gReq ? `Graphic Requirement "${gReq.name}"` : 'Production item';
-        const targetLink = task ? '/tasks' : script ? '/scripts' : gReq ? '/graphic-reqs' : project ? `/projects/${project.id}` : '/approvals';
+        const entityLabel = task ? `Task ${task.taskId} ('${task.title}')` : project ? `Project "${project.name}"` : gReq ? `Graphic Requirement "${gReq.name}"` : 'Production item';
+        const targetLink = task ? '/tasks' : gReq ? '/graphic-reqs' : project ? `/projects/${project.id}` : '/approvals';
         await this.prisma.notification.createMany({
           data: mediaManagers.map((mm) => ({
             userId: mm.id,
@@ -512,12 +408,11 @@ export class ApprovalsService {
             priority: 'HIGH',
             linkUrl: targetLink,
             eventType: 'MEDIA_REVIEW_REQUESTED',
-            entityType: task ? 'TASK' : script ? 'SCRIPT' : project ? 'PROJECT' : 'GRAPHIC_REQ',
-            entityId: (task?.id || script?.id || project?.id || gReq?.id) as string,
-            entityCode: task?.taskId || script?.scriptId || project?.projectId || gReq?.requirementId || undefined,
+            entityType: task ? 'TASK' : project ? 'PROJECT' : 'GRAPHIC_REQ',
+            entityId: (task?.id || project?.id || gReq?.id) as string,
+            entityCode: task?.taskId || project?.projectId || gReq?.requirementId || undefined,
             taskId: task?.id || undefined,
             projectId: project?.id || task?.projectId || undefined,
-            scriptId: script?.id || task?.scriptId || undefined,
             graphicRequirementId: gReq?.id || undefined,
           })),
         }).catch(() => null);

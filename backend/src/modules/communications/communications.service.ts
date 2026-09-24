@@ -224,20 +224,7 @@ export class CommunicationsService {
         let isEntityAvailable = true;
 
         try {
-          if (comm.entityType === 'SCRIPT') {
-            const script = await this.prisma.script.findFirst({
-              where: { OR: [{ id: comm.entityId }, { scriptId: comm.entityId }] },
-              select: { id: true, scriptId: true, name: true },
-            });
-            if (script) {
-              entityName = script.name;
-              entityRef = script.scriptId;
-              realEntityId = script.id;
-            } else {
-              isEntityAvailable = false;
-              entityName = 'Related Record Unavailable';
-            }
-          } else if (comm.entityType === 'GRAPHIC_REQ') {
+          if (comm.entityType === 'GRAPHIC_REQ') {
             const graphic = await this.prisma.graphicRequirement.findFirst({
               where: { OR: [{ id: comm.entityId }, { requirementId: comm.entityId }] },
               select: { id: true, requirementId: true, name: true },
@@ -355,9 +342,8 @@ export class CommunicationsService {
   }
 
   async getOperationalEntities() {
-    const [projects, scripts, graphicReqs, tasks, equipment, approvals] = await Promise.all([
+    const [projects, graphicReqs, tasks, equipment, approvals] = await Promise.all([
       this.prisma.shootProject.findMany({ select: { id: true, projectId: true, name: true } }),
-      this.prisma.script.findMany({ select: { id: true, scriptId: true, name: true } }),
       this.prisma.graphicRequirement.findMany({ select: { id: true, requirementId: true, name: true } }),
       this.prisma.task.findMany({ select: { id: true, taskId: true, title: true } }),
       this.prisma.equipment.findMany({ select: { id: true, equipmentId: true, name: true } }),
@@ -366,7 +352,6 @@ export class CommunicationsService {
 
     return {
       PROJECT: projects.map((p) => ({ id: p.id, code: p.projectId, name: p.name })),
-      SCRIPT: scripts.map((s) => ({ id: s.id, code: s.scriptId, name: s.name })),
       GRAPHIC_REQ: graphicReqs.map((g) => ({ id: g.id, code: g.requirementId, name: g.name })),
       TASK: tasks.map((t) => ({ id: t.id, code: t.taskId, name: t.title })),
       EQUIPMENT: equipment.map((e) => ({ id: e.id, code: e.equipmentId, name: e.name })),
@@ -621,7 +606,7 @@ export class CommunicationsService {
     }
 
     // ─── BUSINESS RULE 3: One entity per communication ──────────────────────
-    const validEntityTypes = ['PROJECT', 'TASK', 'SCRIPT', 'EQUIPMENT', 'GRAPHIC_REQ', 'APPROVAL', 'REVIEW', 'SYSTEM'];
+    const validEntityTypes = ['PROJECT', 'TASK', 'EQUIPMENT', 'GRAPHIC_REQ', 'APPROVAL', 'REVIEW', 'SYSTEM'];
     if (!isAnnouncement && data.entityType && !validEntityTypes.includes(data.entityType.toUpperCase())) {
       throw new BadRequestException(
         `Business Rule Violation: Entity type '${data.entityType}' is not a recognized operational module. Must be one of: ${validEntityTypes.join(', ')}.`
@@ -649,9 +634,6 @@ export class CommunicationsService {
     if (!resolvedProjectId && !isAnnouncement) {
       if (data.entityType === 'PROJECT') {
         resolvedProjectId = data.entityId;
-      } else if (data.entityType === 'SCRIPT') {
-        const script = await this.prisma.script.findUnique({ where: { id: data.entityId }, select: { projectId: true } }).catch(() => null);
-        if (script) resolvedProjectId = script.projectId;
       } else if (data.entityType === 'GRAPHIC_REQ') {
         const req = await this.prisma.graphicRequirement.findUnique({ where: { id: data.entityId }, select: { projectId: true } }).catch(() => null);
         if (req) resolvedProjectId = req.projectId;

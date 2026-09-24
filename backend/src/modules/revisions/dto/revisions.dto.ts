@@ -3,7 +3,7 @@ import { IsString, IsNotEmpty, IsOptional, IsEnum, IsDateString } from 'class-va
 export class RequestRevisionDto {
   @IsString()
   @IsNotEmpty()
-  entityType: string; // PROJECT, TASK, SCRIPT, GRAPHIC_REQ, CALENDAR, DELIVERABLE
+  entityType: string; // PROJECT, TASK, GRAPHIC_REQ, CALENDAR, DELIVERABLE
 
   @IsString()
   @IsNotEmpty()

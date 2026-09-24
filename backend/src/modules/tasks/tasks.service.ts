@@ -12,7 +12,6 @@ export class TasksService {
     status?: string;
     priority?: string;
     projectId?: string;
-    scriptId?: string;
     clientId?: string;
     brandId?: string;
     productId?: string;
@@ -28,7 +27,6 @@ export class TasksService {
     const where: any = {};
 
     if (params.projectId) where.projectId = params.projectId;
-    if (params.scriptId) where.scriptId = params.scriptId;
     if (params.clientId) where.clientId = params.clientId;
     if (params.brandId) where.brandId = params.brandId;
     if (params.productId) where.productId = params.productId;
@@ -69,7 +67,7 @@ export class TasksService {
       };
     }
 
-    // 9-Attribute Search Query: Task ID, Task Name, Employee, Client, Brand, Product, Project, Script, Status
+    // 7-Attribute Search Query: Task ID, Task Name, Employee, Client, Brand, Product, Project, Status
     if (params.search && params.search.trim()) {
       const query = params.search.trim();
       where.OR = [
@@ -84,8 +82,6 @@ export class TasksService {
         { product: { productCode: { contains: query } } },
         { project: { name: { contains: query } } },
         { project: { projectId: { contains: query } } },
-        { script: { name: { contains: query } } },
-        { script: { scriptId: { contains: query } } },
         { assignedEmployees: { some: { user: { name: { contains: query } } } } },
       ];
     }
@@ -115,18 +111,6 @@ export class TasksService {
             },
             indoorDetails: true,
             outdoorDetails: true,
-            files: {
-              include: { uploadedBy: { select: { id: true, name: true, role: true } } },
-              orderBy: { createdAt: 'desc' },
-            },
-          },
-        },
-        script: {
-          include: {
-            client: true,
-            brand: true,
-            product: true,
-            createdBy: { select: { id: true, name: true, role: true } },
             files: {
               include: { uploadedBy: { select: { id: true, name: true, role: true } } },
               orderBy: { createdAt: 'desc' },
@@ -233,10 +217,8 @@ export class TasksService {
       let computed = t.sourceType || 'DIRECT_TASK';
       if (t.taskType === 'OTHER' || t.sourceType === 'DIRECT_TASK' || t.sourceType === 'OTHER') {
         computed = 'DIRECT_TASK';
-      } else if (t.sourceType === 'SHOOT_PROJECT' || (t.taskType === 'PROJECT' && !t.scriptId && !t.graphicRequirementId) || (t.projectId && !t.scriptId && !t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'DIRECT_TASK' && t.sourceType !== 'OTHER' && t.taskType !== 'OTHER')) {
+      } else if (t.sourceType === 'SHOOT_PROJECT' || (t.taskType === 'PROJECT' && !t.graphicRequirementId) || (t.projectId && !t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'DIRECT_TASK' && t.sourceType !== 'OTHER' && t.taskType !== 'OTHER')) {
         computed = 'SHOOT_PROJECT';
-      } else if (t.sourceType === 'SCRIPT' || t.scriptId || t.script || t.taskType === 'SCRIPT') {
-        computed = 'SCRIPT';
       } else if (t.sourceType === 'GRAPHIC_REQUIREMENT' || t.graphicRequirementId || t.graphicRequirement || t.taskType === 'GRAPHIC_REQUIREMENT' || t.taskType === 'GRAPHIC') {
         computed = 'GRAPHIC_REQUIREMENT';
       } else if (t.sourceType === 'CALENDAR_EVENT') {
@@ -245,77 +227,22 @@ export class TasksService {
         computed = t.sourceType || 'DIRECT_TASK';
       }
 
-      // Automatic Task Status & Completion Percentage Synchronization with Linked Script
-      if (t.script || computed === 'SCRIPT') {
-        let mappedTaskStatus = t.status;
-        let mappedProgress = t.completionPercentage || 0;
-        const norm = (t.script.status || '').toUpperCase().replace(/\s+/g, '_');
-        if (norm === 'WAITING_FOR_TECHNICAL_REVIEW') {
-          mappedTaskStatus = TaskStatus.WAITING_FOR_TECHNICAL_REVIEW;
-          mappedProgress = mappedProgress >= 100 || mappedProgress < 50 ? 50 : Math.min(mappedProgress, 60);
-        } else if (norm === 'WAITING_FOR_MEDIA_REVIEW') {
-          mappedTaskStatus = TaskStatus.WAITING_FOR_MEDIA_REVIEW;
-          mappedProgress = mappedProgress >= 100 || mappedProgress < 75 ? 75 : Math.min(mappedProgress, 80);
-        } else if (norm === 'PENDING_MARKETING_APPROVAL' || norm === 'WAITING_FOR_MARKETING_APPROVAL') {
-          mappedTaskStatus = TaskStatus.PENDING_MARKETING_APPROVAL;
-          mappedProgress = mappedProgress >= 100 || mappedProgress < 85 ? 85 : Math.min(mappedProgress, 90);
-        } else if (norm === 'APPROVED') {
-          mappedTaskStatus = TaskStatus.APPROVED;
-          mappedProgress = 90;
-        } else if (norm === 'COMPLETED') {
-          mappedTaskStatus = TaskStatus.COMPLETED;
-          mappedProgress = 100;
-        } else if (norm === 'ASSIGNED' || norm.includes('REVISION') || norm.includes('CHANGES') || norm.includes('REJECTED')) {
-          mappedTaskStatus = TaskStatus.ASSIGNED;
-          mappedProgress = 0;
-        } else if (norm === 'IN_PRODUCTION' || norm === 'DRAFT' || norm === 'ACCEPTED' || norm === 'IN_PROGRESS') {
-          if (t.status === TaskStatus.ASSIGNED || (t.status as any) === 'REVISION_REQUESTED') {
-            mappedTaskStatus = TaskStatus.ASSIGNED;
-            mappedProgress = 0;
-          } else if (t.status === TaskStatus.ACCEPTED) {
-            mappedTaskStatus = TaskStatus.ACCEPTED;
-            mappedProgress = mappedProgress >= 100 || !mappedProgress ? 15 : Math.min(mappedProgress, 25);
-          } else if (t.status !== TaskStatus.PENDING) {
-            mappedTaskStatus = TaskStatus.IN_PROGRESS;
-            mappedProgress = mappedProgress >= 100 || !mappedProgress ? 25 : Math.min(mappedProgress, 45);
-          }
-        }
-
-        // Ensure ASSIGNED / REVISION_REQUESTED always has 0%
-        if ((mappedTaskStatus === TaskStatus.ASSIGNED || (mappedTaskStatus as any) === 'REVISION_REQUESTED') && mappedProgress > 0) {
-          mappedProgress = 0;
-        } else if (mappedTaskStatus === TaskStatus.IN_PROGRESS && mappedProgress >= 100) {
-          mappedProgress = 25;
-        } else if (mappedTaskStatus === TaskStatus.ACCEPTED && mappedProgress >= 100) {
-          mappedProgress = 15;
-        }
-
-        if (mappedTaskStatus !== t.status || mappedProgress !== t.completionPercentage) {
-          await this.prisma.task.update({
-            where: { id: t.id },
-            data: { status: mappedTaskStatus, completionPercentage: mappedProgress },
-          }).catch(() => null);
-          t.status = mappedTaskStatus;
-          t.completionPercentage = mappedProgress;
-        }
-      } else {
-        // For non-script tasks (Shoot Project / Graphic Req / Direct), ensure status & progress consistency
-        let mappedProgress = t.completionPercentage || 0;
-        if ((t.status === TaskStatus.ASSIGNED || (t.status as any) === 'REVISION_REQUESTED') && mappedProgress > 0) {
-          mappedProgress = 0;
-          await this.prisma.task.update({
-            where: { id: t.id },
-            data: { completionPercentage: 0 },
-          }).catch(() => null);
-          t.completionPercentage = 0;
-        } else if (t.status === TaskStatus.IN_PROGRESS && mappedProgress >= 100) {
-          mappedProgress = 25;
-          await this.prisma.task.update({
-            where: { id: t.id },
-            data: { completionPercentage: 25 },
-          }).catch(() => null);
-          t.completionPercentage = 25;
-        }
+      // Ensure status & progress consistency
+      let mappedProgress = t.completionPercentage || 0;
+      if ((t.status === TaskStatus.ASSIGNED || (t.status as any) === 'REVISION_REQUESTED') && mappedProgress > 0) {
+        mappedProgress = 0;
+        await this.prisma.task.update({
+          where: { id: t.id },
+          data: { completionPercentage: 0 },
+        }).catch(() => null);
+        t.completionPercentage = 0;
+      } else if (t.status === TaskStatus.IN_PROGRESS && mappedProgress >= 100) {
+        mappedProgress = 25;
+        await this.prisma.task.update({
+          where: { id: t.id },
+          data: { completionPercentage: 25 },
+        }).catch(() => null);
+        t.completionPercentage = 25;
       }
 
       if (computed !== t.sourceType) {
@@ -364,20 +291,6 @@ export class TasksService {
           },
           indoorDetails: true,
           outdoorDetails: true,
-          files: {
-            include: { uploadedBy: { select: { id: true, name: true, role: true } } },
-            orderBy: { createdAt: 'desc' as const },
-          },
-        },
-      },
-      script: {
-        include: {
-          client: true,
-          brand: true,
-          product: true,
-          createdBy: { select: { id: true, name: true, role: true } },
-          scriptAssignments: { include: { user: true } },
-          deliverables: true,
           files: {
             include: { uploadedBy: { select: { id: true, name: true, role: true } } },
             orderBy: { createdAt: 'desc' as const },
@@ -696,12 +609,10 @@ export class TasksService {
         : null;
 
     const inputProjectId = sanitizeId(data.projectId);
-    const inputScriptId = sanitizeId(data.scriptId);
     const inputGraphicReqId = sanitizeId(data.graphicRequirementId) || (data.parentEntityType === 'GRAPHIC_REQ' ? sanitizeId(data.parentId) : null);
     const rawCalendarEventId = sanitizeId(data.calendarEventId);
 
     let project: any = null;
-    let scriptId: string | null = null;
     let graphicReqId: string | null = null;
     let calendarEvent: any = null;
 
@@ -754,19 +665,11 @@ export class TasksService {
       (data.parentEntityType === 'PROJECT' ||
       (calendarEvent &&
         (calendarEvent.eventSource === 'SHOOT' || calendarEvent.eventSource === 'PROJECT_SHOOT') &&
-        data.parentEntityType !== 'GRAPHIC_REQ' &&
-        data.parentEntityType !== 'SCRIPT'));
-
-    const isExplicitScript =
-      !isOtherType &&
-      !isExplicitShoot &&
-      (data.parentEntityType === 'SCRIPT' ||
-        (inputScriptId && data.parentEntityType !== 'PROJECT' && data.parentEntityType !== 'GRAPHIC_REQ'));
+        data.parentEntityType !== 'GRAPHIC_REQ'));
 
     const isExplicitGraphicReq =
       !isOtherType &&
       !isExplicitShoot &&
-      !isExplicitScript &&
       (data.parentEntityType === 'GRAPHIC_REQ' ||
         (inputGraphicReqId && data.parentEntityType !== 'PROJECT') ||
         (calendarEvent && calendarEvent.eventSource === 'GRAPHIC_REQUIREMENT'));
@@ -902,72 +805,10 @@ export class TasksService {
         }
       }
 
-      scriptId = null;
       graphicReqId = null;
     }
 
-    // 3. Resolve Script if provided
-    if (isExplicitScript) {
-      let script: any = inputScriptId
-        ? await this.prisma.script.findFirst({
-            where: {
-              OR: [
-                { id: inputScriptId },
-                { scriptId: inputScriptId },
-              ],
-            },
-            include: { project: true },
-          })
-        : null;
-
-      if (!script && inputProjectId) {
-        script = await this.prisma.script.findFirst({
-          where: { projectId: inputProjectId },
-          include: { project: true },
-        });
-      }
-
-      // If no script exists yet for this project and parentEntityType is SCRIPT, automatically create one
-      if (!script && data.parentEntityType === 'SCRIPT' && inputProjectId) {
-        const proj = await this.prisma.shootProject.findFirst({
-          where: {
-            OR: [
-              { id: inputProjectId },
-              { projectId: inputProjectId },
-            ],
-          },
-        });
-
-        if (proj) {
-          const count = await this.prisma.script.count();
-          const autoScriptId = `SCR-${(count + 1).toString().padStart(6, '0')}`;
-
-          script = await this.prisma.script.create({
-            data: {
-              scriptId: autoScriptId,
-              name: data.title || `Script - ${proj.name}`,
-              description: data.description || '',
-              status: 'ASSIGNED',
-              priority: data.priority || 'MEDIUM',
-              projectId: proj.id,
-              clientId: proj.clientId || verifiedClientId || data.clientId,
-              brandId: proj.brandId || verifiedBrandId || data.brandId,
-              productId: proj.productId || verifiedProductId || data.productId || null,
-              createdById: managerUserId,
-            },
-            include: { project: true },
-          });
-        }
-      }
-
-      if (script) {
-        scriptId = script.id;
-        if (!project && script.project) project = script.project;
-      }
-      graphicReqId = null;
-    }
-
-    // 4. Resolve Graphic Requirement if provided
+    // 3. Resolve Graphic Requirement if provided
     if (isExplicitGraphicReq) {
       const gReq = inputGraphicReqId
         ? await this.prisma.graphicRequirement.findFirst({
@@ -1105,12 +946,10 @@ export class TasksService {
           }
         }
       }
-
-      scriptId = null;
     }
 
-    // 5. Fallback Calendar Event resolution if not explicit
-    if (!isExplicitShoot && !isExplicitScript && !isExplicitGraphicReq) {
+    // 4. Fallback Calendar Event resolution if not explicit
+    if (!isExplicitShoot && !isExplicitGraphicReq) {
       if (!project && inputProjectId) {
         project = await this.prisma.shootProject.findUnique({
           where: { id: inputProjectId },
@@ -1136,7 +975,7 @@ export class TasksService {
       }
     }
 
-    // Determine Source Type (DIRECT_TASK, CALENDAR_EVENT, GRAPHIC_REQUIREMENT, SHOOT_PROJECT, SCRIPT)
+    // Determine Source Type (DIRECT_TASK, CALENDAR_EVENT, GRAPHIC_REQUIREMENT, SHOOT_PROJECT)
     let sourceType = 'DIRECT_TASK';
     let isMarketingApproved = true;
 
@@ -1144,8 +983,6 @@ export class TasksService {
       sourceType = 'DIRECT_TASK';
     } else if (isExplicitShoot || data.parentEntityType === 'PROJECT') {
       sourceType = 'SHOOT_PROJECT';
-    } else if (isExplicitScript || scriptId || data.scriptId || data.parentEntityType === 'SCRIPT') {
-      sourceType = 'SCRIPT';
     } else if (isExplicitGraphicReq || graphicReqId || data.graphicRequirementId || data.parentEntityType === 'GRAPHIC_REQ') {
       sourceType = 'GRAPHIC_REQUIREMENT';
     } else if (calendarEvent || rawCalendarEventId) {
@@ -1192,21 +1029,6 @@ export class TasksService {
       initialTaskStatus = data.assignedUserIds?.length ? TaskStatus.ASSIGNED : TaskStatus.APPROVED;
     }
 
-    // Prevent duplicate task creation for the same source entity
-    if (scriptId) {
-      const existingScriptTask = await this.prisma.task.findFirst({
-        where: {
-          scriptId: scriptId,
-          status: { notIn: [TaskStatus.COMPLETED, TaskStatus.CANCELLED] },
-        },
-      });
-      if (existingScriptTask) {
-        throw new BadRequestException(
-          `This Script is already converted to task (${existingScriptTask.taskId}: "${existingScriptTask.title}"). Duplicate task creation is prevented.`
-        );
-      }
-    }
-
     if (graphicReqId) {
       const existingGrTask = await this.prisma.task.findFirst({
         where: {
@@ -1221,11 +1043,10 @@ export class TasksService {
       }
     }
 
-    if (project?.id && !scriptId && !graphicReqId && data.isConvertFromProject && !data.title) {
+    if (project?.id && !graphicReqId && data.isConvertFromProject && !data.title) {
       const existingProjTask = await this.prisma.task.findFirst({
         where: {
           projectId: project.id,
-          scriptId: null,
           graphicRequirementId: null,
           sourceType: 'SHOOT_PROJECT',
           status: { notIn: [TaskStatus.COMPLETED, TaskStatus.CANCELLED] },
@@ -1259,7 +1080,6 @@ export class TasksService {
         title: data.title,
         description: data.description || null,
         projectId: project?.id || null,
-        scriptId: scriptId || null,
         graphicRequirementId: graphicReqId || null,
         clientId: verifiedClientId,
         brandId: verifiedBrandId,
@@ -1823,36 +1643,6 @@ export class TasksService {
       }
     }
 
-    // If this is a real script task, sync script status
-    if (task.scriptId && task.sourceType === 'SCRIPT' && !task.projectId && !task.graphicRequirementId) {
-      try {
-        await this.prisma.script.update({
-          where: { id: task.scriptId },
-          data: {
-            status: 'IN_PROGRESS',
-            preTechnicalReviewStatus: 'IN_PROGRESS',
-          },
-        }).catch(() => null);
-
-        await this.prisma.scriptAssignment.upsert({
-          where: { scriptId_userId_responsibility: { scriptId: task.scriptId, userId: user.id, responsibility: 'SCRIPTWRITER' } },
-          create: { scriptId: task.scriptId, userId: user.id, responsibility: 'SCRIPTWRITER' },
-          update: { assignedAt: new Date() },
-        }).catch(() => null);
-
-        await this.prisma.scriptTimeline.create({
-          data: {
-            scriptId: task.scriptId,
-            triggeredById: user.id,
-            event: 'TASK_ACCEPTED',
-            description: `Assigned task ${task.taskId} acknowledged & ACCEPTED by ${user.name || user.email}. Script status updated to IN_PROGRESS.`,
-          },
-        }).catch(() => null);
-      } catch (scriptErr) {
-        console.error('Non-blocking script update error during task acceptance:', scriptErr);
-      }
-    }
-
     return this.findOne(task.id);
   }
 
@@ -1888,19 +1678,6 @@ export class TasksService {
       await this.prisma.graphicRequirement.updateMany({
         where: { id: task.graphicRequirementId },
         data: { status: 'IN_PROGRESS' },
-      }).catch(() => null);
-    }
-
-    if (task.scriptId) {
-      await this.prisma.script.updateMany({
-        where: {
-          id: task.scriptId,
-          status: { in: ['DRAFT', 'READY', 'ASSIGNED', 'IN_PRODUCTION'] },
-        },
-        data: {
-          status: 'IN_PROGRESS',
-          preTechnicalReviewStatus: 'IN_PROGRESS',
-        },
       }).catch(() => null);
     }
 
@@ -2047,7 +1824,7 @@ export class TasksService {
       }
     }
 
-    if (!task.activeDeliverableUrl && !task.scriptId) {
+    if (!task.activeDeliverableUrl) {
       throw new BadRequestException('Please upload a work deliverable output before requesting Technical Review.');
     }
 
@@ -2117,13 +1894,6 @@ export class TasksService {
       `Technical Review requested for Task ${task.taskId} ('${task.title}'). Status moved to Technical Review.`,
       'TECHNICAL_REVIEW_REQUESTED',
     );
-
-    if (task.scriptId) {
-      await this.prisma.script.updateMany({
-        where: { id: task.scriptId },
-        data: { status: 'WAITING_FOR_TECHNICAL_REVIEW', technicalReviewApproved: false },
-      }).catch(() => null);
-    }
 
     if (task.graphicRequirementId) {
       await this.prisma.graphicRequirement.updateMany({

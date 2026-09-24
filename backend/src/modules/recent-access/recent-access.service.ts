@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface RecordRecentAccessDto {
-  entityType: 'PROJECT' | 'SCRIPT' | 'REPORT' | 'EQUIPMENT' | 'GRAPHIC_REQUIREMENT' | 'TASK';
+  entityType: 'PROJECT' | 'REPORT' | 'EQUIPMENT' | 'GRAPHIC_REQUIREMENT' | 'TASK';
   entityId: string;
   title: string;
   code?: string;

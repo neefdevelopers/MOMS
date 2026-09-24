@@ -71,18 +71,6 @@ export class RevisionsService {
           originalAssigneeId = project.assignedTeam[0].userId;
         }
       }
-    } else if (dto.entityType === 'SCRIPT') {
-      const script = await this.prisma.script.findUnique({
-        where: { id: dto.entityId },
-        include: { scriptAssignments: true },
-      });
-      if (script) {
-        resolvedProjectId = script.projectId;
-        entityTitle = `${script.scriptId}: ${script.name}`;
-        if (!originalAssigneeId && script.scriptAssignments.length > 0) {
-          originalAssigneeId = script.scriptAssignments[0].userId;
-        }
-      }
     } else if (dto.entityType === 'GRAPHIC_REQ') {
       const graphic = await this.prisma.graphicRequirement.findUnique({
         where: { id: dto.entityId },
@@ -108,12 +96,11 @@ export class RevisionsService {
         include: {
           assignedEmployees: true,
           timeline: { where: { event: 'TASK_CREATED' } },
-          script: { select: { id: true, createdById: true } },
         },
       });
       if (task) {
         const isAdmin = user.role === 'ADMINISTRATOR' || (user.role as string) === 'ADMIN';
-        const createdByUserId = task.timeline?.[0]?.userId || (task.script as any)?.createdById;
+        const createdByUserId = task.timeline?.[0]?.userId;
 
         // SECURITY RULE: Only the user who created this task (or Administrator) can assign/request a revision
         if (!isAdmin && createdByUserId && user.id !== createdByUserId) {
@@ -212,22 +199,6 @@ export class RevisionsService {
           },
         });
 
-        // If this task is linked to a script, reset the script to ASSIGNED as well!
-        if (updatedTask.scriptId) {
-          await this.prisma.script.update({
-            where: { id: updatedTask.scriptId },
-            data: {
-              status: 'ASSIGNED',
-              preTechnicalReviewStatus: 'ASSIGNED',
-              revisionCount: { increment: 1 },
-              technicalReviewApproved: false,
-              mediaManagerReviewApproved: false,
-              marketingManagerApproved: false,
-              rejectionReason: dto.reason.trim(),
-            },
-          });
-        }
-
         // Log timeline event for revision request
         await this.prisma.taskTimeline.create({
           data: {
@@ -239,62 +210,6 @@ export class RevisionsService {
         });
       } catch (e) {
         console.error('Error updating existing task for revision:', e);
-      }
-    } else if (dto.entityType === 'SCRIPT') {
-      // Reset Script to ASSIGNED and reset all review approvals
-      try {
-        await this.prisma.script.update({
-          where: { id: dto.entityId },
-          data: {
-            status: 'ASSIGNED',
-            preTechnicalReviewStatus: 'ASSIGNED',
-            revisionCount: { increment: 1 },
-            technicalReviewApproved: false,
-            mediaManagerReviewApproved: false,
-            marketingManagerApproved: false,
-            rejectionReason: dto.reason.trim(),
-          },
-        });
-
-        // Find existing tasks for this script and restart them in-place with ASSIGNED and NOT_YET_ACCEPTED
-        const existingScriptTasks = await this.prisma.task.findMany({
-          where: { scriptId: dto.entityId },
-        });
-
-        if (existingScriptTasks.length > 0) {
-          for (const t of existingScriptTasks) {
-            await this.prisma.task.update({
-              where: { id: t.id },
-              data: {
-                status: 'ASSIGNED',
-                completionPercentage: 0,
-                technicalReviewApproved: false,
-                mediaManagerApproved: false,
-                remarks: `Revision #${revisionNumber}: ${dto.reason.trim()}`,
-              },
-            });
-
-            await this.prisma.taskAssignment.deleteMany({
-              where: { taskId: t.id },
-            });
-
-            await this.prisma.taskAssignment.create({
-              data: {
-                taskId: t.id,
-                userId: assignedToId,
-                acceptanceStatus: 'NOT_YET_ACCEPTED',
-              },
-            });
-          }
-
-          // Link primary task to revision record
-          await this.prisma.revision.update({
-            where: { id: revision.id },
-            data: { taskId: existingScriptTasks[0].id },
-          });
-        }
-      } catch (e) {
-        console.error('Error resetting script for revision:', e);
       }
     } else {
       // AUTOMATIC TASK IN-PLACE UPDATE for Project / Graphic Item Revisions (No duplicate task rows created)
@@ -413,7 +328,6 @@ export class RevisionsService {
               title: taskTitle,
               description: taskDesc,
               projectId: resolvedProjectId || null,
-              scriptId: dto.entityType === 'SCRIPT' ? dto.entityId : null,
               graphicRequirementId: dto.entityType === 'GRAPHIC_REQ' ? dto.entityId : null,
               clientId: clientId || '',
               brandId: brandId || '',
@@ -588,11 +502,6 @@ export class RevisionsService {
           where: { id: revision.projectId },
           data: { status: 'IN_PROGRESS' },
         });
-      } else if (revision.entityType === 'SCRIPT') {
-        await this.prisma.script.update({
-          where: { id: revision.entityId },
-          data: { status: 'IN_PROGRESS' },
-        });
       } else if (revision.entityType === 'GRAPHIC_REQ') {
         await this.prisma.graphicRequirement.update({
           where: { id: revision.entityId },
@@ -642,11 +551,6 @@ export class RevisionsService {
       if (revision.entityType === 'PROJECT' && revision.projectId) {
         await this.prisma.shootProject.update({
           where: { id: revision.projectId },
-          data: { status: 'WAITING_FOR_TECHNICAL_REVIEW' },
-        });
-      } else if (revision.entityType === 'SCRIPT') {
-        await this.prisma.script.update({
-          where: { id: revision.entityId },
           data: { status: 'WAITING_FOR_TECHNICAL_REVIEW' },
         });
       } else if (revision.entityType === 'GRAPHIC_REQ') {
@@ -798,11 +702,6 @@ export class RevisionsService {
         if (revision.entityType === 'PROJECT' && revision.projectId) {
           await this.prisma.shootProject.update({
             where: { id: revision.projectId },
-            data: { status: nextStatus },
-          });
-        } else if (revision.entityType === 'SCRIPT') {
-          await this.prisma.script.update({
-            where: { id: revision.entityId },
             data: { status: nextStatus },
           });
         } else if (revision.entityType === 'GRAPHIC_REQ') {

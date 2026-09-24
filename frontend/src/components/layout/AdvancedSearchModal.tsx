@@ -520,26 +520,7 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
                 </select>
               </div>
 
-              {/* Language */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-slate-600">Language (Scripts)</label>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
-                >
-                  <option value="ALL">All Languages</option>
-                  <option value="English">English</option>
-                  <option value="Hindi">Hindi</option>
-                  <option value="Tamil">Tamil</option>
-                  <option value="Telugu">Telugu</option>
-                  <option value="Spanish">Spanish</option>
-                  <option value="French">French</option>
-                  <option value="German">German</option>
-                  <option value="Japanese">Japanese</option>
-                  <option value="Arabic">Arabic</option>
-                </select>
-              </div>
+              
 
               {/* Priority */}
               <div className="space-y-1">
@@ -596,7 +577,6 @@ export function AdvancedSearchModal({ isOpen, onClose }: AdvancedSearchModalProp
                   <option value="ALL">All Authorized Modules</option>
                   <option value="projects">Projects Only</option>
                   <option value="tasks">Tasks Only</option>
-                  <option value="scripts">Scripts Only</option>
                   <option value="equipment">Equipment Only</option>
                   <option value="calendar_events">Calendar Events Only</option>
                 </select>

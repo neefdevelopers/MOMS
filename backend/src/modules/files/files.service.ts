@@ -33,7 +33,6 @@ export class FilesService {
     const folders = [
       'Raw Videos',
       'Raw Photos',
-      'Scripts',
       'Graphic Requirements',
       'Documents',
       'Final Deliverables',
@@ -44,7 +43,6 @@ export class FilesService {
       const folderFiles = project.files.filter((f) => {
         if (folderName === 'Raw Videos') return f.fileType.startsWith('video/') && !f.storagePath.includes('Final');
         if (folderName === 'Raw Photos') return f.fileType.startsWith('image/') && !f.storagePath.includes('Final');
-        if (folderName === 'Scripts') return f.scriptId !== null || f.fileName.includes('Script');
         if (folderName === 'Graphic Requirements') return f.graphicRequirementId !== null;
         if (folderName === 'Final Deliverables') return f.storagePath.includes('Final') || f.activeVersion;
         if (folderName === 'Archive') return !f.activeVersion;
@@ -68,8 +66,9 @@ export class FilesService {
   async saveFileMetadataAndPhysicalDisk(
     file: MulterFile,
     data: {
-      projectId: string;
-      scriptId?: string;
+      projectId?: string;
+      calendarEventId?: string;
+      taskId?: string;
       graphicRequirementId?: string;
       folderCategory?: string;
       attachmentCategory?: string;
@@ -78,6 +77,36 @@ export class FilesService {
   ) {
     const uploadedById = typeof userParam === 'string' ? userParam : userParam?.id;
     const userRole = typeof userParam === 'object' ? userParam?.role : null;
+    const isScriptDoc = data.attachmentCategory === 'SCRIPT_DOCUMENT' || data.folderCategory === 'Script Documents';
+
+    let resolvedProjectId = data.projectId;
+
+    if (!resolvedProjectId && data.graphicRequirementId) {
+      const gReq = await this.prisma.graphicRequirement.findUnique({
+        where: { id: data.graphicRequirementId },
+        select: { projectId: true },
+      });
+      if (gReq?.projectId) resolvedProjectId = gReq.projectId;
+    }
+
+    if (!resolvedProjectId && data.taskId) {
+      const task = await this.prisma.task.findUnique({
+        where: { id: data.taskId },
+        select: { projectId: true, graphicRequirement: { select: { projectId: true } } },
+      });
+      if (task?.projectId) resolvedProjectId = task.projectId;
+      else if (task?.graphicRequirement?.projectId) resolvedProjectId = task.graphicRequirement.projectId;
+    }
+
+    if (!resolvedProjectId && data.calendarEventId) {
+      const event = await this.prisma.mediaCalendarEvent.findUnique({
+        where: { id: data.calendarEventId },
+        include: { shoot: true, shootProjects: true, graphicRequirement: true },
+      });
+      if (event?.shootId) resolvedProjectId = event.shootId;
+      else if (event?.shootProjects && event.shootProjects.length > 0) resolvedProjectId = event.shootProjects[0].id;
+      else if (event?.graphicRequirement?.projectId) resolvedProjectId = event.graphicRequirement.projectId;
+    }
 
     if (data.graphicRequirementId) {
       const gReq = await this.prisma.graphicRequirement.findUnique({
@@ -101,13 +130,15 @@ export class FilesService {
           'COMPLETED',
         ].includes(gReq.status);
 
-        if (isGReqReviewLocked && userRole !== 'ADMIN' && userRole !== 'ADMINISTRATOR') {
+        const isPrivilegedRole = ['ADMIN', 'ADMINISTRATOR', 'MARKETING_MANAGER', 'MEDIA_MANAGER'].includes(userRole);
+
+        if (isGReqReviewLocked && !isPrivilegedRole && !isScriptDoc) {
           throw new ForbiddenException(
             'Graphic Requirement is currently under review and in read-only mode. Deliverable uploads are locked during review.',
           );
         }
 
-        if (userRole !== 'ADMIN' && userRole !== 'ADMINISTRATOR' && uploadedById) {
+        if (!isPrivilegedRole && uploadedById) {
           const isTaskAssigned =
             Array.isArray(gReq.tasks) &&
             gReq.tasks.some(
@@ -118,7 +149,7 @@ export class FilesService {
             );
           const isCreator = (gReq as any).createdById === uploadedById;
 
-          if (!isTaskAssigned && !isCreator) {
+          if (!isTaskAssigned && !isCreator && !isScriptDoc) {
             throw new ForbiddenException(
               'Only the assigned team/staff member to whom this Graphic Requirement is assigned can upload deliverable files.',
             );
@@ -127,30 +158,11 @@ export class FilesService {
       }
     }
 
-    if (data.scriptId) {
-      const script = await this.prisma.script.findUnique({ where: { id: data.scriptId } });
-      if (script) {
-        const isReviewLocked = [
-          'WAITING_FOR_TECHNICAL_REVIEW',
-          'TECHNICAL_REVIEW',
-          'WAITING_FOR_MEDIA_REVIEW',
-          'MEDIA_MANAGER_REVIEW',
-          'WAITING_FOR_MARKETING_APPROVAL',
-          'PENDING_MARKETING_APPROVAL',
-          'PENDING_CLIENT_APPROVAL',
-          'PENDING_CLIENT_REVIEW',
-          'WAITING_FOR_CLIENT_CONFIRMATION',
-          'COMPLETED',
-        ].includes(script.status);
-        if (isReviewLocked && userRole !== 'ADMIN' && userRole !== 'ADMINISTRATOR') {
-          throw new ForbiddenException(
-            'Script is currently under review and in read-only mode. File uploads and deliverable additions are locked during review.',
-          );
-        }
-      }
+    if (!resolvedProjectId) {
+      throw new NotFoundException('Parent project not found or could not be resolved');
     }
 
-    const project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
+    const project = await this.prisma.shootProject.findUnique({ where: { id: resolvedProjectId } });
     if (!project) throw new NotFoundException('Parent project not found');
 
     const isProjectReviewLocked = [
@@ -166,14 +178,16 @@ export class FilesService {
       'COMPLETED',
     ].includes(project.status);
 
-    if (isProjectReviewLocked && userRole !== 'ADMIN' && userRole !== 'ADMINISTRATOR') {
+    const isPrivilegedRole = ['ADMIN', 'ADMINISTRATOR', 'MARKETING_MANAGER', 'MEDIA_MANAGER'].includes(userRole);
+
+    if (isProjectReviewLocked && !isPrivilegedRole && !isScriptDoc) {
       throw new ForbiddenException(
         'Project is currently under review and in read-only mode. File uploads and deliverable additions are locked during review.',
       );
     }
 
-    const folderCategory = data.folderCategory || 'Final Deliverables';
-    const attachmentCategory = data.attachmentCategory || 'SCRIPT_DOCUMENT';
+    const folderCategory = data.folderCategory || (isScriptDoc ? 'Script Documents' : 'Final Deliverables');
+    const attachmentCategory = data.attachmentCategory || (isScriptDoc ? 'SCRIPT_DOCUMENT' : 'DOCUMENT');
     const baseUploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
     const uploadDir = path.join(baseUploadDir, 'projects', project.projectId, folderCategory);
 
@@ -193,21 +207,17 @@ export class FilesService {
 
     // Replace older versions: Delete physical disk file & old DB metadata record so multiple large media files are NOT maintained.
     let oldFiles: any[] = [];
-    if (data.scriptId) {
-      oldFiles = await this.prisma.fileMetadata.findMany({
-        where: { projectId: data.projectId, scriptId: data.scriptId, attachmentCategory },
-      });
-    } else if (data.graphicRequirementId) {
+    if (data.graphicRequirementId) {
       oldFiles = await this.prisma.fileMetadata.findMany({
         where: {
-          projectId: data.projectId,
+          projectId: resolvedProjectId,
           graphicRequirementId: data.graphicRequirementId,
           attachmentCategory,
         },
       });
     } else {
       oldFiles = await this.prisma.fileMetadata.findMany({
-        where: { projectId: data.projectId, storagePath: { contains: folderCategory } },
+        where: { projectId: resolvedProjectId, storagePath: { contains: folderCategory } },
       });
     }
 
@@ -235,8 +245,7 @@ export class FilesService {
         storagePath: relativeStoragePath,
         activeVersion: true,
         attachmentCategory,
-        projectId: data.projectId,
-        scriptId: data.scriptId || null,
+        projectId: resolvedProjectId,
         graphicRequirementId: data.graphicRequirementId || null,
         uploadedById,
       },
@@ -244,20 +253,7 @@ export class FilesService {
     });
 
     // Log revision history to permanent activity timeline
-    if (data.scriptId) {
-      const timelineDesc = oldFileNames.length > 0
-        ? `Replaced production file '${oldFileNames.join(', ')}' with active version '${file.originalname}' (${(file.size / 1024 / 1024).toFixed(2)} MB). Revision history preserved.`
-        : `Uploaded production file '${file.originalname}' (${(file.size / 1024 / 1024).toFixed(2)} MB) as active version.`;
-
-      await this.prisma.scriptTimeline.create({
-        data: {
-          scriptId: data.scriptId,
-          event: 'PRODUCTION_UPDATED',
-          description: timelineDesc,
-          triggeredById: uploadedById,
-        },
-      });
-    } else if (data.graphicRequirementId) {
+    if (data.graphicRequirementId) {
       const linkedTasks = await this.prisma.task.findMany({
         where: { graphicRequirementId: data.graphicRequirementId },
       });
@@ -309,7 +305,6 @@ export class FilesService {
       projectId: string;
       fileName: string;
       deliverableType: string; // Video, Reel, Poster, Carousel, Story, Motion Graphic, Banner
-      scriptId?: string;
       graphicRequirementId?: string;
       fileSize?: number;
       fileType?: string;
@@ -351,13 +346,11 @@ export class FilesService {
         storagePath: relativePath,
         activeVersion: true,
         projectId: data.projectId,
-        scriptId: data.scriptId || null,
         graphicRequirementId: data.graphicRequirementId || null,
         uploadedById,
       },
       include: {
         uploadedBy: { select: { id: true, name: true, role: true } },
-        script: true,
         graphicRequirement: true,
       },
     });
@@ -368,7 +361,7 @@ export class FilesService {
         action: 'DELIVERABLE_CREATED',
         entity: 'FileMetadata',
         entityId: deliverable.id,
-        description: `Created ${data.deliverableType} deliverable '${data.fileName}' linked to ${data.scriptId ? 'Script' : data.graphicRequirementId ? 'Graphic Requirement' : 'Project'}`,
+        description: `Created ${data.deliverableType} deliverable '${data.fileName}' linked to ${data.graphicRequirementId ? 'Graphic Requirement' : 'Project'}`,
       },
     });
 

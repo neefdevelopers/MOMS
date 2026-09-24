@@ -97,23 +97,6 @@ export class ReportsController {
     return this.reportsService.getProductionReports(period, startDate, endDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, search);
   }
 
-  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
-  @Get('script-analytics')
-  getScriptAnalytics(
-    @Query('period') period?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('clientId') clientId?: string,
-    @Query('brandId') brandId?: string,
-    @Query('productId') productId?: string,
-    @Query('departmentId') departmentId?: string,
-    @Query('employeeId') employeeId?: string,
-    @Query('projectId') projectId?: string,
-    @Query('status') status?: string,
-    @Query('search') search?: string
-  ) {
-    return this.reportsService.getScriptAnalytics(period, startDate, endDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, search);
-  }
 
   @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
   @Get('graphic-analytics')

@@ -203,7 +203,6 @@ export const NOTIFICATION_PRIORITY_LIST = Object.values(NOTIFICATION_PRIORITIES)
  * Maps originating entity & event types to precise user-facing action buttons:
  * - Open Project
  * - Open Task
- * - Open Script
  * - Open Equipment Request
  * - Open Approval
  * - Open Graphic Requirement
@@ -218,19 +217,18 @@ export function getNotificationActionLabel(
     return 'Rebalance Workload';
   }
 
+  if (eventType === 'EQUIPMENT_REQUESTED' || category === 'EQUIPMENT_REQUEST') {
+    return 'Assign Equipment';
+  }
+
   switch (entityType?.toUpperCase()) {
     case 'PROJECT':
       return 'Open Project';
     case 'TASK':
       return 'Open Task';
-    case 'SCRIPT':
-      return 'Open Script';
     case 'GRAPHIC_REQUIREMENT':
       return 'Open Graphic Requirement';
     case 'EQUIPMENT':
-      if (category === 'EQUIPMENT_REQUEST' || eventType?.includes('REQUEST')) {
-        return 'Open Equipment Request';
-      }
       return 'Open Equipment';
     case 'APPROVAL':
       return 'Open Approval';
@@ -271,8 +269,6 @@ export function getNotificationNavigationUrl(
       return entityId ? `/projects?projectId=${encodeURIComponent(entityId)}` : '/projects';
     case 'TASK':
       return entityId ? `/tasks?taskId=${encodeURIComponent(entityId)}` : '/tasks';
-    case 'SCRIPT':
-      return entityId ? `/scripts?scriptId=${encodeURIComponent(entityId)}` : '/scripts';
     case 'GRAPHIC_REQUIREMENT':
       return entityId ? `/graphic-reqs?id=${encodeURIComponent(entityId)}` : '/graphic-reqs';
     case 'EQUIPMENT':

@@ -11,7 +11,6 @@ export type ReportTab =
   | 'clients'
   | 'brands'
   | 'employee'
-  | 'scripts'
   | 'graphics'
   | 'my_tasks'
   | 'my_projects'
@@ -32,7 +31,6 @@ export const MEDIA_MANAGER_TABS: ReportTab[] = [
   'clients',
   'brands',
   'employee',
-  'scripts',
   'graphics',
 ];
 

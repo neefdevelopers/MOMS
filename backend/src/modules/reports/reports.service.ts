@@ -50,7 +50,7 @@ export class ReportsService {
     return { start, end };
   }
 
-  public inMemoryFilter(data: any[], type: 'projects' | 'tasks' | 'users' | 'scripts' | 'graphics' | 'equipments', filters: any): any[] {
+  public inMemoryFilter(data: any[], type: 'projects' | 'tasks' | 'users' | 'graphics' | 'equipments', filters: any): any[] {
     const { clientId, brandId, productId, departmentId, employeeId, projectId, status, search } = filters;
     const q = search ? search.toLowerCase() : '';
     return data.filter(item => {
@@ -86,7 +86,7 @@ export class ReportsService {
         if (employeeId && item.id !== employeeId) return false;
         if (departmentId && item.employeeProfile?.departmentId !== departmentId) return false;
         if (q && !item.name?.toLowerCase().includes(q)) return false;
-      } else if (type === 'scripts' || type === 'graphics') {
+      } else if (type === 'graphics') {
         if (projectId && item.projectId !== projectId) return false;
         if (status && item.status !== status) return false;
         if (clientId && item.project?.clientId !== clientId) return false;
@@ -136,7 +136,6 @@ export class ReportsService {
         task: {
           include: {
             project: { select: { id: true, name: true, projectId: true } },
-            script: { select: { id: true, name: true, scriptId: true } },
             graphicRequirement: { select: { id: true, name: true, requirementId: true } },
             assignedEmployees: true,
           },
@@ -168,34 +167,7 @@ export class ReportsService {
     // Pending Tasks
     const pendingTasks = myTasks.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
 
-    // 2. Assigned Scripts (Direct script assignment or Accepted task linkage)
-    const acceptedScriptIds = acceptedTasks.map((t) => t.scriptId).filter(Boolean) as string[];
-    const scriptAssignments = await this.prisma.scriptAssignment.findMany({
-      where: { userId },
-      include: {
-        script: {
-          include: {
-            project: { select: { id: true, name: true, projectId: true } },
-            brand: { select: { name: true } },
-          },
-        },
-      },
-    });
-    const directScripts = scriptAssignments.map((sa) => sa.script).filter(Boolean);
-    const taskScripts = acceptedScriptIds.length > 0
-      ? await this.prisma.script.findMany({
-          where: { id: { in: acceptedScriptIds } },
-          include: {
-            project: { select: { id: true, name: true, projectId: true } },
-            brand: { select: { name: true } },
-          },
-        })
-      : [];
-    const myScriptsMap = new Map();
-    [...directScripts, ...taskScripts].forEach((s) => {
-      if (s && s.id) myScriptsMap.set(s.id, s);
-    });
-    const myScripts = Array.from(myScriptsMap.values());
+    
 
     // 3. Assigned Graphic Requirements
     const acceptedGraphicReqIds = acceptedTasks.map((t) => t.graphicRequirementId).filter(Boolean) as string[];
@@ -225,8 +197,6 @@ export class ReportsService {
           { assignedTeam: { some: { userId } } },
           { id: { in: acceptedProjectIdsFromTasks } },
           { tasks: { some: { assignedEmployees: { some: { userId, acceptanceStatus: 'ACCEPTED' } } } } },
-          { scripts: { some: { scriptAssignments: { some: { userId } } } } },
-          { scripts: { some: { tasks: { some: { assignedEmployees: { some: { userId, acceptanceStatus: 'ACCEPTED' } } } } } } },
           { graphicRequirements: { some: { tasks: { some: { assignedEmployees: { some: { userId, acceptanceStatus: 'ACCEPTED' } } } } } } },
         ],
       },
@@ -251,15 +221,12 @@ export class ReportsService {
       .filter((t) => new Date(t.dueDate) <= sevenDaysLater)
       .map((t) => ({ type: 'TASK', id: t.id, title: t.title, code: t.taskId, dueDate: t.dueDate, priority: t.priority }));
 
-    const upcomingScriptDeadlines = myScripts
-      .filter((s) => s.status !== 'COMPLETED')
-      .map((s) => ({ type: 'SCRIPT', id: s.id, title: s.name, code: s.scriptId, dueDate: s.updatedAt, priority: s.priority }));
 
     const upcomingGraphicDeadlines = myGraphicRequirements
       .filter((g) => g.status !== 'COMPLETED')
       .map((g) => ({ type: 'GRAPHIC_REQ', id: g.id, title: g.name, code: g.requirementId, dueDate: g.estimatedCompletion || g.updatedAt, priority: g.priority }));
 
-    const upcomingDeadlines = [...upcomingTaskDeadlines, ...upcomingScriptDeadlines, ...upcomingGraphicDeadlines].sort(
+    const upcomingDeadlines = [...upcomingTaskDeadlines, ...upcomingGraphicDeadlines].sort(
       (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
     );
 
@@ -327,14 +294,12 @@ export class ReportsService {
       pendingTasks,
       upcomingDeadlines,
       currentProjects: myProjects,
-      assignedScripts: myScripts,
       assignedGraphicRequirements: myGraphicRequirements,
       myEquipment: [...myEquipmentRequests, ...myEquipmentMovements],
       summaryCounts: {
         assignedTasksCount: myTasks.length,
         assignedGraphicRequirementsCount: myGraphicRequirements.length,
         assignedProjectsCount: myProjects.length,
-        assignedScriptsCount: myScripts.length,
         activeEquipmentCount: myEquipmentRequests.length + myEquipmentMovements.length,
       },
       recentCommunications,
@@ -384,9 +349,6 @@ export class ReportsService {
       where: { status: { not: 'COMPLETED' } },
     });
 
-    const pendingScripts = await this.prisma.script.count({
-      where: { status: { notIn: ['COMPLETED', 'APPROVED'] } },
-    });
 
     const pendingRequirements = await this.prisma.graphicRequirement.count({
       where: { status: { notIn: ['COMPLETED', 'APPROVED'] } },
@@ -518,7 +480,7 @@ export class ReportsService {
       overdueProjectsCount,
       overdueTasksCount,
       totalCompletedProjects,
-      pendingApprovals: pendingScripts + pendingRequirements + techReviewQueue + mediaReviewQueue,
+      pendingApprovals: pendingRequirements + techReviewQueue + mediaReviewQueue,
       pendingClientConfirmations: clientQueue + revisionQueue,
       upcomingDeadlines: upcomingProjectDeadlines,
       employeeWorkload: capacityUtilizationPercentage,
@@ -557,7 +519,6 @@ export class ReportsService {
       outdoorProjects,
       currentProgress,
       pendingTasks,
-      pendingScripts,
       pendingRequirements,
       pendingReviews,
       techReviewQueue,
@@ -587,9 +548,8 @@ export class ReportsService {
     const now = new Date();
     const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
 
-    const [
+        const [
       pendingApprovals,
-      scriptsAwaiting,
       graphicReqsAwaiting,
       activeProjects,
       technicalTasks,
@@ -597,7 +557,6 @@ export class ReportsService {
       recentActivity,
       equipmentAlerts,
       approvedGraphics,
-      approvedScripts,
       approvedTasks,
       approvedProjects,
     ] = await Promise.all([
@@ -617,8 +576,8 @@ export class ReportsService {
         orderBy: { createdAt: 'desc' },
       }),
 
-      // 2. Scripts Awaiting Technical Review
-      this.prisma.script.findMany({
+      // 2. Graphic Requirements Awaiting Technical Review
+      this.prisma.graphicRequirement.findMany({
         where: {
           status: { in: ['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'TECHNICAL_REVIEW_PENDING', 'SUBMITTED_FOR_REVIEW'] },
         },
@@ -630,118 +589,75 @@ export class ReportsService {
             include: { uploadedBy: { select: { id: true, name: true, role: true } } },
             orderBy: { createdAt: 'desc' },
           },
-          deliverables: {
-            include: {
-              createdBy: { select: { id: true, name: true, role: true } },
-              assignedStaff: { select: { id: true, name: true, role: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-          },
           tasks: {
             include: {
-              assignedEmployees: { include: { user: { select: { id: true, name: true, role: true } } } },
-              deliverableHistory: { include: { user: { select: { id: true, name: true, role: true } } } },
+              assignedEmployees: {
+                include: { user: { select: { id: true, name: true, role: true } } },
+              },
             },
+            orderBy: { createdAt: 'desc' },
           },
         },
         orderBy: { updatedAt: 'desc' },
+        take: 25,
       }),
 
-      // 3. Graphic Requirements Awaiting Technical Review
-      this.prisma.graphicRequirement.findMany({
-        where: {
-          status: { in: ['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW'] },
-        },
-        include: {
-          project: { select: { id: true, projectId: true, name: true } },
-          client: true,
-          brand: true,
-          files: {
-            include: { uploadedBy: { select: { id: true, name: true, role: true } } },
-            orderBy: { createdAt: 'desc' },
-          },
-          deliverables: {
-            include: {
-              createdBy: { select: { id: true, name: true, role: true } },
-              assignedStaff: { select: { id: true, name: true, role: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-          },
-          calendarEvent: {
-            include: { createdBy: { select: { id: true, name: true, role: true } } },
-          },
-          tasks: {
-            include: {
-              assignedEmployees: { include: { user: { select: { id: true, name: true, role: true } } } },
-              deliverableHistory: { include: { user: { select: { id: true, name: true, role: true } } } },
-            },
-          },
-        },
-        orderBy: { updatedAt: 'desc' },
-      }),
-
-      // 4. Projects Requiring Technical Attention (Read-only Technical Status & Progress)
+      // 3. Active Projects needing technical supervision
       this.prisma.shootProject.findMany({
         where: {
-          lifecycle: { not: 'ARCHIVED' },
-          OR: [
-            { status: { in: ['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'POST_PRODUCTION', 'COMPLETED'] } },
-            { approvals: { some: { approvalType: 'TECHNICAL_REVIEW', status: 'PENDING' } } },
-          ],
+          status: { notIn: ['COMPLETED', 'ARCHIVED', 'CANCELLED'] },
         },
         include: {
           client: { select: { name: true } },
           tasks: {
-            select: {
-              id: true,
-              title: true,
-              status: true,
-              dueDate: true,
-              assignedEmployees: { select: { user: { select: { name: true, role: true } } } },
+            include: {
+              assignedEmployees: {
+                include: { user: { select: { id: true, name: true, role: true } } },
+              },
             },
           },
           approvals: { select: { id: true, approvalType: true, status: true } },
-          scripts: { select: { id: true, name: true, status: true } },
-          graphicRequirements: { select: { id: true, name: true, status: true } },
+          equipmentReservations: { include: { equipment: true } },
         },
-        orderBy: { shootDate: 'asc' },
+        orderBy: { updatedAt: 'desc' },
+      }),
+
+      // 4. Critical Technical Tasks
+      this.prisma.task.findMany({
+        where: {
+          status: { notIn: ['COMPLETED', 'CANCELLED'] },
+          OR: [
+            { taskType: { in: ['TECHNICAL', 'PRODUCTION', 'SHOOT', 'EQUIPMENT', 'EDITING'] } },
+            { title: { contains: 'Tech' } },
+            { title: { contains: 'Shoot' } },
+            { title: { contains: 'Edit' } },
+          ],
+        },
+        include: {
+          project: { select: { id: true, projectId: true, name: true } },
+          assignedEmployees: {
+            include: { user: { select: { id: true, name: true, role: true, avatarUrl: true } } },
+          },
+        },
+        orderBy: { dueDate: 'asc' },
         take: 20,
       }),
 
-      // 5. Technical-Related Tasks
-      this.prisma.task.findMany({
-        where: {
-          status: { in: ['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'WAITING_FOR_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'COMPLETED'] },
-        },
-        include: {
-          assignedEmployees: {
-            include: {
-              user: { select: { id: true, name: true, role: true, avatarUrl: true } },
-            },
-          },
-          project: { select: { id: true, projectId: true, name: true } },
-        },
-        orderBy: { dueDate: 'asc' },
-        take: 25,
-      }),
-
-      // 6. Relevant Notifications (Strictly Technical Notifications only; exclude administrative workload/capacity alerts)
+      // 5. Recent Technical Notifications for this user
       this.prisma.notification.findMany({
         where: {
           userId,
-          status: { not: 'ARCHIVED' },
-          eventType: { notIn: ['ALERT_EMPLOYEE_OVER_CAPACITY', 'STAFF_CAPACITY'] },
-          entityType: { notIn: ['ATTENDANCE'] },
+          isRead: false,
         },
         orderBy: { createdAt: 'desc' },
         take: 10,
       }),
 
-      // 7. Recent Technical Activity
+      // 6. Recent Technical Activity
       this.prisma.activityLog.findMany({
         where: {
           OR: [
-            { entity: { in: ['SCRIPT', 'GRAPHIC_REQ', 'EQUIPMENT', 'APPROVAL', 'REVIEW'] } },
+            { entity: { in: ['GRAPHIC_REQ', 'EQUIPMENT', 'APPROVAL', 'REVIEW'] } },
             { action: { contains: 'TECHNICAL' } },
             { action: { contains: 'REVIEW' } },
             { action: { contains: 'EQUIPMENT' } },
@@ -754,31 +670,29 @@ export class ReportsService {
         take: 15,
       }),
 
-      // 8. Equipment items needing technical service
+      // 7. Equipment items needing technical service
       this.prisma.equipment.findMany({
         where: {
           isArchived: false,
           OR: [
-            { availability: 'MAINTENANCE' },
-            { availability: 'DAMAGED' },
-            { maintenanceStatus: { in: ['NEEDS_SERVICE', 'UNDER_REPAIR'] } },
+            { availability: { in: ['UNDER_MAINTENANCE', 'DAMAGED'] } },
+            { condition: { in: ['FAIR', 'POOR', 'DAMAGED', 'UNDER_MAINTENANCE'] } },
           ],
         },
-        select: { id: true, equipmentId: true, name: true, availability: true, maintenanceStatus: true },
+        orderBy: { updatedAt: 'desc' },
+        take: 20,
       }),
 
-      // 9. Approved Graphic Requirements (Post-Technical Approval with live downstream updates)
+      // 8. Approved Graphic Requirements
       this.prisma.graphicRequirement.findMany({
         where: {
           OR: [
             { technicalReviewApproved: true },
-            { status: { in: ['WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED', 'CLOSED'] } },
+            { status: { in: ['WAITING_FOR_MEDIA_REVIEW', 'APPROVED', 'COMPLETED', 'CLOSED'] } },
           ],
         },
         include: {
           project: { select: { id: true, projectId: true, name: true } },
-          tasks: { select: { id: true, title: true, status: true, completionPercentage: true } },
-          deliverables: { select: { id: true, name: true, status: true, fileUrl: true } },
           remarksHistory: {
             include: { user: { select: { id: true, name: true, role: true } } },
             orderBy: { createdAt: 'desc' },
@@ -789,27 +703,7 @@ export class ReportsService {
         take: 25,
       }),
 
-      // 10. Approved Scripts (Post-Technical Approval with live downstream updates)
-      this.prisma.script.findMany({
-        where: {
-          OR: [
-            { technicalReviewApproved: true },
-            { status: { in: ['WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'APPROVED', 'COMPLETED', 'CLOSED'] } },
-          ],
-        },
-        include: {
-          project: { select: { id: true, projectId: true, name: true } },
-          scriptRemarks: {
-            include: { user: { select: { id: true, name: true, role: true } } },
-            orderBy: { createdAt: 'desc' },
-            take: 2,
-          },
-        },
-        orderBy: { updatedAt: 'desc' },
-        take: 25,
-      }),
-
-      // 11. Approved Tasks (Post-Technical Approval with live downstream updates)
+      // 9. Approved Tasks
       this.prisma.task.findMany({
         where: {
           OR: [
@@ -819,7 +713,6 @@ export class ReportsService {
         },
         include: {
           project: { select: { id: true, projectId: true, name: true } },
-          script: { select: { id: true, scriptId: true, name: true } },
           graphicRequirement: { select: { id: true, requirementId: true, name: true } },
           remarksHistory: {
             include: { user: { select: { id: true, name: true, role: true } } },
@@ -831,7 +724,7 @@ export class ReportsService {
         take: 25,
       }),
 
-      // 12. Approved Projects / Events (Post-Technical Approval with live downstream updates)
+      // 10. Approved Projects / Events
       this.prisma.shootProject.findMany({
         where: {
           lifecycle: { not: 'ARCHIVED' },
@@ -915,10 +808,10 @@ export class ReportsService {
     }));
 
     const totalWaitingForTechnicalReviewCount =
-      pendingApprovals.length + scriptsAwaiting.length + graphicReqsAwaiting.length;
+      pendingApprovals.length + graphicReqsAwaiting.length;
 
     const totalApprovedCount =
-      approvedGraphics.length + approvedScripts.length + approvedTasks.length + approvedProjects.length;
+      approvedGraphics.length + approvedTasks.length + approvedProjects.length;
 
     return {
       status: 'SUCCESS',
@@ -929,7 +822,6 @@ export class ReportsService {
       metricsSummary: {
         totalWaitingForTechnicalReviewCount,
         pendingReviewsCount: pendingApprovals.length,
-        scriptsAwaitingCount: scriptsAwaiting.length,
         graphicsAwaitingCount: graphicReqsAwaiting.length,
         projectsAttentionCount: projectsRequiringAttention.length,
         upcomingDeadlinesCount: upcomingTechnicalDeadlines.length,
@@ -942,11 +834,9 @@ export class ReportsService {
       waitingForTechnicalReviewHub: {
         totalCount: totalWaitingForTechnicalReviewCount,
         pendingApprovals,
-        scriptsAwaiting,
         graphicRequirementsAwaiting: enrichedGraphicReqs,
       },
       pendingTechnicalReviews: pendingApprovals,
-      scriptsAwaitingTechnicalReview: scriptsAwaiting,
       graphicRequirementsAwaitingTechnicalReview: enrichedGraphicReqs,
       projectsRequiringTechnicalAttention: projectsRequiringAttention,
       upcomingTechnicalDeadlines,
@@ -959,12 +849,10 @@ export class ReportsService {
       approvedTechnicalItems: {
         totalCount: totalApprovedCount,
         graphics: approvedGraphics,
-        scripts: approvedScripts,
         tasks: approvedTasks,
         projects: approvedProjects,
       },
       approvedGraphics,
-      approvedScripts,
       approvedTasks,
       approvedProjects,
     };
@@ -978,12 +866,11 @@ export class ReportsService {
     const isStaff = role === 'STAFF';
     const isTechManager = role === 'TECHNICAL_MANAGER';
 
-    const [clients, brands, products, projects, scripts, graphicReqs, tasks, equipment, staff, files] = await Promise.all([
+    const [clients, brands, products, projects, graphicReqs, tasks, equipment, staff, files] = await Promise.all([
       !isStaff && !isTechManager ? this.prisma.client.findMany({ where: { OR: [{ name: { contains: q } }, { companyName: { contains: q } }] }, take: 5 }) : Promise.resolve([]),
       !isStaff && !isTechManager ? this.prisma.brand.findMany({ where: { OR: [{ name: { contains: q } }, { shortCode: { contains: q } }] }, take: 5 }) : Promise.resolve([]),
       !isStaff && !isTechManager ? this.prisma.product.findMany({ where: { OR: [{ name: { contains: q } }, { productCode: { contains: q } }] }, take: 5 }) : Promise.resolve([]),
       this.prisma.shootProject.findMany({ where: { OR: [{ name: { contains: q } }, { projectId: { contains: q } }, { shootLocation: { contains: q } }] }, take: 5 }),
-      !isStaff ? this.prisma.script.findMany({ where: { OR: [{ name: { contains: q } }, { scriptId: { contains: q } }] }, take: 5 }) : Promise.resolve([]),
       this.prisma.graphicRequirement.findMany({ where: { OR: [{ name: { contains: q } }, { requirementId: { contains: q } }] }, take: 5 }),
       isStaff
         ? this.prisma.task.findMany({
@@ -1006,7 +893,6 @@ export class ReportsService {
       brands: brands.map((b) => ({ type: 'Brand', id: b.id, title: b.name, subtitle: `[${b.shortCode}]`, url: `/brands` })),
       products: products.map((p) => ({ type: 'Product', id: p.id, title: p.name, subtitle: `Code: ${p.productCode}`, url: `/products` })),
       projects: projects.map((pr) => ({ type: 'Project', id: pr.id, title: pr.name, subtitle: pr.projectId, url: `/projects/${pr.id}` })),
-      scripts: scripts.map((s) => ({ type: 'Script', id: s.id, title: s.name, subtitle: s.scriptId, url: `/scripts` })),
       graphicReqs: graphicReqs.map((g) => ({ type: 'Graphic Requirement', id: g.id, title: g.name, subtitle: g.requirementId, url: `/graphic-reqs` })),
       tasks: tasks.map((t) => ({ type: 'Task', id: t.id, title: t.title, subtitle: t.taskId, url: `/tasks` })),
       equipment: equipment.map((e) => ({ type: 'Equipment', id: e.id, title: e.name, subtitle: e.equipmentId, url: `/equipment` })),
@@ -1016,46 +902,19 @@ export class ReportsService {
   }
 
   async getProductionReports(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
-    const [projects, scripts] = await Promise.all([
-      this.prisma.shootProject.findMany({
-        include: { client: true, brand: true, product: true, revisions: true },
-      }),
-      this.prisma.script.findMany({
-        select: { id: true, objective: true, category: true, status: true },
-      }),
-    ]);
+    const projects = await this.prisma.shootProject.findMany({
+      include: { client: true, brand: true, product: true, revisions: true },
+    });
 
     const totalProjects = projects.length;
     const completedProjects = projects.filter((p) => p.status === 'COMPLETED').length;
     const totalRevisions = projects.reduce((acc, p) => acc + p.revisionCount, 0);
-
     const formulas = await this.prisma.outputFormula.findMany();
-
-    const objectiveCounts: Record<string, number> = {
-      'Generate Sales': 0,
-      'Increase Awareness': 0,
-      'Launch Product': 0,
-      'Customer Education': 0,
-      'Engagement': 0,
-      'Retargeting': 0,
-      'Other': 0,
-    };
-
-    scripts.forEach((s) => {
-      const obj = s.objective?.trim() || 'Other';
-      if (objectiveCounts[obj] !== undefined) {
-        objectiveCounts[obj]++;
-      } else {
-        objectiveCounts['Other']++;
-      }
-    });
 
     return {
       totalProjects,
       completedProjects,
       totalRevisions,
-      totalScriptsCount: scripts.length,
-      objectiveBreakdown: objectiveCounts,
       formulas,
       projects,
     };
@@ -1214,126 +1073,6 @@ export class ReportsService {
         dailyCapacityHours,
       };
     });
-  }
-
-  async getScriptAnalytics(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
-    const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
-    const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
-
-    const scripts = await this.prisma.script.findMany({
-      include: {
-        brand: true,
-        product: true,
-        client: true,
-        project: true,
-        scriptAssignments: { include: { user: { select: { id: true, name: true, role: true } } } },
-        deliverables: true,
-        timeline: true,
-      },
-    });
-
-    const empMap: Record<string, { userId: string; name: string; role: string; assignedCount: number; completedCount: number; revisionCount: number }> = {};
-    scripts.forEach((s) => {
-      s.scriptAssignments.forEach((sa) => {
-        if (!sa.user) return;
-        const uid = sa.userId;
-        if (!empMap[uid]) {
-          empMap[uid] = { userId: uid, name: sa.user.name, role: sa.responsibility || sa.user.role, assignedCount: 0, completedCount: 0, revisionCount: 0 };
-        }
-        empMap[uid].assignedCount++;
-        if (s.status === 'COMPLETED' || s.status === 'Completed') empMap[uid].completedCount++;
-        empMap[uid].revisionCount += s.revisionCount || 0;
-      });
-    });
-    const employeeProductivity = Object.values(empMap);
-
-    const brandMap: Record<string, { brandId: string; name: string; shortCode: string; scriptCount: number; completedCount: number; totalRevisions: number; deliverableCount: number }> = {};
-    scripts.forEach((s) => {
-      const bKey = s.brandId || 'UNBRANDED';
-      const bName = s.brand?.name || 'Unassigned Brand';
-      const bCode = s.brand?.shortCode || 'N/A';
-      if (!brandMap[bKey]) {
-        brandMap[bKey] = { brandId: bKey, name: bName, shortCode: bCode, scriptCount: 0, completedCount: 0, totalRevisions: 0, deliverableCount: 0 };
-      }
-      brandMap[bKey].scriptCount++;
-      if (s.status === 'COMPLETED' || s.status === 'Completed') brandMap[bKey].completedCount++;
-      brandMap[bKey].totalRevisions += s.revisionCount || 0;
-      brandMap[bKey].deliverableCount += (s.deliverables || []).length;
-    });
-    const brandPerformance = Object.values(brandMap);
-
-    const prodMap: Record<string, { productId: string; name: string; productCode: string; scriptCount: number; completedCount: number; deliverables: Record<string, number> }> = {};
-    scripts.forEach((s) => {
-      if (!s.product) return;
-      const pKey = s.productId!;
-      if (!prodMap[pKey]) {
-        prodMap[pKey] = { productId: pKey, name: s.product.name, productCode: s.product.productCode, scriptCount: 0, completedCount: 0, deliverables: {} };
-      }
-      prodMap[pKey].scriptCount++;
-      if (s.status === 'COMPLETED' || s.status === 'Completed') prodMap[pKey].completedCount++;
-      (s.deliverables || []).forEach((d) => {
-        prodMap[pKey].deliverables[d.type] = (prodMap[pKey].deliverables[d.type] || 0) + 1;
-      });
-    });
-    const productPerformance = Object.values(prodMap);
-
-    const langMap: Record<string, { language: string; totalScripts: number; completedScripts: number; inProductionScripts: number; draftScripts: number }> = {};
-    scripts.forEach((s) => {
-      const lang = s.language || 'English';
-      if (!langMap[lang]) {
-        langMap[lang] = { language: lang, totalScripts: 0, completedScripts: 0, inProductionScripts: 0, draftScripts: 0 };
-      }
-      langMap[lang].totalScripts++;
-      if (s.status === 'COMPLETED' || s.status === 'Completed') langMap[lang].completedScripts++;
-      else if (s.status === 'IN_PRODUCTION' || s.status === 'In Production') langMap[lang].inProductionScripts++;
-      else if (s.status === 'DRAFT' || s.status === 'Draft') langMap[lang].draftScripts++;
-    });
-    const languageWiseReports = Object.values(langMap);
-
-    const catMap: Record<string, { category: string; totalScripts: number; completedScripts: number; totalRevisions: number }> = {};
-    scripts.forEach((s) => {
-      const cat = s.category || 'Social Media';
-      if (!catMap[cat]) {
-        catMap[cat] = { category: cat, totalScripts: 0, completedScripts: 0, totalRevisions: 0 };
-      }
-      catMap[cat].totalScripts++;
-      if (s.status === 'COMPLETED' || s.status === 'Completed') catMap[cat].completedScripts++;
-      catMap[cat].totalRevisions += s.revisionCount || 0;
-    });
-    const categoryWiseReports = Object.values(catMap);
-
-    const deliverablesByType: Record<string, number> = {};
-    scripts.forEach((s) => {
-      (s.deliverables || []).forEach((d) => {
-        deliverablesByType[d.type] = (deliverablesByType[d.type] || 0) + 1;
-      });
-    });
-
-    const bottleneckScripts = scripts
-      .filter((s) => (s.revisionCount || 0) > 1 || s.status === 'CLIENT_REVISION_REQUESTED')
-      .map((s) => ({
-        id: s.id,
-        scriptId: s.scriptId,
-        name: s.name,
-        revisionCount: s.revisionCount,
-        status: s.status,
-      }));
-
-    return {
-      employeeProductivity,
-      brandPerformance,
-      productPerformance,
-      languageWiseReports,
-      categoryWiseReports,
-      productionCapacity: deliverablesByType,
-      bottleneckScripts,
-      scriptSummary: {
-        total: scripts.length,
-        completed: scripts.filter((s) => s.status === 'COMPLETED').length,
-        inProduction: scripts.filter((s) => s.status === 'IN_PRODUCTION').length,
-        inRevision: scripts.filter((s) => s.status === 'CLIENT_REVISION_REQUESTED').length,
-      },
-    };
   }
 
   async getGraphicAnalytics(period?: string, startDate?: string, endDate?: string, clientId?: string, brandId?: string, productId?: string, departmentId?: string, employeeId?: string, projectId?: string, status?: string, search?: string) {
@@ -1663,11 +1402,10 @@ export class ReportsService {
     const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
     const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
 
-    const [brands, clients, allProjects, allScripts, allGraphicReqs] = await Promise.all([
+    const [brands, clients, allProjects, allGraphicReqs] = await Promise.all([
       this.prisma.brand.findMany({ orderBy: { name: 'asc' } }),
       this.prisma.client.findMany(),
       this.prisma.shootProject.findMany({ include: { revisions: true } }),
-      this.prisma.script.findMany(),
       this.prisma.graphicRequirement.findMany(),
     ]);
 
@@ -1675,23 +1413,20 @@ export class ReportsService {
 
     return brands.map((b) => {
       const bProjects = allProjects.filter((p) => p.brandId === b.id);
-      const bScripts = allScripts.filter((s) => s.brandId === b.id);
       const bGraphicReqs = allGraphicReqs.filter((g) => g.brandId === b.id);
       const client = clientMap.get(b.clientId);
 
       // 1. Total Projects
       const totalProjects = bProjects.length;
 
-      // 2. Total Deliverables (Scripts + Graphic Requirements)
-      const totalScripts = bScripts.length;
+      // 2. Total Deliverables (Graphic Requirements)
       const totalGraphicReqs = bGraphicReqs.length;
-      const totalDeliverables = totalScripts + totalGraphicReqs;
+      const totalDeliverables = totalGraphicReqs;
 
       // 3. Total Outputs (Completed deliverables / files)
-      const completedScripts = bScripts.filter((s) => s.status === 'COMPLETED' || s.status === 'APPROVED').length;
       const completedGraphicReqs = bGraphicReqs.filter((g) => g.status === 'COMPLETED' || g.status === 'APPROVED').length;
       const completedProjects = bProjects.filter((p) => p.status === 'COMPLETED').length;
-      const totalOutputs = completedScripts + completedGraphicReqs + completedProjects;
+      const totalOutputs = completedGraphicReqs + completedProjects;
 
       // 4. Production Status Breakdown
       const statusCounts: Record<string, number> = {
@@ -1709,10 +1444,9 @@ export class ReportsService {
       });
 
       // 5. Pending Deliverables
-      const pendingScripts = bScripts.filter((s) => s.status !== 'COMPLETED' && s.status !== 'APPROVED').length;
       const pendingGraphicReqs = bGraphicReqs.filter((g) => g.status !== 'COMPLETED' && g.status !== 'APPROVED').length;
       const pendingProjects = bProjects.filter((p) => p.status !== 'COMPLETED' && p.status !== 'CANCELLED').length;
-      const pendingDeliverables = pendingScripts + pendingGraphicReqs + pendingProjects;
+      const pendingDeliverables = pendingGraphicReqs + pendingProjects;
 
       // 6. Completion Rate Percentage
       const grandTotalItems = totalProjects + totalDeliverables;
@@ -1769,31 +1503,27 @@ export class ReportsService {
     const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
     const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
 
-    const [clients, allProjects, allScripts, allGraphicReqs] = await Promise.all([
+    const [clients, allProjects, allGraphicReqs] = await Promise.all([
       this.prisma.client.findMany({ orderBy: { name: 'asc' } }),
       this.prisma.shootProject.findMany({ include: { revisions: true } }),
-      this.prisma.script.findMany(),
       this.prisma.graphicRequirement.findMany(),
     ]);
 
     return clients.map((c) => {
       const cProjects = allProjects.filter((p) => p.clientId === c.id);
-      const cScripts = allScripts.filter((s) => s.clientId === c.id);
       const cGraphicReqs = allGraphicReqs.filter((g) => g.clientId === c.id);
 
       // 1. Total Projects
       const totalProjects = cProjects.length;
 
-      // 2. Total Deliverables (Scripts + Graphic Requirements)
-      const totalScripts = cScripts.length;
+      // 2. Total Deliverables (Graphic Requirements)
       const totalGraphicReqs = cGraphicReqs.length;
-      const totalDeliverables = totalScripts + totalGraphicReqs;
+      const totalDeliverables = totalGraphicReqs;
 
       // 3. Pending Approvals (Deliverables/Projects waiting for tech, media, or client review)
       const pendingProjectsReview = cProjects.filter((p) => p.status?.includes('WAITING') || p.status?.includes('REVISION')).length;
-      const pendingScriptsReview = cScripts.filter((s) => s.status === 'PENDING' || s.status === 'IN_REVIEW').length;
       const pendingGraphicReqsReview = cGraphicReqs.filter((g) => g.status === 'PENDING' || g.status === 'IN_REVIEW').length;
-      const pendingApprovals = pendingProjectsReview + pendingScriptsReview + pendingGraphicReqsReview;
+      const pendingApprovals = pendingProjectsReview + pendingGraphicReqsReview;
 
       // 4. Completed Projects
       const completedProjects = cProjects.filter((p) => p.status === 'COMPLETED').length;
@@ -1861,11 +1591,10 @@ export class ReportsService {
     const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
     const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
 
-    const [products, brands, allProjects, allScripts, allGraphicReqs] = await Promise.all([
+    const [products, brands, allProjects, allGraphicReqs] = await Promise.all([
       this.prisma.product.findMany({ orderBy: { name: 'asc' } }),
       this.prisma.brand.findMany(),
       this.prisma.shootProject.findMany(),
-      this.prisma.script.findMany(),
       this.prisma.graphicRequirement.findMany(),
     ]);
 
@@ -1873,18 +1602,17 @@ export class ReportsService {
 
     return products.map((p) => {
       const pProjects = allProjects.filter((proj) => proj.productId === p.id);
-      const pScripts = allScripts.filter((s) => s.productId === p.id);
       const pGraphicReqs = allGraphicReqs.filter((g) => g.productId === p.id);
       const brand = brandMap.get(p.brandId);
 
       // 1. Total Productions
-      const totalProductions = pProjects.length + pScripts.length + pGraphicReqs.length;
+      const totalProductions = pProjects.length + pGraphicReqs.length;
 
       // 2. Videos
       const videoGraphicReqs = pGraphicReqs.filter(
         (g) => (g.requirementType || '').toUpperCase().includes('VIDEO') || (g.name || '').toUpperCase().includes('VIDEO')
       ).length;
-      const videos = pProjects.length + pScripts.length + videoGraphicReqs;
+      const videos = pProjects.length + videoGraphicReqs;
 
       // 3. Posters
       const posters = pGraphicReqs.filter(
@@ -1917,15 +1645,13 @@ export class ReportsService {
 
       // 7. Pending Deliverables
       const pendingProjects = pProjects.filter((proj) => proj.status !== 'COMPLETED').length;
-      const pendingScripts = pScripts.filter((s) => s.status !== 'COMPLETED' && s.status !== 'APPROVED').length;
       const pendingGraphics = pGraphicReqs.filter((g) => g.status !== 'COMPLETED' && g.status !== 'APPROVED').length;
-      const pendingDeliverables = pendingProjects + pendingScripts + pendingGraphics;
+      const pendingDeliverables = pendingProjects + pendingGraphics;
 
       // 8. Completed Deliverables
       const completedProjects = pProjects.filter((proj) => proj.status === 'COMPLETED').length;
-      const completedScripts = pScripts.filter((s) => s.status === 'COMPLETED' || s.status === 'APPROVED').length;
       const completedGraphics = pGraphicReqs.filter((g) => g.status === 'COMPLETED' || g.status === 'APPROVED').length;
-      const completedDeliverables = completedProjects + completedScripts + completedGraphics;
+      const completedDeliverables = completedProjects + completedGraphics;
 
       return {
         productId: p.id,
@@ -2035,7 +1761,6 @@ export class ReportsService {
       include: {
         client: true,
         brand: true,
-        scripts: true,
         graphicRequirements: true,
         assignedTeam: { include: { user: { select: { id: true, name: true, role: true } } } },
         equipmentReservations: { include: { equipment: true } },
@@ -2052,11 +1777,6 @@ export class ReportsService {
       // 2. Completion Percentage
       const completionPercentage = p.progressPercentage || 0;
 
-      // 3. Pending Scripts
-      const pendingScripts = p.scripts.filter(
-        (s) => s.status !== 'COMPLETED' && s.status !== 'APPROVED'
-      ).length;
-
       // 4. Pending Graphics
       const pendingGraphics = p.graphicRequirements.filter(
         (g) => g.status !== 'COMPLETED' && g.status !== 'APPROVED'
@@ -2064,13 +1784,10 @@ export class ReportsService {
 
       // 5. Pending Reviews
       const pendingApprovalsCount = p.approvals.filter((a) => a.status === 'PENDING').length;
-      const pendingScriptReviews = p.scripts.filter(
-        (s) => s.status === 'PENDING' || s.status === 'IN_REVIEW'
-      ).length;
       const pendingGraphicReviews = p.graphicRequirements.filter(
         (g) => g.status === 'PENDING' || g.status === 'IN_REVIEW'
       ).length;
-      const pendingReviews = pendingApprovalsCount + pendingScriptReviews + pendingGraphicReviews;
+      const pendingReviews = pendingApprovalsCount + pendingGraphicReviews;
 
       // 6. Equipment Used
       const reservedNames = p.equipmentReservations.map((er) => er.equipment?.name).filter(Boolean);
@@ -2107,7 +1824,6 @@ export class ReportsService {
         status: projectStatus,
         completionPercentage,
         progressPercentage: completionPercentage,
-        pendingScripts,
         pendingGraphics,
         pendingReviews,
         equipmentUsedCount,
@@ -2329,7 +2045,7 @@ export class ReportsService {
     const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
     const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
 
-    const [approvals, clientConfirmations, revisions, scripts, graphicReqs, projects] = await Promise.all([
+    const [approvals, clientConfirmations, revisions, graphicReqs, projects] = await Promise.all([
       this.prisma.approval.findMany({
         include: {
           requestedBy: { select: { id: true, name: true } },
@@ -2350,7 +2066,6 @@ export class ReportsService {
         },
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.script.findMany(),
       this.prisma.graphicRequirement.findMany(),
       this.prisma.shootProject.findMany(),
     ]);
@@ -2359,37 +2074,28 @@ export class ReportsService {
     const pendingTechApprovals = approvals.filter(
       (a) => a.approvalType === 'TECHNICAL_REVIEW' && a.status === 'PENDING'
     ).length;
-    const pendingTechScripts = scripts.filter(
-      (s) => !s.technicalReviewApproved && s.status !== 'COMPLETED'
-    ).length;
     const pendingTechGraphics = graphicReqs.filter(
       (g) => !g.technicalReviewApproved && g.status !== 'COMPLETED'
     ).length;
-    const pendingTechnicalReviews = pendingTechApprovals + pendingTechScripts + pendingTechGraphics;
+    const pendingTechnicalReviews = pendingTechApprovals + pendingTechGraphics;
 
     // 2. Pending Media Reviews
     const pendingMediaApprovals = approvals.filter(
       (a) => a.approvalType === 'MEDIA_MANAGER_REVIEW' && a.status === 'PENDING'
     ).length;
-    const pendingMediaScripts = scripts.filter(
-      (s) => s.technicalReviewApproved && !s.mediaManagerReviewApproved && s.status !== 'COMPLETED'
-    ).length;
     const pendingMediaGraphics = graphicReqs.filter(
       (g) => g.technicalReviewApproved && !g.mediaManagerApproved && g.status !== 'COMPLETED'
     ).length;
-    const pendingMediaReviews = pendingMediaApprovals + pendingMediaScripts + pendingMediaGraphics;
+    const pendingMediaReviews = pendingMediaApprovals + pendingMediaGraphics;
 
     // 3. Pending Client Confirmations
     const pendingClientProjects = projects.filter(
       (p) => p.status === 'POST_PRODUCTION' || p.status === 'WAITING_FOR_REVIEW'
     ).length;
-    const pendingClientScripts = scripts.filter(
-      (s) => s.mediaManagerReviewApproved && !s.clientConfirmationRecorded && s.status !== 'COMPLETED'
-    ).length;
     const pendingClientGraphics = graphicReqs.filter(
       (g) => g.mediaManagerApproved && !g.clientConfirmed && g.status !== 'COMPLETED'
     ).length;
-    const pendingClientConfirmations = pendingClientProjects + pendingClientScripts + pendingClientGraphics;
+    const pendingClientConfirmations = pendingClientProjects + pendingClientGraphics;
 
     // 4. Average Approval Time
     const reviewedApprovals = approvals.filter((a) => a.reviewedAt && a.createdAt);
@@ -2522,7 +2228,7 @@ export class ReportsService {
     const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
     const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
 
-    const [revisions, projects, brands, users, scripts, graphicReqs] = await Promise.all([
+    const [revisions, projects, brands, users, graphicReqs] = await Promise.all([
       this.prisma.revision.findMany({
         include: {
           project: {
@@ -2537,21 +2243,18 @@ export class ReportsService {
         include: {
           brand: true,
           assignedTeam: { include: { user: true } },
-          scripts: true,
           graphicRequirements: true,
         },
       }),
       this.prisma.brand.findMany(),
       this.prisma.user.findMany({ where: { isArchived: false } }),
-      this.prisma.script.findMany({ include: { brand: true, project: true } }),
       this.prisma.graphicRequirement.findMany({ include: { brand: true, project: true } }),
     ]);
 
     // 1. Total Revision Requests
     const projectRevisionsCount = revisions.length;
-    const scriptRevisionsCount = scripts.reduce((sum, s) => sum + (s.revisionCount || 0), 0);
     const graphicRevisionsCount = graphicReqs.reduce((sum, g) => sum + (g.revisionCount || 0), 0);
-    const totalRevisionRequests = projectRevisionsCount + scriptRevisionsCount + graphicRevisionsCount;
+    const totalRevisionRequests = projectRevisionsCount + graphicRevisionsCount;
 
     // 5. Average Revisions per Project
     const totalProjects = Math.max(1, projects.length);
@@ -2560,9 +2263,8 @@ export class ReportsService {
     // 3. Project Revision Count Breakdown
     const projectRevisionBreakdown = projects.map((p) => {
       const pRevs = revisions.filter((r) => r.projectId === p.id).length;
-      const sRevs = (p.scripts || []).reduce((sum, s) => sum + (s.revisionCount || 0), 0);
       const gRevs = (p.graphicRequirements || []).reduce((sum, g) => sum + (g.revisionCount || 0), 0);
-      const totalProjectRevisions = pRevs + sRevs + gRevs;
+      const totalProjectRevisions = pRevs + gRevs;
 
       return {
         projectId: p.id,
@@ -2570,7 +2272,7 @@ export class ReportsService {
         projectName: p.name,
         brandName: p.brand?.name || 'General Brand',
         totalRevisions: totalProjectRevisions,
-        revisionDetails: { projectRevisions: pRevs, scriptRevisions: sRevs, graphicRevisions: gRevs },
+        revisionDetails: { projectRevisions: pRevs, graphicRevisions: gRevs },
       };
     }).sort((a, b) => b.totalRevisions - a.totalRevisions);
 
@@ -2579,9 +2281,8 @@ export class ReportsService {
       const bProjects = projects.filter((p) => p.brandId === b.id);
       const bProjectIds = new Set(bProjects.map((p) => p.id));
       const bRevs = revisions.filter((r) => bProjectIds.has(r.projectId)).length;
-      const bScriptRevs = scripts.filter((s) => s.brandId === b.id).reduce((sum, s) => sum + (s.revisionCount || 0), 0);
       const bGraphicRevs = graphicReqs.filter((g) => g.brandId === b.id).reduce((sum, g) => sum + (g.revisionCount || 0), 0);
-      const totalBrandRevisions = bRevs + bScriptRevs + bGraphicRevs;
+      const totalBrandRevisions = bRevs + bGraphicRevs;
 
       return {
         brandId: b.id,
@@ -2602,9 +2303,8 @@ export class ReportsService {
         const isAssigned = (p.assignedTeam || []).some((t) => t.userId === u.id);
         if (isAssigned) {
           const pRevs = revisions.filter((r) => r.projectId === p.id).length;
-          const sRevs = (p.scripts || []).reduce((sum, s) => sum + (s.revisionCount || 0), 0);
           const gRevs = (p.graphicRequirements || []).reduce((sum, g) => sum + (g.revisionCount || 0), 0);
-          userAssignedProjectRevisions += pRevs + sRevs + gRevs;
+          userAssignedProjectRevisions += pRevs + gRevs;
         }
       });
 
@@ -2635,7 +2335,7 @@ export class ReportsService {
     const { start, end } = this.getDateRangeHelper(period, startDate, endDate);
     const filtersObj = { clientId, brandId, productId, departmentId, employeeId, projectId, status, search };
 
-    const [projects, approvals, equipmentMovements, activityLogs, taskTimelines, scriptTimelines] = await Promise.all([
+    const [projects, approvals, equipmentMovements, activityLogs, taskTimelines] = await Promise.all([
       this.prisma.shootProject.findMany({
         include: {
           client: true,
@@ -2676,14 +2376,6 @@ export class ReportsService {
         orderBy: { createdAt: 'desc' },
         take: 30,
       }),
-      this.prisma.scriptTimeline.findMany({
-        include: {
-          
-          script: { select: { id: true, name: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 30,
-      }),
     ]);
 
     // 1. Project History
@@ -2713,16 +2405,6 @@ export class ReportsService {
         changedByName: tt.user?.name || 'Staff Member',
         remarks: tt.remarks,
         timestamp: tt.createdAt.toISOString(),
-      })),
-      ...scriptTimelines.map((st: any) => ({
-        id: st.id,
-        type: 'SCRIPT_STATUS_CHANGE',
-        title: `Script Status Update: ${st.script?.name || 'Script'}`,
-        previousStatus: st.previousStatus,
-        newStatus: st.newStatus,
-        changedByName: st.user?.name || 'Script Writer',
-        remarks: st.remarks,
-        timestamp: st.createdAt.toISOString(),
       })),
     ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 

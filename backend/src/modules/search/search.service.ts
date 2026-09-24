@@ -109,7 +109,6 @@ export class SearchService implements OnModuleInit {
     'Internal ID',
     'Display Name',
     'Project Code',
-    'Script Code',
     'Graphic Requirement Code',
     'Equipment Code',
     'Employee Name',
@@ -128,7 +127,6 @@ export class SearchService implements OnModuleInit {
     this.registerProvider(new ProductsSearchProvider(this.prisma));
     this.registerProvider(new CalendarEventsSearchProvider(this.prisma));
     this.registerProvider(new ProjectsSearchProvider(this.prisma));
-    this.registerProvider(new ScriptsSearchProvider(this.prisma));
     this.registerProvider(new GraphicRequirementsSearchProvider(this.prisma));
     this.registerProvider(new TasksSearchProvider(this.prisma));
     this.registerProvider(new EmployeesSearchProvider(this.prisma));
@@ -425,69 +423,7 @@ export class SearchService implements OnModuleInit {
       );
     }
 
-    // 3. Scripts Advanced Filter (e.g. Product + Language, Brand + Language, Client + Status)
-    if (!dto.module || dto.module === 'ALL' || dto.module === 'scripts') {
-      promises.push(
-        (async () => {
-          const where: any = {};
-          if (dto.language && dto.language !== 'ALL') where.language = { contains: dto.language };
-          if (dto.status && dto.status !== 'ALL') where.status = dto.status;
-          if (dto.priority && dto.priority !== 'ALL') where.priority = dto.priority;
-          if (dto.productId) where.productId = dto.productId;
-          else if (dto.product) where.product = { name: { contains: dto.product } };
-          if (dto.brandId) where.brandId = dto.brandId;
-          else if (dto.brand) where.brand = { name: { contains: dto.brand } };
-          if (dto.clientId) where.clientId = dto.clientId;
-          else if (dto.client) where.client = { name: { contains: dto.client } };
-          if (dto.employeeId) where.scriptAssignments = { some: { userId: dto.employeeId } };
-          else if (dto.employee) where.scriptAssignments = { some: { user: { name: { contains: dto.employee } } } };
 
-          if (dto.keywords) {
-            where.OR = [
-              { name: { contains: dto.keywords } },
-              { scriptId: { contains: dto.keywords } },
-              { description: { contains: dto.keywords } },
-              { objective: { contains: dto.keywords } },
-            ];
-          }
-
-          if (!isManager) {
-            where.scriptAssignments = { some: { userId: user.id } };
-          }
-
-          const records = await this.prisma.script.findMany({
-            where,
-            include: {
-              project: { select: { name: true } },
-              client: { select: { name: true } },
-              brand: { select: { name: true } },
-              product: { select: { name: true } },
-            },
-            take: 12,
-            orderBy: { updatedAt: 'desc' },
-          });
-
-          if (records.length > 0) {
-            results['Scripts'] = records.map((s) => ({
-              id: s.id,
-              entityType: 'Script',
-              name: s.name,
-              title: s.name,
-              internalId: s.scriptId || `SCR-${s.id.substring(0, 6).toUpperCase()}`,
-              code: s.scriptId,
-              status: s.status,
-              relatedClient: s.client?.name || '—',
-              relatedBrand: s.brand?.name || '—',
-              lastUpdatedDate: (s.updatedAt || s.createdAt).toISOString(),
-              priority: s.priority,
-              module: 'Scripts',
-              url: `/scripts?scriptId=${s.id}`,
-              subtitle: `${s.scriptId || 'SCR'} • Lang: ${s.language} • Product: ${s.product?.name || 'General'}`,
-            }));
-          }
-        })()
-      );
-    }
 
     // 4. Equipment Advanced Filter (e.g. Equipment + Status, Brand + Status, Category + Status)
     if (!dto.module || dto.module === 'ALL' || dto.module === 'equipment') {
@@ -926,68 +862,7 @@ class ProjectsSearchProvider implements ISearchProvider {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 6. Scripts Search Provider
-// ─────────────────────────────────────────────────────────────────────────────
-class ScriptsSearchProvider implements ISearchProvider {
-  readonly moduleKey = 'scripts';
-  readonly moduleDisplayName = 'Scripts';
 
-  constructor(private readonly prisma: PrismaService) {}
-
-  async search(q: string, tokens: string[], user: { id: string; role: string }): Promise<GlobalSearchResultItem[]> {
-    const isManager = user.role === 'MEDIA_MANAGER' || user.role === 'TECHNICAL_MANAGER' || user.role === 'ADMIN';
-    const orClauses: any[] = [{ name: { contains: q } }, { scriptId: { contains: q } }];
-
-    for (const t of tokens) {
-      orClauses.push({ name: { contains: t } });
-      orClauses.push({ scriptId: { contains: t } });
-      orClauses.push({ description: { contains: t } });
-      orClauses.push({ objective: { contains: t } });
-      orClauses.push({ remarks: { contains: t } });
-      orClauses.push({ category: { contains: t } });
-      orClauses.push({ project: { name: { contains: t } } });
-      orClauses.push({ project: { projectId: { contains: t } } });
-      orClauses.push({ client: { name: { contains: t } } });
-      orClauses.push({ brand: { name: { contains: t } } });
-      orClauses.push({ scriptAssignments: { some: { user: { name: { contains: t } } } } });
-      orClauses.push({ scriptRemarks: { some: { message: { contains: t } } } });
-    }
-
-    const where: any = { OR: orClauses };
-    if (!isManager) {
-      where.scriptAssignments = { some: { userId: user.id } };
-    }
-
-    const records = await this.prisma.script.findMany({
-      where,
-      include: {
-        project: { include: { client: { select: { name: true } }, brand: { select: { name: true } } } },
-        client: { select: { name: true } },
-        brand: { select: { name: true } },
-      },
-      take: 8,
-      orderBy: { updatedAt: 'desc' },
-    });
-
-    return records.map((s) => ({
-      id: s.id,
-      entityType: 'Script',
-      name: s.name,
-      title: s.name,
-      internalId: s.scriptId || `SCR-${s.id.substring(0, 6).toUpperCase()}`,
-      code: s.scriptId,
-      status: s.status,
-      relatedClient: s.client?.name || s.project?.client?.name || '—',
-      relatedBrand: s.brand?.name || s.project?.brand?.name || '—',
-      lastUpdatedDate: (s.updatedAt || s.createdAt).toISOString(),
-      priority: s.priority,
-      module: this.moduleDisplayName,
-      url: `/scripts?scriptId=${s.id}`,
-      subtitle: `${s.scriptId || 'SCR'} • Project: ${s.project?.name || 'Script'} • ${s.category}`,
-    }));
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 7. Graphic Requirements Search Provider
@@ -1069,8 +944,6 @@ class TasksSearchProvider implements ISearchProvider {
       orClauses.push({ remarks: { contains: t } });
       orClauses.push({ project: { name: { contains: t } } });
       orClauses.push({ project: { projectId: { contains: t } } });
-      orClauses.push({ script: { name: { contains: t } } });
-      orClauses.push({ script: { scriptId: { contains: t } } });
       orClauses.push({ graphicRequirement: { name: { contains: t } } });
       orClauses.push({ graphicRequirement: { requirementId: { contains: t } } });
       orClauses.push({ client: { name: { contains: t } } });

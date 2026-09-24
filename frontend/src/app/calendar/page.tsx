@@ -104,6 +104,79 @@ export default function CalendarPage() {
   const [staffModalSearch, setStaffModalSearch] = useState('');
   const [equipmentModalSearch, setEquipmentModalSearch] = useState('');
 
+  // Script Document state
+  const [scriptDocFile, setScriptDocFile] = useState<File | null>(null);
+  const [eventFiles, setEventFiles] = useState<any[]>([]);
+  const [uploadingScriptDoc, setUploadingScriptDoc] = useState(false);
+  const [loadingEventFiles, setLoadingEventFiles] = useState(false);
+
+  useEffect(() => {
+    if (viewModalEvent) {
+      loadEventFiles(viewModalEvent);
+    } else {
+      setEventFiles([]);
+    }
+  }, [viewModalEvent]);
+
+  const loadEventFiles = async (eventObj: any) => {
+    if (!eventObj) return;
+    const projectId =
+      eventObj.shootProjects?.[0]?.id ||
+      eventObj.shootId ||
+      eventObj.graphicRequirement?.projectId ||
+      eventObj.shootProjects?.[0]?.projectId;
+
+    if (projectId) {
+      try {
+        setLoadingEventFiles(true);
+        const res = await fetchApi(`/files/project/${projectId}`);
+        setEventFiles(res.allFiles || []);
+      } catch {
+        setEventFiles([]);
+      } finally {
+        setLoadingEventFiles(false);
+      }
+    } else {
+      setEventFiles([]);
+    }
+  };
+
+  const handleUploadScriptDocForEvent = async (file: File) => {
+    if (!file || !viewModalEvent) return;
+    const projectId =
+      viewModalEvent.shootProjects?.[0]?.id ||
+      viewModalEvent.shootId ||
+      viewModalEvent.graphicRequirement?.projectId ||
+      viewModalEvent.shootProjects?.[0]?.projectId;
+
+    try {
+      setUploadingScriptDoc(true);
+      const fd = new FormData();
+      fd.append('file', file);
+      if (projectId) {
+        fd.append('projectId', projectId);
+      } else {
+        fd.append('calendarEventId', viewModalEvent.id);
+      }
+      fd.append('folderCategory', 'Script Documents');
+      fd.append('attachmentCategory', 'SCRIPT_DOCUMENT');
+      await fetchApi('/files/upload', {
+        method: 'POST',
+        body: fd,
+      });
+      alert('Script document uploaded successfully!');
+      if (projectId) {
+        const res = await fetchApi(`/files/project/${projectId}`);
+        setEventFiles(res.allFiles || []);
+      }
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload script document.');
+    } finally {
+      setUploadingScriptDoc(false);
+    }
+  };
+
   const toggleTeamUser = (userId: string) => {
     setFormData((prev) => {
       const exists = prev.teamUserIds.includes(userId);
@@ -474,11 +547,12 @@ export default function CalendarPage() {
     };
 
     try {
+      let savedRes: any = null;
       if (editingEvent) {
         const isApproved = APPROVED_CALENDAR_STATUSES.includes(editingEvent.status);
 
         if (isApproved && user?.role !== 'MARKETING_MANAGER' && (user?.role as string) !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
-          await fetchApi(`/calendar/${editingEvent.id}/edit-request`, {
+          savedRes = await fetchApi(`/calendar/${editingEvent.id}/edit-request`, {
             method: 'POST',
             body: JSON.stringify({
               requestedValues: payload,
@@ -487,17 +561,46 @@ export default function CalendarPage() {
           });
           alert('Edit Request Submitted!\n\nYour requested modifications have been sent to the Marketing Manager for approval. The original live event remains unchanged until approved.');
         } else {
-          await fetchApi(`/calendar/${editingEvent.id}`, {
+          savedRes = await fetchApi(`/calendar/${editingEvent.id}`, {
             method: 'PUT',
             body: JSON.stringify(payload),
           });
         }
       } else {
-        await fetchApi('/calendar', {
+        savedRes = await fetchApi('/calendar', {
           method: 'POST',
           body: JSON.stringify(payload),
         });
       }
+
+      if (scriptDocFile && (savedRes || editingEvent)) {
+        const targetEventId = savedRes?.id || editingEvent?.id;
+        const targetProjectId =
+          savedRes?.shootId ||
+          savedRes?.shootProjects?.[0]?.id ||
+          editingEvent?.shootProjects?.[0]?.id ||
+          editingEvent?.shootId;
+
+        const uploadFd = new FormData();
+        uploadFd.append('file', scriptDocFile);
+        if (targetProjectId) {
+          uploadFd.append('projectId', targetProjectId);
+        } else if (targetEventId) {
+          uploadFd.append('calendarEventId', targetEventId);
+        }
+        uploadFd.append('folderCategory', 'Script Documents');
+        uploadFd.append('attachmentCategory', 'SCRIPT_DOCUMENT');
+        try {
+          await fetchApi('/files/upload', {
+            method: 'POST',
+            body: uploadFd,
+          });
+        } catch (uploadErr) {
+          console.warn('Script document upload error:', uploadErr);
+        }
+      }
+
+      setScriptDocFile(null);
       setShowAddModal(false);
       setEditingEvent(null);
       setEditReason('');
@@ -2502,6 +2605,48 @@ export default function CalendarPage() {
               )}
             </div>
 
+            {/* SCRIPT DOCUMENT UPLOAD (OPTIONAL) */}
+            <div className="space-y-3 bg-purple-50/50 p-4 rounded-xl border border-purple-200 text-xs">
+              <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
+                <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-purple-600" /> Script Document (Optional)
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono bg-purple-100 text-purple-800 px-2 py-0.5 rounded border border-purple-200">
+                  PDF / DOC / DOCX / TXT
+                </span>
+              </div>
+              <div>
+                <label className="text-slate-800 font-bold block mb-1">
+                  Upload Script Document (Optional)
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    id="calendarScriptDocInput"
+                    accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                    onChange={(e) => setScriptDocFile(e.target.files?.[0] || null)}
+                    className="text-xs text-slate-700 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200 cursor-pointer"
+                  />
+                  {scriptDocFile && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScriptDocFile(null);
+                        const input = document.getElementById('calendarScriptDocInput') as HTMLInputElement;
+                        if (input) input.value = '';
+                      }}
+                      className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Attach a prepared script file (PDF, Word Doc, or Text). The Marketing Manager can review or update scripts at any time.
+                </p>
+              </div>
+            </div>
+
             {/* NOTES */}
             <div className="space-y-2 bg-slate-50/50 p-4 rounded-xl border border-slate-200">
               <label className="text-slate-700 block mb-1 font-semibold">Notes (Optional)</label>
@@ -2669,12 +2814,8 @@ export default function CalendarPage() {
                     convertModalEvent.shoot?.id ||
                     (convertModalEvent.shootProjects && convertModalEvent.shootProjects.length > 0)
                   );
-                const isScript =
-                  !isShoot &&
-                  Boolean(convertModalEvent.script?.id || convertModalEvent.scriptId || convertModalEvent.eventSource === 'SCRIPT');
                 const isGraphicReq =
                   !isShoot &&
-                  !isScript &&
                   Boolean(
                     convertModalEvent.graphicRequirement?.id ||
                     convertModalEvent.graphicRequirementId ||
@@ -2682,21 +2823,15 @@ export default function CalendarPage() {
                     (convertModalEvent.graphicReqs && convertModalEvent.graphicReqs.length > 0)
                   );
 
-                const parentType: 'PROJECT' | 'GRAPHIC_REQ' | 'SCRIPT' = isScript
-                  ? 'SCRIPT'
-                  : isGraphicReq
+                const parentType: 'PROJECT' | 'GRAPHIC_REQ' = isGraphicReq
                   ? 'GRAPHIC_REQ'
                   : 'PROJECT';
 
-                const parentId = isScript
-                  ? (convertModalEvent.script?.id || convertModalEvent.scriptId || '')
-                  : isGraphicReq
+                const parentId = isGraphicReq
                   ? (convertModalEvent.graphicRequirement?.id || convertModalEvent.graphicReqs?.[0]?.id || convertModalEvent.graphicRequirementId || '')
                   : (convertModalEvent.shootProjects?.[0]?.id || convertModalEvent.shoot?.id || convertModalEvent.shootId || '');
 
-                const parentCode = isScript
-                  ? (convertModalEvent.script?.scriptId || convertModalEvent.eventId || '')
-                  : isGraphicReq
+                const parentCode = isGraphicReq
                   ? (convertModalEvent.graphicRequirement?.requirementId || convertModalEvent.graphicReqs?.[0]?.requirementId || convertModalEvent.eventId || '')
                   : (convertModalEvent.shootProjects?.[0]?.projectId || convertModalEvent.shoot?.projectId || convertModalEvent.eventId || '');
 
@@ -3039,6 +3174,95 @@ export default function CalendarPage() {
                 </div>
               </div>
             )}
+
+            {/* SCRIPT DOCUMENTS CARD */}
+            <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3 text-xs">
+              <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-purple-700" /> Attached Script Documents
+                </span>
+                <div className="flex items-center gap-2">
+                  <label className={`px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-all shadow-xs ${uploadingScriptDoc ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{uploadingScriptDoc ? 'Uploading...' : '+ Add New Script'}</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadScriptDocForEvent(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {loadingEventFiles ? (
+                <div className="text-slate-500 py-2 text-center text-xs">Loading script files...</div>
+              ) : (() => {
+                const scriptFiles = (eventFiles || []).filter(
+                  (f: any) =>
+                    f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+                    f.folderCategory === 'Script Documents' ||
+                    f.storagePath?.includes('Script Documents') ||
+                    f.fileName?.toLowerCase().endsWith('.pdf') ||
+                    f.fileName?.toLowerCase().endsWith('.doc') ||
+                    f.fileName?.toLowerCase().endsWith('.docx')
+                );
+
+                if (scriptFiles.length === 0) {
+                  return (
+                    <div className="p-3 bg-white/80 border border-purple-100 rounded-lg text-slate-500 flex items-center justify-between">
+                      <span>No script documents attached to this shoot event yet.</span>
+                      <span className="text-[10px] text-purple-700 font-semibold">Marketing Manager can review or attach scripts at any time</span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2">
+                    {scriptFiles.map((sf: any) => {
+                      const fileUrl = sf.storagePath?.startsWith('http')
+                        ? sf.storagePath
+                        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${sf.storagePath?.replace(/^\/?/, '')}`;
+
+                      return (
+                        <div
+                          key={sf.id || sf.fileName}
+                          className="p-3 bg-white border border-purple-200 rounded-lg flex items-center justify-between gap-3 shadow-xs"
+                        >
+                          <div className="flex items-center gap-2.5 overflow-hidden">
+                            <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                              <FileText className="w-4 h-4" />
+                            </div>
+                            <div className="truncate">
+                              <span className="font-bold text-slate-900 block truncate">{sf.fileName}</span>
+                              <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                                {sf.fileSize && <span>{(sf.fileSize / 1024).toFixed(1)} KB</span>}
+                                {sf.uploadedBy && <span>• Uploaded by {sf.uploadedBy.name || sf.uploadedBy.role}</span>}
+                                {sf.createdAt && <span>• {new Date(sf.createdAt).toLocaleDateString()}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <a
+                              href={fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all"
+                            >
+                              <Eye className="w-3.5 h-3.5" /> View Script
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
 
             {/* Production Notes */}
             {viewModalEvent.productionNotes && (

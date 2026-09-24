@@ -814,7 +814,7 @@ export default function WorkloadCapacityPage() {
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-500 font-mono pt-2 border-t border-slate-200">
-                          <div>Project: <strong className="text-slate-800">{t.project?.name || t.script?.name || t.graphicRequirement?.name || 'N/A'}</strong></div>
+                          <div>Project: <strong className="text-slate-800">{t.project?.name || t.graphicRequirement?.name || 'N/A'}</strong></div>
                           <div>Est Hours: <strong className="text-cyan-700">{t.estimatedHours}h</strong></div>
                           <div>Progress: <strong className="text-blue-700">{t.completionPercentage || 0}%</strong></div>
                           <div>Due Date: <strong className="text-amber-800">{t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'N/A'}</strong></div>
