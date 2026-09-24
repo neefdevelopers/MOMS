@@ -25,12 +25,21 @@ import {
   Building2,
   Clock,
   User,
+  FileText,
+  Trash2,
+  Copy,
+  Edit,
 } from 'lucide-react';
 import { SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
 import { usePagination } from '@/lib/usePagination';
 import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
+import {
+  ProjectScript,
+  serializeProjectScripts,
+  parseProjectScripts,
+} from '@/lib/project-scripts';
 
 export default function ProjectsPage() {
   const { user } = useAuth();
@@ -87,6 +96,21 @@ export default function ProjectsPage() {
   const [remarks, setRemarks] = useState('');
   const [selectedTeamUserIds, setSelectedTeamUserIds] = useState<string[]>([]);
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
+
+  // Multi-Script Creation State
+  const [createScripts, setCreateScripts] = useState<ProjectScript[]>([
+    {
+      id: `script-1-${Date.now()}`,
+      title: 'Script #1: Master Hook Reel',
+      scriptText: '',
+      hook: '',
+      duration: '30s',
+      targetPlatform: 'Instagram Reel',
+      contentType: 'Reel',
+      notes: '',
+    },
+  ]);
+  const [activeCreateScriptIdx, setActiveCreateScriptIdx] = useState(0);
 
   // Indoor specific form fields
   const [studioName, setStudioName] = useState('Studio 4 - Product Bay');
@@ -177,6 +201,36 @@ export default function ProjectsPage() {
     (p) => (!brandId || p.brandId === brandId)
   );
 
+  const handleAddCreateScript = () => {
+    const nextNum = createScripts.length + 1;
+    const newScript: ProjectScript = {
+      id: `script-${nextNum}-${Date.now()}`,
+      title: `Script #${nextNum}`,
+      scriptText: '',
+      hook: '',
+      duration: '30s',
+      targetPlatform: 'Instagram Reel',
+      contentType: 'Reel',
+      notes: '',
+    };
+    setCreateScripts((prev) => [...prev, newScript]);
+    setActiveCreateScriptIdx(createScripts.length);
+  };
+
+  const handleRemoveCreateScript = (indexToRemove: number) => {
+    if (createScripts.length <= 1) return;
+    setCreateScripts((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    if (activeCreateScriptIdx >= indexToRemove) {
+      setActiveCreateScriptIdx(Math.max(0, activeCreateScriptIdx - 1));
+    }
+  };
+
+  const handleUpdateCreateScript = (index: number, field: keyof ProjectScript, val: any) => {
+    setCreateScripts((prev) =>
+      prev.map((s, idx) => (idx === index ? { ...s, [field]: val } : s))
+    );
+  };
+
   const openCreateModal = () => {
     const defaultClient = activeClients[0];
     const defaultClientId = defaultClient?.id || '';
@@ -210,6 +264,19 @@ export default function ProjectsPage() {
     setTravelNotes('');
     setSelectedTeamUserIds([]);
     setSelectedEquipmentIds([]);
+    setCreateScripts([
+      {
+        id: `script-1-${Date.now()}`,
+        title: 'Script #1: Master Hook Reel',
+        scriptText: '',
+        hook: '',
+        duration: '30s',
+        targetPlatform: 'Instagram Reel',
+        contentType: 'Reel',
+        notes: '',
+      },
+    ]);
+    setActiveCreateScriptIdx(0);
     setShowModal(true);
   };
 
@@ -234,6 +301,12 @@ export default function ProjectsPage() {
     }
 
     try {
+      const validScripts = createScripts.filter(
+        (s) => s.title.trim() || s.scriptText.trim() || s.hook?.trim()
+      );
+      const serializedNotes =
+        validScripts.length > 0 ? serializeProjectScripts(validScripts) : remarks.trim() || undefined;
+
       const payload: any = {
         name: projectName.trim() || undefined,
         projectId: customProjectId.trim() || undefined,
@@ -255,6 +328,8 @@ export default function ProjectsPage() {
         status,
         estimatedCompletionDate: estimatedCompletionDate || undefined,
         remarks: remarks.trim() || undefined,
+        notes: serializedNotes,
+        scripts: validScripts.length > 0 ? validScripts : undefined,
         teamUserIds: selectedTeamUserIds,
         equipmentIds: selectedEquipmentIds,
       };
@@ -1211,6 +1286,210 @@ export default function ProjectsPage() {
                       className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none"
                     />
                   </div>
+                </div>
+
+                {/* Multi-Script & Screenplay Creation Section */}
+                <div className="p-4 bg-gradient-to-br from-amber-50/70 via-purple-50/40 to-slate-50 border border-amber-200/90 rounded-xl space-y-3.5 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-md bg-amber-500/20 text-amber-700 flex items-center justify-center font-bold">
+                        <FileText className="w-3.5 h-3.5 text-amber-600" />
+                      </div>
+                      <label className="text-slate-900 font-bold text-xs flex items-center gap-1.5">
+                        Shooting Scripts &amp; Screenplay Storylines
+                        <span className="px-2 py-0.2 rounded-full text-[10px] font-mono bg-amber-200 text-amber-900 font-bold">
+                          {createScripts.length} {createScripts.length === 1 ? 'Script' : 'Scripts'}
+                        </span>
+                      </label>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddCreateScript}
+                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-[11px] transition-all flex items-center gap-1 shadow-xs"
+                    >
+                      <Plus className="w-3 h-3" /> + Add Another Script
+                    </button>
+                  </div>
+
+                  {/* Script Tabs / Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                    {createScripts.map((s, idx) => {
+                      const isActive = activeCreateScriptIdx === idx;
+                      return (
+                        <button
+                          key={s.id || idx}
+                          type="button"
+                          onClick={() => setActiveCreateScriptIdx(idx)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 border ${
+                            isActive
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                              : 'bg-white text-slate-700 border-amber-200/80 hover:bg-amber-100/50'
+                          }`}
+                        >
+                          <span className="font-mono text-[10px] opacity-75">#{idx + 1}</span>
+                          <span>{s.title || `Script #${idx + 1}`}</span>
+                          {s.targetPlatform && (
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-black/10 font-mono">
+                              {s.targetPlatform}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={handleAddCreateScript}
+                      className="px-2 py-1 text-amber-800 hover:text-amber-950 bg-amber-100/70 hover:bg-amber-100 font-bold text-[11px] rounded-lg whitespace-nowrap border border-dashed border-amber-300 transition-colors flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" /> Add
+                    </button>
+                  </div>
+
+                  {/* Active Script Form Inputs */}
+                  {(() => {
+                    const curScript = createScripts[activeCreateScriptIdx] || createScripts[0];
+                    if (!curScript) return null;
+                    const curIdx = activeCreateScriptIdx;
+
+                    return (
+                      <div className="p-3.5 bg-white/95 border border-amber-200 rounded-xl space-y-3 shadow-xs animate-in fade-in duration-150">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
+                            Editing Script #{curIdx + 1}
+                          </span>
+                          {createScripts.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCreateScript(curIdx)}
+                              className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded text-[10px] transition-colors flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" /> Remove Script #{curIdx + 1}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Script Title & Duration */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div className="sm:col-span-2">
+                            <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                              Script Title / Scene Name *
+                            </label>
+                            <input
+                              type="text"
+                              value={curScript.title}
+                              onChange={(e) => handleUpdateCreateScript(curIdx, 'title', e.target.value)}
+                              placeholder={`e.g., Script #${curIdx + 1}: 15s Hook Reel`}
+                              className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-2.5 py-1.5 rounded-lg text-xs font-semibold focus:border-amber-500 focus:bg-white focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                              Target Duration
+                            </label>
+                            <input
+                              type="text"
+                              value={curScript.duration || ''}
+                              onChange={(e) => handleUpdateCreateScript(curIdx, 'duration', e.target.value)}
+                              placeholder="e.g. 15s, 30s, 60s"
+                              className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-2.5 py-1.5 rounded-lg text-xs focus:border-amber-500 focus:bg-white focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Platform & Format */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                              Target Platform
+                            </label>
+                            <select
+                              value={curScript.targetPlatform || 'Instagram Reel'}
+                              onChange={(e) => handleUpdateCreateScript(curIdx, 'targetPlatform', e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-2.5 py-1.5 rounded-lg text-xs focus:border-amber-500 focus:bg-white focus:outline-none"
+                            >
+                              <option value="Instagram Reel">Instagram Reel</option>
+                              <option value="Instagram Story">Instagram Story</option>
+                              <option value="Instagram Post">Instagram Post</option>
+                              <option value="YouTube Shorts">YouTube Shorts</option>
+                              <option value="YouTube Longform">YouTube Longform</option>
+                              <option value="TikTok">TikTok</option>
+                              <option value="Facebook">Facebook</option>
+                              <option value="LinkedIn">LinkedIn</option>
+                              <option value="TVC / Commercial">TVC / Commercial</option>
+                              <option value="Internal / Brand">Internal / Brand</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                              Content Format
+                            </label>
+                            <select
+                              value={curScript.contentType || 'Reel'}
+                              onChange={(e) => handleUpdateCreateScript(curIdx, 'contentType', e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-2.5 py-1.5 rounded-lg text-xs focus:border-amber-500 focus:bg-white focus:outline-none"
+                            >
+                              <option value="Reel">Reel / Short Video</option>
+                              <option value="Video">Standard Video</option>
+                              <option value="Story">Story</option>
+                              <option value="Carousel">Carousel Narrative</option>
+                              <option value="Voiceover">Voiceover Only</option>
+                              <option value="Interview">Interview / Testimonial</option>
+                              <option value="Commercial">Brand Commercial</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Opening Hook */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                            🎣 Opening Hook (First 3 Seconds)
+                          </label>
+                          <input
+                            type="text"
+                            value={curScript.hook || ''}
+                            onChange={(e) => handleUpdateCreateScript(curIdx, 'hook', e.target.value)}
+                            placeholder="e.g. Stop doing your workout like this if you want 2x results..."
+                            className="w-full bg-amber-50/50 border border-amber-300 text-slate-900 px-2.5 py-1.5 rounded-lg text-xs focus:border-amber-500 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+
+                        {/* Master Screenplay / Dialogue */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[10px] font-bold text-slate-700">
+                              Master Screenplay &amp; Dialogue Copy
+                            </label>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {(curScript.scriptText || '').length} chars • {(curScript.scriptText || '').trim() ? (curScript.scriptText || '').trim().split(/\s+/).length : 0} words
+                            </span>
+                          </div>
+                          <textarea
+                            rows={5}
+                            value={curScript.scriptText || ''}
+                            onChange={(e) => handleUpdateCreateScript(curIdx, 'scriptText', e.target.value)}
+                            placeholder="[SCENE 1]\nTALENT: 'Welcome back! Today we are trying out...'\n\n[SCENE 2 - B-ROLL]\nClose up of product in motion..."
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-mono text-xs p-2.5 rounded-lg focus:border-amber-500 focus:bg-white focus:outline-none leading-relaxed placeholder:font-sans"
+                          />
+                        </div>
+
+                        {/* Directing Notes */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 mb-1">
+                            📝 Directing &amp; Shooting Instructions (Optional)
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={curScript.notes || ''}
+                            onChange={(e) => handleUpdateCreateScript(curIdx, 'notes', e.target.value)}
+                            placeholder="e.g. Warm lighting, fast paced cuts, 60fps slow-motion shots."
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs p-2 rounded-lg focus:border-amber-500 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Initial Project Remark (Permanent History) */}

@@ -483,7 +483,7 @@ export class ProjectsService {
       priority: data.priority || Priority.MEDIUM,
       status: data.status || ProjectStatus.PLANNED,
       estimatedCompletionDate: data.estimatedCompletionDate ? new Date(data.estimatedCompletionDate) : null,
-      notes: data.remarks?.trim() || data.notes?.trim() || null,
+      notes: data.notes?.trim() || (data.scripts ? (typeof data.scripts === 'string' ? data.scripts : JSON.stringify(data.scripts, null, 2)) : undefined) || data.remarks?.trim() || null,
       createdById: userId,
     };
 
