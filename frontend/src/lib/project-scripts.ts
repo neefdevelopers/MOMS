@@ -1,3 +1,10 @@
+export interface ProjectScriptClipCode {
+  code: string;
+  description?: string;
+  addedBy?: string;
+  addedAt?: string;
+}
+
 export interface ProjectScript {
   id: string;
   title: string;
@@ -8,9 +15,41 @@ export interface ProjectScript {
   targetPlatform?: string;
   contentType?: string;
   notes?: string;
+  clipCodes?: ProjectScriptClipCode[];
   status?: 'DRAFT' | 'APPROVED' | 'IN_REVISION' | 'FINAL';
   createdAt?: string;
   updatedAt?: string;
+}
+
+/**
+ * Normalizes a single raw script object into a ProjectScript, coercing missing fields and
+ * sanitizing clipCodes so malformed or legacy entries never break rendering.
+ */
+export function normalizeProjectScript(item: any, idx: number): ProjectScript {
+  return {
+    id: item.id || `script-${idx + 1}-${Date.now()}`,
+    title: item.title || `Script #${idx + 1}`,
+    scriptText: item.scriptText || item.text || item.content || item.notes || '',
+    hook: item.hook || '',
+    sceneNumber: typeof item.sceneNumber === 'number' ? item.sceneNumber : idx + 1,
+    duration: item.duration || '',
+    targetPlatform: item.targetPlatform || item.platform || '',
+    contentType: item.contentType || '',
+    notes: item.notes || '',
+    clipCodes: Array.isArray(item.clipCodes)
+      ? item.clipCodes
+          .filter((c: any) => c && typeof c.code === 'string' && c.code.trim())
+          .map((c: any) => ({
+            code: c.code.trim(),
+            description: c.description || '',
+            addedBy: c.addedBy || undefined,
+            addedAt: c.addedAt || new Date().toISOString(),
+          }))
+      : [],
+    status: item.status || 'FINAL',
+    createdAt: item.createdAt || new Date().toISOString(),
+    updatedAt: item.updatedAt,
+  };
 }
 
 /**
@@ -25,6 +64,8 @@ export function parseProjectScripts(
     return [];
   }
 
+  const toProjectScript = (item: any, idx: number): ProjectScript => normalizeProjectScript(item, idx);
+
   const trimmed = rawNotes.trim();
 
   // Check if it's JSON
@@ -32,23 +73,10 @@ export function parseProjectScripts(
     try {
       const parsed = JSON.parse(trimmed);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((item, idx) => ({
-          id: item.id || `script-${idx + 1}-${Date.now()}`,
-          title: item.title || `Script #${idx + 1}`,
-          scriptText: item.scriptText || item.text || item.content || item.notes || '',
-          hook: item.hook || '',
-          sceneNumber: typeof item.sceneNumber === 'number' ? item.sceneNumber : idx + 1,
-          duration: item.duration || '',
-          targetPlatform: item.targetPlatform || item.platform || '',
-          contentType: item.contentType || '',
-          notes: item.notes || '',
-          status: item.status || 'FINAL',
-          createdAt: item.createdAt || new Date().toISOString(),
-          updatedAt: item.updatedAt,
-        }));
+        return parsed.map(toProjectScript);
       }
       if (parsed && typeof parsed === 'object' && Array.isArray(parsed.scripts)) {
-        return parsed.scripts;
+        return parsed.scripts.map(toProjectScript);
       }
     } catch {
       // Not JSON, fall through to plaintext
@@ -62,6 +90,7 @@ export function parseProjectScripts(
       title: fallbackTitle || 'Master Shooting Script #1',
       scriptText: trimmed,
       sceneNumber: 1,
+      clipCodes: [],
       createdAt: new Date().toISOString(),
     },
   ];
@@ -80,20 +109,7 @@ export function extractEventScripts(
 
   // 1. If entity.scripts is already an array
   if (Array.isArray(entity.scripts) && entity.scripts.length > 0) {
-    return entity.scripts.map((item: any, idx: number) => ({
-      id: item.id || `script-${idx + 1}-${Date.now()}`,
-      title: item.title || `Script #${idx + 1}`,
-      scriptText: item.scriptText || item.text || item.content || item.notes || '',
-      hook: item.hook || '',
-      sceneNumber: typeof item.sceneNumber === 'number' ? item.sceneNumber : idx + 1,
-      duration: item.duration || '',
-      targetPlatform: item.targetPlatform || item.platform || '',
-      contentType: item.contentType || '',
-      notes: item.notes || '',
-      status: item.status || 'FINAL',
-      createdAt: item.createdAt || new Date().toISOString(),
-      updatedAt: item.updatedAt,
-    }));
+    return entity.scripts.map(normalizeProjectScript);
   }
 
   // 2. Gather candidate strings across all potential properties
@@ -124,23 +140,10 @@ export function extractEventScripts(
         try {
           const parsed = JSON.parse(trimmed);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.map((item: any, idx: number) => ({
-              id: item.id || `script-${idx + 1}-${Date.now()}`,
-              title: item.title || `Script #${idx + 1}`,
-              scriptText: item.scriptText || item.text || item.content || item.notes || '',
-              hook: item.hook || '',
-              sceneNumber: typeof item.sceneNumber === 'number' ? item.sceneNumber : idx + 1,
-              duration: item.duration || '',
-              targetPlatform: item.targetPlatform || item.platform || '',
-              contentType: item.contentType || '',
-              notes: item.notes || '',
-              status: item.status || 'FINAL',
-              createdAt: item.createdAt || new Date().toISOString(),
-              updatedAt: item.updatedAt,
-            }));
+            return parsed.map(normalizeProjectScript);
           }
           if (parsed && typeof parsed === 'object' && Array.isArray(parsed.scripts) && parsed.scripts.length > 0) {
-            return parsed.scripts;
+            return parsed.scripts.map(normalizeProjectScript);
           }
         } catch {
           // not valid json, keep checking other candidates
@@ -158,6 +161,7 @@ export function extractEventScripts(
           title: fallbackTitle || entity.title || entity.name || 'Master Shooting Script #1',
           scriptText: cand.trim(),
           sceneNumber: 1,
+          clipCodes: [],
           createdAt: new Date().toISOString(),
         },
       ];

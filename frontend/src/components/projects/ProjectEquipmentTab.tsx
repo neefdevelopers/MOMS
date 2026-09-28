@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import {
   Camera,
-  Plus,
   Calendar,
   Clock,
   User,
@@ -30,16 +29,6 @@ interface ProjectEquipmentTabProps {
 
 export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabProps) {
   const { user } = useAuth();
-  const [allEquipment, setAllEquipment] = useState<any[]>([]);
-  const [showRequestModal, setShowRequestModal] = useState(false);
-  const [selectedEqId, setSelectedEqId] = useState('');
-  const [requestPurpose, setRequestPurpose] = useState('');
-  const [requestRemarks, setRequestRemarks] = useState('');
-  const [requestDates, setRequestDates] = useState({
-    startDate: project.shootDate ? new Date(project.shootDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    endDate: project.shootDate ? new Date(new Date(project.shootDate).getTime() + 86400000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-  });
-  const [submittingRequest, setSubmittingRequest] = useState(false);
 
   // Status Filter State
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CHECKED_OUT' | 'RETURNED'>('ALL');
@@ -55,46 +44,6 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
     user?.role === 'TECHNICAL_MANAGER' ||
     user?.role === 'ADMINISTRATOR' ||
     (user?.role as string) === 'ADMIN';
-
-  useEffect(() => {
-    fetchApi('/equipment')
-      .then((eqRes) => {
-        if (Array.isArray(eqRes)) setAllEquipment(eqRes);
-      })
-      .catch(() => {});
-  }, []);
-
-  const handleCreateEquipmentRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedEqId) {
-      alert('Please select an equipment item to request.');
-      return;
-    }
-    setSubmittingRequest(true);
-    try {
-      await fetchApi('/equipment/requests', {
-        method: 'POST',
-        body: JSON.stringify({
-          equipmentId: selectedEqId,
-          projectId: project.id,
-          purpose: requestPurpose.trim() || `Equipment requirement for project "${project.name}"`,
-          requiredDate: requestDates.startDate,
-          expectedReturnDate: requestDates.endDate,
-          remarks: requestRemarks.trim() || undefined,
-        }),
-      });
-      alert('Equipment request submitted successfully! Status: Pending Approval by Technical / Media Manager.');
-      setShowRequestModal(false);
-      setSelectedEqId('');
-      setRequestPurpose('');
-      setRequestRemarks('');
-      if (onRefresh) onRefresh();
-    } catch (err: any) {
-      alert(err.message || 'Failed to submit equipment request.');
-    } finally {
-      setSubmittingRequest(false);
-    }
-  };
 
   const handleReviewRequest = async (requestId: string, status: 'APPROVED' | 'REJECTED') => {
     setSubmittingReview(true);
@@ -198,25 +147,17 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
 
   return (
     <div className="space-y-6 text-xs">
-      {/* Header & Request Action */}
+      {/* Header & Status Overview */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-5 rounded-2xl shadow-xs">
         <div>
           <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
             <Camera className="w-5 h-5 text-blue-600" />
-            Project Equipment Requests &amp; Statuses
+            Project Equipment &amp; Allocation
           </h3>
           <p className="text-slate-500 text-xs mt-0.5">
-            Track requested gear status (Pending, Approved, Rejected, Issued) and allocate cameras, lighting, and audio equipment for this project.
+            Track allocated gear status (Pending, Approved, Rejected, Issued) and manage cameras, lighting, and audio equipment for this project.
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setShowRequestModal(true)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-blue-600/20 text-xs shrink-0"
-        >
-          <Plus className="w-4 h-4" /> Request Equipment
-        </button>
       </div>
 
       {/* KPI Counters Bar */}
@@ -295,13 +236,13 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
         </button>
       </div>
 
-      {/* Equipment Requests List Container */}
+      {/* Allocated Equipment List Container */}
       <div className="bg-white border border-slate-200 p-5 rounded-2xl space-y-4 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
           <div className="flex items-center gap-2">
             <Package className="w-4 h-4 text-slate-600" />
             <h4 className="font-bold text-slate-900 text-sm">
-              Requested Equipment ({filteredItems.length})
+              Allocated Equipment ({filteredItems.length})
             </h4>
           </div>
 
@@ -330,28 +271,20 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
             <div className="space-y-1">
               <p className="text-slate-700 font-bold text-xs">
                 {statusFilter === 'ALL'
-                  ? 'No equipment requested for this shoot project yet.'
-                  : `No equipment requests matching "${statusFilter.replace('_', ' ')}" status.`}
+                  ? 'No equipment allocated to this shoot project yet.'
+                  : `No equipment matching "${statusFilter.replace('_', ' ')}" status.`}
               </p>
               <p className="text-[11px] text-slate-400">
-                Click &quot;Request Equipment&quot; above to allocate cameras, lighting, or audio gear for production.
+                Equipment is assigned from the Projects to Assign workspace or during project creation.
               </p>
             </div>
-            {statusFilter !== 'ALL' ? (
+            {statusFilter !== 'ALL' && (
               <button
                 type="button"
                 onClick={() => setStatusFilter('ALL')}
                 className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg inline-flex items-center gap-1 text-xs"
               >
                 Clear Filter
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowRequestModal(true)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl inline-flex items-center gap-1.5 transition-colors shadow-xs text-xs"
-              >
-                <Plus className="w-3.5 h-3.5" /> Request Equipment
               </button>
             )}
           </div>
@@ -592,108 +525,6 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
           </div>
         )}
       </div>
-
-      {/* Request Equipment Modal */}
-      {showRequestModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl animate-in fade-in duration-150">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Camera className="w-5 h-5 text-blue-600" />
-                Request Project Equipment
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowRequestModal(false)}
-                className="text-slate-400 hover:text-slate-700 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateEquipmentRequest} className="space-y-3.5">
-              <div>
-                <label className="text-slate-700 block mb-1 font-bold text-xs">Select Equipment Item *</label>
-                <select
-                  required
-                  value={selectedEqId}
-                  onChange={(e) => setSelectedEqId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 text-xs focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
-                >
-                  <option value="">Select Equipment...</option>
-                  {allEquipment.map((eq) => (
-                    <option key={eq.id} value={eq.id} disabled={eq.availability !== 'AVAILABLE'}>
-                      {eq.name} ({eq.equipmentId}) — {eq.category} [{eq.availability}]
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-slate-700 block mb-1 font-bold text-xs">Requirement Purpose / Scene Use</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Primary 4K Cinema Camera for Studio A dialogue scene"
-                  value={requestPurpose}
-                  onChange={(e) => setRequestPurpose(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 text-xs focus:outline-none focus:border-blue-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="text-slate-700 block mb-1 font-bold text-xs">Required Start Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={requestDates.startDate}
-                    onChange={(e) => setRequestDates({ ...requestDates, startDate: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 font-mono text-xs focus:outline-none focus:border-blue-500 focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-700 block mb-1 font-bold text-xs">Expected Return Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={requestDates.endDate}
-                    onChange={(e) => setRequestDates({ ...requestDates, endDate: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 font-mono text-xs focus:outline-none focus:border-blue-500 focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-slate-700 block mb-1 font-bold text-xs">Special Remarks / Accessories Needed</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Need extra battery pack, 70-200mm lens mount, and wireless transmitter."
-                  value={requestRemarks}
-                  onChange={(e) => setRequestRemarks(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 text-xs focus:outline-none focus:border-blue-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setShowRequestModal(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-semibold hover:bg-slate-200 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingRequest}
-                  className="px-5 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-500 disabled:opacity-50 shadow-md shadow-blue-600/20 transition-all"
-                >
-                  {submittingRequest ? 'Submitting...' : 'Submit Equipment Request'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
