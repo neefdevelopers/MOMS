@@ -61,6 +61,7 @@ import {
 import {
   ProjectScript,
   parseProjectScripts,
+  extractEventScripts,
   serializeProjectScripts,
   formatScriptsAsSummaryText,
 } from '@/lib/project-scripts';
@@ -135,9 +136,9 @@ export default function ProjectDetailPage() {
   const [closureReasonPreset, setClosureReasonPreset] = useState('Client cancelled remaining deliverables');
   const [customClosureReason, setCustomClosureReason] = useState('');
 
-  // Parsed scripts from project notes
-  const parsedScripts: ProjectScript[] = parseProjectScripts(
-    project?.notes || project?.calendarEvent?.caption,
+  // Parsed scripts from project notes or calendar event
+  const parsedScripts: ProjectScript[] = extractEventScripts(
+    project,
     project?.name || 'Master Shooting Script #1'
   );
 

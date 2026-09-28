@@ -48,11 +48,13 @@ import {
   Tag,
   Plus,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   ProjectScript,
   parseProjectScripts,
+  extractEventScripts,
   serializeProjectScripts,
   formatScriptsAsSummaryText,
 } from '@/lib/project-scripts';
@@ -63,7 +65,6 @@ export default function ClientReviewPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [editRequests, setEditRequests] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [activeReviewScriptIdx, setActiveReviewScriptIdx] = useState(0);
   const [selectedEditRequest, setSelectedEditRequest] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -82,15 +83,12 @@ export default function ClientReviewPage() {
   const [editPriority, setEditPriority] = useState<string>('MEDIUM');
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
 
-  // Script Editing State for Marketing Manager
-  const [isEditingScript, setIsEditingScript] = useState(false);
-  const [editScriptTitle, setEditScriptTitle] = useState('');
-  const [editScriptCaption, setEditScriptCaption] = useState('');
-  const [editScriptNotes, setEditScriptNotes] = useState('');
-  const [editScriptContentType, setEditScriptContentType] = useState('Post');
-  const [editScriptPlatform, setEditScriptPlatform] = useState('Instagram');
-  const [savingScript, setSavingScript] = useState(false);
+  // Script Document Management State for Marketing Manager
+  const [uploadingScriptDoc, setUploadingScriptDoc] = useState(false);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
   const [scriptSuccessMsg, setScriptSuccessMsg] = useState<string | null>(null);
+  const [eventFiles, setEventFiles] = useState<any[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
 
   // Decision Modal State
   const [reviewModalAction, setReviewModalAction] = useState<'APPROVE' | 'REQUEST_CHANGES' | 'REJECT' | null>(null);
@@ -98,7 +96,6 @@ export default function ClientReviewPage() {
   const [commentText, setCommentText] = useState<string>('');
   const [editRequestComment, setEditRequestComment] = useState<string>('');
   const [submittingReview, setSubmittingReview] = useState(false);
-  const [copiedCaption, setCopiedCaption] = useState(false);
 
   const loadClientData = async () => {
     try {
@@ -149,6 +146,30 @@ export default function ClientReviewPage() {
 
   const selectedEvent = selectedEventId ? events.find((e) => e.id === selectedEventId) || null : null;
 
+  const refreshEventFiles = async (eventObj: any = selectedEvent) => {
+    if (!eventObj) return;
+    const projectId =
+      eventObj.shootId ||
+      eventObj.shoot?.id ||
+      eventObj.shootProjects?.[0]?.id ||
+      eventObj.graphicRequirement?.projectId ||
+      eventObj.shootProjects?.[0]?.projectId;
+
+    if (projectId) {
+      try {
+        setLoadingFiles(true);
+        const res = await fetchApi(`/files/project/${projectId}`);
+        setEventFiles(res.allFiles || []);
+      } catch {
+        setEventFiles([]);
+      } finally {
+        setLoadingFiles(false);
+      }
+    } else {
+      setEventFiles([]);
+    }
+  };
+
   useEffect(() => {
     if (selectedEvent) {
       const dStr = selectedEvent.clientApprovalDeadline
@@ -157,66 +178,72 @@ export default function ClientReviewPage() {
       setEditDeadline(dStr);
       setEditPriority(selectedEvent.priority || 'MEDIUM');
       setShowSettingsDrawer(false);
-
-      // Populate script editing fields
-      setEditScriptTitle(selectedEvent.title || '');
-      setEditScriptCaption(
-        selectedEvent.caption ||
-          selectedEvent.shootProjects?.[0]?.notes ||
-          selectedEvent.description ||
-          ''
-      );
-      setEditScriptNotes(selectedEvent.productionNotes || '');
-      setEditScriptContentType(selectedEvent.contentType || 'Post');
-      setEditScriptPlatform(selectedEvent.platform || 'Instagram');
-      setIsEditingScript(false);
       setScriptSuccessMsg(null);
+
+      // Load attached project/event files (for script document review)
+      refreshEventFiles(selectedEvent);
     }
   }, [selectedEvent?.id]);
 
-  const handleCopyCaption = () => {
-    const textToCopy = editScriptCaption || selectedEvent?.caption || '';
-    if (textToCopy) {
-      navigator.clipboard.writeText(textToCopy);
-      setCopiedCaption(true);
-      setTimeout(() => setCopiedCaption(false), 2000);
+  const handleUploadScriptFiles = async (files: FileList | File[] | File) => {
+    if (!files || !selectedEvent) return;
+    const fileArray = files instanceof FileList ? Array.from(files) : Array.isArray(files) ? files : [files];
+    if (fileArray.length === 0) return;
+
+    const projectId =
+      selectedEvent.shootId ||
+      selectedEvent.shoot?.id ||
+      selectedEvent.shootProjects?.[0]?.id ||
+      selectedEvent.graphicRequirement?.projectId ||
+      selectedEvent.shootProjects?.[0]?.projectId;
+
+    try {
+      setUploadingScriptDoc(true);
+      for (const file of fileArray) {
+        const fd = new FormData();
+        fd.append('file', file);
+        if (projectId) {
+          fd.append('projectId', projectId);
+        } else {
+          fd.append('calendarEventId', selectedEvent.id);
+        }
+        fd.append('folderCategory', 'Script Documents');
+        fd.append('attachmentCategory', 'SCRIPT_DOCUMENT');
+
+        await fetchApi('/files/upload', {
+          method: 'POST',
+          body: fd,
+        });
+      }
+
+      await refreshEventFiles(selectedEvent);
+      setScriptSuccessMsg(
+        fileArray.length === 1
+          ? '✅ Script document uploaded successfully!'
+          : `✅ ${fileArray.length} script documents uploaded successfully!`
+      );
+      setTimeout(() => setScriptSuccessMsg(null), 4000);
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload script document.');
+    } finally {
+      setUploadingScriptDoc(false);
     }
   };
 
-  const handleSaveScript = async () => {
-    if (!selectedEvent) return;
+  const handleDeleteScriptFile = async (fileId: string, fileName: string) => {
+    if (!confirm(`Are you sure you want to delete script file "${fileName}"?`)) return;
     try {
-      setSavingScript(true);
-      const updatePayload: any = {
-        title: editScriptTitle.trim() || selectedEvent.title,
-        caption: editScriptCaption.trim(),
-        productionNotes: editScriptNotes.trim(),
-        contentType: editScriptContentType,
-        platform: editScriptPlatform,
-        editComment: 'Marketing Manager updated script & creative copy during review.',
-      };
-
-      const updated = await fetchApi(`/calendar/${selectedEvent.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(updatePayload),
+      setDeletingFileId(fileId);
+      await fetchApi(`/files/${fileId}`, {
+        method: 'DELETE',
       });
-
-      // Update in local state
-      setEvents((prev) =>
-        prev.map((ev) =>
-          ev.id === selectedEvent.id
-            ? { ...ev, ...updatePayload, ...updated }
-            : ev
-        )
-      );
-
-      setScriptSuccessMsg('✅ Script & creative content updated successfully!');
-      setIsEditingScript(false);
+      await refreshEventFiles(selectedEvent);
+      setScriptSuccessMsg(`✅ Deleted "${fileName}" successfully.`);
       setTimeout(() => setScriptSuccessMsg(null), 4000);
     } catch (err: any) {
-      alert(err.message || 'Failed to save script changes.');
+      alert(err.message || 'Failed to delete script file.');
     } finally {
-      setSavingScript(false);
+      setDeletingFileId(null);
     }
   };
 
@@ -472,16 +499,7 @@ export default function ClientReviewPage() {
                     </div>
                   )}
 
-                  {item.caption || item.shootProjects?.[0]?.notes ? (
-                    <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/90 text-xs space-y-1">
-                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-amber-800 flex items-center gap-1">
-                        <FileText className="w-3 h-3 text-amber-600" /> Script / Screenplay Copy
-                      </span>
-                      <p className="text-slate-800 line-clamp-2 italic text-[11px] font-sans">
-                        "{item.caption || item.shootProjects?.[0]?.notes}"
-                      </p>
-                    </div>
-                  ) : null}
+
                 </div>
 
                 <div className="space-y-3 pt-3 border-t border-slate-200">
@@ -780,40 +798,35 @@ export default function ClientReviewPage() {
               </div>
             </div>
 
-            {/* SECTION 2: SCRIPT, SCREENPLAY & CREATIVE COPY (REVIEW & EDIT) */}
-            <div className="space-y-2.5">
+            {/* SECTION 2: SCRIPT DOCUMENTS & ATTACHMENTS (REVIEW, DELETE & UPLOAD NEW) */}
+            <div className="space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-amber-600" /> Section 2: Script, Screenplay &amp; Content Copy
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-purple-700" /> Section 2: Script Documents &amp; Materials
                 </span>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCopyCaption}
-                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors flex items-center gap-1"
+                  <label
+                    htmlFor="clientReviewScriptFileInput"
+                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
                   >
-                    {copiedCaption ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedCaption ? 'Copied Script' : 'Copy Script'}
-                  </button>
-
-                  {(user?.role === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMIN' || (user?.role as string) === 'ADMINISTRATOR') && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsEditingScript(!isEditingScript);
-                        setScriptSuccessMsg(null);
-                      }}
-                      className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1 border shadow-xs ${
-                        isEditingScript
-                          ? 'bg-slate-200 text-slate-800 border-slate-300'
-                          : 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-400 font-extrabold'
-                      }`}
-                    >
-                      <Edit className="w-3.5 h-3.5" />
-                      {isEditingScript ? 'Cancel Script Edit' : '✏️ Edit Script & Copy'}
-                    </button>
-                  )}
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{uploadingScriptDoc ? 'Uploading...' : '+ Upload Script Document(s)'}</span>
+                  </label>
+                  <input
+                    id="clientReviewScriptFileInput"
+                    type="file"
+                    multiple
+                    accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                    className="hidden"
+                    disabled={uploadingScriptDoc}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        handleUploadScriptFiles(e.target.files);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
                 </div>
               </div>
 
@@ -824,222 +837,120 @@ export default function ClientReviewPage() {
                 </div>
               )}
 
-              {isEditingScript ? (
-                /* Interactive Script Editor */
-                <div className="p-4 bg-amber-50/80 border-2 border-amber-400 rounded-2xl space-y-4 animate-in fade-in duration-150">
-                  <div className="flex items-center justify-between border-b border-amber-200 pb-2">
-                    <span className="font-extrabold text-amber-900 text-xs flex items-center gap-1.5">
-                      <Edit className="w-4 h-4 text-amber-600" /> Marketing Manager Script Editor
-                    </span>
-                    <span className="text-[10px] font-mono bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded font-bold">
-                      Editing Mode
-                    </span>
-                  </div>
+              {/* Script Documents List */}
+              {(() => {
+                const scriptDocFiles = (eventFiles || []).filter(
+                  (f: any) =>
+                    f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+                    f.folderCategory === 'Script Documents' ||
+                    f.storagePath?.includes('Script Documents') ||
+                    f.fileName?.match(/\.(pdf|doc|docx|txt)$/i)
+                );
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="sm:col-span-1 space-y-1">
-                      <label className="text-[10px] font-bold text-slate-700 uppercase block">Content Title / Headline</label>
-                      <input
-                        type="text"
-                        value={editScriptTitle}
-                        onChange={(e) => setEditScriptTitle(e.target.value)}
-                        placeholder="e.g. Summer Promo Hook"
-                        className="w-full bg-white border border-amber-300 rounded-lg p-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      />
+                if (loadingFiles) {
+                  return (
+                    <div className="p-6 bg-slate-50/80 border border-slate-200 rounded-2xl text-center">
+                      <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                      <p className="text-xs text-slate-500 font-medium">Loading attached script documents...</p>
                     </div>
+                  );
+                }
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-700 uppercase block">Format / Content Type</label>
-                      <select
-                        value={editScriptContentType}
-                        onChange={(e) => setEditScriptContentType(e.target.value)}
-                        className="w-full bg-white border border-amber-300 rounded-lg p-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                if (scriptDocFiles.length === 0) {
+                  return (
+                    <div className="p-6 bg-purple-50/40 border-2 border-dashed border-purple-200 rounded-2xl text-center space-y-2">
+                      <FileText className="w-8 h-8 text-purple-400 mx-auto" />
+                      <p className="text-xs font-bold text-slate-800">No Script Documents Attached Yet</p>
+                      <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+                        Click <strong>"+ Upload Script Document(s)"</strong> above or drag script files (PDF, Word Doc, TXT) here to attach scripts for this event.
+                      </p>
+                      <label
+                        htmlFor="clientReviewScriptFileInput"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-purple-300 hover:bg-purple-50 text-purple-700 font-bold text-xs rounded-xl cursor-pointer shadow-xs transition-colors mt-2"
                       >
-                        <option value="Post">Post (Static / Graphic)</option>
-                        <option value="Reel">Reel / Short-form Video</option>
-                        <option value="Story">Story / Ephemeral</option>
-                        <option value="Carousel">Carousel / Multi-slide</option>
-                        <option value="Video">Long-form Video / YouTube</option>
-                        <option value="Banner">Promotional Banner</option>
-                        <option value="Teaser">Teaser / Trailer</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-700 uppercase block">Target Platform</label>
-                      <select
-                        value={editScriptPlatform}
-                        onChange={(e) => setEditScriptPlatform(e.target.value)}
-                        className="w-full bg-white border border-amber-300 rounded-lg p-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      >
-                        <option value="Instagram">Instagram</option>
-                        <option value="YouTube">YouTube</option>
-                        <option value="TikTok">TikTok</option>
-                        <option value="Facebook">Facebook</option>
-                        <option value="LinkedIn">LinkedIn</option>
-                        <option value="Twitter">Twitter / X</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold text-slate-800 uppercase block">
-                        Full Script, Screenplay, Dialogue &amp; Copy
+                        <Plus className="w-3.5 h-3.5" /> Select Script Files
                       </label>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="p-4 bg-gradient-to-br from-purple-50/50 to-slate-50 border border-purple-200/90 rounded-2xl space-y-3 shadow-xs">
+                    <div className="flex items-center justify-between pb-2 border-b border-purple-200/60">
+                      <span className="text-xs font-bold text-slate-800">
+                        Attached Scripts ({scriptDocFiles.length} file{scriptDocFiles.length > 1 ? 's' : ''})
+                      </span>
                       <span className="text-[10px] text-slate-500 font-mono">
-                        {editScriptCaption.length} chars • {editScriptCaption.trim() ? editScriptCaption.trim().split(/\s+/).length : 0} words
+                        Review, open, or replace documents
                       </span>
                     </div>
-                    <textarea
-                      rows={8}
-                      value={editScriptCaption}
-                      onChange={(e) => setEditScriptCaption(e.target.value)}
-                      placeholder="Write or edit the shooting script, dialogue lines, voiceover narration, hook, scene description, and call-to-action (CTA)..."
-                      className="w-full bg-white border border-amber-300 rounded-xl p-3 text-xs font-mono text-slate-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    />
-                  </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-800 uppercase block">
-                      Production Instructions &amp; Director Notes
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={editScriptNotes}
-                      onChange={(e) => setEditScriptNotes(e.target.value)}
-                      placeholder="Director notes, camera angles, lighting cues, talent delivery tone, or special prop instructions..."
-                      className="w-full bg-white border border-amber-300 rounded-xl p-3 text-xs text-slate-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    />
-                  </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {scriptDocFiles.map((sf: any) => {
+                        const ext = sf.fileName?.split('.').pop()?.toUpperCase() || 'FILE';
+                        const isDeleting = deletingFileId === sf.id;
 
-                  <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-amber-200">
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingScript(false)}
-                      disabled={savingScript}
-                      className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-xl text-xs transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveScript}
-                      disabled={savingScript}
-                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md transition-all flex items-center gap-1.5"
-                    >
-                      {savingScript ? <RotateCcw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                      {savingScript ? 'Saving Script...' : 'Save Script Changes'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* Script Display Card (Multi-script aware) */
-                (() => {
-                  const reviewScripts: ProjectScript[] = parseProjectScripts(
-                    selectedEvent.caption || selectedEvent.shootProjects?.[0]?.notes,
-                    selectedEvent.title
-                  );
-                  const activeScript = reviewScripts[activeReviewScriptIdx] || reviewScripts[0];
+                        return (
+                          <div
+                            key={sf.id}
+                            className="flex items-center justify-between p-3 bg-white border border-purple-200/80 rounded-xl hover:border-purple-300 shadow-xs hover:shadow-sm transition-all gap-2"
+                          >
+                            <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
+                              <span className="px-2 py-1 bg-purple-100 text-purple-900 font-mono text-[10px] font-extrabold rounded-md shrink-0">
+                                {ext}
+                              </span>
+                              <div className="overflow-hidden min-w-0">
+                                <p className="text-xs font-bold text-slate-900 truncate" title={sf.fileName}>
+                                  {sf.fileName}
+                                </p>
+                                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono flex-wrap mt-0.5">
+                                  {sf.fileSize ? <span>{(sf.fileSize / 1024).toFixed(1)} KB</span> : null}
+                                  {sf.uploadedBy && (
+                                    <span className="font-semibold text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded border border-purple-200">
+                                      Uploaded by {sf.uploadedBy.name || 'User'} ({sf.uploadedBy.role?.replace(/_/g, ' ') || 'Staff'})
+                                    </span>
+                                  )}
+                                  {sf.createdAt && (
+                                    <span className="text-slate-400">
+                                      • {new Date(sf.createdAt).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
 
-                  return (
-                    <div className="p-4 bg-gradient-to-br from-amber-50/60 to-slate-50 border border-amber-200/90 rounded-2xl space-y-3 shadow-xs">
-                      {/* Script Tabs if multiple scripts */}
-                      {reviewScripts.length > 1 && (
-                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin border-b border-amber-200/60 pb-2">
-                          {reviewScripts.map((s, idx) => (
-                            <button
-                              key={s.id || idx}
-                              type="button"
-                              onClick={() => setActiveReviewScriptIdx(idx)}
-                              className={`px-3 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition-all flex items-center gap-1.5 border ${
-                                activeReviewScriptIdx === idx
-                                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
-                                  : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-50'
-                              }`}
-                            >
-                              <span className="font-mono text-[10px] opacity-75">#{idx + 1}</span>
-                              <span>{s.title}</span>
-                              {s.duration && (
-                                <span className="text-[9px] px-1 py-0.2 rounded font-mono bg-black/10">
-                                  {s.duration}
-                                </span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <a
+                                href={sf.storagePath?.startsWith('http') ? sf.storagePath : `/api/files/download/${sf.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors shadow-xs"
+                                title="Open / Preview script file"
+                              >
+                                <Eye className="w-3.5 h-3.5" /> View
+                              </a>
 
-                      <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-900 text-sm">
-                            {activeScript?.title || selectedEvent.title}
-                          </span>
-                          {(activeScript?.contentType || selectedEvent.contentType) && (
-                            <span className="px-2 py-0.5 rounded font-bold text-amber-800 bg-amber-100 text-[10px]">
-                              {activeScript?.contentType || selectedEvent.contentType}
-                            </span>
-                          )}
-                          {(activeScript?.targetPlatform || selectedEvent.platform) && (
-                            <span className="px-2 py-0.5 rounded font-bold text-indigo-800 bg-indigo-100 text-[10px]">
-                              {activeScript?.targetPlatform || selectedEvent.platform}
-                            </span>
-                          )}
-                          {activeScript?.duration && (
-                            <span className="px-2 py-0.5 rounded font-mono font-bold text-slate-700 bg-slate-100 text-[10px]">
-                              ⏱️ {activeScript.duration}
-                            </span>
-                          )}
-                        </div>
-
-                        <span className="text-[10px] text-slate-500 font-mono">
-                          {(activeScript?.scriptText || selectedEvent.caption || '').length} chars • {(activeScript?.scriptText || selectedEvent.caption || '').trim() ? (activeScript?.scriptText || selectedEvent.caption || '').trim().split(/\s+/).length : 0} words
-                        </span>
-                      </div>
-
-                      {/* Hook callout */}
-                      {activeScript?.hook && (
-                        <div className="p-2.5 bg-amber-50/80 rounded-lg border border-amber-200/80 text-[11px] space-y-0.5">
-                          <span className="font-bold text-amber-900 block flex items-center gap-1">
-                            🎣 Opening Hook (First 3 Seconds):
-                          </span>
-                          <p className="text-amber-950 font-medium italic">
-                            "{activeScript.hook}"
-                          </p>
-                        </div>
-                      )}
-
-                      {activeScript?.scriptText || selectedEvent.caption || selectedEvent.shootProjects?.[0]?.notes ? (
-                        <div className="p-3.5 bg-white/90 border border-amber-200/70 rounded-xl">
-                          <p className="text-slate-900 text-xs font-mono leading-relaxed whitespace-pre-wrap">
-                            {activeScript?.scriptText || selectedEvent.caption || selectedEvent.shootProjects?.[0]?.notes}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="p-6 bg-white/60 border border-dashed border-amber-300 rounded-xl text-center space-y-1.5">
-                          <FileText className="w-6 h-6 text-amber-500/70 mx-auto" />
-                          <p className="text-slate-700 text-xs font-bold">No script text entered yet</p>
-                          <p className="text-slate-500 text-[11px]">
-                            Click the <strong>"✏️ Edit Script &amp; Copy"</strong> button above to write or paste the shooting script.
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Script or Production notes */}
-                      {(activeScript?.notes || selectedEvent.productionNotes) && (
-                        <div className="p-3 bg-amber-50/70 border border-amber-200/70 rounded-xl space-y-1 text-xs">
-                          <span className="text-[10px] font-bold text-amber-800 uppercase flex items-center gap-1">
-                            <MessageSquare className="w-3 h-3 text-amber-600" /> Director &amp; Production Instructions
-                          </span>
-                          <p className="text-slate-800 text-[11px] whitespace-pre-wrap italic">
-                            "{activeScript?.notes || selectedEvent.productionNotes}"
-                          </p>
-                        </div>
-                      )}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteScriptFile(sf.id, sf.fileName)}
+                                disabled={isDeleting}
+                                className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs transition-colors disabled:opacity-50"
+                                title="Delete this script document"
+                              >
+                                {isDeleting ? (
+                                  <RotateCcw className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })()
-              )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* SECTION 2: SCHEDULE, TIMING & MILESTONES */}
@@ -1438,17 +1349,7 @@ export default function ClientReviewPage() {
                 </div>
               </div>
 
-              {/* Confirmed Script & Copy Snapshot */}
-              {(selectedEvent.caption || selectedEvent.shootProjects?.[0]?.notes) && (
-                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-1 text-xs">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 flex items-center gap-1">
-                    <FileText className="w-3.5 h-3.5 text-amber-600" /> Confirmed Script &amp; Screenplay Copy
-                  </span>
-                  <p className="text-slate-900 text-xs italic font-sans whitespace-pre-wrap leading-relaxed">
-                    "{selectedEvent.caption || selectedEvent.shootProjects?.[0]?.notes}"
-                  </p>
-                </div>
-              )}
+
 
               {/* Outdoor Logistics Summary (if outdoor shoot) */}
               {selectedEvent.shootProjects?.[0]?.outdoorDetails && (

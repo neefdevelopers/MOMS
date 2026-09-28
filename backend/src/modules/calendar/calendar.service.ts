@@ -100,6 +100,7 @@ export class CalendarService {
         graphicRequirement: {
           select: {
             id: true,
+            projectId: true,
             requirementId: true,
             name: true,
             status: true,
@@ -123,6 +124,7 @@ export class CalendarService {
             priority: true,
             indoorDetails: true,
             outdoorDetails: true,
+            notes: true,
             equipmentReservations: { include: { equipment: true } },
             assignedTeam: { include: { user: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } } } },
             tasks: { select: { id: true, taskId: true, status: true, title: true } },
@@ -185,6 +187,7 @@ export class CalendarService {
         graphicRequirement: {
           select: {
             id: true,
+            projectId: true,
             requirementId: true,
             name: true,
             status: true,
@@ -208,6 +211,7 @@ export class CalendarService {
             priority: true,
             indoorDetails: true,
             outdoorDetails: true,
+            notes: true,
             equipmentReservations: { include: { equipment: true } },
             assignedTeam: { include: { user: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } } } },
           },
@@ -395,19 +399,18 @@ export class CalendarService {
 
     // Resolve safe activeUserId for mandatory User relations
     let activeUserId = user?.id;
-    if (!activeUserId) {
+    let verifiedUser = activeUserId ? await this.prisma.user.findUnique({ where: { id: activeUserId } }) : null;
+    if (!verifiedUser) {
       const fallbackUser = await this.prisma.user.findFirst({
-        where: { role: { in: ['MEDIA_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'] } },
+        where: { role: { in: ['MEDIA_MANAGER', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'] } },
       });
-      activeUserId = fallbackUser?.id;
-    }
-    if (!activeUserId) {
-      const anyUser = await this.prisma.user.findFirst();
-      activeUserId = anyUser?.id;
+      verifiedUser = fallbackUser || (await this.prisma.user.findFirst());
+      activeUserId = verifiedUser?.id;
     }
     if (!activeUserId) {
       throw new BadRequestException('System user not found to record event creator.');
     }
+    const activeUserRole = verifiedUser?.role || user?.role || 'MEDIA_MANAGER';
 
     // Validate assigned staff member for Media Calendar Event if provided (Optional)
     let assignedStaffId = data.assignedStaffId || data.assignedUserId || data.staffId || null;
@@ -418,8 +421,17 @@ export class CalendarService {
       }
     }
 
-    const count = await this.prisma.mediaCalendarEvent.count();
-    const autoEventId = data.eventId || `CAL-${(count + 1).toString().padStart(6, '0')}`;
+    let autoEventId = data.eventId?.trim();
+    if (!autoEventId) {
+      const count = await this.prisma.mediaCalendarEvent.count();
+      let candidate = `CAL-${(count + 1).toString().padStart(6, '0')}`;
+      let seq = count + 1;
+      while (await this.prisma.mediaCalendarEvent.findFirst({ where: { eventId: candidate } })) {
+        seq++;
+        candidate = `CAL-${seq.toString().padStart(6, '0')}`;
+      }
+      autoEventId = candidate;
+    }
     
     // WORKFLOW RULE:
     // Events scheduled by Marketing Manager or Administrator are automatically approved (APPROVED) upon creation.
@@ -431,8 +443,31 @@ export class CalendarService {
       ? 'APPROVED'
       : 'PENDING_MARKETING_APPROVAL';
 
+    const resolvedNotes =
+      data.notes?.trim() ||
+      (data.scripts
+        ? typeof data.scripts === 'string'
+          ? data.scripts
+          : JSON.stringify(data.scripts, null, 2)
+        : undefined) ||
+      data.productionNotes?.trim() ||
+      data.remarks?.trim() ||
+      null;
+
+    const safeDate = (v: any, def: Date | null = null): Date | null => {
+      if (!v) return def;
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? def : d;
+    };
+
     // Execute atomic creation in transaction
     const createdEvent = await this.prisma.$transaction(async (tx) => {
+      const eventShootDate = safeDate(data.shootDate, new Date())!;
+      const eventDeadline = safeDate(
+        data.clientApprovalDeadline,
+        safeDate(data.deadline, safeDate(data.shootDate, new Date())),
+      );
+
       const event = await tx.mediaCalendarEvent.create({
         data: {
           eventId: autoEventId,
@@ -449,17 +484,11 @@ export class CalendarService {
           caption: data.caption || null,
           creativePreviewUrl: data.creativePreviewUrl || null,
           description: data.description || null,
-          shootDate: new Date(data.shootDate || Date.now()),
-          clientApprovalDeadline: data.clientApprovalDeadline
-            ? new Date(data.clientApprovalDeadline)
-            : data.deadline
-            ? new Date(data.deadline)
-            : data.shootDate
-            ? new Date(data.shootDate)
-            : new Date(),
+          shootDate: eventShootDate,
+          clientApprovalDeadline: eventDeadline,
           influencerTalent: data.influencerTalent || null,
           priority: data.priority || Priority.MEDIUM,
-          productionNotes: data.productionNotes || null,
+          productionNotes: resolvedNotes,
           version: 1,
           status: initialStatus,
           createdById: activeUserId,
@@ -501,15 +530,22 @@ export class CalendarService {
             });
             if (!existingProj) {
               const projCount = await tx.shootProject.count();
+              let containerProjId = `SP-${(projCount + 1).toString().padStart(6, '0')}`;
+              let cSeq = projCount + 1;
+              while (await tx.shootProject.findFirst({ where: { projectId: containerProjId } })) {
+                cSeq++;
+                containerProjId = `SP-${cSeq.toString().padStart(6, '0')}`;
+              }
+
               existingProj = await tx.shootProject.create({
                 data: {
-                  projectId: `SP-${(projCount + 1).toString().padStart(6, '0')}`,
+                  projectId: containerProjId,
                   name: `[GR-CONTAINER] Graphic Requirements Project`,
                   clientId: data.clientId,
                   brandId: data.brandId,
                   productId: data.productId || null,
                   shootType: 'INDOOR',
-                  shootDate: new Date(data.shootDate || Date.now()),
+                  shootDate: eventShootDate,
                   shootLocation: 'Media Ops Studio Bay',
                   priority: data.priority || Priority.MEDIUM,
                   status: 'PLANNED',
@@ -521,9 +557,16 @@ export class CalendarService {
           }
 
           const grCount = await tx.graphicRequirement.count();
+          let candidateGrId = `GR-${(grCount + 1).toString().padStart(6, '0')}`;
+          let grSeq = grCount + 1;
+          while (await tx.graphicRequirement.findFirst({ where: { requirementId: candidateGrId } })) {
+            grSeq++;
+            candidateGrId = `GR-${grSeq.toString().padStart(6, '0')}`;
+          }
+
           const newGr = await tx.graphicRequirement.create({
             data: {
-              requirementId: `GR-${(grCount + 1).toString().padStart(6, '0')}`,
+              requirementId: candidateGrId,
               name: data.title.trim(),
               projectId: parentProjectId,
               clientId: data.clientId,
@@ -532,11 +575,11 @@ export class CalendarService {
               calendarEventId: event.id,
               requirementType: data.contentType || data.requirementType || 'Poster',
               objective: data.caption || data.objective || data.description || null,
-              description: data.description || data.productionNotes || null,
+              description: data.description || resolvedNotes || null,
               priority: data.priority || Priority.MEDIUM,
-              estimatedCompletion: data.clientApprovalDeadline ? new Date(data.clientApprovalDeadline) : null,
+              estimatedCompletion: safeDate(data.clientApprovalDeadline, safeDate(data.deadline, null)),
               status: initialStatus === 'APPROVED' ? 'APPROVED' : 'PENDING_MARKETING_APPROVAL',
-              remarks: data.remarks || data.productionNotes || null,
+              remarks: data.remarks || resolvedNotes || null,
               createdById: activeUserId,
             },
           });
@@ -562,8 +605,6 @@ export class CalendarService {
               },
             });
           }
-
-
         }
       } else if (eventSource === 'SHOOT' || eventSource === 'PROJECT_SHOOT') {
         if (resolvedShoot) {
@@ -574,23 +615,30 @@ export class CalendarService {
         } else {
           // Auto-create corresponding ShootProject
           const spCount = await tx.shootProject.count();
+          let candidateSpId = `SP-${(spCount + 1).toString().padStart(6, '0')}`;
+          let spSeq = spCount + 1;
+          while (await tx.shootProject.findFirst({ where: { projectId: candidateSpId } })) {
+            spSeq++;
+            candidateSpId = `SP-${spSeq.toString().padStart(6, '0')}`;
+          }
+
           const newShoot = await tx.shootProject.create({
             data: {
-              projectId: `SP-${(spCount + 1).toString().padStart(6, '0')}`,
+              projectId: candidateSpId,
               name: data.title.trim(),
               clientId: data.clientId,
               brandId: data.brandId,
               productId: data.productId || null,
               calendarEventId: event.id,
               shootType: data.shootType || ShootType.INDOOR,
-              shootDate: new Date(data.shootDate || Date.now()),
-              shootLocation: data.location || 'Main Studio Floor',
+              shootDate: eventShootDate,
+              shootLocation: (data.location || 'Main Studio Floor').trim(),
               locationCategory: data.locationCategory || 'Studio Bay',
               influencerTalent: data.influencerTalent || null,
               priority: data.priority || Priority.MEDIUM,
               status: initialStatus === 'APPROVED' ? 'APPROVED' : 'PENDING_MARKETING_APPROVAL',
-              estimatedCompletionDate: data.clientApprovalDeadline ? new Date(data.clientApprovalDeadline) : null,
-              notes: data.remarks || data.productionNotes || null,
+              estimatedCompletionDate: safeDate(data.clientApprovalDeadline, safeDate(data.deadline, null)),
+              notes: resolvedNotes,
               createdById: activeUserId,
             },
           });
@@ -600,11 +648,12 @@ export class CalendarService {
             await tx.outdoorShootDetails.create({
               data: {
                 projectId: newShoot.id,
-                outdoorLocation: data.location || 'Outdoor Location',
-                locationAddress: data.exactLocationAddress || data.locationAddress || data.location || 'Outdoor Location Address',
+                outdoorLocation: (data.location || data.outdoorLocation || 'Outdoor Location').trim(),
+                locationAddress: (data.exactLocationAddress || data.locationAddress || data.location || 'Outdoor Location Address').trim(),
                 exactLocationAddress: data.exactLocationAddress || data.locationAddress || data.location || null,
                 locationAccessDetails: data.locationAccessDetails || null,
                 locationContact: data.locationContact || data.locationContactPerson || null,
+                locationContactPerson: data.locationContactPerson || data.locationContact || null,
                 permitRequired: data.permitRequired || 'NO',
                 permitStatus: data.permitStatus || (data.permitRequired === 'YES' ? 'Pending' : 'NOT_REQUIRED'),
                 expectedWeatherConditions: data.expectedWeatherConditions || null,
@@ -620,8 +669,8 @@ export class CalendarService {
             await tx.indoorShootDetails.create({
               data: {
                 projectId: newShoot.id,
-                studioName: data.location || 'Main Studio Floor',
-                studioAddress: data.exactLocationAddress || data.locationAddress || data.location || 'Main Studio Floor',
+                studioName: (data.location || data.studioName || 'Main Studio Floor').trim(),
+                studioAddress: (data.exactLocationAddress || data.locationAddress || data.location || 'Main Studio Floor').trim(),
                 reportingTime: data.callTime || data.startTime || '09:00 AM',
                 wrapUpTime: data.expectedWrapTime || data.endTime || '06:00 PM',
               },
@@ -629,29 +678,43 @@ export class CalendarService {
           }
 
           if (Array.isArray(data.equipmentIds) && data.equipmentIds.length > 0) {
-            for (const eqId of data.equipmentIds) {
-              await tx.equipmentReservation.create({
-                data: {
-                  projectId: newShoot.id,
-                  equipmentId: eqId,
-                  startDate: new Date(data.shootDate || Date.now()),
-                  endDate: new Date(data.deadline || data.clientApprovalDeadline || data.shootDate || Date.now()),
-                  reservedById: activeUserId,
-                  status: 'RESERVED',
-                },
-              }).catch(() => null);
+            const cleanEqIds = data.equipmentIds.filter((id: any) => typeof id === 'string' && id.trim());
+            if (cleanEqIds.length > 0) {
+              const validEqs = await tx.equipment.findMany({
+                where: { id: { in: cleanEqIds } },
+                select: { id: true },
+              });
+              for (const eq of validEqs) {
+                await tx.equipmentReservation.create({
+                  data: {
+                    projectId: newShoot.id,
+                    equipmentId: eq.id,
+                    startDate: eventShootDate,
+                    endDate: safeDate(data.deadline, safeDate(data.clientApprovalDeadline, eventShootDate))!,
+                    reservedById: activeUserId,
+                    status: 'RESERVED',
+                  },
+                });
+              }
             }
           }
 
           if (Array.isArray(data.teamUserIds) && data.teamUserIds.length > 0) {
-            for (const uId of data.teamUserIds) {
-              await tx.projectAssignment.create({
-                data: {
-                  projectId: newShoot.id,
-                  userId: uId,
-                  roleInProject: 'CREW',
-                },
-              }).catch(() => null);
+            const cleanUserIds = data.teamUserIds.filter((id: any) => typeof id === 'string' && id.trim());
+            if (cleanUserIds.length > 0) {
+              const validUsers = await tx.user.findMany({
+                where: { id: { in: cleanUserIds } },
+                select: { id: true },
+              });
+              for (const u of validUsers) {
+                await tx.projectAssignment.create({
+                  data: {
+                    projectId: newShoot.id,
+                    userId: u.id,
+                    roleInProject: 'CREW',
+                  },
+                });
+              }
             }
           }
 
@@ -662,22 +725,30 @@ export class CalendarService {
         }
       }
 
-      // Create Version 1 Revision Record
-      const revision = await tx.calendarEventRevision.create({
+      return event;
+    });
+
+    // ── Secondary Records & Audit Logging (Safe post-transaction execution) ──
+    try {
+      // 1. Create Version 1 Revision Record
+      const revision = await this.prisma.calendarEventRevision.create({
         data: {
-          calendarEventId: event.id,
+          calendarEventId: createdEvent.id,
           version: 1,
-          title: event.title,
-          caption: event.caption,
-          contentType: event.contentType,
-          platform: event.platform,
-          creativePreviewUrl: event.creativePreviewUrl,
-          productionNotes: event.productionNotes,
+          title: createdEvent.title,
+          caption: createdEvent.caption,
+          contentType: createdEvent.contentType,
+          platform: createdEvent.platform,
+          creativePreviewUrl: createdEvent.creativePreviewUrl,
+          productionNotes: createdEvent.productionNotes,
           createdById: activeUserId,
         },
+      }).catch((err) => {
+        console.warn('Non-blocking: could not create initial calendar revision:', err.message);
+        return null;
       });
 
-      // Create Initial Approval History Record
+      // 2. Create Initial Approval History Record
       const historyAction =
         initialStatus === 'APPROVED'
           ? 'AUTO_APPROVED_CLIENT'
@@ -689,56 +760,59 @@ export class CalendarService {
         initialStatus === 'APPROVED'
           ? 'Created and automatically approved by Marketing Manager.'
           : initialStatus === 'PENDING_MARKETING_APPROVAL'
-          ? `Scheduled by ${user?.role ? user.role.replace(/_/g, ' ') : 'Media Manager'} and submitted for Marketing Manager approval.`
+          ? `Scheduled by ${activeUserRole.replace(/_/g, ' ')} and submitted for Marketing Manager approval.`
           : 'Created event draft.';
 
-      await tx.calendarApprovalHistory.create({
+      await this.prisma.calendarApprovalHistory.create({
         data: {
-          calendarEventId: event.id,
-          revisionId: revision.id,
+          calendarEventId: createdEvent.id,
+          revisionId: revision?.id || null,
           version: 1,
           userId: activeUserId,
-          role: user?.role || 'MEDIA_MANAGER',
+          role: activeUserRole,
           action: historyAction,
           previousStatus: 'NONE',
           newStatus: initialStatus,
           comment: historyComment,
         },
+      }).catch((err) => {
+        console.warn('Non-blocking: could not create initial approval history record:', err.message);
       });
 
-      await tx.activityLog.create({
+      // 3. Activity Logging
+      await this.prisma.activityLog.create({
         data: {
           userId: activeUserId,
           action: 'MEDIA_CALENDAR_EVENT_CREATED',
           entity: 'MediaCalendarEvent',
-          entityId: event.id,
-          description: `Created Media Calendar Event '${event.title}' with source ${eventSource}.`,
+          entityId: createdEvent.id,
+          description: `Created Media Calendar Event '${createdEvent.title}' with source ${eventSource}.`,
           metadata: JSON.stringify({
-            eventId: event.eventId || event.id,
+            eventId: createdEvent.eventId || createdEvent.id,
             eventSource,
-            graphicRequirementId: event.graphicRequirementId,
-            shootId: event.shootId,
+            graphicRequirementId: createdEvent.graphicRequirementId,
+            shootId: createdEvent.shootId,
             createdBy: activeUserId,
-            clientId: event.clientId,
+            clientId: createdEvent.clientId,
           }),
         },
-      });
-
-      return event;
-    });
+      }).catch(() => null);
+    } catch (auditErr) {
+      console.warn('Audit trail recording notice:', auditErr);
+    }
 
     if (initialStatus === 'APPROVED') {
       this.notifyTechnicalManagersForEquipmentAssignment(createdEvent.id).catch((err) => {
         console.error('Error notifying technical managers for equipment assignment on event creation:', err);
       });
     } else if (initialStatus === 'PENDING_MARKETING_APPROVAL') {
-      await this.sendNotification(
+      this.sendNotification(
         [],
         'MARKETING_MANAGER',
         'New Calendar Event Requires Marketing Approval',
         `${user?.role ? user.role.replace(/_/g, ' ') : 'Media Manager'} (${user?.name || 'User'}) scheduled calendar event '${createdEvent.title}' which requires Marketing Manager review & sign-off.`,
         createdEvent.id,
-      );
+      ).catch(() => null);
     }
 
     return this.findOne(createdEvent.id, user);
@@ -851,13 +925,13 @@ export class CalendarService {
       });
 
       // Notify Marketing Manager
-      await this.sendNotification(
+      this.sendNotification(
         [],
         'MARKETING_MANAGER',
         'Rejected Calendar Event Revised & Re-submitted',
         `${user?.role ? user.role.replace(/_/g, ' ') : 'Media Manager'} (${user?.name || 'User'}) updated rejected event '${updateData.title || existing.title}' (Version ${nextVersion}) and re-submitted for Marketing Manager approval.`,
         id,
-      );
+      ).catch(() => null);
     }
 
     const activeUserId = await this.resolveUserId(user);
@@ -916,13 +990,13 @@ export class CalendarService {
       (updateData.status === 'WAITING_FOR_MEDIA_REVIEW' || updateData.status === 'MEDIA_MANAGER_REVIEW') &&
       existing.status !== updateData.status
     ) {
-      await this.sendNotification(
+      this.sendNotification(
         [],
         'MEDIA_MANAGER',
         'Calendar Event Waiting for Media Manager Approval 🎬',
         `Media Calendar Event '${updateData.title || existing.title}' is waiting for Media Manager Review.`,
         id,
-      );
+      ).catch(() => null);
     }
 
     return this.findOne(id, user);

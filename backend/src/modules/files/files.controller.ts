@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, UseInterceptors, UploadedFile, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, UseInterceptors, UploadedFile, UseGuards } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FilesService, MulterFile } from './files.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -41,5 +41,10 @@ export class FilesController {
     @CurrentUser() user: any,
   ) {
     return this.filesService.saveFileMetadataAndPhysicalDisk(file, data, user);
+  }
+
+  @Delete(':id')
+  deleteFile(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.filesService.deleteFile(id, user);
   }
 }

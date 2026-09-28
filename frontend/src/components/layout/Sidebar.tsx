@@ -78,6 +78,13 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         roles: ['MARKETING_MANAGER'],
       },
       {
+        name: 'Projects to Assign',
+        techName: 'Projects to Assign',
+        href: '/equipment/assignments',
+        icon: Camera,
+        roles: ['TECHNICAL_MANAGER'],
+      },
+      {
         name: 'Media Calendar',
         staffName: 'Media Calendar',
         techName: 'Calendar',

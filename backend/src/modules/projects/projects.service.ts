@@ -142,7 +142,7 @@ export class ProjectsService {
     // Content creation and approval roles (SOCIAL_MEDIA_MANAGER, MEDIA_MANAGER, MARKETING_MANAGER, ADMIN) can view pending projects in their sessions.
     // Execution roles (TECHNICAL_MANAGER, STAFF, etc.) can ONLY view projects once approved by Marketing Manager (or if created by themselves or assigned).
     const APPROVED_CALENDAR_STATUSES = ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'];
-    const CREATOR_AND_APPROVER_ROLES = ['SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMIN', 'ADMINISTRATOR'];
+    const CREATOR_AND_APPROVER_ROLES = ['SOCIAL_MEDIA_MANAGER', 'MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMIN', 'ADMINISTRATOR', 'TECHNICAL_MANAGER'];
 
     if (params.role && !CREATOR_AND_APPROVER_ROLES.includes(params.role) && params.userId) {
       const eventVisibilityFilter = {
@@ -177,6 +177,9 @@ export class ProjectsService {
         assignedTeam: { include: { user: true } },
         tasks: { include: { assignedEmployees: { include: { user: true } } } },
         graphicRequirements: { include: { tasks: { include: { assignedEmployees: true } } } },
+        equipmentReservations: { include: { equipment: true } },
+        equipmentRequests: { include: { equipment: true, requestedBy: true } },
+        files: { include: { uploadedBy: true } },
         _count: {
           select: {
             tasks: true,
@@ -450,8 +453,15 @@ export class ProjectsService {
       }
     }
 
+    const safeDate = (v: any, def: Date | null = null): Date | null => {
+      if (!v) return def;
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? def : d;
+    };
+
     // 3. Automated Naming Rule based on Configured Conventions
-    const dateFormatted = new Date(data.shootDate).toISOString().slice(2, 10).replace(/-/g, '');
+    const shootDateObj = safeDate(data.shootDate, new Date())!;
+    const dateFormatted = shootDateObj.toISOString().slice(2, 10).replace(/-/g, '');
     const influencerTag = data.influencerTalent ? data.influencerTalent.split(' ')[0].toUpperCase() : 'SHOOT';
     let baseName = data.name?.trim() || `${brand.shortCode}-${dateFormatted}-${influencerTag}`;
 
@@ -472,7 +482,7 @@ export class ProjectsService {
       campaignId: data.campaignId || null,
       calendarEventId: data.calendarEventId || null,
       shootType: data.shootType,
-      shootDate: new Date(data.shootDate),
+      shootDate: shootDateObj,
       shootLocation: data.shootLocation || (data.shootType === ShootType.INDOOR ? 'Studio Bay' : 'Outdoor Site'),
       locationCategory: data.locationCategory,
       locationAddress: data.locationAddress,
@@ -482,7 +492,7 @@ export class ProjectsService {
       influencerTalent: data.influencerTalent,
       priority: data.priority || Priority.MEDIUM,
       status: data.status || ProjectStatus.PLANNED,
-      estimatedCompletionDate: data.estimatedCompletionDate ? new Date(data.estimatedCompletionDate) : null,
+      estimatedCompletionDate: safeDate(data.estimatedCompletionDate, null),
       notes: data.notes?.trim() || (data.scripts ? (typeof data.scripts === 'string' ? data.scripts : JSON.stringify(data.scripts, null, 2)) : undefined) || data.remarks?.trim() || null,
       createdById: userId,
     };
@@ -531,64 +541,79 @@ export class ProjectsService {
 
     // 5. Assign Team Members if provided
     if (data.teamUserIds && Array.isArray(data.teamUserIds)) {
-      for (const tUserId of data.teamUserIds) {
-        await this.prisma.projectAssignment.create({
-          data: { projectId: project.id, userId: tUserId },
+      const cleanUserIds = data.teamUserIds.filter((id: any) => typeof id === 'string' && id.trim());
+      if (cleanUserIds.length > 0) {
+        const validUsers = await this.prisma.user.findMany({
+          where: { id: { in: cleanUserIds } },
+          select: { id: true, name: true },
         });
 
-        // Operational Event Notification referencing originating PROJECT entity
-        await this.prisma.notification.create({
-          data: {
-            userId: tUserId,
-            title: 'Assigned to Shoot Project',
-            message: `You were assigned to project ${project.projectId}: ${project.name}`,
-            type: 'INFO',
-            linkUrl: `/projects?projectId=${project.id}`,
-            eventType: 'PROJECT_TEAM_ASSIGNED',
-            entityType: 'PROJECT',
-            entityId: project.id,
-            entityCode: project.projectId,
-            projectId: project.id,
-          },
-        });
+        for (const tUser of validUsers) {
+          await this.prisma.projectAssignment.create({
+            data: { projectId: project.id, userId: tUser.id },
+          }).catch(() => null);
+
+          // Operational Event Notification referencing originating PROJECT entity
+          await this.prisma.notification.create({
+            data: {
+              userId: tUser.id,
+              title: 'Assigned to Shoot Project',
+              message: `You were assigned to project ${project.projectId}: ${project.name}`,
+              type: 'INFO',
+              linkUrl: `/projects?projectId=${project.id}`,
+              eventType: 'PROJECT_TEAM_ASSIGNED',
+              entityType: 'PROJECT',
+              entityId: project.id,
+              entityCode: project.projectId,
+              projectId: project.id,
+            },
+          }).catch(() => null);
+        }
       }
     }
 
     // 6. Reserve / Assign Equipment if provided
     if (data.equipmentIds && Array.isArray(data.equipmentIds) && data.equipmentIds.length > 0) {
-
-      for (const eqId of data.equipmentIds) {
-        const res = await this.prisma.equipmentReservation.create({
-          data: {
-            projectId: project.id,
-            equipmentId: eqId,
-            startDate: new Date(data.shootDate),
-            endDate: new Date(data.shootDate),
-            status: 'RESERVED',
-          },
-        });
-        const eq = await this.prisma.equipment.update({
-          where: { id: eqId },
-          data: { availability: EquipmentAvailability.RESERVED },
+      const cleanEqIds = data.equipmentIds.filter((id: any) => typeof id === 'string' && id.trim());
+      if (cleanEqIds.length > 0) {
+        const validEquipment = await this.prisma.equipment.findMany({
+          where: { id: { in: cleanEqIds } },
         });
 
-        // Operational Event Notification referencing originating EQUIPMENT entity
-        if (userId) {
-          await this.prisma.notification.create({
+        for (const eq of validEquipment) {
+          await this.prisma.equipmentReservation.create({
             data: {
-              userId,
-              title: 'Equipment Reserved for Shoot',
-              message: `Equipment ${eq.equipmentId || eq.name} reserved for project ${project.projectId}`,
-              type: 'INFO',
-              linkUrl: `/equipment`,
-              eventType: 'EQUIPMENT_RESERVED',
-              entityType: 'EQUIPMENT',
-              entityId: eq.id,
-              entityCode: eq.equipmentId,
-              equipmentId: eq.id,
               projectId: project.id,
+              equipmentId: eq.id,
+              startDate: new Date(data.shootDate),
+              endDate: new Date(data.shootDate),
+              status: 'RESERVED',
             },
-          });
+          }).catch(() => null);
+
+          await this.prisma.equipment.update({
+            where: { id: eq.id },
+            data: { availability: EquipmentAvailability.RESERVED },
+          }).catch(() => null);
+
+          // Operational Event Notification referencing originating EQUIPMENT entity
+          if (userId) {
+            await this.prisma.notification.create({
+              data: {
+                userId,
+                title: 'Equipment Reserved for Shoot',
+                message: `Equipment ${eq.equipmentId || eq.name} reserved for project ${project.projectId}`,
+                type: 'INFO',
+                linkUrl: `/equipment`,
+                eventType: 'EQUIPMENT_RESERVED',
+                entityType: 'EQUIPMENT',
+                entityId: eq.id,
+                entityCode: eq.equipmentId,
+                equipmentId: eq.id,
+                projectId: project.id,
+              },
+            }).catch(() => null);
+          }
         }
       }
     }

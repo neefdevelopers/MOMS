@@ -1192,6 +1192,11 @@ export class TasksService {
           approvalStatus: 'APPROVED',
         },
       }).catch(() => null);
+
+      // Notify Technical Managers to review project logistics & assign equipment
+      this.notifyTechnicalManagersOnShootTaskCreated(task.id, task.projectId).catch((err) => {
+        console.error('Error notifying technical managers for shoot task creation:', err);
+      });
     }
 
     // 3. Sync Graphic Requirement status to TASK_ASSIGNED or IN_PROGRESS
@@ -2220,5 +2225,101 @@ export class TasksService {
       },
       taskAlternatives,
     };
+  }
+
+  async notifyTechnicalManagersOnShootTaskCreated(taskId: string, projectId: string) {
+    try {
+      const [task, project, techManagers] = await Promise.all([
+        this.prisma.task.findUnique({
+          where: { id: taskId },
+          include: {
+            assignedEmployees: { include: { user: { select: { id: true, name: true, role: true } } } },
+          },
+        }),
+        this.prisma.shootProject.findUnique({
+          where: { id: projectId },
+          include: {
+            client: true,
+            brand: true,
+            product: true,
+            indoorDetails: true,
+            outdoorDetails: true,
+            files: true,
+            assignedTeam: { include: { user: { select: { id: true, name: true, role: true } } } },
+            calendarEvent: true,
+          },
+        }),
+        this.prisma.user.findMany({
+          where: { role: 'TECHNICAL_MANAGER', status: 'ACTIVE' },
+          select: { id: true, name: true, email: true },
+        }),
+      ]);
+
+      if (!task || !project || techManagers.length === 0) return;
+
+      const isOutdoor = project.shootType === 'OUTDOOR';
+      const clientName = project.client?.name || 'Client';
+      const brandName = project.brand?.name || 'Brand';
+      const productName = project.product?.name ? ` (${project.product.name})` : '';
+      const shootDateStr = project.shootDate ? new Date(project.shootDate).toLocaleDateString() : 'TBD';
+      const callTime = project.reportingTime || project.outdoorDetails?.callTime || '09:00 AM';
+      const wrapTime = project.expectedWrapUpTime || project.outdoorDetails?.expectedWrapTime || '05:00 PM';
+      const location = project.shootLocation || (isOutdoor ? 'Outdoor Location' : 'Studio Floor');
+      const assignedNames = (task.assignedEmployees || []).map((ae: any) => ae.user?.name).filter(Boolean).join(', ') || 'Team Staff';
+      const scriptDocs = (project.files || []).filter((f: any) => f.attachmentCategory === 'SCRIPT_DOCUMENT' || f.storagePath?.includes('Script Documents'));
+
+      const notifTitle = `Shoot Task Created: Equipment Review & Assignment Required 🎬`;
+      const notifMessage = `New shoot task '${task.title}' (${task.taskId}) was created for project '${project.name}' (${project.projectId}). Please review project details, shoot logistics, and assign production equipment.\n\n• Client / Brand: ${clientName} - ${brandName}${productName}\n• Shoot Date: ${shootDateStr} (Call: ${callTime} | Wrap: ${wrapTime})\n• Location: ${isOutdoor ? 'Outdoor' : 'Indoor Studio'} @ ${location}\n• Assigned Staff: ${assignedNames}\n• Task Due Date: ${task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'N/A'}${scriptDocs.length > 0 ? `\n• Script Documents: ${scriptDocs.length} attached` : ''}`;
+
+      const metadataPayload = {
+        actionRequired: 'ASSIGN_EQUIPMENT',
+        taskId: task.id,
+        taskCode: task.taskId,
+        taskTitle: task.title,
+        projectId: project.id,
+        projectCode: project.projectId,
+        projectName: project.name,
+        clientName,
+        brandName,
+        productName: project.product?.name || null,
+        shootDate: project.shootDate,
+        shootType: project.shootType,
+        callTime,
+        wrapTime,
+        location,
+        priority: task.priority,
+        assignedStaff: assignedNames,
+        outdoorDetails: isOutdoor && project.outdoorDetails ? {
+          exactLocationAddress: project.outdoorDetails.exactLocationAddress,
+          locationContact: project.outdoorDetails.locationContact,
+          weatherStatus: project.outdoorDetails.expectedWeatherConditions,
+        } : null,
+      };
+
+      for (const tm of techManagers) {
+        await this.prisma.notification.create({
+          data: {
+            userId: tm.id,
+            title: notifTitle,
+            message: notifMessage,
+            type: 'ALERT',
+            category: 'EQUIPMENT_REQUEST',
+            priority: 'HIGH',
+            eventType: 'EQUIPMENT_ASSIGNMENT_NEEDED',
+            entityType: 'TASK',
+            entityId: task.id,
+            entityCode: task.taskId,
+            taskId: task.id,
+            projectId: project.id,
+            linkUrl: `/projects/${project.id}?tab=Equipment`,
+            metadata: JSON.stringify(metadataPayload),
+          },
+        }).catch((err) => {
+          console.error(`Failed to notify Technical Manager ${tm.id}:`, err);
+        });
+      }
+    } catch (err) {
+      console.error('Failed to notify Technical Managers on shoot task creation:', err);
+    }
   }
 }

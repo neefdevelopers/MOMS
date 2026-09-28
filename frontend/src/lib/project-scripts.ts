@@ -68,6 +68,106 @@ export function parseProjectScripts(
 }
 
 /**
+ * Robust extractor that inspects an entire MediaCalendarEvent or ShootProject object.
+ * It checks all potential fields (productionNotes, notes, shoot.notes, shootProjects[].notes, caption, scripts, remarks)
+ * prioritizing serialized JSON arrays so multi-script arrays are never masked by simple string captions.
+ */
+export function extractEventScripts(
+  entity: any,
+  fallbackTitle: string = 'Master Shooting Script'
+): ProjectScript[] {
+  if (!entity) return [];
+
+  // 1. If entity.scripts is already an array
+  if (Array.isArray(entity.scripts) && entity.scripts.length > 0) {
+    return entity.scripts.map((item: any, idx: number) => ({
+      id: item.id || `script-${idx + 1}-${Date.now()}`,
+      title: item.title || `Script #${idx + 1}`,
+      scriptText: item.scriptText || item.text || item.content || item.notes || '',
+      hook: item.hook || '',
+      sceneNumber: typeof item.sceneNumber === 'number' ? item.sceneNumber : idx + 1,
+      duration: item.duration || '',
+      targetPlatform: item.targetPlatform || item.platform || '',
+      contentType: item.contentType || '',
+      notes: item.notes || '',
+      status: item.status || 'FINAL',
+      createdAt: item.createdAt || new Date().toISOString(),
+      updatedAt: item.updatedAt,
+    }));
+  }
+
+  // 2. Gather candidate strings across all potential properties
+  const candidateTexts: (string | null | undefined)[] = [
+    entity.productionNotes,
+    entity.notes,
+    entity.shootProjects?.[0]?.notes,
+    entity.shootProjects?.[1]?.notes,
+    entity.shootProjects?.[2]?.notes,
+    entity.shoot?.notes,
+    entity.calendarEvent?.productionNotes,
+    entity.calendarEvent?.notes,
+    entity.calendarEvent?.caption,
+    entity.caption,
+    entity.description,
+    typeof entity.scripts === 'string' ? entity.scripts : undefined,
+    entity.graphicRequirement?.remarks,
+    entity.graphicRequirement?.description,
+    entity.graphicRequirement?.objective,
+    entity.remarks,
+  ];
+
+  // 3. First Pass: Look for any candidate that is serialized JSON array
+  for (const cand of candidateTexts) {
+    if (cand && typeof cand === 'string') {
+      const trimmed = cand.trim();
+      if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map((item: any, idx: number) => ({
+              id: item.id || `script-${idx + 1}-${Date.now()}`,
+              title: item.title || `Script #${idx + 1}`,
+              scriptText: item.scriptText || item.text || item.content || item.notes || '',
+              hook: item.hook || '',
+              sceneNumber: typeof item.sceneNumber === 'number' ? item.sceneNumber : idx + 1,
+              duration: item.duration || '',
+              targetPlatform: item.targetPlatform || item.platform || '',
+              contentType: item.contentType || '',
+              notes: item.notes || '',
+              status: item.status || 'FINAL',
+              createdAt: item.createdAt || new Date().toISOString(),
+              updatedAt: item.updatedAt,
+            }));
+          }
+          if (parsed && typeof parsed === 'object' && Array.isArray(parsed.scripts) && parsed.scripts.length > 0) {
+            return parsed.scripts;
+          }
+        } catch {
+          // not valid json, keep checking other candidates
+        }
+      }
+    }
+  }
+
+  // 4. Second Pass: Fallback to plain text from the first non-empty candidate
+  for (const cand of candidateTexts) {
+    if (cand && typeof cand === 'string' && cand.trim().length > 0) {
+      return [
+        {
+          id: 'script-default-1',
+          title: fallbackTitle || entity.title || entity.name || 'Master Shooting Script #1',
+          scriptText: cand.trim(),
+          sceneNumber: 1,
+          createdAt: new Date().toISOString(),
+        },
+      ];
+    }
+  }
+
+  return [];
+}
+
+/**
  * Serializes an array of ProjectScript items into a JSON string suitable for storage in ShootProject.notes
  */
 export function serializeProjectScripts(scripts: ProjectScript[]): string {

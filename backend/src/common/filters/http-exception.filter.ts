@@ -82,6 +82,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
       if (exception.name.includes('Prisma') || msg.includes('prisma') || msg.includes('database')) {
         errorName = 'DatabaseError';
+        console.error('=== PRISMA DATABASE ERROR OCCURRED ===', {
+          name: exception.name,
+          code: prismaCode,
+          message: exception.message,
+          stack: exception.stack,
+        });
+
         if (prismaCode === 'P2002') {
           status = HttpStatus.CONFLICT;
           message = 'A database unique constraint conflict occurred (record already exists).';
@@ -93,7 +100,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
           message = 'The requested database record was not found or has been removed.';
           errorName = 'NotFoundError';
         } else {
-          message = 'A database communication error occurred while processing your request.';
+          // Clean up technical message for clarity
+          const cleanMsg = exception.message
+            ? exception.message.replace(/(\r\n|\n|\r)/gm, ' ').replace(/\s+/g, ' ')
+            : 'A database communication error occurred while processing your request.';
+          message = cleanMsg.length > 200 ? cleanMsg.slice(0, 200) + '...' : cleanMsg;
         }
       } else if (msg.includes('multer') || msg.includes('ENOENT') || msg.includes('file')) {
         message = 'A file storage operation error occurred.';

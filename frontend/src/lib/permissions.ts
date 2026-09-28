@@ -380,6 +380,9 @@ export function canAccessRoute(role: string, route: string): boolean {
   if (route.startsWith('/tasks')) return hasModuleAccess(role, 'TASKS');
   if (route.startsWith('/reports')) return hasModuleAccess(role, 'REPORTS');
   if (route.startsWith('/calendar')) return hasModuleAccess(role, 'CALENDAR');
+  if (route.startsWith('/equipment/assignments')) {
+    return role === 'TECHNICAL_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
+  }
   if (route.startsWith('/equipment/create')) {
     return role === 'MEDIA_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
   }

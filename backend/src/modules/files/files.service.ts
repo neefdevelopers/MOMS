@@ -18,16 +18,53 @@ export class FilesService {
   constructor(private prisma: PrismaService) {}
 
   async getProjectFiles(projectId: string) {
-    const project = await this.prisma.shootProject.findUnique({
+    let project = await this.prisma.shootProject.findUnique({
       where: { id: projectId },
       include: {
         files: {
           include: { uploadedBy: { select: { id: true, name: true, role: true } } },
           orderBy: { createdAt: 'desc' },
         },
+        calendarEvent: true,
       },
     });
+
+    if (!project) {
+      project = await this.prisma.shootProject.findFirst({
+        where: {
+          OR: [
+            { id: projectId },
+            { projectId: projectId },
+          ],
+        },
+        include: {
+          files: {
+            include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+            orderBy: { createdAt: 'desc' },
+          },
+          calendarEvent: true,
+        },
+      });
+    }
+
     if (!project) throw new NotFoundException('Project not found');
+
+    // Also fetch any extra files associated with this project or its human projectId code
+    const extraFiles = await this.prisma.fileMetadata.findMany({
+      where: {
+        OR: [
+          { projectId: project.id },
+          { projectId: project.projectId },
+        ],
+      },
+      include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const fileMap = new Map<string, any>();
+    project.files.forEach((f) => fileMap.set(f.id, f));
+    extraFiles.forEach((f) => fileMap.set(f.id, f));
+    const combinedFiles = Array.from(fileMap.values());
 
     // Virtual Folder Tree Generation
     const folders = [
@@ -40,11 +77,11 @@ export class FilesService {
     ];
 
     const tree = folders.map((folderName) => {
-      const folderFiles = project.files.filter((f) => {
-        if (folderName === 'Raw Videos') return f.fileType.startsWith('video/') && !f.storagePath.includes('Final');
-        if (folderName === 'Raw Photos') return f.fileType.startsWith('image/') && !f.storagePath.includes('Final');
+      const folderFiles = combinedFiles.filter((f) => {
+        if (folderName === 'Raw Videos') return f.fileType?.startsWith('video/') && !f.storagePath?.includes('Final');
+        if (folderName === 'Raw Photos') return f.fileType?.startsWith('image/') && !f.storagePath?.includes('Final');
         if (folderName === 'Graphic Requirements') return f.graphicRequirementId !== null;
-        if (folderName === 'Final Deliverables') return f.storagePath.includes('Final') || f.activeVersion;
+        if (folderName === 'Final Deliverables') return f.storagePath?.includes('Final') || f.activeVersion;
         if (folderName === 'Archive') return !f.activeVersion;
         return true; // Documents default
       });
@@ -59,7 +96,7 @@ export class FilesService {
       projectId: project.projectId,
       projectName: project.name,
       tree,
-      allFiles: project.files,
+      allFiles: combinedFiles,
     };
   }
 
@@ -205,20 +242,30 @@ export class FilesService {
 
     const relativeStoragePath = `/uploads/projects/${project.projectId}/${folderCategory}/${file.originalname}`;
 
-    // Replace older versions: Delete physical disk file & old DB metadata record so multiple large media files are NOT maintained.
+    // Replace older versions: For standard single deliverables, replace old versions. For script documents / references, allow multiple files and only replace if exact same filename.
     let oldFiles: any[] = [];
-    if (data.graphicRequirementId) {
+    if (isScriptDoc) {
       oldFiles = await this.prisma.fileMetadata.findMany({
         where: {
           projectId: resolvedProjectId,
-          graphicRequirementId: data.graphicRequirementId,
-          attachmentCategory,
+          fileName: file.originalname,
+          attachmentCategory: 'SCRIPT_DOCUMENT',
         },
       });
-    } else {
-      oldFiles = await this.prisma.fileMetadata.findMany({
-        where: { projectId: resolvedProjectId, storagePath: { contains: folderCategory } },
-      });
+    } else if (data.attachmentCategory !== 'REFERENCES' && data.attachmentCategory !== 'ATTACHMENTS') {
+      if (data.graphicRequirementId) {
+        oldFiles = await this.prisma.fileMetadata.findMany({
+          where: {
+            projectId: resolvedProjectId,
+            graphicRequirementId: data.graphicRequirementId,
+            attachmentCategory,
+          },
+        });
+      } else {
+        oldFiles = await this.prisma.fileMetadata.findMany({
+          where: { projectId: resolvedProjectId, storagePath: { contains: folderCategory } },
+        });
+      }
     }
 
     // Delete older physical files & metadata records
@@ -366,5 +413,32 @@ export class FilesService {
     });
 
     return deliverable;
+  }
+
+  async deleteFile(id: string, user?: any) {
+    const file = await this.prisma.fileMetadata.findUnique({ where: { id } });
+    if (!file) throw new NotFoundException('File not found');
+
+    if (file.storagePath && fs.existsSync(file.storagePath)) {
+      try {
+        fs.unlinkSync(file.storagePath);
+      } catch (e) {
+        console.warn('Could not delete physical file:', e);
+      }
+    }
+
+    await this.prisma.fileMetadata.delete({ where: { id } });
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user?.id || user?.sub || null,
+        action: 'DELETE_FILE',
+        entity: 'FileMetadata',
+        entityId: id,
+        description: `Deleted file '${file.fileName}'`,
+      },
+    });
+
+    return { message: 'File deleted successfully', id };
   }
 }

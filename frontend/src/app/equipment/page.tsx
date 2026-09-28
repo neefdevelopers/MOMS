@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -456,6 +457,14 @@ export default function EquipmentPage() {
 
         {/* Business Rule 1: Company ownership badge */}
         <div className="flex items-center gap-3">
+          {(user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+            <Link
+              href="/equipment/assignments"
+              className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-lg transition shadow-md shadow-blue-600/20 text-xs"
+            >
+              <Camera className="w-4 h-4" /> Projects to Assign
+            </Link>
+          )}
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
             <Building2 className="w-3.5 h-3.5 text-blue-600" />
             <span className="text-[11px] font-bold text-blue-700">Company Assets</span>

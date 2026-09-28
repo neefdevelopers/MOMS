@@ -33,6 +33,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { RoleGuard } from '@/components/common/RoleGuard';
+import { extractEventScripts, ProjectScript } from '@/lib/project-scripts';
 
 const TECHNICAL_CHECKLIST_ITEMS = [
   'File Integrity & Codec Parsing',
@@ -81,6 +82,7 @@ export default function ApprovalsPage() {
 
   // Detailed view inspection modal state
   const [detailModalItem, setDetailModalItem] = useState<any | null>(null);
+  const [activeApprovalScriptIdx, setActiveApprovalScriptIdx] = useState(0);
 
   const loadQueue = async () => {
     try {
@@ -1319,26 +1321,70 @@ export default function ApprovalsPage() {
                 </div>
               </div>
 
-              {/* Script / Screenplay Copy */}
-              {(detailModalItem.notes || detailModalItem.calendarEvent?.caption) && (
-                <div className="bg-amber-50/70 border border-amber-200 p-4 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-amber-900 font-mono uppercase font-bold flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5 text-amber-700" />
-                      Script &amp; Screenplay Storyline
-                    </span>
-                    <Link
-                      href={getItemDetailsUrl(detailModalItem)}
-                      className="text-[10px] font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1 underline"
-                    >
-                      Edit Script in Project ↗
-                    </Link>
+              {/* Script / Screenplay Copy (Multi-script aware) */}
+              {(() => {
+                const scripts: ProjectScript[] = extractEventScripts(
+                  detailModalItem,
+                  detailModalItem.title || detailModalItem.name
+                );
+                if (scripts.length === 0) return null;
+                const activeScript = scripts[activeApprovalScriptIdx] || scripts[0];
+
+                return (
+                  <div className="bg-amber-50/70 border border-amber-200 p-4 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-amber-900 font-mono uppercase font-bold flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-amber-700" />
+                        Script &amp; Screenplay Storyline ({scripts.length} script{scripts.length > 1 ? 's' : ''})
+                      </span>
+                      <Link
+                        href={getItemDetailsUrl(detailModalItem)}
+                        className="text-[10px] font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1 underline"
+                      >
+                        Edit Script in Project ↗
+                      </Link>
+                    </div>
+
+                    {/* Script Tabs if multiple scripts */}
+                    {scripts.length > 1 && (
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin border-b border-amber-200/60 pb-2">
+                        {scripts.map((s, idx) => (
+                          <button
+                            key={s.id || idx}
+                            type="button"
+                            onClick={() => setActiveApprovalScriptIdx(idx)}
+                            className={`px-2.5 py-1 rounded-lg font-bold text-xs whitespace-nowrap transition-all flex items-center gap-1 border ${
+                              activeApprovalScriptIdx === idx
+                                ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                                : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100/70'
+                            }`}
+                          >
+                            <span className="font-mono text-[9px] opacity-75">#{idx + 1}</span>
+                            <span>{s.title}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Active Hook Callout */}
+                    {activeScript.hook && (
+                      <div className="p-2 bg-amber-100/80 rounded-lg border border-amber-200 text-xs italic text-amber-950">
+                        <strong className="not-italic font-bold">🎣 Hook:</strong> "{activeScript.hook}"
+                      </div>
+                    )}
+
+                    <div className="bg-white/90 p-3 rounded-lg border border-amber-200/70 text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                      {activeScript.scriptText || detailModalItem.notes || detailModalItem.calendarEvent?.caption}
+                    </div>
+
+                    {activeScript.notes && (
+                      <p className="text-[11px] text-slate-600 italic">
+                        📝 Notes: {activeScript.notes}
+                      </p>
+                    )}
                   </div>
-                  <div className="bg-white/90 p-3 rounded-lg border border-amber-200/70 text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
-                    {detailModalItem.notes || detailModalItem.calendarEvent?.caption}
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Description / Storyline / Brief / Production Notes */}
               {(detailModalItem.description || detailModalItem.storyline || detailModalItem.brief || detailModalItem.productionNotes) && (

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Calendar, Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck, FileText, User, ChevronLeft, ChevronRight, ArrowUpDown, MapPin, Eye, Zap, CheckCircle2, Link as LinkIcon, ExternalLink } from 'lucide-react';
+import { Calendar, Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck, FileText, User, ChevronLeft, ChevronRight, ArrowUpDown, MapPin, Eye, Zap, CheckCircle2, Link as LinkIcon, ExternalLink, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
 import { TimelineView, TimelineEntry } from '@/components/common/TimelineView';
@@ -104,11 +104,12 @@ export default function CalendarPage() {
   const [staffModalSearch, setStaffModalSearch] = useState('');
   const [equipmentModalSearch, setEquipmentModalSearch] = useState('');
 
-  // Script Document state
-  const [scriptDocFile, setScriptDocFile] = useState<File | null>(null);
+  // Multi-Script Document state
+  const [scriptDocFiles, setScriptDocFiles] = useState<File[]>([]);
   const [eventFiles, setEventFiles] = useState<any[]>([]);
   const [uploadingScriptDoc, setUploadingScriptDoc] = useState(false);
   const [loadingEventFiles, setLoadingEventFiles] = useState(false);
+  const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
 
   useEffect(() => {
     if (viewModalEvent) {
@@ -121,8 +122,9 @@ export default function CalendarPage() {
   const loadEventFiles = async (eventObj: any) => {
     if (!eventObj) return;
     const projectId =
-      eventObj.shootProjects?.[0]?.id ||
       eventObj.shootId ||
+      eventObj.shoot?.id ||
+      eventObj.shootProjects?.[0]?.id ||
       eventObj.graphicRequirement?.projectId ||
       eventObj.shootProjects?.[0]?.projectId;
 
@@ -141,30 +143,40 @@ export default function CalendarPage() {
     }
   };
 
-  const handleUploadScriptDocForEvent = async (file: File) => {
-    if (!file || !viewModalEvent) return;
+  const handleUploadScriptDocForEvent = async (files: FileList | File[] | File) => {
+    if (!files || !viewModalEvent) return;
+    const fileArray: File[] = files instanceof File ? [files] : Array.from(files);
+    if (fileArray.length === 0) return;
+
     const projectId =
-      viewModalEvent.shootProjects?.[0]?.id ||
       viewModalEvent.shootId ||
+      viewModalEvent.shoot?.id ||
+      viewModalEvent.shootProjects?.[0]?.id ||
       viewModalEvent.graphicRequirement?.projectId ||
       viewModalEvent.shootProjects?.[0]?.projectId;
 
     try {
       setUploadingScriptDoc(true);
-      const fd = new FormData();
-      fd.append('file', file);
-      if (projectId) {
-        fd.append('projectId', projectId);
-      } else {
-        fd.append('calendarEventId', viewModalEvent.id);
+      for (const file of fileArray) {
+        const fd = new FormData();
+        fd.append('file', file);
+        if (projectId) {
+          fd.append('projectId', projectId);
+        } else {
+          fd.append('calendarEventId', viewModalEvent.id);
+        }
+        fd.append('folderCategory', 'Script Documents');
+        fd.append('attachmentCategory', 'SCRIPT_DOCUMENT');
+        await fetchApi('/files/upload', {
+          method: 'POST',
+          body: fd,
+        });
       }
-      fd.append('folderCategory', 'Script Documents');
-      fd.append('attachmentCategory', 'SCRIPT_DOCUMENT');
-      await fetchApi('/files/upload', {
-        method: 'POST',
-        body: fd,
-      });
-      alert('Script document uploaded successfully!');
+      alert(
+        fileArray.length === 1
+          ? 'Script document uploaded successfully!'
+          : `${fileArray.length} script documents uploaded successfully!`
+      );
       if (projectId) {
         const res = await fetchApi(`/files/project/${projectId}`);
         setEventFiles(res.allFiles || []);
@@ -174,6 +186,27 @@ export default function CalendarPage() {
       alert(err.message || 'Failed to upload script document.');
     } finally {
       setUploadingScriptDoc(false);
+    }
+  };
+
+  const [deletingScriptId, setDeletingScriptId] = useState<string | null>(null);
+
+  const handleDeleteExistingScriptFile = async (fileId: string, fileName: string) => {
+    if (!confirm(`Are you sure you want to delete script document "${fileName}"?`)) return;
+    try {
+      setDeletingScriptId(fileId);
+      await fetchApi(`/files/${fileId}`, {
+        method: 'DELETE',
+      });
+      const targetObj = editingEvent || viewModalEvent;
+      if (targetObj) {
+        await loadEventFiles(targetObj);
+      }
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete script document.');
+    } finally {
+      setDeletingScriptId(null);
     }
   };
 
@@ -547,11 +580,15 @@ export default function CalendarPage() {
     };
 
     try {
+      setIsSubmittingEvent(true);
       let savedRes: any = null;
+      let isEditRequest = false;
+
       if (editingEvent) {
         const isApproved = APPROVED_CALENDAR_STATUSES.includes(editingEvent.status);
 
         if (isApproved && user?.role !== 'MARKETING_MANAGER' && (user?.role as string) !== 'ADMIN' && user?.role !== 'ADMINISTRATOR') {
+          isEditRequest = true;
           savedRes = await fetchApi(`/calendar/${editingEvent.id}/edit-request`, {
             method: 'POST',
             body: JSON.stringify({
@@ -559,7 +596,6 @@ export default function CalendarPage() {
               reason: editReason || 'Requested changes to approved calendar event',
             }),
           });
-          alert('Edit Request Submitted!\n\nYour requested modifications have been sent to the Marketing Manager for approval. The original live event remains unchanged until approved.');
         } else {
           savedRes = await fetchApi(`/calendar/${editingEvent.id}`, {
             method: 'PUT',
@@ -573,65 +609,66 @@ export default function CalendarPage() {
         });
       }
 
-      if (scriptDocFile && (savedRes || editingEvent)) {
+      if (scriptDocFiles && scriptDocFiles.length > 0 && (savedRes || editingEvent)) {
         const targetEventId = savedRes?.id || editingEvent?.id;
         const targetProjectId =
           savedRes?.shootId ||
+          savedRes?.shoot?.id ||
           savedRes?.shootProjects?.[0]?.id ||
+          savedRes?.graphicRequirement?.projectId ||
+          editingEvent?.shootId ||
+          editingEvent?.shoot?.id ||
           editingEvent?.shootProjects?.[0]?.id ||
-          editingEvent?.shootId;
+          editingEvent?.graphicRequirement?.projectId;
 
-        const uploadFd = new FormData();
-        uploadFd.append('file', scriptDocFile);
-        if (targetProjectId) {
-          uploadFd.append('projectId', targetProjectId);
-        } else if (targetEventId) {
-          uploadFd.append('calendarEventId', targetEventId);
-        }
-        uploadFd.append('folderCategory', 'Script Documents');
-        uploadFd.append('attachmentCategory', 'SCRIPT_DOCUMENT');
-        try {
-          await fetchApi('/files/upload', {
-            method: 'POST',
-            body: uploadFd,
-          });
-        } catch (uploadErr) {
-          console.warn('Script document upload error:', uploadErr);
-        }
+        await Promise.all(
+          scriptDocFiles.map((file) => {
+            const uploadFd = new FormData();
+            uploadFd.append('file', file);
+            if (targetProjectId) {
+              uploadFd.append('projectId', targetProjectId);
+            } else if (targetEventId) {
+              uploadFd.append('calendarEventId', targetEventId);
+            }
+            uploadFd.append('folderCategory', 'Script Documents');
+            uploadFd.append('attachmentCategory', 'SCRIPT_DOCUMENT');
+            return fetchApi('/files/upload', {
+              method: 'POST',
+              body: uploadFd,
+            }).catch((uploadErr) => {
+              console.warn('Script document upload error:', uploadErr);
+            });
+          })
+        );
       }
 
-      setScriptDocFile(null);
+      setScriptDocFiles([]);
       setShowAddModal(false);
       setEditingEvent(null);
       setEditReason('');
       resetForm();
       setStatusFilter('ALL');
       loadData();
+
+      if (isEditRequest) {
+        alert('✅ Edit Request Submitted!\n\nYour requested modifications have been sent to the Marketing Manager for review and approval. The original event remains unchanged until approved.');
+      } else if (editingEvent) {
+        alert('✅ Event updated and submitted for Marketing Manager approval successfully!');
+      } else {
+        alert('✅ Event created and submitted for Marketing Manager approval successfully!');
+      }
     } catch (err: any) {
       alert(err.message || 'Failed to save calendar event');
+    } finally {
+      setIsSubmittingEvent(false);
     }
   };
 
 
   const openEdit = (eventItem: any) => {
+    if (!eventItem) return;
+
     const isApproved = APPROVED_CALENDAR_STATUSES.includes(eventItem.status);
-    const isUnderReview = [
-      'PENDING_CLIENT_APPROVAL',
-      'PENDING_CLIENT_REVIEW',
-      'PENDING_MARKETING_APPROVAL',
-      'WAITING_FOR_MARKETING_APPROVAL',
-      'WAITING_FOR_TECHNICAL_REVIEW',
-      'TECHNICAL_REVIEW',
-      'WAITING_FOR_MEDIA_REVIEW',
-      'MEDIA_MANAGER_REVIEW',
-      'WAITING_FOR_CLIENT_CONFIRMATION',
-    ].includes(eventItem.status);
-
-    if (isUnderReview && eventItem.status !== 'REJECTED' && eventItem.approvalStatus !== 'REJECTED') {
-      setViewModalEvent(eventItem);
-      return;
-    }
-
     const hasPendingEditRequest = (
       (eventItem.editRequests && eventItem.editRequests.some((r: any) => r.status === 'PENDING_MARKETING_APPROVAL')) ||
       Boolean(eventItem.editRequestedById)
@@ -642,7 +679,11 @@ export default function CalendarPage() {
       return;
     }
 
+    setViewModalEvent(null);
     setEditingEvent(eventItem);
+    setScriptDocFiles([]);
+    setEditReason('');
+    loadEventFiles(eventItem);
     const existingTeam = eventItem.shootProjects?.[0]?.assignedTeam?.map((tm: any) => tm.userId) || [];
     const existingEq = eventItem.shootProjects?.[0]?.equipmentReservations?.map((res: any) => res.equipmentId) || [];
     const staffId = eventItem.assignedStaffId || eventItem.assignedStaff?.id || existingTeam[0] || '';
@@ -2605,47 +2646,199 @@ export default function CalendarPage() {
               )}
             </div>
 
-            {/* SCRIPT DOCUMENT UPLOAD (OPTIONAL) */}
-            <div className="space-y-3 bg-purple-50/50 p-4 rounded-xl border border-purple-200 text-xs">
-              <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
-                <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-purple-600" /> Script Document (Optional)
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono bg-purple-100 text-purple-800 px-2 py-0.5 rounded border border-purple-200">
-                  PDF / DOC / DOCX / TXT
-                </span>
-              </div>
-              <div>
-                <label className="text-slate-800 font-bold block mb-1">
-                  Upload Script Document (Optional)
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="file"
-                    id="calendarScriptDocInput"
-                    accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                    onChange={(e) => setScriptDocFile(e.target.files?.[0] || null)}
-                    className="text-xs text-slate-700 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200 cursor-pointer"
-                  />
-                  {scriptDocFile && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setScriptDocFile(null);
-                        const input = document.getElementById('calendarScriptDocInput') as HTMLInputElement;
-                        if (input) input.value = '';
-                      }}
-                      className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold"
-                    >
-                      Remove
-                    </button>
-                  )}
+            {/* SCRIPT DOCUMENTS (MULTI-FILE SUPPORT & VAULT MANAGEMENT) */}
+            {(() => {
+              const existingScriptFiles = (eventFiles || []).filter(
+                (f: any) =>
+                  f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+                  f.folderCategory === 'Script Documents' ||
+                  f.storagePath?.includes('Script Documents') ||
+                  f.fileName?.match(/\.(pdf|doc|docx|txt)$/i)
+              );
+              const totalCount = existingScriptFiles.length + scriptDocFiles.length;
+
+              return (
+                <div className="space-y-3 bg-purple-50/60 p-4 rounded-xl border border-purple-200 text-xs">
+                  <div className="flex items-center justify-between border-b border-purple-200/80 pb-2 flex-wrap gap-2">
+                    <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-purple-600" /> Attached Script Documents ({totalCount})
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono bg-purple-100 text-purple-800 px-2 py-0.5 rounded border border-purple-200 font-bold">
+                      PDF / DOC / DOCX / TXT
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                      <label className="text-slate-800 font-bold block">
+                        Script Documents (PDF, Word, TXT)
+                      </label>
+                      <label className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs cursor-pointer flex items-center gap-1.5 transition-all shadow-xs">
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Add Script Files</span>
+                        <input
+                          type="file"
+                          id="calendarScriptDocInput"
+                          multiple
+                          accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                              const newFiles = Array.from(e.target.files);
+                              setScriptDocFiles((prev) => [...prev, ...newFiles]);
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Loading State when fetching existing files for editing */}
+                    {loadingEventFiles && editingEvent && (
+                      <div className="p-3 bg-white border border-purple-100 rounded-lg text-slate-500 flex items-center gap-2 text-xs mb-2">
+                        <RotateCcw className="w-3.5 h-3.5 animate-spin text-purple-600" />
+                        <span>Loading attached script documents...</span>
+                      </div>
+                    )}
+
+                    {/* List of Existing Script Documents already in Vault */}
+                    {existingScriptFiles.length > 0 && (
+                      <div className="space-y-2 mb-3">
+                        <span className="text-[10px] font-bold text-purple-900 uppercase tracking-wider block">
+                          Existing Attached Scripts ({existingScriptFiles.length})
+                        </span>
+                        {existingScriptFiles.map((sf: any) => {
+                          const ext = sf.fileName?.split('.').pop()?.toUpperCase() || 'FILE';
+                          const isDeleting = deletingScriptId === sf.id;
+                          const fileUrl = sf.storagePath?.startsWith('http')
+                            ? sf.storagePath
+                            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${sf.storagePath?.replace(/^\/?/, '')}`;
+
+                          return (
+                            <div
+                              key={sf.id || sf.fileName}
+                              className="flex items-center justify-between p-2.5 bg-white border border-purple-200/90 rounded-lg shadow-xs gap-2"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-purple-100 text-purple-900 border border-purple-200 shrink-0">
+                                  {ext}
+                                </span>
+                                <div className="min-w-0 overflow-hidden">
+                                  <p className="font-bold text-slate-900 text-xs truncate" title={sf.fileName}>
+                                    {sf.fileName}
+                                  </p>
+                                  <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 flex-wrap mt-0.5">
+                                    {sf.fileSize && <span>{(sf.fileSize / 1024).toFixed(1)} KB</span>}
+                                    {sf.uploadedBy && (
+                                      <span className="font-semibold text-purple-700 bg-purple-50 px-1 py-0.2 rounded border border-purple-200">
+                                        Uploaded by {sf.uploadedBy.name || 'User'} ({sf.uploadedBy.role?.replace(/_/g, ' ') || 'Staff'})
+                                      </span>
+                                    )}
+                                    {sf.createdAt && (
+                                      <span className="text-slate-400">• {new Date(sf.createdAt).toLocaleDateString()}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <a
+                                  href={fileUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors shadow-xs"
+                                  title="Open / Preview script file"
+                                >
+                                  <Eye className="w-3.5 h-3.5" /> View
+                                </a>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteExistingScriptFile(sf.id, sf.fileName)}
+                                  disabled={isDeleting}
+                                  className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs transition-colors disabled:opacity-50"
+                                  title="Delete this script document"
+                                >
+                                  {isDeleting ? (
+                                    <RotateCcw className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                                  ) : (
+                                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* List of Newly selected script files to be uploaded */}
+                    {scriptDocFiles.length > 0 && (
+                      <div className="space-y-2 mt-2">
+                        <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
+                          New Files to Upload on Save ({scriptDocFiles.length})
+                        </span>
+                        {scriptDocFiles.map((file, idx) => {
+                          const isPdf = file.name.toLowerCase().endsWith('.pdf');
+                          const isDoc = file.name.toLowerCase().endsWith('.doc') || file.name.toLowerCase().endsWith('.docx');
+                          const sizeKb = (file.size / 1024).toFixed(1);
+                          const sizeMb = (file.size / 1024 / 1024).toFixed(2);
+                          const displaySize = file.size > 1024 * 1024 ? `${sizeMb} MB` : `${sizeKb} KB`;
+
+                          return (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between p-2.5 bg-emerald-50/40 border border-emerald-200 rounded-lg shadow-xs gap-2"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                                    isPdf
+                                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                      : isDoc
+                                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                      : 'bg-purple-50 text-purple-700 border border-purple-200'
+                                  }`}
+                                >
+                                  {isPdf ? 'PDF' : isDoc ? 'DOC' : 'TXT'}
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-slate-900 text-xs truncate max-w-xs sm:max-w-md">
+                                    {file.name}
+                                  </p>
+                                  <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                                    <span>{displaySize}</span>
+                                    <span className="text-emerald-700 font-semibold">• Ready to upload</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setScriptDocFiles((prev) => prev.filter((_, i) => i !== idx));
+                                }}
+                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                                title="Remove this script document"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Empty notice if no existing or newly selected files */}
+                    {existingScriptFiles.length === 0 && scriptDocFiles.length === 0 && !loadingEventFiles && (
+                      <div className="p-3 bg-white/70 border border-purple-100 rounded-lg text-slate-500 text-xs text-center">
+                        No script documents attached to this event yet. Click "+ Add Script Files" to attach.
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Attach a prepared script file (PDF, Word Doc, or Text). The Marketing Manager can review or update scripts at any time.
-                </p>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* NOTES */}
             <div className="space-y-2 bg-slate-50/50 p-4 rounded-xl border border-slate-200">
@@ -2662,32 +2855,39 @@ export default function CalendarPage() {
             <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
               <button
                 type="button"
+                disabled={isSubmittingEvent}
                 onClick={() => {
                   setShowAddModal(false);
                   setEditingEvent(null);
                   setEditReason('');
                 }}
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded font-semibold"
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className={`px-4 py-2 text-white rounded font-semibold transition-all ${
+                disabled={isSubmittingEvent}
+                className={`px-5 py-2.5 text-white rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                   editingEvent && ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN')
-                    ? 'bg-amber-600 hover:bg-amber-500 shadow-lg shadow-amber-600/30 font-bold'
+                    ? 'bg-amber-600 hover:bg-amber-500 shadow-md shadow-amber-600/30'
                     : (editingEvent && (editingEvent.status === 'REJECTED' || editingEvent.approvalStatus === 'REJECTED'))
-                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/30 font-extrabold'
-                    : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/30'
+                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/30 font-black'
+                    : 'bg-blue-600 hover:bg-blue-500 shadow-md shadow-blue-600/30'
                 }`}
               >
-                {editingEvent
-                  ? ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN')
+                {isSubmittingEvent ? (
+                  <>
+                    <RotateCcw className="w-4 h-4 animate-spin text-white" />
+                    <span>Submitting Event...</span>
+                  </>
+                ) : editingEvent ? (
+                  ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'OPERATIONAL', 'TASK_ASSIGNED', 'IN_PRODUCTION'].includes(editingEvent.status) && (user?.role === 'MEDIA_MANAGER' || user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MARKETING_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN')
                     ? 'Submit Edit Request'
                     : (editingEvent.status === 'REJECTED' || editingEvent.approvalStatus === 'REJECTED')
                     ? 'Save & Re-submit for Marketing Approval'
                     : 'Save Event'
-                  : user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MEDIA_MANAGER'
+                ) : user?.role === 'SOCIAL_MEDIA_MANAGER' || user?.role === 'MEDIA_MANAGER'
                   ? 'Schedule Event (Requires Marketing Approval)'
                   : 'Schedule Event'}
               </button>
@@ -3181,22 +3381,9 @@ export default function CalendarPage() {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
                   <FileText className="w-4 h-4 text-purple-700" /> Attached Script Documents
                 </span>
-                <div className="flex items-center gap-2">
-                  <label className={`px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-all shadow-xs ${uploadingScriptDoc ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>{uploadingScriptDoc ? 'Uploading...' : '+ Add New Script'}</span>
-                    <input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUploadScriptDocForEvent(file);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
-                </div>
+                <span className="text-[10px] font-mono text-purple-800 bg-purple-100 px-2 py-0.5 rounded border border-purple-200 font-bold">
+                  PDF / DOC / DOCX / TXT
+                </span>
               </div>
 
               {loadingEventFiles ? (
@@ -3216,7 +3403,6 @@ export default function CalendarPage() {
                   return (
                     <div className="p-3 bg-white/80 border border-purple-100 rounded-lg text-slate-500 flex items-center justify-between">
                       <span>No script documents attached to this shoot event yet.</span>
-                      <span className="text-[10px] text-purple-700 font-semibold">Marketing Manager can review or attach scripts at any time</span>
                     </div>
                   );
                 }
@@ -3239,9 +3425,13 @@ export default function CalendarPage() {
                             </div>
                             <div className="truncate">
                               <span className="font-bold text-slate-900 block truncate">{sf.fileName}</span>
-                              <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                              <div className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap mt-0.5 font-mono">
                                 {sf.fileSize && <span>{(sf.fileSize / 1024).toFixed(1)} KB</span>}
-                                {sf.uploadedBy && <span>• Uploaded by {sf.uploadedBy.name || sf.uploadedBy.role}</span>}
+                                {sf.uploadedBy && (
+                                  <span className="font-semibold text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded border border-purple-200">
+                                    Uploaded by {sf.uploadedBy.name || 'User'} ({sf.uploadedBy.role?.replace(/_/g, ' ') || 'Staff'})
+                                  </span>
+                                )}
                                 {sf.createdAt && <span>• {new Date(sf.createdAt).toLocaleDateString()}</span>}
                               </div>
                             </div>
@@ -3379,33 +3569,55 @@ export default function CalendarPage() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {(viewModalEvent.status === 'REJECTED' || viewModalEvent.approvalStatus === 'REJECTED') ? (
-                  <>
-                    <button
-                      onClick={async () => {
-                        const id = viewModalEvent.id;
-                        setViewModalEvent(null);
-                        await handleSubmitForApproval(id);
-                      }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
-                    >
-                      <Send className="w-3.5 h-3.5" /> Re-submit for Approval
-                    </button>
+                {(() => {
+                  const isUnderReview = [
+                    'PENDING_CLIENT_APPROVAL',
+                    'PENDING_CLIENT_REVIEW',
+                    'PENDING_MARKETING_APPROVAL',
+                    'WAITING_FOR_MARKETING_APPROVAL',
+                    'WAITING_FOR_TECHNICAL_REVIEW',
+                    'TECHNICAL_REVIEW',
+                    'WAITING_FOR_MEDIA_REVIEW',
+                    'MEDIA_MANAGER_REVIEW',
+                    'WAITING_FOR_CLIENT_CONFIRMATION',
+                  ].includes(viewModalEvent.status);
+
+                  if (viewModalEvent.status === 'REJECTED' || viewModalEvent.approvalStatus === 'REJECTED') {
+                    return (
+                      <>
+                        <button
+                          onClick={async () => {
+                            const id = viewModalEvent.id;
+                            setViewModalEvent(null);
+                            await handleSubmitForApproval(id);
+                          }}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                        >
+                          <Send className="w-3.5 h-3.5" /> Re-submit for Approval
+                        </button>
+                        <button
+                          onClick={() => { setViewModalEvent(null); openEdit(viewModalEvent); }}
+                          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                        >
+                          <Edit className="w-3.5 h-3.5" /> Edit &amp; Re-submit Event
+                        </button>
+                      </>
+                    );
+                  }
+
+                  if (isUnderReview) {
+                    return null;
+                  }
+
+                  return (
                     <button
                       onClick={() => { setViewModalEvent(null); openEdit(viewModalEvent); }}
-                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5"
                     >
-                      <Edit className="w-3.5 h-3.5" /> Edit &amp; Re-submit Event
+                      <Edit className="w-3.5 h-3.5" /> Edit Event
                     </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => { setViewModalEvent(null); openEdit(viewModalEvent); }}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5"
-                  >
-                    <Edit className="w-3.5 h-3.5" /> Edit Event
-                  </button>
-                )}
+                  );
+                })()}
                 <button
                   onClick={() => setViewModalEvent(null)}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold"

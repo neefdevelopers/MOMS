@@ -362,11 +362,12 @@ export function canUserViewProject(
     );
   if (isGraphicReqAssigned) return true;
 
-  // 4. MANAGERS (Marketing Manager, Media Manager, Social Media Manager)
+  // 4. MANAGERS (Marketing Manager, Media Manager, Social Media Manager, Technical Manager)
   if (
     user.role === 'MARKETING_MANAGER' ||
     user.role === 'MEDIA_MANAGER' ||
-    user.role === 'SOCIAL_MEDIA_MANAGER'
+    user.role === 'SOCIAL_MEDIA_MANAGER' ||
+    user.role === 'TECHNICAL_MANAGER'
   ) {
     return true;
   }

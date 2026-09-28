@@ -61,16 +61,6 @@ export default function ConvertEventToTaskModal({
   const [staffUsersList, setStaffUsersList] = useState<any[]>([]);
   const [loadingStaff, setLoadingStaff] = useState(false);
 
-  
-
-  // Equipment selection for Shoot Projects
-  const [equipmentList, setEquipmentList] = useState<any[]>([]);
-  const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
-  const [loadingEquipment, setLoadingEquipment] = useState(false);
-
-  // Script doc upload state
-  const [scriptDocFile, setScriptDocFile] = useState<File | null>(null);
-
   const [creating, setCreating] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -85,24 +75,19 @@ export default function ConvertEventToTaskModal({
       setTaskDueDate(dStr);
       setTaskEstimatedHours('3.0');
       setAssignedStaffIds([]);
-      setSelectedEquipmentIds([]);
-      setScriptDocFile(null);
       setErrorMsg('');
 
-      // Fetch active staff list & equipment list
+      // Fetch active staff list
       setLoadingStaff(true);
-      setLoadingEquipment(true);
-      Promise.all([
-        fetchApi('/users').catch(() => []),
-        fetchApi('/equipment').catch(() => []),
-      ])
-        .then(([resUsers, resEq]) => {
+      fetchApi('/users')
+        .then((resUsers) => {
           setStaffUsersList(Array.isArray(resUsers) ? resUsers : []);
-          setEquipmentList(Array.isArray(resEq) ? resEq : []);
+        })
+        .catch(() => {
+          setStaffUsersList([]);
         })
         .finally(() => {
           setLoadingStaff(false);
-          setLoadingEquipment(false);
         });
     }
   }, [isOpen, eventData]);
@@ -149,49 +134,10 @@ export default function ConvertEventToTaskModal({
         payload.graphicRequirementId = validParentId;
       }
 
-      const createdTask = await fetchApi('/tasks', {
+      await fetchApi('/tasks', {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-
-      if (scriptDocFile && createdTask) {
-        const uploadFd = new FormData();
-        uploadFd.append('file', scriptDocFile);
-        if (validParentId || createdTask.projectId) {
-          uploadFd.append('projectId', validParentId || createdTask.projectId);
-        }
-        if (createdTask.id) {
-          uploadFd.append('taskId', createdTask.id);
-        }
-        uploadFd.append('folderCategory', 'Script Documents');
-        uploadFd.append('attachmentCategory', 'SCRIPT_DOCUMENT');
-        try {
-          await fetchApi('/files/upload', {
-            method: 'POST',
-            body: uploadFd,
-          });
-        } catch (scriptErr) {
-          console.warn('Script upload error on conversion:', scriptErr);
-        }
-      }
-
-      // Reserve equipment if equipment selected during event conversion
-      if (selectedEquipmentIds.length > 0 && eventData.parentType === 'PROJECT' && validParentId) {
-        for (const eqId of selectedEquipmentIds) {
-          try {
-            await fetchApi(`/equipment/${eqId}/reserve`, {
-              method: 'POST',
-              body: JSON.stringify({
-                projectId: validParentId,
-                startDate: new Date().toISOString().split('T')[0],
-                endDate: taskDueDate || new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
-              }),
-            });
-          } catch (e) {
-            console.error('Failed to reserve equipment on task conversion:', e);
-          }
-        }
-      }
 
       alert('Task successfully created and assigned!');
       if (onSuccess) onSuccess();
@@ -376,120 +322,6 @@ export default function ConvertEventToTaskModal({
                 )}
               </div>
             )}
-          </div>
-
-          {/* Equipment Allocation / Requirements (For Shoot Projects & Production Tasks) */}
-          {(() => {
-            const availableEquipmentList = equipmentList.filter((eq) => eq.availability === 'AVAILABLE');
-            const isNoEquipment = equipmentList.length === 0;
-
-            return (
-              <div>
-                <label className="block text-slate-700 font-bold mb-1 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Camera className="w-4 h-4 text-cyan-600" />
-                    <span>Equipment Allocation / Requirements (Optional)</span>
-                  </span>
-                  <span className="text-[10px] font-mono font-semibold text-cyan-700">
-                    {isNoEquipment
-                      ? 'No Equipment in Inventory'
-                      : `${selectedEquipmentIds.length} Selected (${availableEquipmentList.length} Available)`}
-                  </span>
-                </label>
-
-                {loadingEquipment ? (
-                  <div className="p-3 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-                    Loading equipment inventory…
-                  </div>
-                ) : isNoEquipment ? (
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-xs flex items-center gap-2">
-                    <Camera className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span>No equipment items registered in the inventory.</span>
-                  </div>
-                ) : (
-                  <div className="space-y-1.5 max-h-44 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-2.5 custom-scrollbar">
-                    {equipmentList.map((eq) => {
-                      const isAvailable = eq.availability === 'AVAILABLE';
-                      const isChecked = selectedEquipmentIds.includes(eq.id);
-
-                      return (
-                        <label
-                          key={eq.id}
-                          className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
-                            isChecked
-                              ? 'bg-cyan-50 border-cyan-300 text-cyan-900 font-bold'
-                              : isAvailable
-                              ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer'
-                              : 'bg-slate-100/80 border-slate-200 text-slate-500 hover:bg-slate-100 cursor-pointer'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(e) => {
-                                if (e.target.checked) setSelectedEquipmentIds([...selectedEquipmentIds, eq.id]);
-                                else setSelectedEquipmentIds(selectedEquipmentIds.filter((id) => id !== eq.id));
-                              }}
-                              className="w-4 h-4 accent-cyan-600 cursor-pointer rounded"
-                            />
-                            <span className="truncate font-medium text-xs">
-                              {eq.name} <span className="font-mono text-[10px] text-slate-500">({eq.equipmentId || eq.equipmentCode || eq.category})</span>
-                            </span>
-                          </div>
-
-                          <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase border shrink-0 ${
-                            isAvailable
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : eq.availability === 'RESERVED'
-                              ? 'bg-purple-50 text-purple-700 border-purple-200'
-                              : eq.availability === 'ISSUED' || eq.availability === 'CHECKED_OUT' || eq.availability === 'IN_USE'
-                              ? 'bg-amber-50 text-amber-800 border-amber-200'
-                              : 'bg-rose-50 text-rose-700 border-rose-200'
-                          }`}>
-                            {eq.availability?.replace(/_/g, ' ') || 'AVAILABLE'}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* Script Document Upload (Optional) */}
-          <div className="p-3 bg-purple-50/50 border border-purple-200 rounded-xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-purple-700 font-bold uppercase flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-purple-600" /> Script Document (Optional)
-              </span>
-              <span className="text-[9px] font-mono text-purple-800 bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200 font-bold">
-                PDF / DOC / DOCX / TXT
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="file"
-                id="convertScriptDocInput"
-                accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                onChange={(e) => setScriptDocFile(e.target.files?.[0] || null)}
-                className="text-xs text-slate-700 file:mr-3 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200 cursor-pointer"
-              />
-              {scriptDocFile && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScriptDocFile(null);
-                    const input = document.getElementById('convertScriptDocInput') as HTMLInputElement;
-                    if (input) input.value = '';
-                  }}
-                  className="text-xs text-rose-600 hover:text-rose-800 font-bold"
-                >
-                  Remove
-                </button>
-              )}
-            </div>
           </div>
 
           {/* Task Brief / Instructions */}
