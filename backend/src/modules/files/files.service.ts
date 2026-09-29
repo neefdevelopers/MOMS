@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -440,5 +440,85 @@ export class FilesService {
     });
 
     return { message: 'File deleted successfully', id };
+  }
+
+  /**
+   * Adds or removes a clip code on an uploaded script document.
+   *
+   * Codes live on the FileMetadata row (clipCodes JSON), not in the project's script
+   * blob, so this is the single writable path for document clip codes. Strictly limited
+   * to staff assigned to the parent project - no admin or manager override. Every other
+   * role can still read the codes on the project files response.
+   */
+  async updateFileClipCode(
+    id: string,
+    action: 'add' | 'remove',
+    payload: { code?: string; description?: string },
+    user: any,
+  ) {
+    const file = await this.prisma.fileMetadata.findUnique({
+      where: { id },
+      select: { id: true, fileName: true, clipCodes: true, projectId: true },
+    });
+    if (!file) throw new NotFoundException('File not found');
+
+    // Strictly assigned staff only - no admin or manager override.
+    const assignment = await this.prisma.projectAssignment.findFirst({
+      where: { projectId: file.projectId, userId: user?.id || user?.sub },
+      select: { id: true },
+    });
+    if (!assignment) {
+      throw new ForbiddenException(
+        'Only staff assigned to this project may add or remove clip codes on a script document. You have read-only access.',
+      );
+    }
+
+    let existing: any[] = [];
+    if (file.clipCodes) {
+      try {
+        const parsed = JSON.parse(file.clipCodes);
+        if (Array.isArray(parsed)) existing = parsed;
+      } catch {
+        existing = [];
+      }
+    }
+
+    const code = (payload.code || '').trim();
+    if (!code) throw new BadRequestException('A clip code is required.');
+
+    let next: any[];
+    if (action === 'add') {
+      if (existing.some((c: any) => String(c?.code || '').toLowerCase() === code.toLowerCase())) {
+        throw new ConflictException(`Clip code "${code}" already exists on this document.`);
+      }
+      next = [
+        ...existing,
+        {
+          code,
+          description: (payload.description || '').trim(),
+          addedBy: user?.name || user?.email || null,
+          addedAt: new Date().toISOString(),
+        },
+      ];
+    } else {
+      next = existing.filter((c: any) => String(c?.code || '') !== code);
+    }
+
+    await this.prisma.fileMetadata.update({
+      where: { id },
+      data: { clipCodes: JSON.stringify(next) },
+    });
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user?.id || user?.sub || null,
+        action: action === 'add' ? 'ADD_CLIP_CODE' : 'REMOVE_CLIP_CODE',
+        entity: 'FileMetadata',
+        entityId: id,
+        description: `${action === 'add' ? 'Added' : 'Removed'} clip code ${code} on '${file.fileName}'`,
+      },
+    });
+
+    return { id, clipCodes: next };
   }
 }

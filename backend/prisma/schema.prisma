@@ -832,6 +832,10 @@ model FileMetadata {
   storagePath          String
   activeVersion        Boolean             @default(true)
   attachmentCategory   String              @default("DOCUMENT")
+  // Clip codes recorded against this uploaded script document, stored as a JSON
+  // array of { code, description?, addedBy?, addedAt? }. Writable only by staff
+  // assigned to the parent project; every other role has read-only access.
+  clipCodes            String?
   projectId            String
   project              ShootProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   graphicRequirementId String?

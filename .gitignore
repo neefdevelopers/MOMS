@@ -40,3 +40,7 @@ Thumbs.db
 # Local uploads & build cache
 backend/uploads/
 *.tsbuildinfo
+
+# Local agent tooling state (machine-specific paths and session data)
+.quantum/
+quantum.toml

@@ -30,9 +30,6 @@ interface ProjectEquipmentTabProps {
 export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabProps) {
   const { user } = useAuth();
 
-  // Status Filter State
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CHECKED_OUT' | 'RETURNED'>('ALL');
-
   // Inline Review Form for Managers
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
@@ -128,22 +125,7 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
     }
   });
 
-  // Calculate Status Counts
-  const counts = {
-    total: unifiedItems.length,
-    pending: unifiedItems.filter((i) => i.status === 'PENDING').length,
-    approved: unifiedItems.filter((i) => i.status === 'APPROVED').length,
-    rejected: unifiedItems.filter((i) => i.status === 'REJECTED').length,
-    checkedOut: unifiedItems.filter((i) => i.status === 'CHECKED_OUT' || i.status === 'IN_USE').length,
-    returned: unifiedItems.filter((i) => i.status === 'RETURNED').length,
-  };
-
-  // Filter items
-  const filteredItems = unifiedItems.filter((item) => {
-    if (statusFilter === 'ALL') return true;
-    if (statusFilter === 'CHECKED_OUT') return item.status === 'CHECKED_OUT' || item.status === 'IN_USE';
-    return item.status === statusFilter;
-  });
+  const filteredItems = unifiedItems;
 
   return (
     <div className="space-y-6 text-xs">
@@ -154,115 +136,16 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
             <Camera className="w-5 h-5 text-blue-600" />
             Project Equipment &amp; Allocation
           </h3>
-          <p className="text-slate-500 text-xs mt-0.5">
-            Track allocated gear status (Pending, Approved, Rejected, Issued) and manage cameras, lighting, and audio equipment for this project.
-          </p>
         </div>
-      </div>
-
-      {/* KPI Counters Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <button
-          type="button"
-          onClick={() => setStatusFilter('ALL')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
-            statusFilter === 'ALL'
-              ? 'bg-blue-50/80 border-blue-300 ring-2 ring-blue-500/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300'
-          }`}
-        >
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Gear</div>
-          <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">{counts.total}</div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter('PENDING')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
-            statusFilter === 'PENDING'
-              ? 'bg-amber-50/80 border-amber-300 ring-2 ring-amber-500/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300'
-          }`}
-        >
-          <div className="text-[11px] font-bold text-amber-600 uppercase tracking-wider flex items-center gap-1">
-            <Clock className="w-3 h-3" /> Pending Review
-          </div>
-          <div className="text-xl font-bold text-amber-600 font-mono mt-0.5">{counts.pending}</div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter('APPROVED')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
-            statusFilter === 'APPROVED'
-              ? 'bg-emerald-50/80 border-emerald-300 ring-2 ring-emerald-500/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300'
-          }`}
-        >
-          <div className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1">
-            <BadgeCheck className="w-3 h-3" /> Approved
-          </div>
-          <div className="text-xl font-bold text-emerald-600 font-mono mt-0.5">{counts.approved}</div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter('CHECKED_OUT')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
-            statusFilter === 'CHECKED_OUT'
-              ? 'bg-indigo-50/80 border-indigo-300 ring-2 ring-indigo-500/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300'
-          }`}
-        >
-          <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-1">
-            <ArrowRightLeft className="w-3 h-3" /> Issued / In Use
-          </div>
-          <div className="text-xl font-bold text-indigo-600 font-mono mt-0.5">{counts.checkedOut}</div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter('REJECTED')}
-          className={`p-3.5 rounded-xl border text-left transition-all ${
-            statusFilter === 'REJECTED'
-              ? 'bg-rose-50/80 border-rose-300 ring-2 ring-rose-500/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300'
-          }`}
-        >
-          <div className="text-[11px] font-bold text-rose-600 uppercase tracking-wider flex items-center gap-1">
-            <XCircle className="w-3 h-3" /> Rejected
-          </div>
-          <div className="text-xl font-bold text-rose-600 font-mono mt-0.5">{counts.rejected}</div>
-        </button>
       </div>
 
       {/* Allocated Equipment List Container */}
       <div className="bg-white border border-slate-200 p-5 rounded-2xl space-y-4 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
-          <div className="flex items-center gap-2">
-            <Package className="w-4 h-4 text-slate-600" />
-            <h4 className="font-bold text-slate-900 text-sm">
-              Allocated Equipment ({filteredItems.length})
-            </h4>
-          </div>
-
-          {/* Quick Filter Pills */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {(['ALL', 'PENDING', 'APPROVED', 'CHECKED_OUT', 'REJECTED'] as const).map((filter) => (
-              <button
-                key={filter}
-                type="button"
-                onClick={() => setStatusFilter(filter)}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
-                  statusFilter === filter
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {filter === 'ALL' ? 'All' : filter.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+          <Package className="w-4 h-4 text-slate-600" />
+          <h4 className="font-bold text-slate-900 text-sm">
+            Allocated Equipment ({filteredItems.length})
+          </h4>
         </div>
 
         {filteredItems.length === 0 ? (
@@ -270,23 +153,12 @@ export function ProjectEquipmentTab({ project, onRefresh }: ProjectEquipmentTabP
             <Camera className="w-8 h-8 text-slate-400 mx-auto" />
             <div className="space-y-1">
               <p className="text-slate-700 font-bold text-xs">
-                {statusFilter === 'ALL'
-                  ? 'No equipment allocated to this shoot project yet.'
-                  : `No equipment matching "${statusFilter.replace('_', ' ')}" status.`}
+                No equipment allocated to this shoot project yet.
               </p>
               <p className="text-[11px] text-slate-400">
                 Equipment is assigned from the Projects to Assign workspace or during project creation.
               </p>
             </div>
-            {statusFilter !== 'ALL' && (
-              <button
-                type="button"
-                onClick={() => setStatusFilter('ALL')}
-                className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg inline-flex items-center gap-1 text-xs"
-              >
-                Clear Filter
-              </button>
-            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -715,6 +715,42 @@ export class ProjectsService {
     return project;
   }
 
+  /**
+   * Safety net: clip codes now live on FileMetadata rows, not in the project script
+   * blob. Any legacy codes still living in notes are preserved here so a generic project
+   * update can change script copy without silently discarding historical codes.
+   */
+  private preservePersistedClipCodes(persistedNotes: any, incomingNotes: string): string {
+    const readScripts = (raw: any): any[] | null => {
+      if (typeof raw !== 'string') return null;
+      const trimmed = raw.trim();
+      if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) return null;
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed;
+        if (parsed && Array.isArray(parsed.scripts)) return parsed.scripts;
+        return null;
+      } catch {
+        return null;
+      }
+    };
+
+    const persisted = readScripts(persistedNotes);
+    const incoming = readScripts(incomingNotes);
+    // Not a structured script blob on either side - nothing to reconcile.
+    if (!persisted || !incoming) return incomingNotes;
+
+    const merged = incoming.map((s: any) => {
+      const prior = persisted.find((p: any) => p && p.id === s?.id);
+      return {
+        ...s,
+        clipCodes: prior && Array.isArray(prior.clipCodes) ? prior.clipCodes : [],
+      };
+    });
+
+    return JSON.stringify(merged, null, 2);
+  }
+
   async update(id: string, data: any, userId: string) {
     const existing = await this.findOne(id);
 
@@ -744,6 +780,25 @@ export class ProjectsService {
     }
 
     const updateData: any = { ...data };
+
+    // `bypassReviewLock` is a request-only control flag, not a ShootProject column.
+    // Forwarding it to Prisma throws a PrismaClientValidationError (HTTP 500), so strip
+    // it here. It is already consumed by the review-lock check above.
+    delete updateData.bypassReviewLock;
+
+    // Guard against any other control-only or unknown field reaching Prisma: an
+    // unrecognised key otherwise fails the whole update with a 500.
+    const shootProjectColumns = new Set(Object.keys(this.prisma.shootProject.fields));
+    for (const key of Object.keys(updateData)) {
+      if (!shootProjectColumns.has(key)) {
+        delete updateData[key];
+      }
+    }
+
+    // A generic update may rewrite the script blob, but never the clip codes inside it.
+    if (typeof updateData.notes === 'string') {
+      updateData.notes = this.preservePersistedClipCodes(existing.notes, updateData.notes);
+    }
 
     if (data.teamUserIds && Array.isArray(data.teamUserIds)) {
       await this.prisma.projectAssignment.deleteMany({ where: { projectId: id } });

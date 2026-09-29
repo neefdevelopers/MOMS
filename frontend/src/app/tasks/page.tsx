@@ -647,8 +647,8 @@ export default function TasksPage() {
     }
   };
 
-  const loadTasks = async () => {
-    setLoading(true);
+  const loadTasks = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       let query = '?';
       if (searchQuery.trim()) query += `search=${encodeURIComponent(searchQuery.trim())}&`;
@@ -664,7 +664,7 @@ export default function TasksPage() {
     } catch (err) {
       console.error('Failed to load tasks list:', err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -925,24 +925,49 @@ export default function TasksPage() {
     }
   };
 
+  const [acceptingTaskId, setAcceptingTaskId] = useState<string | null>(null);
+
   const handleAcknowledgeAcceptance = async (taskId: string) => {
+    if (acceptingTaskId) return;
+    setAcceptingTaskId(taskId);
+
+    // Optimistic local patch so the Accept control flips immediately instead of waiting
+    // on the request plus a full task-list reload.
+    const applyAccepted = (t: any) => {
+      if (t?.id !== taskId) return t;
+      const assignedEmployees = Array.isArray(t.assignedEmployees)
+        ? t.assignedEmployees.map((a: any) =>
+            a.userId === user?.id || a?.user?.id === user?.id
+              ? { ...a, acceptanceStatus: 'ACCEPTED', acceptedAt: new Date().toISOString() }
+              : a
+          )
+        : t.assignedEmployees;
+      return { ...t, status: t.status === 'ACCEPTED' ? t.status : 'IN_PROGRESS', assignedEmployees };
+    };
+
+    setTasks((prev) => prev.map(applyAccepted));
+    setInspectedTask((prev: any) => (prev ? applyAccepted(prev) : prev));
+
     try {
-      const res = await fetchApi(`/tasks/${taskId}/accept`, { method: 'POST' });
-      alert('Task assignment accepted and acknowledged successfully!');
-      loadData();
-      if (res && res.id === taskId) {
-        setInspectedTask(res);
-      } else if (inspectedTask && inspectedTask.id === taskId) {
-        setInspectedTask((prev: any) => ({
-          ...prev,
-          status: 'ACCEPTED',
-          assignedEmployees: prev?.assignedEmployees?.map((a: any) =>
-            a.userId === user?.id ? { ...a, acceptanceStatus: 'ACCEPTED', acceptedAt: new Date().toISOString() } : a
-          ),
-        }));
+      await fetchApi(`/tasks/${taskId}/accept`, { method: 'POST' });
+      // Silent background refresh: reconciles server side effects (project/requirement
+      // status, timeline) without blocking the UI or blanking the table.
+      void loadTasks(false);
+      if (inspectedTask && inspectedTask.id === taskId) {
+        fetchApi(`/tasks/${taskId}`, { cacheTtlMs: 0 })
+          .then((fetched: any) => {
+            const item = fetched?.data || fetched;
+            if (item && item.id) setInspectedTask(item);
+          })
+          .catch(() => null);
       }
     } catch (err: any) {
+      // Reload authoritative state to undo the optimistic patch.
+      setInspectedTask((prev: any) => (prev && prev.id === taskId ? null : prev));
+      void loadTasks(false);
       alert(err.message || 'Failed to acknowledge task acceptance');
+    } finally {
+      setAcceptingTaskId(null);
     }
   };
 
@@ -1761,10 +1786,11 @@ export default function TasksPage() {
                               return (
                                 <button
                                   onClick={() => handleAcknowledgeAcceptance(task.id)}
-                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-[11px] transition-all shadow flex items-center gap-1 animate-pulse"
+                                  disabled={acceptingTaskId === task.id}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-[11px] transition-all shadow flex items-center gap-1 animate-pulse disabled:opacity-60 disabled:cursor-wait disabled:animate-none"
                                   title="Accept Task Assignment to Unlock Work Controls"
                                 >
-                                  Accept Task
+                                  {acceptingTaskId === task.id ? 'Accepting…' : 'Accept Task'}
                                 </button>
                               );
                             }

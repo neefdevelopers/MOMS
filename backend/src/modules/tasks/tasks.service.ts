@@ -252,18 +252,33 @@ export class TasksService {
         }).catch(() => null);
         t.sourceType = computed;
       }
+    }
 
-      // Attach approvalHistory containing reviewer validations and remarks
-      const approvalHistory = await this.prisma.approval.findMany({
-        where: { entityType: 'TASK', entityId: t.id },
+    // Attach approvalHistory containing reviewer validations and remarks.
+    // Batched as a single query to avoid the previous N+1 round-trips per task.
+    const approvalHistoryMap = await this.prisma.approval
+      .findMany({
+        where: { entityType: 'TASK', entityId: { in: tasks.map((t: any) => t.id) } },
         include: {
           reviewer: { select: { id: true, name: true, role: true, avatarUrl: true } },
           requestedBy: { select: { id: true, name: true, role: true } },
         },
         orderBy: { createdAt: 'desc' },
-      }).catch(() => []);
-      t.approvalHistory = approvalHistory;
+      })
+      .then((rows: any[]) =>
+        rows.reduce((acc: Map<string, any[]>, row: any) => {
+          const list = acc.get(row.entityId) || [];
+          list.push(row);
+          acc.set(row.entityId, list);
+          return acc;
+        }, new Map<string, any[]>()),
+      )
+      .catch(() => new Map<string, any[]>() as Map<string, any[]>);
+
+    for (const t of tasks) {
+      t.approvalHistory = approvalHistoryMap.get(t.id) || [];
     }
+
     return tasks;
   }
 
@@ -1530,70 +1545,147 @@ export class TasksService {
   }
 
   async acknowledgeTaskAcceptance(taskId: string, user: any) {
-    const task = await this.findOne(taskId);
-
-    await this.prisma.taskAssignment.upsert({
-      where: { taskId_userId: { taskId: task.id, userId: user.id } },
-      create: {
-        taskId: task.id,
-        userId: user.id,
-        acceptanceStatus: 'ACCEPTED',
-        acceptedAt: new Date(),
-      },
-      update: {
-        acceptanceStatus: 'ACCEPTED',
-        acceptedAt: new Date(),
+    // Lean lookup: skip the heavyweight findOne() include tree, the full task payload
+    // is re-read once at the end for the response.
+    const task = await this.prisma.task.findFirst({
+      where: { OR: [{ id: taskId }, { taskId }] },
+      select: {
+        id: true,
+        taskId: true,
+        title: true,
+        description: true,
+        status: true,
+        priority: true,
+        completionPercentage: true,
+        projectId: true,
+        graphicRequirementId: true,
+        clientId: true,
+        brandId: true,
+        productId: true,
+        sourceType: true,
+        taskType: true,
+        assignedEmployees: { select: { userId: true } },
       },
     });
+    if (!task) throw new NotFoundException('Task not found');
+
+    // Authorization reuses the shared task-visibility rules, evaluated against the lean row.
+    if (user && !canUserViewTask(user, task)) {
+      throw new ForbiddenException('You are not authorized to view this task.');
+    }
+
+    const acceptedAt = new Date();
+    // findOne() previously applied this normalization before the value was read here, so
+    // keep the same effective behavior on the lean row.
+    const rawProgress = task.completionPercentage || 0;
+    const normalizedProgress =
+      (task.status === TaskStatus.ASSIGNED || (task.status as any) === 'REVISION_REQUESTED') && rawProgress > 0
+        ? 0
+        : task.status === TaskStatus.IN_PROGRESS && rawProgress >= 100
+          ? 25
+          : rawProgress;
+    const nextProgress = normalizedProgress >= 100 || !normalizedProgress ? 25 : Math.min(normalizedProgress, 45);
+
+    const sideEffects: Promise<any>[] = [];
+
+    sideEffects.push(
+      this.prisma.taskAssignment.upsert({
+        where: { taskId_userId: { taskId: task.id, userId: user.id } },
+        create: {
+          taskId: task.id,
+          userId: user.id,
+          acceptanceStatus: 'ACCEPTED',
+          acceptedAt,
+        },
+        update: {
+          acceptanceStatus: 'ACCEPTED',
+          acceptedAt,
+        },
+      }),
+    );
 
     // Update main task status to IN_PROGRESS upon acceptance
-    await this.prisma.task.update({
-      where: { id: task.id },
-      data: {
-        status: TaskStatus.IN_PROGRESS,
-        completionPercentage: task.completionPercentage >= 100 || !task.completionPercentage ? 25 : Math.min(task.completionPercentage, 45),
-      },
-    });
+    sideEffects.push(
+      this.prisma.task.update({
+        where: { id: task.id },
+        data: {
+          status: TaskStatus.IN_PROGRESS,
+          completionPercentage: nextProgress,
+        },
+      }),
+    );
 
     // Update any active revision in REVISION_REQUESTED state for this task to IN_PROGRESS
-    await this.prisma.revision.updateMany({
-      where: { taskId: task.id, status: 'REVISION_REQUESTED' },
-      data: { status: 'IN_PROGRESS' },
-    }).catch(() => null);
+    sideEffects.push(
+      this.prisma.revision
+        .updateMany({
+          where: { taskId: task.id, status: 'REVISION_REQUESTED' },
+          data: { status: 'IN_PROGRESS' },
+        })
+        .catch(() => null),
+    );
 
     // Log EMPLOYEE_ACCEPTED
-    await this.logTimelineEvent(task.id, 'EMPLOYEE_ACCEPTED', `Task accepted and in progress by ${user.name}`, user.id);
+    sideEffects.push(this.logTimelineEvent(task.id, 'EMPLOYEE_ACCEPTED', `Task accepted and in progress by ${user.name}`, user.id));
 
     // Sync status and team assignment with parent shoot project
     if (task.projectId) {
-      await this.prisma.projectAssignment.upsert({
-        where: { projectId_userId: { projectId: task.projectId, userId: user.id } },
-        create: { projectId: task.projectId, userId: user.id },
-        update: {},
-      }).catch(() => null);
+      sideEffects.push(
+        this.prisma.projectAssignment
+          .upsert({
+            where: { projectId_userId: { projectId: task.projectId, userId: user.id } },
+            create: { projectId: task.projectId, userId: user.id },
+            update: {},
+          })
+          .catch(() => null),
+      );
 
-      await this.prisma.shootProject.update({
-        where: { id: task.projectId },
-        data: { status: 'IN_PRODUCTION' },
-      }).catch(() => null);
+      sideEffects.push(
+        this.prisma.shootProject
+          .update({
+            where: { id: task.projectId },
+            data: { status: 'IN_PRODUCTION' },
+          })
+          .catch(() => null),
+      );
     }
 
     // Sync status with parent graphic requirement
     if (task.graphicRequirementId) {
-      await this.prisma.graphicRequirement.update({
-        where: { id: task.graphicRequirementId },
-        data: { status: 'IN_PROGRESS' },
-      }).catch(() => null);
+      sideEffects.push(
+        this.prisma.graphicRequirement
+          .update({
+            where: { id: task.graphicRequirementId },
+            data: { status: 'IN_PROGRESS' },
+          })
+          .catch(() => null),
+      );
 
-      await this.prisma.graphicRequirementTimeline.create({
-        data: {
-          graphicRequirementId: task.graphicRequirementId,
-          userId: user.id,
-          event: 'ASSIGNED',
-          description: `Assigned task ${task.taskId} acknowledged & ACCEPTED by ${user.name || user.email}. Requirement status updated to IN_PROGRESS.`,
-        },
-      }).catch(() => null);
-    } else if (task.sourceType === 'GRAPHIC_REQUIREMENT' || task.taskType === 'GRAPHIC_REQUIREMENT' || task.taskType === 'GRAPHIC') {
+      sideEffects.push(
+        this.prisma.graphicRequirementTimeline
+          .create({
+            data: {
+              graphicRequirementId: task.graphicRequirementId,
+              userId: user.id,
+              event: 'ASSIGNED',
+              description: `Assigned task ${task.taskId} acknowledged & ACCEPTED by ${user.name || user.email}. Requirement status updated to IN_PROGRESS.`,
+            },
+          })
+          .catch(() => null),
+      );
+    }
+
+    // Await all side effects together instead of one strict round-trip after another.
+    await Promise.all(sideEffects);
+
+    // Tasks sourced from a graphic requirement that has not been linked yet: resolve the
+    // parent requirement lazily (this is the uncommon path, so it stays sequential).
+    if (
+      !task.graphicRequirementId &&
+      (task.sourceType === 'GRAPHIC_REQUIREMENT' ||
+        task.taskType === 'GRAPHIC_REQUIREMENT' ||
+        task.taskType === 'GRAPHIC')
+    ) {
       let targetGr = task.projectId
         ? await this.prisma.graphicRequirement.findFirst({ where: { projectId: task.projectId } })
         : null;

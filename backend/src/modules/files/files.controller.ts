@@ -43,6 +43,21 @@ export class FilesController {
     return this.filesService.saveFileMetadataAndPhysicalDisk(file, data, user);
   }
 
+  /**
+   * Add or remove a clip code on an uploaded script document.
+   * Open to all roles so everyone can SEE codes; the service restricts the write to staff
+   * assigned to the parent project and returns 403 for everyone else.
+   */
+  @Post(':id/clip-codes')
+  updateFileClipCode(
+    @Param('id') id: string,
+    @Body() data: { action?: 'add' | 'remove'; code?: string; description?: string },
+    @CurrentUser() user: any,
+  ) {
+    const action = data?.action === 'remove' ? 'remove' : 'add';
+    return this.filesService.updateFileClipCode(id, action, data || {}, user);
+  }
+
   @Delete(':id')
   deleteFile(@Param('id') id: string, @CurrentUser() user: any) {
     return this.filesService.deleteFile(id, user);

@@ -37,9 +37,9 @@ export default function StaffPersonalizedDashboard({ user }: StaffPersonalizedDa
   const [loading, setLoading] = useState(true);
   const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
 
-  const loadPersonalizedDashboard = async () => {
+  const loadPersonalizedDashboard = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const res = await fetchApi('/reports/my-dashboard');
       if (res) {
         setData(res);
@@ -47,7 +47,7 @@ export default function StaffPersonalizedDashboard({ user }: StaffPersonalizedDa
     } catch (err) {
       console.error('Failed to load staff personalized dashboard:', err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -58,10 +58,38 @@ export default function StaffPersonalizedDashboard({ user }: StaffPersonalizedDa
   const handleAcceptTask = async (taskId: string) => {
     try {
       setTaskUpdatingId(taskId);
+      // Optimistic patch so the card flips to "Start Production" immediately,
+      // then reconcile with a silent background refresh.
+      setData((prev: any) => {
+        if (!prev) return prev;
+        const patchList = (list: any[]) =>
+          Array.isArray(list)
+            ? list.map((t: any) =>
+                t?.id === taskId
+                  ? {
+                      ...t,
+                      assignedEmployees: Array.isArray(t.assignedEmployees)
+                        ? t.assignedEmployees.map((a: any) =>
+                            a.userId === user?.id || a?.user?.id === user?.id
+                              ? { ...a, acceptanceStatus: 'ACCEPTED', acceptedAt: new Date().toISOString() }
+                              : a
+                          )
+                        : t.assignedEmployees,
+                    }
+                  : t
+              )
+            : list;
+        return {
+          ...prev,
+          todaysTasks: patchList(prev.todaysTasks),
+          pendingTasks: patchList(prev.pendingTasks),
+        };
+      });
       await fetchApi(`/tasks/${taskId}/accept`, { method: 'POST' });
-      loadPersonalizedDashboard();
+      loadPersonalizedDashboard(false);
     } catch (err) {
       console.error('Failed to accept task:', err);
+      loadPersonalizedDashboard(false);
     } finally {
       setTaskUpdatingId(null);
     }
@@ -164,7 +192,7 @@ export default function StaffPersonalizedDashboard({ user }: StaffPersonalizedDa
           </div>
 
           <button
-            onClick={loadPersonalizedDashboard}
+            onClick={() => loadPersonalizedDashboard()}
             className="p-2 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-all shadow-xs"
             title="Refresh My Dashboard"
           >
