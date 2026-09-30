@@ -2336,97 +2336,100 @@ export class ProjectsService {
     const created: Array<{ task: any; script: { id: string; title: string } }> = [];
     const reused: Array<{ task: any; script: { id: string; title: string } }> = [];
 
-    for (const script of scripts) {
-      const existing = await this.prisma.task.findUnique({
-        where: { projectId_scriptId: { projectId: project.id, scriptId: script.id } },
-        select: { id: true, taskId: true, title: true },
-      });
-      if (existing) {
-        reused.push({ task: existing, script });
-        continue;
-      }
+    // Use a transaction so that if any task creation fails, the project is not partially converted.
+    await this.prisma.$transaction(async (tx) => {
+      for (const script of scripts) {
+        const existing = await tx.task.findUnique({
+          where: { projectId_scriptId: { projectId: project.id, scriptId: script.id } },
+          select: { id: true, taskId: true, title: true },
+        });
+        if (existing) {
+          reused.push({ task: existing, script });
+          continue;
+        }
 
-      const submitted = body?.scripts?.find((s) => s.scriptId === script.id);
-      const clipCode = submitted?.clipCode?.trim() || `CLP-${script.id}`;
-      const staffId = submitted?.staffId;
+        const match = body?.scripts?.find((s) => s.scriptId === script.id);
+        const clipCode = match?.clipCode?.trim() || `CLP-${script.id}`;
+        const staffId = match?.staffId;
 
-      let candidate = `TSK-${String(nextSeq).padStart(6, '0')}`;
-      while (
-        usedTaskIds.has(candidate) ||
-        (await this.prisma.task.findUnique({ where: { taskId: candidate }, select: { id: true } }))
-      ) {
+        let candidate = `TSK-${String(nextSeq).padStart(6, '0')}`;
+        while (
+          usedTaskIds.has(candidate) ||
+          (await tx.task.findUnique({ where: { taskId: candidate }, select: { id: true } }))
+        ) {
+          nextSeq += 1;
+          candidate = `TSK-${String(nextSeq).padStart(6, '0')}`;
+        }
+        usedTaskIds.add(candidate);
         nextSeq += 1;
-        candidate = `TSK-${String(nextSeq).padStart(6, '0')}`;
+
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 5);
+
+        const task = await tx.task.create({
+          data: {
+            taskId: candidate,
+            title: `Video Editing - ${script.title}`,
+            description:
+              `Video editing task for script "${script.title}" on shoot project ${project.projectId} (${project.name || 'Shoot Project'}). ` +
+              `Clip Code: ${clipCode}. ` +
+              `Step 1: Accept this task. ` +
+              `Step 2: Upload the finished cut using the "Deliverable" button on the task row. ` +
+              `Step 3: Press "Tech Review" to send the edit for Technical Manager approval.`,
+            projectId: project.id,
+            clientId: project.clientId,
+            brandId: project.brandId,
+            productId: project.productId,
+            priority: Priority.MEDIUM,
+            dueDate,
+            estimatedHours: 3.0,
+            status: TaskStatus.ASSIGNED,
+            sourceType: 'SHOOT_PROJECT',
+            taskType: 'VIDEO_EDITING',
+            completionPercentage: 0,
+            scriptId: script.id,
+            clipCode,
+          },
+        });
+
+        if (staffId) {
+          await tx.taskAssignment.create({
+            data: { taskId: task.id, userId: staffId, acceptanceStatus: 'NOT_YET_ACCEPTED' },
+          }).catch(() => null);
+        }
+
+        await tx.taskTimeline.create({
+          data: {
+            taskId: task.id,
+            userId: user?.id || user?.sub || null,
+            event: 'TASK_CREATED',
+            description: `Video editing task auto-created by convert-to-video-editing for script "${script.title}".`,
+          },
+        }).catch(() => null);
+
+        await tx.activityLog.create({
+          data: {
+            userId: user?.id || user?.sub || null,
+            action: 'CONVERT_TO_VIDEO_EDITING',
+            entity: 'Task',
+            entityId: task.id,
+            description: `Auto-created video editing task ${task.taskId} for script "${script.title}" on project ${project.projectId}.`,
+          },
+        }).catch(() => null);
+
+        created.push({ task, script });
       }
-      usedTaskIds.add(candidate);
-      nextSeq += 1;
 
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 5);
-
-      const task = await this.prisma.task.create({
+      // Lock the project after all tasks are created successfully.
+      await tx.shootProject.update({
+        where: { id: project.id },
         data: {
-          taskId: candidate,
-          title: `Video Editing - ${script.title}`,
-          description:
-            `Video editing task for script "${script.title}" on shoot project ${project.projectId} (${project.name || 'Shoot Project'}). ` +
-            `Clip Code: ${clipCode}. ` +
-            `Step 1: Accept this task. ` +
-            `Step 2: Upload the finished cut using the "Deliverable" button on the task row. ` +
-            `Step 3: Press "Tech Review" to send the edit for Technical Manager approval.`,
-          projectId: project.id,
-          clientId: project.clientId,
-          brandId: project.brandId,
-          productId: project.productId,
-          priority: Priority.MEDIUM,
-          dueDate,
-          estimatedHours: 3.0,
-          status: TaskStatus.ASSIGNED,
-          sourceType: 'SHOOT_PROJECT',
-          taskType: 'VIDEO_EDITING',
-          completionPercentage: 0,
-          scriptId: script.id,
-          clipCode,
+          videoEditingConverted: true,
+          videoEditingConvertedAt: new Date(),
+          videoEditingConvertedBy: user?.id || user?.sub || null,
+          status: ProjectStatus.VIDEO_EDITING_IN_PROGRESS,
         },
       });
-
-      if (staffId) {
-        await this.prisma.taskAssignment.create({
-          data: { taskId: task.id, userId: staffId, acceptanceStatus: 'NOT_YET_ACCEPTED' },
-        }).catch(() => null);
-      }
-
-      await this.prisma.taskTimeline.create({
-        data: {
-          taskId: task.id,
-          userId: user?.id || user?.sub || null,
-          event: 'TASK_CREATED',
-          description: `Video editing task auto-created by convert-to-video-editing for script "${script.title}".`,
-        },
-      }).catch(() => null);
-
-      await this.prisma.activityLog.create({
-        data: {
-          userId: user?.id || user?.sub || null,
-          action: 'CONVERT_TO_VIDEO_EDITING',
-          entity: 'Task',
-          entityId: task.id,
-          description: `Auto-created video editing task ${task.taskId} for script "${script.title}" on project ${project.projectId}.`,
-        },
-      }).catch(() => null);
-
-      created.push({ task, script });
-    }
-
-    // Per spec section 7: lock the project after conversion.
-    await this.prisma.shootProject.update({
-      where: { id: project.id },
-      data: {
-        videoEditingConverted: true,
-        videoEditingConvertedAt: new Date(),
-        videoEditingConvertedBy: user?.id || user?.sub || null,
-        status: ProjectStatus.VIDEO_EDITING_IN_PROGRESS,
-      },
     });
 
     if (user?.id || user?.sub) {

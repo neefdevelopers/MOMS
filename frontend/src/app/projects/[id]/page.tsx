@@ -228,72 +228,9 @@ export default function ProjectDetailPage() {
     await persistClipCode(fileId, 'remove', { code });
   };
 
-  // Video editor assignment. Only a Media Manager may assign or clear an editor; every other
-  // role still sees who is assigned. Matches the inline role checks used elsewhere on this page.
-  const canAssignVideoEditor =
-    (user?.role as string) === 'MEDIA_MANAGER' ||
-    (user?.role as string) === 'ADMIN' ||
-    (user?.role as string) === 'ADMINISTRATOR';
-
-  const [editorCandidates, setEditorCandidates] = useState<any[]>([]);
-  const [editorsLoadedFor, setEditorsLoadedFor] = useState<string | null>(null);
-  const [savingEditorFor, setSavingEditorFor] = useState<string | null>(null);
-  const [editorError, setEditorError] = useState<string>('');
+  // Video editor assignment has been moved to the Complete Project flow.
+  // The underlying data and reusable assignment logic is preserved for that workflow.
   const [isFinishingEditor, setIsFinishingEditor] = useState<string | null>(null);
-
-  const loadEditorCandidates = async () => {
-    if (!project || !canAssignVideoEditor) return;
-    const projectKey = project.id;
-    setEditorError('');
-    try {
-      const res: any = await fetchApi(`/projects/${project.id}/video-editor-candidates`);
-      setEditorCandidates(Array.isArray(res?.candidates) ? res.candidates : []);
-      setEditorsLoadedFor(projectKey);
-    } catch (e: any) {
-      setEditorError(e?.message || 'Could not load the list of video editors.');
-    }
-  };
-
-  // Load the candidate list lazily, only when a Media Manager first opens the Scripts tab.
-  useEffect(() => {
-    if (canAssignVideoEditor && project?.id && editorsLoadedFor !== project.id) {
-      loadEditorCandidates();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canAssignVideoEditor, project?.id, editorsLoadedFor]);
-
-  /** Assigns (or clears, when editorId is null) the video editor on one script document. */
-  const handleAssignVideoEditor = async (fileId: string, editorId: string | null) => {
-    if (!project || !canAssignVideoEditor) return;
-    setSavingEditorFor(fileId);
-    setEditorError('');
-    try {
-      const updated: any = await fetchApi(`/projects/${project.id}/script-video-editor`, {
-        method: 'POST',
-        body: JSON.stringify({ fileId, editorId }),
-      });
-      // The endpoint returns the whole project. The script document cards read from filesTree
-      // (filesTree.allFiles takes precedence over project.files), so both stores must be
-      // refreshed or the dropdown would snap back to "Unassigned" after a successful save.
-      if (updated && Array.isArray(updated.files)) {
-        setProject((prev: any) => (prev ? { ...prev, files: updated.files } : prev));
-        setFilesTree((prev: any) => {
-          if (!prev?.allFiles) return prev;
-          return {
-            ...prev,
-            allFiles: prev.allFiles.map((f: any) => {
-              const match = updated.files.find((uf: any) => uf.id === f.id);
-              return match ? { ...f, scriptEditorAssignments: match.scriptEditorAssignments || [] } : f;
-            }),
-          };
-        });
-      }
-    } catch (e: any) {
-      setEditorError(e?.message || 'Could not update the video editor.');
-    } finally {
-      setSavingEditorFor(null);
-    }
-  };
 
   /**
    * The assigned video editor marks the edit as finished. The backend moves the linked task
@@ -302,7 +239,6 @@ export default function ProjectDetailPage() {
   const handleFinishVideoEditing = async (fileId: string) => {
     if (!project) return;
     setIsFinishingEditor(fileId);
-    setEditorError('');
     try {
       const updated: any = await fetchApi(`/projects/${project.id}/script-video-editing/finish`, {
         method: 'POST',
@@ -322,7 +258,7 @@ export default function ProjectDetailPage() {
         });
       }
     } catch (e: any) {
-      setEditorError(e?.message || 'Could not mark video editing as finished.');
+      console.error('Failed to mark video editing as finished:', e);
     } finally {
       setIsFinishingEditor(null);
     }
@@ -1641,19 +1577,6 @@ export default function ProjectDetailPage() {
               </div>
             </div>
 
-            {editorError && (
-              <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">
-                {editorError}
-              </p>
-            )}
-
-            {canAssignVideoEditor && editorCandidates.length === 0 && editorsLoadedFor === project?.id && (
-              <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
-                No active staff are flagged as video editors yet. Set a staff member&rsquo;s designation to
-                &ldquo;Video Editor&rdquo; or add a video-editing skill to make them selectable here.
-              </p>
-            )}
-
             {/* Script Documents List / Grid */}
             {scriptFiles.length === 0 ? (
               <div className="p-8 bg-slate-50/60 border border-dashed border-slate-300 rounded-2xl text-center space-y-2">
@@ -1679,7 +1602,6 @@ export default function ProjectDetailPage() {
                   // per-document clip codes above.
                   const docEditor = (sf.scriptEditorAssignments || [])[0] || null;
                   const docEditorUser = docEditor?.user;
-                  const docEditorSaving = savingEditorFor === sf.id;
                   // Only the editor the document is assigned to may finish the edit.
                   const isAssignedEditorOfDoc = !!docEditor && docEditor.userId === user?.id;
 
@@ -1819,44 +1741,17 @@ export default function ProjectDetailPage() {
                           <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-wide flex items-center gap-1.5">
                             <Video className="w-3.5 h-3.5" /> Video Editor
                           </span>
-                          {!canAssignVideoEditor && (
-                            <span className="text-[10px] text-slate-500 italic font-medium">Read-only</span>
-                          )}
+                          <span className="text-[10px] text-slate-500 italic font-medium">Read-only</span>
                         </div>
 
-                        {docEditorUser ? (
+                        {/* Read-only display of assigned video editor */}
+                        {docEditorUser && (
                           <div className="flex items-center gap-1 text-[10px] text-slate-600">
                             <User className="w-2.5 h-2.5 shrink-0" />
                             <span className="truncate">
                               {docEditorUser.name}
                               {docEditor?.assignedBy?.name ? ` · by ${docEditor.assignedBy.name}` : ''}
                             </span>
-                          </div>
-                        ) : (
-                          <p className="text-[10px] text-indigo-800/70 italic">
-                            No video editor assigned to this document yet.
-                          </p>
-                        )}
-
-                        {canAssignVideoEditor && (
-                          <div className="flex gap-1.5 pt-0.5">
-                            <select
-                              value={docEditorUser?.id || ''}
-                              disabled={docEditorSaving}
-                              onChange={(e) => handleAssignVideoEditor(sf.id, e.target.value || null)}
-                              className="px-2 py-1.5 rounded-lg border border-indigo-300 bg-white text-[11px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 w-full min-w-0"
-                            >
-                              <option value="">Unassigned</option>
-                              {editorCandidates.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name}
-                                  {c.designation ? ` — ${c.designation}` : ''}
-                                </option>
-                              ))}
-                            </select>
-                            {docEditorSaving && (
-                              <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin shrink-0 self-center" />
-                            )}
                           </div>
                         )}
 
