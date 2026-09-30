@@ -3715,7 +3715,7 @@ export default function ProjectDetailPage() {
                   Convert to Video Editing
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Assign a Clip Code and Staff member to each script. One Video Editing Task will be created per script.
+                  Assign a Video Editor to each script. Existing Clip Codes are shown read-only. One Video Editing Task will be created per script.
                 </p>
               </div>
               <button
@@ -3733,18 +3733,26 @@ export default function ProjectDetailPage() {
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Script {idx + 1}</span>
                     <span className="text-sm font-bold text-slate-900">{script.title}</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Clip Code *</label>
-                      <input
-                        type="text"
-                        placeholder={`CLP-${String(idx + 1).padStart(3, '0')}`}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm"
-                        id={`clip-code-${script.id}`}
-                      />
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Existing Clip Codes</label>
+                      {(!script.clipCodes || script.clipCodes.length === 0) ? (
+                        <p className="text-xs text-slate-400 italic">No clip codes recorded for this script.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {script.clipCodes.map((clip, clipIdx) => (
+                            <span
+                              key={`${clip.code}-${clipIdx}`}
+                              className="inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-semibold"
+                            >
+                              {clip.code}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Assign Staff *</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Video Editor *</label>
                       <select
                         className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm"
                         id={`staff-${script.id}`}
@@ -3774,17 +3782,16 @@ export default function ProjectDetailPage() {
               <button
                 onClick={async () => {
                   const scripts = parsedScripts.map((script, idx) => {
-                    const clipEl = document.getElementById(`clip-code-${script.id}`) as HTMLInputElement;
                     const staffEl = document.getElementById(`staff-${script.id}`) as HTMLSelectElement;
                     return {
                       scriptId: script.id,
-                      clipCode: clipEl?.value?.trim() || '',
+                      clipCode: script.clipCodes?.map((c: any) => c.code).join(', ') || '',
                       staffId: staffEl?.value || '',
                     };
                   });
-                  const missing = scripts.filter((s) => !s.clipCode || !s.staffId);
+                  const missing = scripts.filter((s) => !s.staffId);
                   if (missing.length > 0) {
-                    alert(`Cannot complete conversion:\n${missing.map((_, i) => `Script ${scripts.indexOf(missing[i]) + 1} requires ${!missing[i].clipCode ? 'a Clip Code' : 'a Staff assignment'}`).join('\n')}`);
+                    alert(`Cannot complete conversion:\n${missing.map((_, i) => `Script ${scripts.indexOf(missing[i]) + 1} requires a Video Editor assignment`).join('\n')}`);
                     return;
                   }
                   try {
