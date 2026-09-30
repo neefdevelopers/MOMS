@@ -3139,112 +3139,6 @@ export default function ProjectDetailPage() {
             )}
 
             {/* ══════════════════════════════════════════════════════
-                 VIDEO EDITING CONVERSION MODAL
-                 Media Manager enters Clip Code + Staff for each script, then confirms.
-            ══════════════════════════════════════════════════════ */}
-            {showConvertModal && (
-              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-                <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 space-y-5">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                    <div>
-                      <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                        <Video className="w-5 h-5 text-blue-600" />
-                        Convert to Video Editing
-                      </h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Assign a Clip Code and Staff member to each script. One Video Editing Task will be created per script.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setShowConvertModal(false)}
-                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                    >
-                      <X className="w-5 h-5 text-slate-400" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {parsedScripts.map((script, idx) => (
-                      <div key={script.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Script {idx + 1}</span>
-                          <span className="text-sm font-bold text-slate-900">{script.title}</span>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Clip Code *</label>
-                            <input
-                              type="text"
-                              placeholder={`CLP-${String(idx + 1).padStart(3, '0')}`}
-                              className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm"
-                              id={`clip-code-${script.id}`}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Assign Staff *</label>
-                            <select
-                              className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm"
-                              id={`staff-${script.id}`}
-                            >
-                              <option value="">-- Select Staff --</option>
-                              {allUsers
-                                .filter((u: any) => u.status !== 'ARCHIVED' && !u.isArchived)
-                                .map((u: any) => (
-                                  <option key={u.id} value={u.id}>
-                                    {u.name} ({u.role})
-                                  </option>
-                                ))}
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
-                    <button
-                      onClick={() => setShowConvertModal(false)}
-                      className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={async () => {
-                        const scripts = parsedScripts.map((script, idx) => {
-                          const clipEl = document.getElementById(`clip-code-${script.id}`) as HTMLInputElement;
-                          const staffEl = document.getElementById(`staff-${script.id}`) as HTMLSelectElement;
-                          return {
-                            scriptId: script.id,
-                            clipCode: clipEl?.value?.trim() || '',
-                            staffId: staffEl?.value || '',
-                          };
-                        });
-                        const missing = scripts.filter((s) => !s.clipCode || !s.staffId);
-                        if (missing.length > 0) {
-                          alert(`Cannot complete conversion:\n${missing.map((_, i) => `Script ${scripts.indexOf(missing[i]) + 1} requires ${!missing[i].clipCode ? 'a Clip Code' : 'a Staff assignment'}`).join('\n')}`);
-                          return;
-                        }
-                        try {
-                          await fetchApi(`/projects/${project.id}/convert-to-video-editing`, {
-                            method: 'POST',
-                            body: JSON.stringify({ scripts }),
-                          });
-                          setShowConvertModal(false);
-                          loadProject();
-                        } catch (e: any) {
-                          alert(e.message || 'Failed to convert project.');
-                        }
-                      }}
-                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow transition-all text-sm"
-                    >
-                      Confirm Conversion
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ══════════════════════════════════════════════════════
                  1. TECHNICAL APPROVAL REQUEST SUBMISSION SESSION
                  Allows staff/assigned team/creator to submit project for Technical Review
             ══════════════════════════════════════════════════════ */}
@@ -3801,6 +3695,118 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       )}
+
+            {/* ══════════════════════════════════════════════════════
+           VIDEO EDITING CONVERSION MODAL
+           Media Manager enters Clip Code + Staff for each script, then confirms.
+      ══════════════════════════════════════════════════════ */}
+      {/* ══════════════════════════════════════════════════════
+           VIDEO EDITING CONVERSION MODAL
+           Rendered at the top level so it works regardless of which tab is active.
+           The Complete Project button in the header opens this modal even from the Overview tab.
+      ══════════════════════════════════════════════════════ */}
+      {showConvertModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Video className="w-5 h-5 text-blue-600" />
+                  Convert to Video Editing
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Assign a Clip Code and Staff member to each script. One Video Editing Task will be created per script.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowConvertModal(false)}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {parsedScripts.map((script, idx) => (
+                <div key={script.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Script {idx + 1}</span>
+                    <span className="text-sm font-bold text-slate-900">{script.title}</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Clip Code *</label>
+                      <input
+                        type="text"
+                        placeholder={`CLP-${String(idx + 1).padStart(3, '0')}`}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm"
+                        id={`clip-code-${script.id}`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Assign Staff *</label>
+                      <select
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm"
+                        id={`staff-${script.id}`}
+                      >
+                        <option value="">-- Select Staff --</option>
+                        {allUsers
+                          .filter((u: any) => u.status !== 'ARCHIVED' && !u.isArchived)
+                          .map((u: any) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name} ({u.role})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+              <button
+                onClick={() => setShowConvertModal(false)}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const scripts = parsedScripts.map((script, idx) => {
+                    const clipEl = document.getElementById(`clip-code-${script.id}`) as HTMLInputElement;
+                    const staffEl = document.getElementById(`staff-${script.id}`) as HTMLSelectElement;
+                    return {
+                      scriptId: script.id,
+                      clipCode: clipEl?.value?.trim() || '',
+                      staffId: staffEl?.value || '',
+                    };
+                  });
+                  const missing = scripts.filter((s) => !s.clipCode || !s.staffId);
+                  if (missing.length > 0) {
+                    alert(`Cannot complete conversion:\n${missing.map((_, i) => `Script ${scripts.indexOf(missing[i]) + 1} requires ${!missing[i].clipCode ? 'a Clip Code' : 'a Staff assignment'}`).join('\n')}`);
+                    return;
+                  }
+                  try {
+                    await fetchApi(`/projects/${project.id}/convert-to-video-editing`, {
+                      method: 'POST',
+                      body: JSON.stringify({ scripts }),
+                    });
+                    setShowConvertModal(false);
+                    loadProject();
+                  } catch (e: any) {
+                    alert(e.message || 'Failed to convert project.');
+                  }
+                }}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow transition-all text-sm"
+              >
+                Confirm Conversion
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Task Conversion Modal Popup */}
       <ConvertEventToTaskModal
