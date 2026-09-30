@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { fetchApi } from '@/lib/api';
 import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
 import { ProjectEquipmentTab } from '@/components/projects/ProjectEquipmentTab';
+import { VideoEditingPanel } from '@/components/projects/VideoEditingPanel';
 import { useAuth } from '@/lib/auth-context';
 import ActivityCommunicationThread from '@/components/communications/ActivityCommunicationThread';
 import { useBreadcrumbs } from '@/lib/breadcrumbs-context';
@@ -57,6 +58,7 @@ import {
   Scissors,
   Edit,
   PlusCircle,
+  User,
 } from 'lucide-react';
 import {
   ProjectScript,
@@ -128,6 +130,7 @@ export default function ProjectDetailPage() {
 
   // Closure Modal State
   const [showClosureModal, setShowClosureModal] = useState(false);
+  const [showConvertModal, setShowConvertModal] = useState(false);
   const [pendingStatus, setPendingStatus] = useState('CLOSED');
   const [closureReasonPreset, setClosureReasonPreset] = useState('Client cancelled remaining deliverables');
   const [customClosureReason, setCustomClosureReason] = useState('');
@@ -223,6 +226,106 @@ export default function ProjectDetailPage() {
   const handleRemoveClipCode = async (fileId: string, code: string) => {
     if (!canManageClipCodes) return;
     await persistClipCode(fileId, 'remove', { code });
+  };
+
+  // Video editor assignment. Only a Media Manager may assign or clear an editor; every other
+  // role still sees who is assigned. Matches the inline role checks used elsewhere on this page.
+  const canAssignVideoEditor =
+    (user?.role as string) === 'MEDIA_MANAGER' ||
+    (user?.role as string) === 'ADMIN' ||
+    (user?.role as string) === 'ADMINISTRATOR';
+
+  const [editorCandidates, setEditorCandidates] = useState<any[]>([]);
+  const [editorsLoadedFor, setEditorsLoadedFor] = useState<string | null>(null);
+  const [savingEditorFor, setSavingEditorFor] = useState<string | null>(null);
+  const [editorError, setEditorError] = useState<string>('');
+  const [isFinishingEditor, setIsFinishingEditor] = useState<string | null>(null);
+
+  const loadEditorCandidates = async () => {
+    if (!project || !canAssignVideoEditor) return;
+    const projectKey = project.id;
+    setEditorError('');
+    try {
+      const res: any = await fetchApi(`/projects/${project.id}/video-editor-candidates`);
+      setEditorCandidates(Array.isArray(res?.candidates) ? res.candidates : []);
+      setEditorsLoadedFor(projectKey);
+    } catch (e: any) {
+      setEditorError(e?.message || 'Could not load the list of video editors.');
+    }
+  };
+
+  // Load the candidate list lazily, only when a Media Manager first opens the Scripts tab.
+  useEffect(() => {
+    if (canAssignVideoEditor && project?.id && editorsLoadedFor !== project.id) {
+      loadEditorCandidates();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAssignVideoEditor, project?.id, editorsLoadedFor]);
+
+  /** Assigns (or clears, when editorId is null) the video editor on one script document. */
+  const handleAssignVideoEditor = async (fileId: string, editorId: string | null) => {
+    if (!project || !canAssignVideoEditor) return;
+    setSavingEditorFor(fileId);
+    setEditorError('');
+    try {
+      const updated: any = await fetchApi(`/projects/${project.id}/script-video-editor`, {
+        method: 'POST',
+        body: JSON.stringify({ fileId, editorId }),
+      });
+      // The endpoint returns the whole project. The script document cards read from filesTree
+      // (filesTree.allFiles takes precedence over project.files), so both stores must be
+      // refreshed or the dropdown would snap back to "Unassigned" after a successful save.
+      if (updated && Array.isArray(updated.files)) {
+        setProject((prev: any) => (prev ? { ...prev, files: updated.files } : prev));
+        setFilesTree((prev: any) => {
+          if (!prev?.allFiles) return prev;
+          return {
+            ...prev,
+            allFiles: prev.allFiles.map((f: any) => {
+              const match = updated.files.find((uf: any) => uf.id === f.id);
+              return match ? { ...f, scriptEditorAssignments: match.scriptEditorAssignments || [] } : f;
+            }),
+          };
+        });
+      }
+    } catch (e: any) {
+      setEditorError(e?.message || 'Could not update the video editor.');
+    } finally {
+      setSavingEditorFor(null);
+    }
+  };
+
+  /**
+   * The assigned video editor marks the edit as finished. The backend moves the linked task
+   * into the existing technical -> media review chain and flags the document as finished.
+   */
+  const handleFinishVideoEditing = async (fileId: string) => {
+    if (!project) return;
+    setIsFinishingEditor(fileId);
+    setEditorError('');
+    try {
+      const updated: any = await fetchApi(`/projects/${project.id}/script-video-editing/finish`, {
+        method: 'POST',
+        body: JSON.stringify({ fileId }),
+      });
+      if (updated && Array.isArray(updated.files)) {
+        setProject((prev: any) => (prev ? { ...prev, files: updated.files } : prev));
+        setFilesTree((prev: any) => {
+          if (!prev?.allFiles) return prev;
+          return {
+            ...prev,
+            allFiles: prev.allFiles.map((f: any) => {
+              const match = updated.files.find((uf: any) => uf.id === f.id);
+              return match ? { ...f, scriptEditorAssignments: match.scriptEditorAssignments || [] } : f;
+            }),
+          };
+        });
+      }
+    } catch (e: any) {
+      setEditorError(e?.message || 'Could not mark video editing as finished.');
+    } finally {
+      setIsFinishingEditor(null);
+    }
   };
 
   const openCreateScriptModal = () => {
@@ -879,6 +982,21 @@ export default function ProjectDetailPage() {
             <div className="text-xs text-slate-500">
               Location: <span className="text-slate-800 font-semibold">{project.shootLocation}</span>
             </div>
+            {/* Complete Project — Media Manager declares the shoot done and starts the editing phase. Visible in any post-shoot status. */}
+            {user?.role === 'MEDIA_MANAGER' && !project.videoEditingConverted && !['CANCELLED', 'ARCHIVED', 'CLOSED'].includes(project.status) && (
+              <button
+                onClick={() => setShowConvertModal(true)}
+                className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
+              >
+                <CheckCircle className="w-4 h-4" /> Complete Project
+              </button>
+            )}
+            {/* Read-only badge after conversion */}
+            {project.videoEditingConverted && (
+              <div className="mt-2 px-3 py-1.5 bg-slate-100 border border-slate-300 rounded-lg text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                Read-Only
+              </div>
+            )}
           </div>
         </div>
 
@@ -1523,6 +1641,19 @@ export default function ProjectDetailPage() {
               </div>
             </div>
 
+            {editorError && (
+              <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">
+                {editorError}
+              </p>
+            )}
+
+            {canAssignVideoEditor && editorCandidates.length === 0 && editorsLoadedFor === project?.id && (
+              <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                No active staff are flagged as video editors yet. Set a staff member&rsquo;s designation to
+                &ldquo;Video Editor&rdquo; or add a video-editing skill to make them selectable here.
+              </p>
+            )}
+
             {/* Script Documents List / Grid */}
             {scriptFiles.length === 0 ? (
               <div className="p-8 bg-slate-50/60 border border-dashed border-slate-300 rounded-2xl text-center space-y-2">
@@ -1544,6 +1675,13 @@ export default function ProjectDetailPage() {
                   const docClips = readFileClipCodes(sf.clipCodes);
                   const docClipValue = clipCodeInputs[sf.id] || '';
                   const docSaving = isSavingClipCode === sf.id;
+                  // Video editor is keyed on this document's own file id, matching the
+                  // per-document clip codes above.
+                  const docEditor = (sf.scriptEditorAssignments || [])[0] || null;
+                  const docEditorUser = docEditor?.user;
+                  const docEditorSaving = savingEditorFor === sf.id;
+                  // Only the editor the document is assigned to may finish the edit.
+                  const isAssignedEditorOfDoc = !!docEditor && docEditor.userId === user?.id;
 
                   return (
                     <div
@@ -1598,31 +1736,50 @@ export default function ProjectDetailPage() {
                             No clip codes recorded for this document yet.
                           </p>
                         ) : (
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-col gap-1.5">
                             {docClips.map((c, cIdx) => (
-                              <span
+                              <div
                                 key={`${c.code}-${c.addedAt || cIdx}`}
-                                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-emerald-300 text-emerald-900 text-[10px] font-bold shadow-xs"
-                                title={c.addedBy ? `Added by ${c.addedBy}` : undefined}
+                                className="flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg bg-white border border-emerald-300 shadow-xs"
+                                title={
+                                  c.addedAt
+                                    ? `Added by ${c.addedBy || 'unknown'} on ${new Date(c.addedAt).toLocaleString()}`
+                                    : c.addedBy
+                                    ? `Added by ${c.addedBy}`
+                                    : undefined
+                                }
                               >
-                                <span className="font-mono">{c.code}</span>
-                                {c.description && (
-                                  <span className="font-normal text-emerald-700/80 truncate max-w-[12rem]">
-                                    {c.description}
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className="font-mono font-bold text-emerald-900 text-[10px] shrink-0">
+                                      {c.code}
+                                    </span>
+                                    {c.description && (
+                                      <span className="font-normal text-emerald-700/80 truncate text-[10px]">
+                                        {c.description}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="flex items-center gap-1 text-[9px] text-slate-500 mt-0.5">
+                                    <User className="w-2.5 h-2.5 shrink-0" />
+                                    <span className="truncate">
+                                      {c.addedBy || 'Unknown'}
+                                      {c.addedAt ? ` · ${new Date(c.addedAt).toLocaleDateString()}` : ''}
+                                    </span>
                                   </span>
-                                )}
+                                </div>
                                 {canManageClipCodes && (
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveClipCode(sf.id, c.code)}
                                     disabled={docSaving}
                                     title={`Remove ${c.code}`}
-                                    className="ml-0.5 text-emerald-500 hover:text-rose-600 transition-colors disabled:opacity-40"
+                                    className="ml-0.5 shrink-0 text-emerald-500 hover:text-rose-600 transition-colors disabled:opacity-40"
                                   >
                                     <X className="w-3 h-3" />
                                   </button>
                                 )}
-                              </span>
+                              </div>
                             ))}
                           </div>
                         )}
@@ -1652,6 +1809,118 @@ export default function ProjectDetailPage() {
                               <Plus className="w-3.5 h-3.5" />
                               {docSaving ? 'Saving…' : 'Add'}
                             </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Video Editor for THIS script document (Media Manager) */}
+                      <div className="p-2.5 bg-indigo-50/60 border border-indigo-200/80 rounded-lg space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-wide flex items-center gap-1.5">
+                            <Video className="w-3.5 h-3.5" /> Video Editor
+                          </span>
+                          {!canAssignVideoEditor && (
+                            <span className="text-[10px] text-slate-500 italic font-medium">Read-only</span>
+                          )}
+                        </div>
+
+                        {docEditorUser ? (
+                          <div className="flex items-center gap-1 text-[10px] text-slate-600">
+                            <User className="w-2.5 h-2.5 shrink-0" />
+                            <span className="truncate">
+                              {docEditorUser.name}
+                              {docEditor?.assignedBy?.name ? ` · by ${docEditor.assignedBy.name}` : ''}
+                            </span>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-indigo-800/70 italic">
+                            No video editor assigned to this document yet.
+                          </p>
+                        )}
+
+                        {canAssignVideoEditor && (
+                          <div className="flex gap-1.5 pt-0.5">
+                            <select
+                              value={docEditorUser?.id || ''}
+                              disabled={docEditorSaving}
+                              onChange={(e) => handleAssignVideoEditor(sf.id, e.target.value || null)}
+                              className="px-2 py-1.5 rounded-lg border border-indigo-300 bg-white text-[11px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 w-full min-w-0"
+                            >
+                              <option value="">Unassigned</option>
+                              {editorCandidates.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                  {c.designation ? ` — ${c.designation}` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            {docEditorSaving && (
+                              <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin shrink-0 self-center" />
+                            )}
+                          </div>
+                        )}
+
+                        {/* Editing workflow state + the editor's own finish action */}
+                        {docEditor && (
+                          <div className="pt-1.5 border-t border-indigo-200/70 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                  docEditor.editingStatus === 'COMPLETED'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : docEditor.editingStatus === 'IN_REVIEW'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : docEditor.editingStatus === 'ACCEPTED'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-slate-200 text-slate-700'
+                                }`}
+                              >
+                                {docEditor.editingStatus === 'COMPLETED'
+                                  ? 'Editing approved'
+                                  : docEditor.editingStatus === 'IN_REVIEW'
+                                  ? 'In review'
+                                  : docEditor.editingStatus === 'ACCEPTED'
+                                  ? 'Accepted · editing'
+                                  : 'Awaiting acceptance'}
+                              </span>
+                              {docEditor.taskId && (
+                                <a
+                                  href="/tasks"
+                                  className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-0.5"
+                                >
+                                  Open task <ArrowRight className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
+
+                            {docEditor.videoEditingFinished && docEditor.editingFinishedAt && (
+                              <p className="text-[9px] text-slate-500">
+                                Marked finished {new Date(docEditor.editingFinishedAt).toLocaleDateString()}
+                              </p>
+                            )}
+
+                            {isAssignedEditorOfDoc && !docEditor.videoEditingFinished && (
+                              docEditor.taskAccepted ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleFinishVideoEditing(sf.id)}
+                                  disabled={isFinishingEditor === sf.id}
+                                  title="Mark video editing as finished and send it for technical review"
+                                  className="w-full px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-[10px] transition-colors flex items-center justify-center gap-1"
+                                >
+                                  {isFinishingEditor === sf.id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <CheckCircle className="w-3 h-3" />
+                                  )}
+                                  Finish video editing
+                                </button>
+                              ) : (
+                                <p className="text-[9px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 leading-snug">
+                                  Accept the video editing task in your Tasks list to unlock finishing this edit.
+                                </p>
+                              )
+                            )}
                           </div>
                         )}
                       </div>
@@ -2958,6 +3227,127 @@ export default function ProjectDetailPage() {
                 </div>
               </div>
             </div>
+
+            {/* ══════════════════════════════════════════════════════
+                 VIDEO EDITING WORKFLOW (Shoot Completed → Convert → Edit → Review)
+                 Visible after Stage 4 (Client Sign-off). Media Manager converts a COMPLETED
+                 shoot project into per-script Video Editing Tasks. Each task walks
+                 Staff → Media Manager → Marketing Manager independently, and the project
+                 auto-completes only after every script's task is approved.
+            ══════════════════════════════════════════════════════ */}
+            {!project.videoEditingConverted && !['CANCELLED', 'ARCHIVED', 'CLOSED'].includes(project.status) && (
+              <VideoEditingPanel
+                project={project}
+                user={user}
+                onReload={() => loadProject()}
+              />
+            )}
+
+            {/* ══════════════════════════════════════════════════════
+                 VIDEO EDITING CONVERSION MODAL
+                 Media Manager enters Clip Code + Staff for each script, then confirms.
+            ══════════════════════════════════════════════════════ */}
+            {showConvertModal && (
+              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+                <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 space-y-5">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <div>
+                      <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <Video className="w-5 h-5 text-blue-600" />
+                        Convert to Video Editing
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Assign a Clip Code and Staff member to each script. One Video Editing Task will be created per script.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowConvertModal(false)}
+                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                      <X className="w-5 h-5 text-slate-400" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {parsedScripts.map((script, idx) => (
+                      <div key={script.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Script {idx + 1}</span>
+                          <span className="text-sm font-bold text-slate-900">{script.title}</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Clip Code *</label>
+                            <input
+                              type="text"
+                              placeholder={`CLP-${String(idx + 1).padStart(3, '0')}`}
+                              className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm"
+                              id={`clip-code-${script.id}`}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Assign Staff *</label>
+                            <select
+                              className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm"
+                              id={`staff-${script.id}`}
+                            >
+                              <option value="">-- Select Staff --</option>
+                              {allUsers
+                                .filter((u: any) => u.status !== 'ARCHIVED' && !u.isArchived)
+                                .map((u: any) => (
+                                  <option key={u.id} value={u.id}>
+                                    {u.name} ({u.role})
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+                    <button
+                      onClick={() => setShowConvertModal(false)}
+                      className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const scripts = parsedScripts.map((script, idx) => {
+                          const clipEl = document.getElementById(`clip-code-${script.id}`) as HTMLInputElement;
+                          const staffEl = document.getElementById(`staff-${script.id}`) as HTMLSelectElement;
+                          return {
+                            scriptId: script.id,
+                            clipCode: clipEl?.value?.trim() || '',
+                            staffId: staffEl?.value || '',
+                          };
+                        });
+                        const missing = scripts.filter((s) => !s.clipCode || !s.staffId);
+                        if (missing.length > 0) {
+                          alert(`Cannot complete conversion:\n${missing.map((_, i) => `Script ${scripts.indexOf(missing[i]) + 1} requires ${!missing[i].clipCode ? 'a Clip Code' : 'a Staff assignment'}`).join('\n')}`);
+                          return;
+                        }
+                        try {
+                          await fetchApi(`/projects/${project.id}/convert-to-video-editing`, {
+                            method: 'POST',
+                            body: JSON.stringify({ scripts }),
+                          });
+                          setShowConvertModal(false);
+                          loadProject();
+                        } catch (e: any) {
+                          alert(e.message || 'Failed to convert project.');
+                        }
+                      }}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow transition-all text-sm"
+                    >
+                      Confirm Conversion
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ══════════════════════════════════════════════════════
                  1. TECHNICAL APPROVAL REQUEST SUBMISSION SESSION

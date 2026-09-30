@@ -22,7 +22,10 @@ export class FilesService {
       where: { id: projectId },
       include: {
         files: {
-          include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+          include: {
+            uploadedBy: { select: { id: true, name: true, role: true } },
+            scriptEditorAssignments: { include: { user: true, assignedBy: true } },
+          },
           orderBy: { createdAt: 'desc' },
         },
         calendarEvent: true,
@@ -39,7 +42,10 @@ export class FilesService {
         },
         include: {
           files: {
-            include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+            include: {
+              uploadedBy: { select: { id: true, name: true, role: true } },
+              scriptEditorAssignments: { include: { user: true, assignedBy: true } },
+            },
             orderBy: { createdAt: 'desc' },
           },
           calendarEvent: true,
@@ -49,6 +55,9 @@ export class FilesService {
 
     if (!project) throw new NotFoundException('Project not found');
 
+    // The script document cards read from this endpoint, so the editing state has to be
+    // refreshed and the acceptance flag attached here too, not only on GET /projects/:id.
+    await this.syncScriptEditingStatus(project.id);
     // Also fetch any extra files associated with this project or its human projectId code
     const extraFiles = await this.prisma.fileMetadata.findMany({
       where: {
@@ -57,13 +66,40 @@ export class FilesService {
           { projectId: project.projectId },
         ],
       },
-      include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+      include: {
+        uploadedBy: { select: { id: true, name: true, role: true } },
+        scriptEditorAssignments: { include: { user: true, assignedBy: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
+    // A task is accepted once it leaves the pre-acceptance states; the finish action stays
+    // locked until then, so expose that explicitly to the UI.
+    const PRE_ACCEPT = new Set(['PENDING', 'ASSIGNED', 'PENDING_MARKETING_APPROVAL', 'APPROVED']);
+    const taskIds = Array.from(
+      new Set(
+        [...(project.files || []), ...extraFiles]
+          .flatMap((f: any) => f.scriptEditorAssignments || [])
+          .map((a: any) => a.taskId)
+          .filter(Boolean),
+      ),
+    );
+    const relatedTasks = taskIds.length
+      ? await this.prisma.task.findMany({ where: { id: { in: taskIds } }, select: { id: true, status: true } })
+      : [];
+    const acceptedById = new Set(relatedTasks.filter((t) => !PRE_ACCEPT.has(t.status)).map((t) => t.id));
+
+    const withAcceptance = (f: any) => ({
+      ...f,
+      scriptEditorAssignments: (f.scriptEditorAssignments || []).map((a: any) => ({
+        ...a,
+        taskAccepted: acceptedById.has(a.taskId),
+      })),
+    });
+
     const fileMap = new Map<string, any>();
-    project.files.forEach((f) => fileMap.set(f.id, f));
-    extraFiles.forEach((f) => fileMap.set(f.id, f));
+    project.files.forEach((f) => fileMap.set(f.id, withAcceptance(f)));
+    extraFiles.forEach((f) => fileMap.set(f.id, withAcceptance(f)));
     const combinedFiles = Array.from(fileMap.values());
 
     // Virtual Folder Tree Generation
@@ -98,6 +134,42 @@ export class FilesService {
       tree,
       allFiles: combinedFiles,
     };
+  }
+
+  /**
+   * Mirrors the editing workflow state from each linked task onto its assignment row, so the
+   * document cards show the live ACCEPTED / IN_REVIEW / COMPLETED state instead of whatever
+   * was stored when the editor was assigned. Cheap no-op when nothing has a task yet.
+   */
+  private async syncScriptEditingStatus(projectId: string) {
+    const assignments = await this.prisma.scriptEditorAssignment.findMany({
+      where: { projectId, taskId: { not: null } },
+      select: { id: true, taskId: true, editingStatus: true },
+    });
+    if (!assignments.length) return;
+
+    const tasks = await this.prisma.task.findMany({
+      where: { id: { in: assignments.map((a) => a.taskId as string) } },
+      select: { id: true, status: true },
+    });
+    const statusById = new Map(tasks.map((t) => [t.id, t.status]));
+
+    for (const a of assignments) {
+      const status = statusById.get(a.taskId as string);
+      if (!status) continue;
+      const next =
+        status === 'COMPLETED'
+          ? 'COMPLETED'
+          : status === 'WAITING_FOR_TECHNICAL_REVIEW' || status === 'WAITING_FOR_MEDIA_REVIEW'
+          ? 'IN_REVIEW'
+          : status === 'IN_PROGRESS' || status === 'ON_HOLD'
+          ? 'ACCEPTED'
+          : 'ASSIGNED';
+      if (next === a.editingStatus) continue;
+      await this.prisma.scriptEditorAssignment
+        .update({ where: { id: a.id }, data: { editingStatus: next } })
+        .catch(() => null);
+    }
   }
 
   async saveFileMetadataAndPhysicalDisk(
@@ -415,15 +487,51 @@ export class FilesService {
     return deliverable;
   }
 
+  /**
+   * Deletes a file record and its physical copy.
+   *
+   * Permission mirrors the clip-code rule on the same documents: the uploader, staff assigned
+   * to the parent project, and managers/admins may delete; every other authenticated user is
+   * refused. Without this check any logged-in account could delete any project's script.
+   */
   async deleteFile(id: string, user?: any) {
-    const file = await this.prisma.fileMetadata.findUnique({ where: { id } });
+    const file = await this.prisma.fileMetadata.findUnique({
+      where: { id },
+      select: { id: true, fileName: true, projectId: true, uploadedById: true, storagePath: true },
+    });
     if (!file) throw new NotFoundException('File not found');
 
-    if (file.storagePath && fs.existsSync(file.storagePath)) {
-      try {
-        fs.unlinkSync(file.storagePath);
-      } catch (e) {
-        console.warn('Could not delete physical file:', e);
+    const userId = user?.id || user?.sub;
+    const isManager = ['ADMIN', 'ADMINISTRATOR', 'MEDIA_MANAGER', 'MARKETING_MANAGER', 'TECHNICAL_MANAGER'].includes(
+      user?.role,
+    );
+    const isUploader = file.uploadedById && file.uploadedById === userId;
+    const isAssigned = file.projectId
+      ? await this.prisma.projectAssignment.findFirst({
+          where: { projectId: file.projectId, userId },
+          select: { id: true },
+        })
+      : null;
+
+    if (!isManager && !isUploader && !isAssigned) {
+      throw new ForbiddenException(
+        'You do not have permission to delete this document. Only the uploader, staff assigned to the project, or a manager can delete it.',
+      );
+    }
+
+    // storagePath is stored URL-style ("/uploads/..."), so resolve it against the upload
+    // root before touching disk. The old code passed the raw value to existsSync, which
+    // never matched, so files were orphaned on disk instead of being removed.
+    if (file.storagePath && !file.storagePath.startsWith('http')) {
+      const uploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
+      const rel = file.storagePath.replace(/^\/?uploads\/?/, '');
+      const abs = rel ? path.join(uploadDir, rel) : '';
+      if (abs && fs.existsSync(abs)) {
+        try {
+          fs.unlinkSync(abs);
+        } catch (e) {
+          console.warn('Could not delete physical file:', e);
+        }
       }
     }
 

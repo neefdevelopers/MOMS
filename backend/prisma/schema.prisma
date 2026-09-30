@@ -26,6 +26,8 @@ model User {
   tasks              TaskAssignment[]
   createdProjects    ShootProject[]      @relation("ProjectCreator")
   projectAssignments ProjectAssignment[]
+  scriptEditorAssignments ScriptEditorAssignment[] @relation("ScriptEditorUser")
+  scriptsEditorAssigned ScriptEditorAssignment[] @relation("ScriptEditorAssigner")
   attendanceRecords           Attendance[]        @relation("AttendanceUser")
   recordedAttendanceRecords   Attendance[]        @relation("AttendanceRecordedBy")
   fileUploads        FileMetadata[]
@@ -291,6 +293,13 @@ model ShootProject {
   closureReason          String?
   progressPercentage     Int            @default(0)
   revisionCount          Int            @default(0)
+  // Set when Media Manager completes the shoot-phase conversion: Video Editing Tasks are
+  // generated and the Project itself is locked from further production edits. Editing Tasks
+  // continue independently; the Project auto-completes only after every task reaches
+  // MARKETING_MANAGER_APPROVED.
+  videoEditingConverted  Boolean        @default(false)
+  videoEditingConvertedAt DateTime?
+  videoEditingConvertedBy String?
   createdById            String
   createdBy              User           @relation("ProjectCreator", fields: [createdById], references: [id])
   createdAt              DateTime       @default(now())
@@ -310,6 +319,7 @@ model ShootProject {
   communications         Communication[]
   equipmentRequests      EquipmentRequest[]
   handoverAuthorizations EquipmentHandoverAuthorization[]
+  scriptEditorAssignments ScriptEditorAssignment[]
   sourceForCalendarEvents MediaCalendarEvent[]     @relation("CalendarEventSourceShoot")
 }
 
@@ -371,12 +381,39 @@ model ProjectAssignment {
   @@unique([projectId, userId])
 }
 
+// Video editor assigned by a Media Manager to one script document on a shoot project.
+// fileId is the FileMetadata.id of the uploaded script document, so the editor sits beside
+// that document's clip codes and is removed with the document. Unique per project + file.
+model ScriptEditorAssignment {
+  id           String       @id @default(uuid())
+  projectId    String
+  fileId       String
+  userId       String
+  assignedById String?
+  assignedAt   DateTime     @default(now())
+  // Editing workflow state. A video-editing Task is created alongside the assignment and
+  // lives through the normal accept -> technical review -> media review chain, so these
+  // fields are a denormalised mirror of that task for cheap reads on the project page.
+  taskId             String?
+  editingStatus      String       @default("ASSIGNED") // ASSIGNED, ACCEPTED, IN_REVIEW, COMPLETED
+  editingFinishedAt  DateTime?
+  videoEditingFinished Boolean     @default(false)
+  project      ShootProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  file         FileMetadata @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  user         User         @relation("ScriptEditorUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy   User?        @relation("ScriptEditorAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, fileId])
+  @@index([fileId])
+  @@index([userId])
+}
+
 model GraphicRequirement {
   id                 String           @id @default(uuid())
   requirementId      String           @unique
   name               String
-  projectId          String
-  project            ShootProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId          String?
+  project            ShootProject?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   clientId           String
   client             Client           @relation(fields: [clientId], references: [id])
   brandId            String
@@ -483,10 +520,21 @@ model Task {
   activeDeliverableFileName String?
   activeDeliverableVersion Int           @default(0)
   sourceType          String             @default("DIRECT_TASK") // DIRECT_TASK, CALENDAR_EVENT, GRAPHIC_REQUIREMENT, REVISION
-  taskType            String             @default("PRODUCTION_TASK") // PRODUCTION_TASK, REVISION
+  taskType            String             @default("PRODUCTION_TASK") // PRODUCTION_TASK, REVISION, VIDEO_EDITING
+  // Keyed on the ProjectScript.id from the JSON array stored in ShootProject.notes,
+  // so each script gets one editing task. Together with (projectId) this is unique per
+  // conversion, so clicking Convert twice cannot create duplicates.
+  scriptId            String?
   revisionId          String?
   technicalReviewApproved Boolean        @default(false)
   mediaManagerApproved    Boolean        @default(false)
+  marketingManagerApproved Boolean        @default(false)
+  // Per-script Clip Code captured by the Media Manager at conversion time. Kept on the task
+  // (not the project) because each script carries its own.
+  clipCode                String?
+  // Reason from the most recent rejection on the editing review path. Cleared on approve.
+  mediaRevisionReason String?
+  marketingRevisionReason String?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
@@ -495,6 +543,9 @@ model Task {
   deliverableHistory  TaskDeliverableHistory[]
   timeline            TaskTimeline[]
   revisions           Revision[]
+
+  @@unique([projectId, scriptId])
+  @@index([scriptId])
 }
 
 model TaskTimeline {
@@ -842,6 +893,7 @@ model FileMetadata {
   graphicRequirement  GraphicRequirement? @relation(fields: [graphicRequirementId], references: [id])
   uploadedById         String
   uploadedBy           User                @relation(fields: [uploadedById], references: [id])
+  scriptEditorAssignments ScriptEditorAssignment[]
   createdAt            DateTime            @default(now())
 }
 

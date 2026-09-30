@@ -27,6 +27,7 @@ export class ProjectsController {
     @Query('assignedUserId') assignedUserId?: string,
     @Query('location') location?: string,
     @Query('archived') archived?: string,
+    @Query('all') all?: string,
   ) {
     return this.projectsService.findAll({
       search,
@@ -42,6 +43,7 @@ export class ProjectsController {
       assignedUserId,
       location,
       archived: archived === 'true',
+      all: all === 'true',
       userId: user.id,
       role: user.role,
     });
@@ -115,5 +117,86 @@ export class ProjectsController {
     @Body() body: { action: 'CONFIRM' | 'REQUEST_CHANGES'; comment?: string },
   ) {
     return this.projectsService.confirmClient(id, user, body);
+  }
+
+  /**
+   * Candidate video editors for a shoot project (designation or video-editing skill).
+   * Media Manager only, matching the assign endpoint: the result is an org-wide staff list and
+   * project visibility alone is not authorization to browse it.
+   */
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Get(':id/video-editor-candidates')
+  getScriptEditorCandidates(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.projectsService.getScriptEditorCandidates(id, user);
+  }
+
+  /**
+   * Assign or clear the video editor on one uploaded script document. Restricted to the Media
+   * Manager. Sends editorId: null to unassign.
+   */
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/script-video-editor')
+  setScriptVideoEditor(
+    @Param('id') id: string,
+    @Body() body: { fileId: string; editorId?: string | null },
+    @CurrentUser() user: any,
+  ) {
+    return this.projectsService.setScriptVideoEditor(id, body?.fileId, body?.editorId ?? null, user);
+  }
+
+  /**
+   * The assigned video editor marks editing as finished, which moves the linked task into
+   * the existing technical -> media review chain.
+   */
+  @Post(':id/script-video-editing/finish')
+  finishScriptVideoEditing(@Param('id') id: string, @Body() body: { fileId: string }, @CurrentUser() user: any) {
+    return this.projectsService.finishScriptVideoEditing(id, body?.fileId, user);
+  }
+
+  /**
+   * Media Manager converts a completed Shoot Project into Video Editing.
+   *
+   * For every Script on the project, creates exactly one Video Editing Task (idempotent:
+   * a second call will not create duplicates). Each task is linked to the project, client,
+   * brand, product/campaign and the script itself.
+   */
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/convert-to-video-editing')
+  convertToVideoEditing(
+    @Param('id') id: string,
+    @Body() body: { scripts?: Array<{ scriptId: string; clipCode: string; staffId: string }> },
+    @CurrentUser() user: any,
+  ) {
+    return this.projectsService.convertToVideoEditing(id, user, body);
+  }
+
+  /**
+   * Media Manager approves or rejects a completed Video Editing Task.
+   * Approve -> WAITING_FOR_MARKETING_MANAGER_REVIEW. Reject -> back to IN_PROGRESS.
+   */
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/video-editing-task/:taskId/media-review')
+  reviewVideoEditingMedia(
+    @Param('id') id: string,
+    @Param('taskId') taskId: string,
+    @Body() body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.projectsService.reviewVideoEditingMedia(id, taskId, body, user);
+  }
+
+  /**
+   * Marketing Manager approves or rejects a Media-Manager-approved Video Editing Task.
+   * Approve -> MARKETING_MANAGER_APPROVED. Reject -> back to IN_PROGRESS (staff re-edits).
+   */
+  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/video-editing-task/:taskId/marketing-review')
+  reviewVideoEditingMarketing(
+    @Param('id') id: string,
+    @Param('taskId') taskId: string,
+    @Body() body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.projectsService.reviewVideoEditingMarketing(id, taskId, body, user);
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException, ConflictException, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ShootType, ProjectStatus, Priority, PermissionStatus, WeatherStatus, StudioBookingStatus, EquipmentAvailability, TaskStatus, Role } from '../../common/enums';
 import { canUserViewEvent, canUserViewProject } from '../../common/utils/event-auth';
@@ -21,6 +21,10 @@ export class ProjectsService {
     assignedUserId?: string;
     location?: string;
     archived?: boolean;
+    // Opt-in to bypass per-user visibility filtering. Used by the dropdowns in the
+    // calendar and task creation forms where every project is a valid selection, not
+    // just projects the viewer is assigned to.
+    all?: boolean;
     userId?: string;
     role?: string;
     createdBy?: string;
@@ -191,7 +195,7 @@ export class ProjectsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    if (params.userId && params.role) {
+    if (params.userId && params.role && !params.all) {
       return rawProjects.filter((p) =>
         canUserViewProject({ id: params.userId!, role: params.role! }, p),
       );
@@ -232,7 +236,26 @@ export class ProjectsService {
         orderBy: { createdAt: 'desc' as const },
       },
       equipmentMovements: { include: { equipment: true, user: true }, orderBy: { timestamp: 'desc' as const } },
-      files: { include: { uploadedBy: true }, orderBy: { createdAt: 'desc' as const } },
+      files: {
+        include: {
+          uploadedBy: true,
+          scriptEditorAssignments: {
+            include: {
+              user: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
+              assignedBy: { select: { id: true, name: true, role: true } },
+            },
+            orderBy: { assignedAt: 'desc' as const },
+          },
+        },
+        orderBy: { createdAt: 'desc' as const },
+      },
+      scriptEditorAssignments: {
+        include: {
+          user: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
+          assignedBy: { select: { id: true, name: true, role: true } },
+        },
+        orderBy: { assignedAt: 'desc' as const },
+      },
       communications: { include: { sender: true }, orderBy: { createdAt: 'desc' as const } },
     };
 
@@ -415,7 +438,36 @@ export class ProjectsService {
       deliverables: { completed: deliverablesCompleted, total: deliverablesTotal, text: `${deliverablesCompleted} / ${deliverablesTotal} Completed` },
     };
 
-    return { ...project, activityLogs, completionChecklist, completionStatistics };
+    // Refresh the per-document editing state from the linked task before returning, so the
+    // page always reflects the current acceptance / review status rather than a stale mirror.
+    await this.syncScriptEditingStatus(project.id, currentUser);
+    const refreshed = currentUser
+      ? await this.prisma.shootProject
+          .findUnique({
+            where: { id: project.id },
+            select: { files: { select: { scriptEditorAssignments: true } } },
+          })
+          .catch(() => null)
+      : null;
+    const liveAssignments = refreshed?.files?.flatMap((f) => f.scriptEditorAssignments || []) || [];
+    const acceptedTaskIds = new Set(
+      liveAssignments.filter((a: any) => a.editingStatus !== 'ASSIGNED').map((a: any) => a.taskId).filter(Boolean),
+    );
+
+    return {
+      ...project,
+      files: (project.files || []).map((f: any) => ({
+        ...f,
+        scriptEditorAssignments: (f.scriptEditorAssignments || []).map((a: any) => ({
+          ...a,
+          // True once the linked task has been accepted, which is what unlocks finishing.
+          taskAccepted: acceptedTaskIds.has(a.taskId),
+        })),
+      })),
+      activityLogs,
+      completionChecklist,
+      completionStatistics,
+    };
   }
 
   async create(data: any, userId: string) {
@@ -1610,5 +1662,1207 @@ export class ProjectsService {
 
       return this.findOne(projectId, user);
     }
+  }
+
+  /**
+   * Resolves a client-supplied project reference (ShootProject.id, its projectId code, or a
+   * MediaCalendarEvent id) to the ShootProject row, mirroring the lookup order used by findOne.
+   *
+   * The relations canUserViewProject branches on are loaded here on purpose. Calling that helper
+   * with a bare row leaves calendarEvent, tasks, assignedTeam, approvals and graphicRequirements
+   * undefined, which silently skips the calendar-event ACL gate and the per-relation staff checks.
+   */
+  private async resolveShootProject(id: string) {
+    const authInclude = {
+      calendarEvent: true,
+      createdBy: { select: { id: true } },
+      assignedTeam: { select: { userId: true, user: { select: { id: true } } } },
+      tasks: {
+        select: {
+          id: true,
+          status: true,
+          assignedEmployees: { select: { userId: true, user: { select: { id: true } } } },
+        },
+      },
+      graphicRequirements: { select: { id: true, createdById: true } },
+      approvals: { select: { id: true, status: true, approvalType: true, targetRole: true } },
+    };
+    const project = await this.prisma.shootProject.findUnique({ where: { id }, include: authInclude });
+    if (project) return project;
+    return this.prisma.shootProject.findFirst({ where: { OR: [{ projectId: id }, { id }] }, include: authInclude });
+  }
+
+  /**
+   * Single source of truth for "does this person count as a video editor".
+   *
+   * Designation and Skill.name are free text, so matching is a case-insensitive substring over
+   * "edit"/"post-production". The picker and the assign endpoint both call this, so posting an
+   * id the picker would not offer cannot smuggle in a non-editor.
+   */
+  private isVideoEditorCandidate(designation?: string | null, skills: string[] = []): boolean {
+    // Anchored so a free-text designation like "Credit Executive" does not match on the
+    // substring "edit" inside "credit".
+    const pattern = /\b(edit(?:or|ors|ing)?|post[\s-]?production)\b/i;
+    return [designation || '', ...skills].some((v) => pattern.test(v));
+  }
+
+  /**
+   * Candidate video editors for a shoot project: active users whose designation or skills
+   * identify them as an editor. An empty picker simply means no one in the agency is flagged
+   * as an editor yet.
+   */
+  async getScriptEditorCandidates(projectId: string, user: any) {
+    const project = await this.resolveShootProject(projectId);
+    if (!project) throw new NotFoundException('Project not found');
+    if (!canUserViewProject(user, project)) {
+      throw new ForbiddenException('You do not have access to this project.');
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        isArchived: false,
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        avatarUrl: true,
+        employeeProfile: {
+          select: {
+            designation: true,
+            skills: { select: { skill: { select: { name: true, category: true } } } },
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const candidates = users
+      .map((u) => {
+        const designation = u.employeeProfile?.designation || '';
+        const skills = (u.employeeProfile?.skills || []).map((s) => s.skill.name);
+        if (!this.isVideoEditorCandidate(designation, skills)) return null;
+        return {
+          id: u.id,
+          name: u.name,
+          role: u.role,
+          avatarUrl: u.avatarUrl,
+          designation,
+          skills,
+        };
+      })
+      .filter((u): u is NonNullable<typeof u> => u !== null);
+
+    return { projectId: project.id, candidates };
+  }
+
+  /**
+   * Assigns (or clears) the video editor for one uploaded script document on a shoot project.
+   * Media Manager only, enforced here as well as by @Roles on the controller, because a
+   * manager is not necessarily in the project team and must not depend on that to act.
+   */
+  async setScriptVideoEditor(
+    projectId: string,
+    fileId: string,
+    editorId: string | null | undefined,
+    user: any,
+  ) {
+    const isMediaManager = user?.role === Role.MEDIA_MANAGER || user?.role === 'ADMIN' || user?.role === Role.ADMINISTRATOR;
+    if (!isMediaManager) {
+      throw new ForbiddenException('Only a Media Manager can assign a video editor to a script.');
+    }
+
+    const project = await this.resolveShootProject(projectId);
+    if (!project) throw new NotFoundException('Project not found');
+
+    const fileKey = (fileId || '').trim();
+    if (!fileKey) throw new BadRequestException('A script document id is required.');
+    // Defense in depth: the role check above already admits only managers, but keep the project
+    // visibility check so this endpoint cannot become a wider hole if the guard is ever relaxed.
+    if (!canUserViewProject(user, project)) {
+      throw new ForbiddenException('You do not have access to this project.');
+    }
+
+    // The document must belong to this project. Without this, a manager could attach an
+    // assignment to a file id from a different project and read its editor back in findOne.
+    const file = await this.prisma.fileMetadata.findFirst({
+      where: { id: fileKey, projectId: project.id },
+      select: { id: true, fileName: true },
+    });
+    if (!file) throw new NotFoundException('Script document not found on this project.');
+
+    // Unassign: clearing is a normal operation and must work even if the document has since
+    // been renamed, so the row is matched on the stored fileId.
+    if (!editorId) {
+      const existing = await this.prisma.scriptEditorAssignment.findUnique({
+        where: { projectId_fileId: { projectId: project.id, fileId: fileKey } },
+      });
+      if (!existing) throw new NotFoundException('No video editor is assigned to that script document.');
+
+      await this.prisma.scriptEditorAssignment.delete({ where: { id: existing.id } });
+      await this.prisma.activityLog.create({
+        data: {
+          userId: user?.id || user?.sub || null,
+          action: 'UNASSIGN_SCRIPT_VIDEO_EDITOR',
+          entity: 'FileMetadata',
+          entityId: file.id,
+          description: `Removed the video editor from script document '${file.fileName}'`,
+        },
+      });
+      return this.findOne(project.id, user);
+    }
+
+    const editor = await this.prisma.user.findUnique({
+      where: { id: editorId },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        isArchived: true,
+        status: true,
+        employeeProfile: { select: { designation: true, skills: { select: { skill: { select: { name: true } } } } } },
+      },
+    });
+    if (!editor) throw new NotFoundException('Selected video editor not found.');
+    if (editor.isArchived || editor.status !== 'ACTIVE') {
+      throw new BadRequestException('That user is not active and cannot be assigned.');
+    }
+
+    // The picker is filtered to editors, but the endpoint is reachable directly, so re-check
+    // eligibility with the same predicate the picker uses rather than trusting the client.
+    const skills = (editor.employeeProfile?.skills || []).map((s) => s.skill.name);
+    if (!this.isVideoEditorCandidate(editor.employeeProfile?.designation, skills)) {
+      throw new BadRequestException(
+        'That user is not flagged as a video editor. Set their designation to "Video Editor" or add a video editing skill first.',
+      );
+    }
+
+    const saved = await this.prisma.scriptEditorAssignment.upsert({
+      where: { projectId_fileId: { projectId: project.id, fileId: fileKey } },
+      create: {
+        projectId: project.id,
+        fileId: fileKey,
+        userId: editor.id,
+        assignedById: user?.id || user?.sub || null,
+      },
+      update: {
+        userId: editor.id,
+        assignedById: user?.id || user?.sub || null,
+        assignedAt: new Date(),
+        // A new editor starts the workflow over: the previous editor's task and its
+        // progress no longer describe who is doing the work.
+        editingStatus: 'ASSIGNED',
+        editingFinishedAt: null,
+        videoEditingFinished: false,
+      },
+    });
+
+    // Add the editor to the project team so canUserViewProject lets them open the project page
+    // and the task inspector: STAFF are refused project access unless they are on assignedTeam
+    // or hold an assignment on one of its tasks, graphic requirements, or the calendar event.
+    // This must not fail silently - without team membership the editor can accept the task but
+    // cannot load the project's files, so "+ Add New Script" would never work for them.
+    try {
+      await this.prisma.projectAssignment.upsert({
+        where: { projectId_userId: { projectId: project.id, userId: editor.id } },
+        create: {
+          projectId: project.id,
+          userId: editor.id,
+          roleInProject: 'VIDEO_EDITOR',
+          assignedAt: new Date(),
+        },
+        update: { roleInProject: 'VIDEO_EDITOR' },
+      });
+    } catch (teamErr) {
+      console.error('Could not add video editor to the project team:', teamErr);
+      throw new InternalServerErrorException(
+        'The editor was assigned, but could not be added to the project team, so they would not be able to open the project. Please add them to the team and try again.',
+      );
+    }
+
+    // Create (or reuse) the video-editing task so the editor sees it in their Tasks list.
+    // They accept it there, then request technical review to finish - reusing the existing
+    // task acceptance and review chain rather than inventing a parallel one.
+    const editingTask = await this.ensureVideoEditingTask(project, file, editor, user);
+
+    await this.prisma.scriptEditorAssignment.update({
+      where: { id: saved.id },
+      data: { taskId: editingTask?.id || null },
+    });
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user?.id || user?.sub || null,
+        action: 'ASSIGN_SCRIPT_VIDEO_EDITOR',
+        entity: 'FileMetadata',
+        entityId: file.id,
+        description: `Assigned ${editor.name} as video editor for script document '${file.fileName}'`,
+      },
+    });
+
+    await this.prisma.notification
+      .create({
+        data: {
+          userId: editor.id,
+          title: 'New Video Editing Assignment',
+          message: `You have been assigned to edit the video for script document '${file.fileName}' on project ${project.projectId}. Accept the task to start.`,
+          type: 'ALERT',
+          category: 'ASSIGNMENT',
+          priority: 'HIGH',
+          linkUrl: `/tasks`,
+          eventType: 'VIDEO_EDITING_ASSIGNED',
+          entityType: 'ShootProject',
+          entityId: project.id,
+          entityCode: project.projectId,
+          projectId: project.id,
+        },
+      })
+      .catch(() => null);
+
+    return {
+      ...saved,
+      taskId: editingTask?.id || null,
+      user: { id: editor.id, name: editor.name, role: editor.role, avatarUrl: null },
+    };
+  }
+
+  /**
+   * Find-or-create the Task that carries one script document's video editing work.
+   *
+   * Reassigning an editor to a document that already has a task re-points that task at the
+   * new editor and resets it, rather than creating a second task for the same document.
+   * The task is a normal Task with taskType VIDEO_EDITING, so the existing acceptance,
+   * technical review and media review endpoints apply unchanged.
+   */
+  private async ensureVideoEditingTask(
+    project: { id: string; projectId: string; name?: string | null },
+    file: { id: string; fileName: string },
+    editor: { id: string; name: string },
+    assignedBy: any,
+  ) {
+    const existing = await this.prisma.scriptEditorAssignment.findFirst({
+      where: { projectId: project.id, fileId: file.id, taskId: { not: null } },
+      select: { taskId: true },
+    });
+    if (existing?.taskId) {
+      const prior = await this.prisma.task.findFirst({
+        where: { OR: [{ id: existing.taskId }, { taskId: existing.taskId }] },
+        select: { id: true },
+      });
+      if (prior) {
+        await this.prisma.taskAssignment.deleteMany({
+          where: { OR: [{ taskId: prior.id }, { taskId: (existing.taskId as any) }] },
+        });
+        await this.prisma.taskAssignment
+          .create({
+            data: { taskId: prior.id, userId: editor.id, acceptanceStatus: 'NOT_YET_ACCEPTED' },
+          })
+          .catch(() => null);
+        await this.prisma.task
+          .update({
+            where: { id: prior.id },
+            data: {
+              status: TaskStatus.ASSIGNED,
+              completionPercentage: 0,
+              technicalReviewApproved: false,
+              mediaManagerApproved: false,
+              activeDeliverableUrl: null,
+              activeDeliverableFileName: null,
+            },
+          })
+          .catch(() => null);
+        return prior;
+      }
+    }
+
+    // Generate the next business task code the same way task creation does.
+    const count = await this.prisma.task.count();
+    let autoTaskId = `TSK-${(count + 1).toString().padStart(6, '0')}`;
+    let clash = await this.prisma.task.findUnique({ where: { taskId: autoTaskId }, select: { id: true } });
+    let bump = count + 1;
+    while (clash) {
+      bump += 1;
+      autoTaskId = `TSK-${bump.toString().padStart(6, '0')}`;
+      clash = await this.prisma.task.findUnique({ where: { taskId: autoTaskId }, select: { id: true } });
+    }
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 3);
+
+    const created = await this.prisma.task.create({
+      data: {
+        taskId: autoTaskId,
+        title: `Video Editing - ${file.fileName}`,
+        description: `Video editing task for script document '${file.fileName}' on shoot project ${project.projectId} (${project.name || 'Shoot Project'}). Step 1: Accept this task. Step 2: upload the finished cut using the "Deliverable" button on the task row. Step 3: press "Tech Review" to send the edit for Technical Manager approval.`,
+        projectId: project.id,
+        priority: Priority.MEDIUM,
+        dueDate,
+        estimatedHours: 2.0,
+        status: TaskStatus.ASSIGNED,
+        sourceType: 'SHOOT_PROJECT',
+        taskType: 'VIDEO_EDITING',
+        completionPercentage: 0,
+      },
+    });
+
+    await this.prisma.taskAssignment
+      .create({
+        data: { taskId: created.id, userId: editor.id, acceptanceStatus: 'NOT_YET_ACCEPTED' },
+      })
+      .catch(() => null);
+
+    await this.prisma.taskTimeline
+      .create({
+        data: {
+          taskId: created.id,
+          userId: assignedBy?.id || assignedBy?.sub || null,
+          event: 'TASK_ASSIGNED',
+          description: `Video editing assigned to ${editor.name} by ${assignedBy?.name || 'a Media Manager'} for script document '${file.fileName}'.`,
+        },
+      })
+      .catch(() => null);
+
+    return created;
+  }
+
+  /**
+   * The assigned video editor marks editing as finished for one assigned script document.
+   *
+   * Rather than inventing a parallel completion path, this drives the existing review chain:
+   * the task is moved to WAITING_FOR_TECHNICAL_REVIEW and a Technical Review Approval is
+   * raised, exactly as requestTechnicalReview does. From there the Technical Manager and
+   * Media Manager approve it in the normal way. The assignment row is flagged as finished so
+   * the project page can show that state immediately.
+   */
+  async finishScriptVideoEditing(projectId: string, fileId: string, user: any) {
+    const project = await this.resolveShootProject(projectId);
+    if (!project) throw new NotFoundException('Project not found');
+
+    const fileKey = (fileId || '').trim();
+    if (!fileKey) throw new BadRequestException('A script document id is required.');
+
+    const assignment = await this.prisma.scriptEditorAssignment.findFirst({
+      where: { projectId: project.id, fileId: fileKey, userId: user?.id || user?.sub },
+      include: { file: { select: { id: true, fileName: true } } },
+    });
+    if (!assignment) {
+      throw new ForbiddenException('Only the assigned video editor can mark this script as edited.');
+    }
+    if (assignment.videoEditingFinished) {
+      throw new BadRequestException('Video editing is already marked as finished for this script.');
+    }
+    if (!assignment.taskId) {
+      throw new BadRequestException('No video editing task exists for this script. Ask the Media Manager to reassign it.');
+    }
+
+    const task = await this.prisma.task.findFirst({
+      where: { OR: [{ id: assignment.taskId }, { taskId: assignment.taskId }] },
+      select: { id: true, taskId: true, title: true, status: true, assignedEmployees: true },
+    });
+    if (!task) throw new NotFoundException('Video editing task not found.');
+
+    const accepted = (task.assignedEmployees || []).some(
+      (a: any) => a.userId === (user?.id || user?.sub) && a.acceptanceStatus === 'ACCEPTED',
+    );
+
+    // A manager or admin may finish on the editor's behalf; the editor themselves must have
+    // accepted the task first, so nobody can mark work finished without taking it on.
+    const isManager = user?.role === Role.MEDIA_MANAGER || user?.role === 'ADMIN' || user?.role === Role.ADMINISTRATOR;
+    const isAssignedEditor = assignment.userId === (user?.id || user?.sub);
+    if (!isManager) {
+      if (!isAssignedEditor) {
+        throw new ForbiddenException('Only the assigned video editor can mark this script as edited.');
+      }
+      if (!accepted) {
+        throw new ForbiddenException('Accept the video editing task before marking it as finished.');
+      }
+    }
+
+    // A finished edit needs a deliverable to review, matching the existing rule that a
+    // technical review cannot be requested without an uploaded output.
+    const full = await this.prisma.task.findUnique({ where: { id: task.id }, select: { activeDeliverableUrl: true } });
+    if (!full?.activeDeliverableUrl) {
+      throw new BadRequestException('Upload the finished video as a deliverable before marking editing as finished.');
+    }
+
+    await this.prisma.task.update({
+      where: { id: task.id },
+      data: { status: TaskStatus.WAITING_FOR_TECHNICAL_REVIEW, completionPercentage: 50 },
+    });
+
+    await this.prisma.approval
+      .create({
+        data: {
+          entityType: 'TASK',
+          entityId: task.id,
+          approvalType: 'TECHNICAL_REVIEW',
+          targetRole: 'TECHNICAL_MANAGER',
+          requestedById: user?.id || user?.sub || null,
+          projectId: project.id,
+          status: 'PENDING',
+          remarks: `Video editing finished for script document '${assignment.file.fileName}' by ${user?.name}. Ready for technical review.`,
+        },
+      })
+      .catch(() => null);
+
+    const technicalManagers = await this.prisma.user.findMany({
+      where: { role: Role.TECHNICAL_MANAGER, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    for (const tm of technicalManagers) {
+      await this.prisma.notification
+        .create({
+          data: {
+            userId: tm.id,
+            title: 'Video Edit Ready for Technical Review',
+            message: `${user?.name} finished video editing for '${assignment.file.fileName}' (Task ${task.taskId}). Technical approval required.`,
+            type: 'ALERT',
+            category: 'APPROVAL',
+            priority: 'HIGH',
+            linkUrl: '/approvals',
+            eventType: 'VIDEO_EDITING_FINISHED',
+            entityType: 'TASK',
+            entityId: task.id,
+            entityCode: task.taskId,
+            taskId: task.id,
+            projectId: project.id,
+          },
+        })
+        .catch(() => null);
+    }
+
+    await this.prisma.scriptEditorAssignment.update({
+      where: { id: assignment.id },
+      data: { videoEditingFinished: true, editingStatus: 'FINISHED', editingFinishedAt: new Date() },
+    });
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user?.id || user?.sub || null,
+        action: 'VIDEO_EDITING_FINISHED',
+        entity: 'FileMetadata',
+        entityId: assignment.file.id,
+        description: `${user?.name} finished video editing for '${assignment.file.fileName}'; sent for technical review.`,
+      },
+    });
+
+    return this.findOne(project.id, user);
+  }
+
+  /**
+   * Mirrors the editing workflow state from the linked task onto the assignment row, so the
+   * project page shows ACCEPTED / IN_REVIEW / COMPLETED without a second source of truth.
+   */
+  async syncScriptEditingStatus(projectId: string, currentUser?: any) {
+    const project = await this.resolveShootProject(projectId);
+    if (!project) return;
+    if (currentUser && !canUserViewProject(currentUser, project)) return;
+
+    const assignments = await this.prisma.scriptEditorAssignment.findMany({
+      where: { projectId: project.id, taskId: { not: null } },
+      select: { id: true, taskId: true, editingStatus: true, videoEditingFinished: true },
+    });
+    if (!assignments.length) return;
+
+    const tasks = await this.prisma.task.findMany({
+      where: { id: { in: assignments.map((a) => a.taskId as string).filter(Boolean) } },
+      select: { id: true, status: true },
+    });
+    const statusById = new Map(tasks.map((t) => [t.id, t.status]));
+
+    for (const a of assignments) {
+      const status = statusById.get(a.taskId as string);
+      if (!status) continue;
+      const next =
+        status === TaskStatus.COMPLETED
+          ? 'COMPLETED'
+          : status === TaskStatus.WAITING_FOR_TECHNICAL_REVIEW || status === TaskStatus.WAITING_FOR_MEDIA_REVIEW
+          ? 'IN_REVIEW'
+          : status === TaskStatus.IN_PROGRESS
+          ? 'ACCEPTED'
+          : 'ASSIGNED';
+      if (next === a.editingStatus) continue;
+      await this.prisma.scriptEditorAssignment
+        .update({ where: { id: a.id }, data: { editingStatus: next } })
+        .catch(() => null);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────────
+  // Convert-to-Video-Editing workflow
+  //
+  // After a shoot project reaches the mark COMPLETED, the Media Manager clicks
+  // "Convert to Video Editing". This:
+  //   1. Reads the JSON array of scripts from ShootProject.notes.
+  //   2. Creates exactly one Task per script, keyed on (projectId, scriptId).
+  //   3. Notifies the Media Manager of which tasks were created.
+  //
+  // The flow then continues: Media Manager assigns each task to a Staff member
+  // (via the standard TaskAssignment mechanism), staff completes the task and
+  // it moves through Media Manager Review -> Marketing Manager Review ->
+  // MARKETING_MANAGER_APPROVED. The project becomes COMPLETED only after every
+  // editing task on it is MARKETING_MANAGER_APPROVED.
+  //
+  // Idempotent: the (projectId, scriptId) unique constraint prevents duplicates
+  // when Convert is clicked twice.
+  // ────────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Parses the ProjectScript JSON array out of ShootProject.notes without depending on
+   * the frontend helper. Tolerates malformed JSON by returning []; tolerates plain prose
+   * by treating it as a single unnamed script so the operator is not stuck.
+   */
+  private parseProjectScripts(rawNotes?: string | null): Array<{ id: string; title: string; scriptText?: string }> {
+    if (!rawNotes) return [];
+    const trimmed = rawNotes.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        const arr = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed?.scripts)
+          ? parsed.scripts
+          : [];
+        return arr
+          .map((s: any, i: number) => ({
+            id: typeof s?.id === 'string' && s.id.trim() ? s.id.trim() : `script-${i + 1}`,
+            title: typeof s?.title === 'string' ? s.title.trim() : `Script ${i + 1}`,
+            scriptText: typeof s?.scriptText === 'string' ? s.scriptText : '',
+          }))
+          .filter((s) => !!s.id);
+      } catch {
+        return [];
+      }
+    }
+    return [{
+      id: 'script-default-1',
+      title: 'Script 1',
+      scriptText: trimmed,
+    }];
+  }
+
+  /**
+   * Media Manager converts a completed shoot project into the Video Editing phase.
+   * Idempotent on (projectId, scriptId) so a second click never duplicates.
+   *
+   * Accepts per-script clip codes and staff assignments from the conversion form. Validates
+   * that every script has both before creating anything (atomic: all-or-nothing).
+   * After conversion the project is locked (videoEditingConverted = true) and its status
+   * becomes VIDEO_EDITING_IN_PROGRESS.
+   */
+  async convertToVideoEditing(
+    projectId: string,
+    user: any,
+    body?: { scripts?: Array<{ scriptId: string; clipCode: string; staffId: string }> },
+  ) {
+    const isMediaManager =
+      user?.role === Role.MEDIA_MANAGER || user?.role === 'ADMIN' || user?.role === Role.ADMINISTRATOR;
+    if (!isMediaManager) {
+      throw new ForbiddenException('Only a Media Manager can convert a Shoot Project to Video Editing.');
+    }
+
+    const project = await this.resolveShootProject(projectId);
+    if (!project) throw new NotFoundException('Project not found');
+
+    // Per the new Post-Shoot Editing spec: a project becomes "completed" as a shoot at the
+    // moment the Media Manager clicks Complete Project (i.e. declares the shoot itself done).
+    // We allow conversion from any post-shoot status - the click is what ends the shoot
+    // phase. Drafts/cancelled projects are still rejected.
+    const convertibleStatuses = [
+      ProjectStatus.PLANNED,
+      ProjectStatus.READY_FOR_PRODUCTION,
+      ProjectStatus.IN_PROGRESS,
+      ProjectStatus.WAITING_FOR_TECHNICAL_REVIEW,
+      ProjectStatus.WAITING_FOR_MEDIA_REVIEW,
+      ProjectStatus.WAITING_FOR_CLIENT_CONFIRMATION,
+      ProjectStatus.CLIENT_REVISION_REQUESTED,
+      ProjectStatus.COMPLETED,
+    ];
+    if (!convertibleStatuses.includes(project.status as ProjectStatus)) {
+      throw new BadRequestException(
+        `Project cannot be converted from its current status: ${project.status}.`,
+      );
+    }
+
+    // Per spec section 16: prevent duplicate conversion at the service layer.
+    if (project.videoEditingConverted) {
+      throw new BadRequestException(
+        'This project has already been converted to Video Editing. Duplicate conversion is not allowed.',
+      );
+    }
+
+    const scripts = this.parseProjectScripts(project.notes);
+    if (scripts.length === 0) {
+      throw new BadRequestException(
+        'No scripts were found on this project. Add scripts to the project notes before converting.',
+      );
+    }
+
+    // Per spec section 15: validate every script has a clip code and staff assignment.
+    const submitted = body?.scripts || [];
+    const errors: string[] = [];
+    for (const script of scripts) {
+      const match = submitted.find((s) => s.scriptId === script.id);
+      if (!match) {
+        errors.push(`Script "${script.title}" is missing from the conversion form.`);
+        continue;
+      }
+      if (!match.clipCode || !match.clipCode.trim()) {
+        errors.push(`Script "${script.title}" requires a Clip Code.`);
+      }
+      if (!match.staffId || !match.staffId.trim()) {
+        errors.push(`Script "${script.title}" requires a Staff assignment.`);
+      }
+    }
+    if (errors.length > 0) {
+      throw new BadRequestException(`Cannot complete conversion:\n${errors.join('\n')}`);
+    }
+
+    // Validate that all assigned staff exist and are active.
+    const staffIds = [...new Set(submitted.map((s) => s.staffId))];
+    const validStaff = await this.prisma.user.findMany({
+      where: { id: { in: staffIds }, isArchived: false, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (validStaff.length !== staffIds.length) {
+      throw new BadRequestException('One or more selected staff members are not active.');
+    }
+
+    const baseCount = await this.prisma.task.count();
+    let nextSeq = baseCount + 1;
+    const usedTaskIds = new Set<string>();
+    const created: Array<{ task: any; script: { id: string; title: string } }> = [];
+    const reused: Array<{ task: any; script: { id: string; title: string } }> = [];
+
+    for (const script of scripts) {
+      const existing = await this.prisma.task.findUnique({
+        where: { projectId_scriptId: { projectId: project.id, scriptId: script.id } },
+        select: { id: true, taskId: true, title: true },
+      });
+      if (existing) {
+        reused.push({ task: existing, script });
+        continue;
+      }
+
+      const submitted = body?.scripts?.find((s) => s.scriptId === script.id);
+      const clipCode = submitted?.clipCode?.trim() || `CLP-${script.id}`;
+      const staffId = submitted?.staffId;
+
+      let candidate = `TSK-${String(nextSeq).padStart(6, '0')}`;
+      while (
+        usedTaskIds.has(candidate) ||
+        (await this.prisma.task.findUnique({ where: { taskId: candidate }, select: { id: true } }))
+      ) {
+        nextSeq += 1;
+        candidate = `TSK-${String(nextSeq).padStart(6, '0')}`;
+      }
+      usedTaskIds.add(candidate);
+      nextSeq += 1;
+
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 5);
+
+      const task = await this.prisma.task.create({
+        data: {
+          taskId: candidate,
+          title: `Video Editing - ${script.title}`,
+          description:
+            `Video editing task for script "${script.title}" on shoot project ${project.projectId} (${project.name || 'Shoot Project'}). ` +
+            `Clip Code: ${clipCode}. ` +
+            `Step 1: Accept this task. ` +
+            `Step 2: Upload the finished cut using the "Deliverable" button on the task row. ` +
+            `Step 3: Press "Tech Review" to send the edit for Technical Manager approval.`,
+          projectId: project.id,
+          clientId: project.clientId,
+          brandId: project.brandId,
+          productId: project.productId,
+          priority: Priority.MEDIUM,
+          dueDate,
+          estimatedHours: 3.0,
+          status: TaskStatus.ASSIGNED,
+          sourceType: 'SHOOT_PROJECT',
+          taskType: 'VIDEO_EDITING',
+          completionPercentage: 0,
+          scriptId: script.id,
+          clipCode,
+        },
+      });
+
+      if (staffId) {
+        await this.prisma.taskAssignment.create({
+          data: { taskId: task.id, userId: staffId, acceptanceStatus: 'NOT_YET_ACCEPTED' },
+        }).catch(() => null);
+      }
+
+      await this.prisma.taskTimeline.create({
+        data: {
+          taskId: task.id,
+          userId: user?.id || user?.sub || null,
+          event: 'TASK_CREATED',
+          description: `Video editing task auto-created by convert-to-video-editing for script "${script.title}".`,
+        },
+      }).catch(() => null);
+
+      await this.prisma.activityLog.create({
+        data: {
+          userId: user?.id || user?.sub || null,
+          action: 'CONVERT_TO_VIDEO_EDITING',
+          entity: 'Task',
+          entityId: task.id,
+          description: `Auto-created video editing task ${task.taskId} for script "${script.title}" on project ${project.projectId}.`,
+        },
+      }).catch(() => null);
+
+      created.push({ task, script });
+    }
+
+    // Per spec section 7: lock the project after conversion.
+    await this.prisma.shootProject.update({
+      where: { id: project.id },
+      data: {
+        videoEditingConverted: true,
+        videoEditingConvertedAt: new Date(),
+        videoEditingConvertedBy: user?.id || user?.sub || null,
+        status: ProjectStatus.VIDEO_EDITING_IN_PROGRESS,
+      },
+    });
+
+    if (user?.id || user?.sub) {
+      await this.prisma.notification.create({
+        data: {
+          userId: user.id || user.sub,
+          title: 'Video Editing Tasks Created',
+          message:
+            `Converted project ${project.projectId}: ${created.length} new task(s), ${reused.length} already existed. ` +
+            `Assign a Staff member to each task from the task list.`,
+          type: 'INFO',
+          category: 'ASSIGNMENT',
+          priority: 'HIGH',
+          linkUrl: `/tasks`,
+          eventType: 'VIDEO_EDITING_CONVERTED',
+          entityType: 'ShootProject',
+          entityId: project.id,
+          entityCode: project.projectId,
+          projectId: project.id,
+        },
+      }).catch(() => null);
+    }
+
+    return {
+      projectId: project.id,
+      projectCode: project.projectId,
+      totalScripts: scripts.length,
+      createdTaskIds: created.map((c) => c.task.taskId),
+      reusedTaskIds: reused.map((c) => c.task.taskId),
+      tasks: [
+        ...created.map((c) => ({ taskId: c.task.taskId, scriptId: c.script.id, title: c.task.title, created: true })),
+        ...reused.map((c) => ({ taskId: c.task.taskId, scriptId: c.script.id, title: c.task.title, created: false })),
+      ],
+    };
+  }
+
+  /**
+   * Media Manager approves or rejects a completed Video Editing Task.
+   * APPROVE -> WAITING_FOR_MARKETING_MANAGER_REVIEW.
+   * REJECT  -> IN_PROGRESS (back to Staff for revision).
+   */
+  async reviewVideoEditingMedia(
+    projectId: string,
+    taskId: string,
+    body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+    user: any,
+  ) {
+    const isMediaManager =
+      user?.role === Role.MEDIA_MANAGER || user?.role === 'ADMIN' || user?.role === Role.ADMINISTRATOR;
+    if (!isMediaManager) {
+      throw new ForbiddenException('Only a Media Manager can approve or reject a Video Editing Task.');
+    }
+
+    const project = await this.resolveShootProject(projectId);
+    if (!project) throw new NotFoundException('Project not found');
+
+    const task = await this.prisma.task.findFirst({
+      where: {
+        projectId: project.id,
+        taskType: 'VIDEO_EDITING',
+        OR: [{ id: taskId }, { taskId }],
+      },
+      select: { id: true, taskId: true, title: true, status: true, scriptId: true },
+    });
+    if (!task) throw new NotFoundException('Video editing task not found.');
+
+    if (body?.action === 'APPROVE') {
+      if (task.status !== 'COMPLETED') {
+        throw new BadRequestException(
+          `Task must be COMPLETED by the editor before Media Manager review. Current status: ${task.status}.`,
+        );
+      }
+
+      await this.prisma.task.update({
+        where: { id: task.id },
+        data: {
+          status: TaskStatus.WAITING_FOR_MARKETING_MANAGER_REVIEW,
+          mediaManagerApproved: true,
+          mediaRevisionReason: null,
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          projectId: project.id,
+          entityType: 'TASK',
+          entityId: task.id,
+          approvalType: 'MEDIA_MANAGER_REVIEW',
+          stage: 'MEDIA_MANAGER_REVIEW',
+          round: 1,
+          version: 'v1',
+          targetRole: 'MARKETING_MANAGER',
+          requestedById: user.id || user.sub || null,
+          reviewerId: user.id || user.sub || null,
+          status: 'APPROVED',
+          remarks: body?.comment || 'Media Manager Review Approved',
+          reviewedAt: new Date(),
+        },
+      }).catch(() => null);
+
+      await this.prisma.activityLog.create({
+        data: {
+          userId: user.id || user.sub || null,
+          action: 'VIDEO_EDITING_MEDIA_APPROVED',
+          entity: 'Task',
+          entityId: task.id,
+          description: `Media Manager approved editing task ${task.taskId} on project ${project.projectId}.`,
+        },
+      }).catch(() => null);
+
+      const marketingManagers = await this.prisma.user.findMany({
+        where: { role: { in: ['MARKETING_MANAGER'] }, status: 'ACTIVE', isArchived: false },
+        select: { id: true },
+      });
+      for (const mm of marketingManagers) {
+        await this.prisma.notification.create({
+          data: {
+            userId: mm.id,
+            title: 'Video Editing Ready for Marketing Review',
+            message: `${task.taskId} (${task.title}) on project ${project.projectId} was approved by Media Manager and is waiting for Marketing review.`,
+            type: 'ALERT',
+            category: 'APPROVAL',
+            priority: 'HIGH',
+            linkUrl: `/tasks`,
+            eventType: 'VIDEO_EDITING_MARKETING_REVIEW',
+            entityType: 'TASK',
+            entityId: task.id,
+            entityCode: task.taskId,
+            taskId: task.id,
+            projectId: project.id,
+          },
+        }).catch(() => null);
+      }
+
+      return this.findOne(project.id, user);
+    }
+
+    if (body?.action === 'REJECT') {
+      const reason = (body?.comment || '').trim();
+      if (!reason) throw new BadRequestException('Rejection reason is required.');
+      await this.prisma.task.update({
+        where: { id: task.id },
+        data: {
+          status: TaskStatus.IN_PROGRESS,
+          mediaManagerApproved: false,
+          mediaRevisionReason: reason,
+          completionPercentage: 50,
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          projectId: project.id,
+          entityType: 'TASK',
+          entityId: task.id,
+          approvalType: 'MEDIA_MANAGER_REVIEW',
+          stage: 'MEDIA_MANAGER_REVIEW',
+          round: 1,
+          version: 'v1',
+          targetRole: 'STAFF',
+          requestedById: user.id || user.sub || null,
+          reviewerId: user.id || user.sub || null,
+          status: 'REJECTED',
+          remarks: reason,
+          returnedStatus: TaskStatus.IN_PROGRESS,
+          reviewedAt: new Date(),
+        },
+      }).catch(() => null);
+
+      await this.prisma.activityLog.create({
+        data: {
+          userId: user.id || user.sub || null,
+          action: 'VIDEO_EDITING_MEDIA_REJECTED',
+          entity: 'Task',
+          entityId: task.id,
+          description: `Media Manager REJECTED editing task ${task.taskId}: ${reason}. Returned to IN_PROGRESS for revision.`,
+        },
+      }).catch(() => null);
+
+      const assignments = await this.prisma.taskAssignment.findMany({
+        where: { taskId: task.id },
+        select: { userId: true },
+      });
+      for (const a of assignments) {
+        await this.prisma.notification.create({
+          data: {
+            userId: a.userId,
+            title: 'Video Editing Needs Revision',
+            message: `Your editing task ${task.taskId} was sent back by the Media Manager. Reason: ${reason}. Make the changes and mark the task completed again.`,
+            type: 'ALERT',
+            category: 'APPROVAL',
+            priority: 'HIGH',
+            linkUrl: `/tasks`,
+            eventType: 'VIDEO_EDITING_REVISION_REQUESTED',
+            entityType: 'TASK',
+            entityId: task.id,
+            entityCode: task.taskId,
+            taskId: task.id,
+            projectId: project.id,
+          },
+        }).catch(() => null);
+      }
+
+      return this.findOne(project.id, user);
+    }
+
+    throw new BadRequestException('action must be APPROVE or REJECT');
+  }
+
+  /**
+   * Marketing Manager approves or rejects a Media-Manager-approved Video Editing Task.
+   * APPROVE -> MARKETING_MANAGER_APPROVED, then trigger project completion check.
+   * REJECT  -> IN_PROGRESS (full chain restarts with Staff).
+   */
+  async reviewVideoEditingMarketing(
+    projectId: string,
+    taskId: string,
+    body: { action: 'APPROVE' | 'REJECT'; comment?: string },
+    user: any,
+  ) {
+    const isMarketingManager =
+      user?.role === Role.MARKETING_MANAGER || user?.role === 'ADMIN' || user?.role === Role.ADMINISTRATOR;
+    if (!isMarketingManager) {
+      throw new ForbiddenException('Only a Marketing Manager can approve or reject a Video Editing Task.');
+    }
+
+    const project = await this.resolveShootProject(projectId);
+    if (!project) throw new NotFoundException('Project not found');
+
+    const task = await this.prisma.task.findFirst({
+      where: {
+        projectId: project.id,
+        taskType: 'VIDEO_EDITING',
+        OR: [{ id: taskId }, { taskId }],
+      },
+      select: { id: true, taskId: true, title: true, status: true, scriptId: true },
+    });
+    if (!task) throw new NotFoundException('Video editing task not found.');
+
+    if (body?.action === 'APPROVE') {
+      if (task.status !== TaskStatus.WAITING_FOR_MARKETING_MANAGER_REVIEW) {
+        throw new BadRequestException(
+          `Task must be in WAITING_FOR_MARKETING_MANAGER_REVIEW. Current status: ${task.status}.`,
+        );
+      }
+
+      await this.prisma.task.update({
+        where: { id: task.id },
+        data: {
+          status: TaskStatus.MARKETING_MANAGER_APPROVED,
+          completionPercentage: 100,
+          marketingManagerApproved: true,
+          marketingRevisionReason: null,
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          projectId: project.id,
+          entityType: 'TASK',
+          entityId: task.id,
+          approvalType: 'MARKETING_MANAGER_REVIEW',
+          stage: 'MARKETING_MANAGER_REVIEW',
+          round: 1,
+          version: 'v1',
+          targetRole: 'MARKETING_MANAGER',
+          requestedById: user.id || user.sub || null,
+          reviewerId: user.id || user.sub || null,
+          status: 'APPROVED',
+          remarks: body?.comment || 'Marketing Manager Review Approved',
+          reviewedAt: new Date(),
+        },
+      }).catch(() => null);
+
+      await this.prisma.activityLog.create({
+        data: {
+          userId: user.id || user.sub || null,
+          action: 'VIDEO_EDITING_MARKETING_APPROVED',
+          entity: 'Task',
+          entityId: task.id,
+          description: `Marketing Manager approved editing task ${task.taskId} on project ${project.projectId}.`,
+        },
+      }).catch(() => null);
+
+      // Central completion rule (spec section 13).
+      await this.checkProjectVideoEditingCompletion(project.id);
+
+      return this.findOne(project.id, user);
+    }
+
+    if (body?.action === 'REJECT') {
+      const reason = (body?.comment || '').trim();
+      if (!reason) throw new BadRequestException('Rejection reason is required.');
+      // Reject returns to IN_PROGRESS and clears both approvals so the full chain restarts.
+      await this.prisma.task.update({
+        where: { id: task.id },
+        data: {
+          status: TaskStatus.IN_PROGRESS,
+          marketingManagerApproved: false,
+          mediaManagerApproved: false,
+          marketingRevisionReason: reason,
+          completionPercentage: 50,
+        },
+      });
+
+      await this.prisma.approval.create({
+        data: {
+          projectId: project.id,
+          entityType: 'TASK',
+          entityId: task.id,
+          approvalType: 'MARKETING_MANAGER_REVIEW',
+          stage: 'MARKETING_MANAGER_REVIEW',
+          round: 1,
+          version: 'v1',
+          targetRole: 'STAFF',
+          requestedById: user.id || user.sub || null,
+          reviewerId: user.id || user.sub || null,
+          status: 'REJECTED',
+          remarks: reason,
+          returnedStatus: TaskStatus.IN_PROGRESS,
+          reviewedAt: new Date(),
+        },
+      }).catch(() => null);
+
+      await this.prisma.activityLog.create({
+        data: {
+          userId: user.id || user.sub || null,
+          action: 'VIDEO_EDITING_MARKETING_REJECTED',
+          entity: 'Task',
+          entityId: task.id,
+          description: `Marketing Manager REJECTED editing task ${task.taskId}: ${reason}. Full review chain restarts.`,
+        },
+      }).catch(() => null);
+
+      const assignments = await this.prisma.taskAssignment.findMany({
+        where: { taskId: task.id },
+        select: { userId: true },
+      });
+      for (const a of assignments) {
+        await this.prisma.notification.create({
+          data: {
+            userId: a.userId,
+            title: 'Video Editing Needs Revision (Marketing)',
+            message: `Your editing task ${task.taskId} was rejected by Marketing. Reason: ${reason}. Edit, mark complete, and the review chain will run again.`,
+            type: 'ALERT',
+            category: 'APPROVAL',
+            priority: 'HIGH',
+            linkUrl: `/tasks`,
+            eventType: 'VIDEO_EDITING_REVISION_REQUESTED',
+            entityType: 'TASK',
+            entityId: task.id,
+            entityCode: task.taskId,
+            taskId: task.id,
+            projectId: project.id,
+          },
+        }).catch(() => null);
+      }
+
+      return this.findOne(project.id, user);
+    }
+
+    throw new BadRequestException('action must be APPROVE or REJECT');
+  }
+
+  /**
+   * Central project completion rule (spec section 13):
+   *   If every VIDEO_EDITING task on this project has marketingManagerApproved=true and
+   *   the project has at least one such task, set the project to COMPLETED.
+   *   Otherwise leave the project status alone.
+   *
+   * Called after every Marketing Manager approval. This is the only place the
+   * editing path moves the project to COMPLETED.
+   */
+  private async checkProjectVideoEditingCompletion(projectId: string) {
+    const editingTasks = await this.prisma.task.findMany({
+      where: { projectId, taskType: 'VIDEO_EDITING' },
+      select: { id: true, status: true, marketingManagerApproved: true },
+    });
+    if (editingTasks.length === 0) return;
+    const allApproved = editingTasks.every(
+      (t) => t.marketingManagerApproved === true && t.status === TaskStatus.MARKETING_MANAGER_APPROVED,
+    );
+    if (!allApproved) return;
+
+    await this.prisma.shootProject.update({
+      where: { id: projectId },
+      data: { status: ProjectStatus.COMPLETED, progressPercentage: 100 },
+    });
+
+    const proj = await this.prisma.shootProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, projectId: true, name: true, createdById: true },
+    });
+    const taskIds = editingTasks.map((t) => t.id);
+    const assignments = await this.prisma.taskAssignment.findMany({
+      where: { taskId: { in: taskIds } },
+      select: { userId: true },
+    });
+    const managerIds = (
+      await this.prisma.user.findMany({
+        where: { role: { in: ['MEDIA_MANAGER', 'MARKETING_MANAGER', 'ADMIN', 'ADMINISTRATOR'] }, status: 'ACTIVE', isArchived: false },
+        select: { id: true },
+      })
+    ).map((u) => u.id);
+    const recipients = new Set<string>([...assignments.map((a) => a.userId), ...managerIds]);
+    if (proj?.createdById) recipients.add(proj.createdById);
+
+    for (const userId of recipients) {
+      await this.prisma.notification.create({
+        data: {
+          userId,
+          title: 'Project Completed',
+          message: `Project ${proj?.projectId} (${proj?.name}) is now COMPLETED. All video editing tasks have been approved.`,
+          type: 'SUCCESS',
+          category: 'PROJECT',
+          priority: 'HIGH',
+          linkUrl: `/projects/${projectId}`,
+          eventType: 'PROJECT_COMPLETED',
+          entityType: 'ShootProject',
+          entityId: projectId,
+          entityCode: proj?.projectId,
+          projectId,
+        },
+      }).catch(() => null);
+    }
+
+    await this.prisma.activityLog.create({
+      data: {
+        userId: proj?.createdById ||
+          (await this.prisma.user.findFirst({ where: { role: 'ADMIN', isArchived: false, status: 'ACTIVE' }, select: { id: true } }))?.id ||
+          (await this.prisma.user.findFirst({ where: { role: 'ADMINISTRATOR' }, select: { id: true } }))?.id,
+        action: 'PROJECT_AUTO_COMPLETED',
+        entity: 'ShootProject',
+        entityId: projectId,
+        description: `Project auto-completed: all ${editingTasks.length} video editing task(s) reached MARKETING_MANAGER_APPROVED.`,
+      },
+    }).catch(() => null);
   }
 }

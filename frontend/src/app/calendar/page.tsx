@@ -397,7 +397,9 @@ export default function CalendarPage() {
         fetchApi('/users').catch(() => []),
         fetchApi('/equipment').catch(() => []),
         fetchApi('/graphic-reqs?all=true').catch(() => []),
-        fetchApi('/projects').catch(() => []),
+        // all=true bypasses per-user visibility filtering so the parent-project dropdowns
+        // list every project, not just the ones this user is assigned to.
+        fetchApi('/projects?all=true').catch(() => []),
       ]);
 
       const rawGr = Array.isArray(resGr) ? resGr : (resGr?.data || resGr?.requirements || resGr?.items || []);
@@ -2073,6 +2075,33 @@ export default function CalendarPage() {
                   </div>
                 )}
 
+                {/* Optional link to an existing Shoot Project. When set, the event attaches to
+                    that project instead of creating a brand new one; when left blank a new
+                    ShootProject is created as before. */}
+                {formData.eventSource === 'SHOOT' && (
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="text-slate-700 block mb-1 font-semibold">Parent Shoot Project (Optional)</label>
+                    <select
+                      value={formData.shootId || ''}
+                      onChange={(e) => setFormData({ ...formData, shootId: e.target.value || undefined })}
+                      className="w-full bg-slate-50 border border-blue-200 rounded p-2 text-slate-800 font-medium"
+                    >
+                      <option value="">-- New Shoot Project (No Parent Project) --</option>
+                      {shootProjectsList
+                        .filter((p) => !p.calendarEventId)
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.projectId || 'SP'} • {p.name} ({p.client?.name || 'Client'})
+                          </option>
+                        ))}
+                    </select>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Leave blank to create a new Shoot Project. Only projects without an existing
+                      calendar event can be linked.
+                    </p>
+                  </div>
+                )}
+
                 <div className="col-span-2">
                   <label className="text-slate-700 block mb-1 font-semibold">
                     {formData.eventSource === 'SHOOT' ? 'Project Name *' : 'Requirement Name *'}
@@ -2151,12 +2180,18 @@ export default function CalendarPage() {
                       className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-slate-800 font-medium"
                     >
                       <option value="">-- Independent Graphic Requirement (No Parent Project) --</option>
-                      {shootProjectsList.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.projectId || 'SP'} • {p.name} ({p.client?.name || 'Client'})
-                        </option>
-                      ))}
+                      {shootProjectsList
+                        .filter((p) => !p.calendarEventId)
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.projectId || 'SP'} • {p.name} ({p.client?.name || 'Client'})
+                          </option>
+                        ))}
                     </select>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Leave blank to create an independent Graphic Requirement. Only projects
+                      without an existing calendar event can be linked.
+                    </p>
                   </div>
                 )}
               </div>
@@ -2412,13 +2447,12 @@ export default function CalendarPage() {
                   </div>
 
                   <div className="col-span-2 sm:col-span-1">
-                    <label className="text-slate-700 block mb-1 font-semibold">Influencer / Talent *</label>
+                    <label className="text-slate-700 block mb-1 font-semibold">Influencer / Talent</label>
                     <input
                       type="text"
-                      required
                       value={formData.influencerTalent}
                       onChange={(e) => setFormData({ ...formData, influencerTalent: e.target.value })}
-                      placeholder="e.g. Model Name / Talent Contact"
+                      placeholder="e.g. Model Name / Talent Contact (optional)"
                       className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800"
                     />
                   </div>

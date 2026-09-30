@@ -290,6 +290,10 @@ export default function GraphicReqsPage() {
 
   // Create Form State (All 14 Graphic Requirement Attributes)
   const [selectedProjectId, setSelectedProjectId] = useState('');
+  // Only used when no parent project is chosen: the requirement then needs its own
+  // Client and Brand, which it would otherwise inherit from the project.
+  const [newReqClientId, setNewReqClientId] = useState('');
+  const [newReqBrandId, setNewReqBrandId] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [reqName, setReqName] = useState('');
@@ -414,8 +418,10 @@ export default function GraphicReqsPage() {
 
   const handleCreateGraphicReq = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProjectId) {
-      alert('Every Graphic Requirement must belong to a parent Shoot Project. A Graphic Requirement cannot exist independently.');
+    // A parent project is optional, but without one the requirement has no project to
+    // inherit Client and Brand from, so both must be chosen explicitly.
+    if (!selectedProjectId && (!newReqClientId || !newReqBrandId)) {
+      alert('Choose a Client and Brand for this Graphic Requirement, or pick a parent Shoot Project.');
       return;
     }
 
@@ -424,7 +430,9 @@ export default function GraphicReqsPage() {
       await fetchApi('/graphic-reqs', {
         method: 'POST',
         body: JSON.stringify({
-          projectId: selectedProjectId,
+          projectId: selectedProjectId || undefined,
+          clientId: selectedProjectId ? undefined : newReqClientId,
+          brandId: selectedProjectId ? undefined : newReqBrandId,
           name: reqName,
           requirementType: reqType,
           objective,
@@ -802,14 +810,31 @@ export default function GraphicReqsPage() {
           </div>
         </div>
 
-        {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
-          <Link
-            href="/calendar"
+        <div className="flex items-center gap-2">
+          {/* Opens the Create Graphic Requirement modal, which contains the optional
+              Parent Shoot Project selector. Without this the whole form was unreachable. */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedProjectId('');
+              setNewReqClientId('');
+              setNewReqBrandId('');
+              setShowCreateModal(true);
+            }}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg flex items-center gap-2 shadow-md shadow-amber-600/30 transition-colors text-xs"
           >
-            <Calendar className="w-4 h-4" /> Schedule via Media Calendar
-          </Link>
-        )}
+            <Plus className="w-4 h-4" /> New Graphic Requirement
+          </button>
+
+          {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
+            <Link
+              href="/calendar"
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg flex items-center gap-2 shadow-md shadow-amber-600/30 transition-colors text-xs"
+            >
+              <Calendar className="w-4 h-4" /> Schedule via Media Calendar
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Summary KPI Cards */}
@@ -1407,18 +1432,17 @@ export default function GraphicReqsPage() {
                   <span className="font-bold text-amber-600 text-xs uppercase tracking-wider flex items-center gap-2">
                     <Layers className="w-4 h-4 text-amber-600" /> 1. Parent Shoot Project Binding
                   </span>
-                  <span className="text-[10px] text-slate-500 italic">Mandatory 4-Level Binding</span>
+                  <span className="text-[10px] text-slate-500 italic">Optional · 4-Level Binding</span>
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1.5 text-xs">Choose Parent Shoot Project *</label>
+                  <label className="block text-slate-700 font-semibold mb-1.5 text-xs">Choose Parent Shoot Project (optional)</label>
                   <select
-                    required
                     value={selectedProjectId}
                     onChange={(e) => setSelectedProjectId(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 font-medium text-xs focus:outline-none focus:border-amber-500 focus:bg-white transition-colors"
                   >
-                    <option value="">-- Select Parent Shoot Project --</option>
+                    <option value="">-- Independent Requirement (No Parent Project) --</option>
                     {projectsList.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name} ({p.projectId})
@@ -1426,6 +1450,39 @@ export default function GraphicReqsPage() {
                     ))}
                   </select>
                 </div>
+
+                {!selectedProjectObj && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1.5 text-xs">Client *</label>
+                      <select
+                        value={newReqClientId}
+                        onChange={(e) => setNewReqClientId(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 text-xs focus:outline-none focus:border-amber-500 focus:bg-white transition-colors"
+                      >
+                        <option value="">-- Select Client --</option>
+                        {clientsList.map((c: any) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1.5 text-xs">Brand *</label>
+                      <select
+                        value={newReqBrandId}
+                        onChange={(e) => setNewReqBrandId(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 text-xs focus:outline-none focus:border-amber-500 focus:bg-white transition-colors"
+                      >
+                        <option value="">-- Select Brand --</option>
+                        {brandsList
+                          .filter((b: any) => !newReqClientId || b.clientId === newReqClientId)
+                          .map((b: any) => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
 
                 {selectedProjectObj && (
                   <div className="p-3.5 bg-slate-50/90 border border-amber-200 rounded-xl space-y-2 text-xs">

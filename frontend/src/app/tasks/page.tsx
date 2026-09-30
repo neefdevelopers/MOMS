@@ -10,6 +10,7 @@ import { TableSortHeader, SortSelector } from '@/components/common/TableSortHead
 import { PaginationControls } from '@/components/common/PaginationControls';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
 import { usePagination } from '@/lib/usePagination';
+import { extractEventScripts } from '@/lib/project-scripts';
 import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 import { ReassignmentRecommendationsModal } from '@/components/dashboard/ReassignmentRecommendationsModal';
 import RevisionsTab from '@/components/revisions/RevisionsTab';
@@ -524,6 +525,9 @@ export default function TasksPage() {
   const [taskDueDate, setTaskDueDate] = useState(new Date(Date.now() + 86400000).toISOString().split('T')[0]);
   const [taskEstimatedHours, setTaskEstimatedHours] = useState('2.0');
   const [assignedStaffIds, setAssignedStaffIds] = useState<string[]>([]);
+  // Holds the staff member currently chosen in the "Add Staff" dropdown, before it is
+  // committed to assignedStaffIds. Lets the user add several people one at a time.
+  const [staffPickerValue, setStaffPickerValue] = useState('');
 
   // Graphic Requirement specific fields (100% matched with Event Creation)
   const [taskContentType, setTaskContentType] = useState('Poster');
@@ -562,27 +566,37 @@ export default function TasksPage() {
   const [scriptCreationDetails, setScriptCreationDetails] = useState<any | null>(null);
   const [taskScriptDocFile, setTaskScriptDocFile] = useState<File | null>(null);
   const [uploadingTaskScript, setUploadingTaskScript] = useState(false);
+  const [deletingScriptDocId, setDeletingScriptDocId] = useState<string | null>(null);
   const [inspectedProjectFiles, setInspectedProjectFiles] = useState<any[]>([]);
   const [loadingInspectedFiles, setLoadingInspectedFiles] = useState(false);
+  const [inspectedFilesError, setInspectedFilesError] = useState<string>('');
 
   useEffect(() => {
     if (inspectedTask) {
       loadInspectedTaskFiles(inspectedTask);
     } else {
       setInspectedProjectFiles([]);
+      setInspectedFilesError('');
     }
   }, [inspectedTask?.id]);
 
   const loadInspectedTaskFiles = async (taskObj: any) => {
     if (!taskObj) return;
     const projectId = taskObj.projectId || taskObj.project?.id || taskObj.graphicRequirement?.projectId;
+    setInspectedFilesError('');
     if (projectId) {
       try {
         setLoadingInspectedFiles(true);
         const res = await fetchApi(`/files/project/${projectId}`);
         setInspectedProjectFiles(res.allFiles || []);
-      } catch {
+      } catch (e: any) {
         setInspectedProjectFiles([]);
+        // Previously swallowed, which left the script section looking broken. Surface the
+        // reason so an editor who lacks project access knows to ask for it.
+        setInspectedFilesError(
+          e?.message ||
+            'Could not load this project’s files. You may not have access to this project yet.',
+        );
       } finally {
         setLoadingInspectedFiles(false);
       }
@@ -620,13 +634,38 @@ export default function TasksPage() {
       setUploadingTaskScript(false);
     }
   };
+
+  /**
+   * Deletes an attached script document. The backend only allows the uploader, staff assigned
+   * to the project, or a manager, so a 403 here is expected for other roles rather than a bug.
+   */
+  const handleDeleteScriptDocForTask = async (file: any) => {
+    if (!file?.id) return;
+    const label = file.fileName || 'this document';
+    if (!window.confirm(`Delete "${label}"? This removes the file from the project and cannot be undone.`)) {
+      return;
+    }
+    setDeletingScriptDocId(file.id);
+    try {
+      await fetchApi(`/files/${file.id}`, { method: 'DELETE' });
+      // Drop it locally so the list updates without a full reload, then refresh for safety.
+      setInspectedProjectFiles((prev: any[]) => (prev || []).filter((f: any) => f.id !== file.id));
+      loadTasks();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete script document.');
+    } finally {
+      setDeletingScriptDocId(null);
+    }
+  };
   
 
   const loadReferenceData = async () => {
     try {
       const [resCap, resProj, resGraphic, resUsers, resClients, resBrands, resProducts, resEquip] = await Promise.all([
         fetchApi('/tasks/capacity/overview'),
-        fetchApi('/projects'),
+        // all=true bypasses per-user visibility filtering so the parent-project dropdowns
+        // list every project, not just the ones this user is assigned to.
+        fetchApi('/projects?all=true'),
         fetchApi('/graphic-reqs'),
         fetchApi('/users'),
         fetchApi('/clients'),
@@ -1858,6 +1897,46 @@ export default function TasksPage() {
                                         Tech Review
                                       </button>
                                     )}
+
+                                    {/* Video Editing: Media Manager Review */}
+                                    {task.taskType === 'VIDEO_EDITING' && task.status === 'COMPLETED' && user?.role === 'MEDIA_MANAGER' && (
+                                      <button
+                                        onClick={() => {
+                                          const c = window.prompt('Optional comment for Media Manager review (leave blank to approve):', '');
+                                          if (c === null) return;
+                                          fetchApi(`/projects/${task.projectId}/video-editing-task/${task.id}/media-review`, {
+                                            method: 'POST',
+                                            body: JSON.stringify({ action: 'APPROVE', comment: c }),
+                                          })
+                                            .then(() => { alert('Approved by Media Manager.'); loadData(); })
+                                            .catch((err) => alert(err.message || 'Failed to approve'));
+                                        }}
+                                        className="px-1.5 py-0.5 bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-300 rounded text-[10px] font-bold transition-all shadow"
+                                        title="Media Manager: approve this editing task"
+                                      >
+                                        Media Approve
+                                      </button>
+                                    )}
+
+                                    {/* Video Editing: Marketing Manager Review */}
+                                    {task.taskType === 'VIDEO_EDITING' && task.status === 'WAITING_FOR_MARKETING_MANAGER_REVIEW' && user?.role === 'MARKETING_MANAGER' && (
+                                      <button
+                                        onClick={() => {
+                                          const c = window.prompt('Optional comment for Marketing review (leave blank to approve):', '');
+                                          if (c === null) return;
+                                          fetchApi(`/projects/${task.projectId}/video-editing-task/${task.id}/marketing-review`, {
+                                            method: 'POST',
+                                            body: JSON.stringify({ action: 'APPROVE', comment: c }),
+                                          })
+                                            .then(() => { alert('Approved by Marketing.'); loadData(); })
+                                            .catch((err) => alert(err.message || 'Failed to approve'));
+                                        }}
+                                        className="px-1.5 py-0.5 bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-300 rounded text-[10px] font-bold transition-all shadow"
+                                        title="Marketing Manager: approve this editing task"
+                                      >
+                                        Marketing Approve
+                                      </button>
+                                    )}
                                   </>
                                 )}
                               </>
@@ -2432,13 +2511,12 @@ export default function TasksPage() {
                       </div>
 
                       <div>
-                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Influencer / Talent *</label>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Influencer / Talent</label>
                         <input
                           type="text"
-                          required
                           value={taskInfluencerTalent}
                           onChange={(e) => setTaskInfluencerTalent(e.target.value)}
-                          placeholder="e.g. Model Name / Talent Contact"
+                          placeholder="e.g. Model Name / Talent Contact (optional)"
                           className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 text-sm"
                         />
                       </div>
@@ -2466,6 +2544,87 @@ export default function TasksPage() {
                           placeholder="Enter production brief, shot list notes, client instructions..."
                           className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm"
                         ></textarea>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 2c: Assigned Staff */}
+                  <div className="space-y-4 bg-blue-50/70 p-5 sm:p-6 rounded-xl border border-blue-200">
+                    <span className="text-xs font-bold text-blue-700 uppercase tracking-wider block flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-blue-600" /> Section 2c • Assign Staff
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Add Staff to Task</label>
+                        <div className="flex gap-2">
+                          <select
+                            value={staffPickerValue}
+                            onChange={(e) => setStaffPickerValue(e.target.value)}
+                            className="flex-1 bg-white border border-blue-200 focus:border-blue-500 rounded-lg p-2.5 text-slate-800 text-sm min-w-0"
+                          >
+                            <option value="">-- Select a staff member --</option>
+                            {staffUsersList
+                              .filter(
+                                (u: any) =>
+                                  u.status !== 'ARCHIVED' && !u.isArchived && !assignedStaffIds.includes(u.id),
+                              )
+                              .map((u: any) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.name} ({u.role})
+                                </option>
+                              ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!staffPickerValue) return;
+                              setAssignedStaffIds((prev) =>
+                                prev.includes(staffPickerValue) ? prev : [...prev, staffPickerValue],
+                              );
+                              setStaffPickerValue('');
+                            }}
+                            disabled={!staffPickerValue}
+                            className="px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-colors shrink-0"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Add
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          A task can have multiple staff. Each selected person accepts it individually.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <span className="text-slate-700 block text-xs font-semibold">
+                          Assigned Staff ({assignedStaffIds.length})
+                        </span>
+                        {assignedStaffIds.length === 0 ? (
+                          <p className="text-[11px] text-slate-400 italic">No staff selected yet.</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {assignedStaffIds.map((sid) => {
+                              const u = staffUsersList.find((x: any) => x.id === sid);
+                              return (
+                                <span
+                                  key={sid}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white border border-blue-300 text-blue-900 text-[11px] font-semibold"
+                                >
+                                  {u?.name || 'Unknown'}
+                                  <span className="text-blue-500 font-normal">({u?.role})</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAssignedStaffIds((prev) => prev.filter((x) => x !== sid))}
+                                    className="text-blue-400 hover:text-rose-600"
+                                    title={`Remove ${u?.name || 'staff'}`}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2872,7 +3031,22 @@ export default function TasksPage() {
                 const talentVal = linkedProject?.influencerTalent || linkedCalEvent?.influencerTalent;
                 const creativeUrlVal = linkedCalEvent?.creativePreviewUrl || inspectedTask.creativePreviewUrl || activeGraphicReq?.creativePreviewUrl || (activeGraphicReq?.files || []).find((f: any) => f.storagePath?.startsWith('http') || f.fileType === 'URL')?.storagePath;
                 const creativeAssetNameVal = linkedCalEvent?.creativeAssetName || inspectedTask.creativeAssetName || activeGraphicReq?.creativeAssetName || (activeGraphicReq?.files || []).find((f: any) => f.storagePath?.startsWith('http') || f.fileType === 'URL')?.fileName || 'Primary Creative Visual Asset';
-                const notesVal = inspectedTask.project?.notes || linkedCalEvent?.productionNotes || inspectedTask.graphicRequirement?.remarks || activeGraphicReq?.remarks || inspectedTask.remarks;
+                // ShootProject.notes stores the project's scripts as a JSON array, so it must
+                // never be dumped raw. Parse it with the shared helper and fall back to the
+                // other genuinely-prose sources only when there is no JSON to render.
+                // This runs inside a render-time IIFE, not a component, so no hooks here.
+                const rawNotes = inspectedTask.project?.notes;
+                const notesIsJsonScripts = typeof rawNotes === 'string' && /^\s*[[{]/.test(rawNotes);
+                const notesScripts = notesIsJsonScripts
+                  ? extractEventScripts({ notes: rawNotes }, 'Script')
+                  : [];
+                const notesVal = notesIsJsonScripts
+                  ? null
+                  : rawNotes ||
+                    linkedCalEvent?.productionNotes ||
+                    inspectedTask.graphicRequirement?.remarks ||
+                    activeGraphicReq?.remarks ||
+                    inspectedTask.remarks;
                 const isOutdoor = (inspectedTask.project?.shootType === 'OUTDOOR' || Boolean(linkedOutdoor));
                 const isGraphicReqTask = Boolean(
                   inspectedTask?.graphicRequirement ||
@@ -3727,23 +3901,40 @@ export default function TasksPage() {
                           <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
                             <FileText className="w-4 h-4 text-purple-700" /> Attached Script Documents
                           </span>
-                          <div className="flex items-center gap-2">
-                            <label className={`px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-all shadow-xs ${uploadingTaskScript ? 'opacity-50 pointer-events-none' : ''}`}>
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>{uploadingTaskScript ? 'Uploading...' : '+ Add New Script'}</span>
-                              <input
-                                type="file"
-                                accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handleUploadScriptDocForTask(file);
-                                  e.target.value = '';
-                                }}
-                              />
-                            </label>
-                          </div>
+                          {/* Script creation from the task inspector is restricted to
+                              non-Staff roles. Staff inspecting a task to accept it are
+                              read-only here: they can view attached scripts, but cannot add
+                              new ones. The upload handler and endpoint stay in place for the
+                              other roles that still use this control. */}
+                          {user?.role !== 'STAFF' && (
+                            <div className="flex items-center gap-2">
+                              <label className={`px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-all shadow-xs ${uploadingTaskScript ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>{uploadingTaskScript ? 'Uploading...' : '+ Add New Script'}</span>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleUploadScriptDocForTask(file);
+                                    e.target.value = '';
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          )}
                         </div>
+
+                        {inspectedFilesError && (
+                          <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900 flex items-start gap-2">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <span>
+                              {inspectedFilesError} Adding a new script needs access to this project’s
+                              documents - ask the Media Manager to add you to the project team.
+                            </span>
+                          </div>
+                        )}
 
                         {loadingInspectedFiles ? (
                           <div className="text-slate-500 py-2 text-center text-xs">Loading script files...</div>
@@ -3801,6 +3992,20 @@ export default function TasksPage() {
                                       >
                                         <Eye className="w-3.5 h-3.5" /> View Script
                                       </a>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteScriptDocForTask(sf)}
+                                        disabled={deletingScriptDocId === sf.id}
+                                        title={`Delete ${sf.fileName}`}
+                                        className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 hover:border-rose-300 rounded-lg font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-50"
+                                      >
+                                        {deletingScriptDocId === sf.id ? (
+                                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                          <X className="w-3.5 h-3.5" />
+                                        )}
+                                        Delete
+                                      </button>
                                     </div>
                                   </div>
                                 );
@@ -3817,10 +4022,34 @@ export default function TasksPage() {
                           <p className="text-slate-800 text-xs leading-relaxed font-normal whitespace-pre-wrap">{inspectedTask.description || 'No description provided.'}</p>
                         </div>
 
-                        {notesVal && (
+                        {(notesVal || notesScripts.length > 0) && (
                           <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1.5">
-                            <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Production Notes &amp; Special Instructions</span>
-                            <p className="text-slate-800 text-xs leading-relaxed font-normal whitespace-pre-wrap">{notesVal}</p>
+                            <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">
+                              {notesScripts.length > 0 ? 'Shoot Scripts' : 'Production Notes &amp; Special Instructions'}
+                            </span>
+                            {notesScripts.length > 0 ? (
+                              <div className="space-y-2">
+                                {notesScripts.map((s: any, i: number) => (
+                                  <div key={s.id || i} className="space-y-1">
+                                    <p className="text-slate-800 text-xs font-semibold">
+                                      #{i + 1} {s.title}
+                                    </p>
+                                    {s.scriptText && (
+                                      <p className="text-slate-700 text-xs leading-relaxed font-normal whitespace-pre-wrap">
+                                        {s.scriptText}
+                                      </p>
+                                    )}
+                                    {Array.isArray(s.clipCodes) && s.clipCodes.length > 0 && (
+                                      <p className="text-[10px] text-slate-500 font-mono">
+                                        Clip codes: {s.clipCodes.map((c: any) => c.code || c).join(', ')}
+                                      </p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-slate-800 text-xs leading-relaxed font-normal whitespace-pre-wrap">{notesVal}</p>
+                            )}
                           </div>
                         )}
                       </div>

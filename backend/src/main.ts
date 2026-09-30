@@ -1,9 +1,11 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { RestResponseInterceptor } from './common/interceptors/transform.interceptor';
 import { Request, Response, NextFunction } from 'express';
+import { join } from 'path';
 
 async function bootstrap() {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -11,15 +13,23 @@ async function bootstrap() {
     ? ['log', 'warn', 'error', 'fatal'] // Production disables Debug logging
     : ['debug', 'log', 'warn', 'error', 'fatal']; // Development includes Debug
 
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: logLevels,
   });
 
   // Backward-compatibility & URL Normalizer:
-  // Handles unversioned /api/... or direct /auth/login, /users, etc., rewriting them to /api/v1/... (excluding health and root)
+  // Handles unversioned /api/... or direct /auth/login, /users, etc., rewriting them to /api/v1/... (excluding health, root, and static uploads)
   app.use((req: Request, res: Response, next: NextFunction) => {
     const rawPath = req.url.split('?')[0];
-    const isExcluded = rawPath === '' || rawPath === '/' || rawPath === '/health' || rawPath.startsWith('/health');
+    const isExcluded =
+      rawPath === '' ||
+      rawPath === '/' ||
+      rawPath === '/health' ||
+      rawPath.startsWith('/health') ||
+      // Uploaded script documents and deliverables are served as static files from
+      // /uploads/... and must not be rewritten to /api/v1/uploads/... or they 404.
+      rawPath === '/uploads' ||
+      rawPath.startsWith('/uploads/');
     if (!isExcluded) {
       if (req.url.startsWith('/api/v1/') || req.url.startsWith('/api/v2/')) {
         // Already versioned
@@ -85,6 +95,13 @@ async function bootstrap() {
       forbidNonWhitelisted: false,
     }),
   );
+
+  // Serve uploaded files (script documents, storyboards, deliverables) from disk.
+  // FileMetadata.storagePath is stored as "/uploads/<relative path>", so the upload root is
+  // mounted at the /uploads prefix. Without this, every "View Script" link 404s.
+  const uploadDir = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
+  app.useStaticAssets(uploadDir, { prefix: '/uploads/' });
+  console.log(`Serving uploaded files from ${uploadDir} at /uploads/`);
 
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(new RestResponseInterceptor());

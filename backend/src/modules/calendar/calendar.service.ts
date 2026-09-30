@@ -522,39 +522,11 @@ export class CalendarService {
             });
           }
         } else {
-          // Auto-create corresponding GraphicRequirement
-          let parentProjectId = data.projectId;
-          if (!parentProjectId) {
-            let existingProj = await tx.shootProject.findFirst({
-              where: { clientId: data.clientId, brandId: data.brandId },
-            });
-            if (!existingProj) {
-              const projCount = await tx.shootProject.count();
-              let containerProjId = `SP-${(projCount + 1).toString().padStart(6, '0')}`;
-              let cSeq = projCount + 1;
-              while (await tx.shootProject.findFirst({ where: { projectId: containerProjId } })) {
-                cSeq++;
-                containerProjId = `SP-${cSeq.toString().padStart(6, '0')}`;
-              }
-
-              existingProj = await tx.shootProject.create({
-                data: {
-                  projectId: containerProjId,
-                  name: `[GR-CONTAINER] Graphic Requirements Project`,
-                  clientId: data.clientId,
-                  brandId: data.brandId,
-                  productId: data.productId || null,
-                  shootType: 'INDOOR',
-                  shootDate: eventShootDate,
-                  shootLocation: 'Media Ops Studio Bay',
-                  priority: data.priority || Priority.MEDIUM,
-                  status: 'PLANNED',
-                  createdById: activeUserId,
-                },
-              });
-            }
-            parentProjectId = existingProj.id;
-          }
+          // Auto-create corresponding GraphicRequirement. A parent shoot project is
+          // optional: if none was chosen the requirement stays independent rather than
+          // being silently attached to whichever project happens to share its client and
+          // brand, or to an invented "[GR-CONTAINER]" project.
+          const parentProjectId = data.projectId || null;
 
           const grCount = await tx.graphicRequirement.count();
           let candidateGrId = `GR-${(grCount + 1).toString().padStart(6, '0')}`;
@@ -589,8 +561,9 @@ export class CalendarService {
             data: { graphicRequirementId: newGr.id },
           });
 
-          // Persist Creative Asset in FileMetadata vault
-          if (data.creativePreviewUrl) {
+          // Persist Creative Asset in FileMetadata vault. FileMetadata requires a project,
+          // so a parentless requirement simply has no vault entry for its creative asset.
+          if (data.creativePreviewUrl && parentProjectId) {
             await tx.fileMetadata.create({
               data: {
                 fileName: data.creativeAssetName?.trim() || data.title.trim() || 'Creative Visual Asset',

@@ -437,22 +437,27 @@ export class GraphicReqsService {
   }
 
   async create(data: any, user?: any) {
-    if (!data.projectId) {
-      throw new BadRequestException(
-        'Every Graphic Requirement must belong to a parent Shoot Project. A Graphic Requirement cannot exist independently.',
-      );
-    }
+    // A parent Shoot Project is optional. When one is not supplied the requirement is
+    // independent, and must then carry its own client and brand since they can no longer
+    // be inherited from a project.
+    const project = data.projectId
+      ? await this.prisma.shootProject.findFirst({
+          where: {
+            OR: [{ id: data.projectId }, { projectId: data.projectId }],
+          },
+          include: { client: true, brand: true, calendarEvent: true },
+        })
+      : null;
 
-    const project = await this.prisma.shootProject.findFirst({
-      where: {
-        OR: [
-          { id: data.projectId },
-          { projectId: data.projectId },
-        ],
-      },
-      include: { client: true, brand: true, calendarEvent: true },
-    });
-    if (!project) throw new NotFoundException('Parent project not found');
+    if (data.projectId && !project) throw new NotFoundException('Parent project not found');
+
+    if (!project) {
+      if (!data.clientId || !data.brandId) {
+        throw new BadRequestException(
+          'Choose a Client and Brand for this Graphic Requirement, since it has no parent Shoot Project to inherit them from.',
+        );
+      }
+    }
 
     const count = await this.prisma.graphicRequirement.count();
 
@@ -467,12 +472,12 @@ export class GraphicReqsService {
       data: {
         requirementId: autoReqId,
         name: data.name,
-        projectId: project.id,
-        clientId: project.clientId,
-        brandId: project.brandId,
-        calendarEventId: project.calendarEventId || data.calendarEventId || null,
-        productId: data.productId || project.productId || null,
-        campaignId: data.campaignId || project.campaignId || null,
+        projectId: project ? project.id : null,
+        clientId: project ? project.clientId : data.clientId,
+        brandId: project ? project.brandId : data.brandId,
+        calendarEventId: project?.calendarEventId || data.calendarEventId || null,
+        productId: data.productId || project?.productId || null,
+        campaignId: data.campaignId || project?.campaignId || null,
         requirementType: data.requirementType || 'Poster',
         objective: data.objective,
         description: data.description,
@@ -480,7 +485,7 @@ export class GraphicReqsService {
         estimatedCompletion: data.estimatedCompletion ? new Date(data.estimatedCompletion) : null,
         status: data.status || 'APPROVED',
         remarks: data.remarks,
-        createdById: user?.id || project.createdById || data.createdById || null,
+        createdById: user?.id || project?.createdById || data.createdById || null,
       },
       include: {
         project: true,
@@ -500,7 +505,7 @@ export class GraphicReqsService {
 
     // Automatically create tasks for assigned staff members
     const assignedIds = Array.isArray(data.assignedUserIds) ? data.assignedUserIds : [];
-    if (assignedIds.length > 0) {
+    if (assignedIds.length > 0 && project) {
       for (const assignedUserId of assignedIds) {
         let taskCount = await this.prisma.task.count();
         let taskIdStr = `TSK-${(taskCount + 1).toString().padStart(6, '0')}`;
@@ -542,7 +547,7 @@ export class GraphicReqsService {
       data: {
         graphicRequirementId: req.id,
         event: 'REQUIREMENT_CREATED',
-        description: `Graphic Requirement ${req.requirementId} ('${req.name}') created and bound to project ${project.projectId}`,
+        description: `Graphic Requirement ${req.requirementId} ('${req.name}') created${project ? ` and bound to project ${project.projectId}` : ' as an independent requirement with no parent project'}`,
       },
     });
 
