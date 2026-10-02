@@ -1864,8 +1864,8 @@ export default function TasksPage() {
                                       Update
                                     </button>
 
-                                    {/* Upload Deliverables Action */}
-                                    {['IN_PROGRESS', 'ON_HOLD'].includes(task.status) && (
+                                    {/* Upload Deliverables Action — hidden for VIDEO_EDITING tasks */}
+                                    {['IN_PROGRESS', 'ON_HOLD'].includes(task.status) && task.taskType !== 'VIDEO_EDITING' && (
                                       <button
                                         onClick={() => setUploadTask(task)}
                                         className="px-1.5 py-0.5 bg-slate-50 hover:bg-slate-100 text-cyan-700 border border-slate-200 hover:border-cyan-200 rounded text-[10px] font-medium transition-colors"
@@ -1879,7 +1879,23 @@ export default function TasksPage() {
                                     {!['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'PENDING_MARKETING_APPROVAL', 'APPROVED', 'COMPLETED'].includes(task.status) && (
                                       <button
                                         onClick={() => {
-                                          if (task.scriptId || task.script?.id) {
+                                          if (task.taskType === 'VIDEO_EDITING') {
+                                            // Video Editing tasks submit directly to Technical Review
+                                            const comment = prompt('Optional comment for Technical Review submission:') || '';
+                                            fetchApi(`/projects/${task.projectId}/video-editing-task/${task.id}/submit-technical-review`, {
+                                              method: 'POST',
+                                              body: JSON.stringify({
+                                                deliverableUrl: `/uploads/${task.projectId}/video-editing/${task.taskId}.mp4`,
+                                                deliverableFileName: 'edited-cut.mp4',
+                                                comment,
+                                              }),
+                                            })
+                                              .then(() => {
+                                                alert('Video Editing Task submitted for Technical Review!');
+                                                loadData();
+                                              })
+                                              .catch((err) => alert(err.message || 'Failed to submit for Technical Review'));
+                                          } else if (task.scriptId || task.script?.id) {
                                             const targetScriptId = task.scriptId || task.script?.id;
                                             fetchApi(`/scripts/${targetScriptId}/submit-technical`, { method: 'POST' })
                                               .then(() => {
@@ -3010,6 +3026,274 @@ export default function TasksPage() {
           >
             {
             (() => {
+                /* VIDEO_EDITING_STAFF_VIEW_START */
+                if (inspectedTask.taskType === 'VIDEO_EDITING' || inspectedTask.sourceType === 'VIDEO_EDITING') {
+                  const scriptName = inspectedTask.projectScript?.name || inspectedTask.script?.name || inspectedTask.title || 'Video Editing Script';
+                  const clipCode = inspectedTask.projectScript?.clipCode || inspectedTask.clipCode || inspectedTask.script?.clipCode || 'N/A';
+                  const scriptClips = inspectedTask.projectScript?.clips || inspectedTask.clips || [];
+                  const assignedStaffName = inspectedTask.assignedTo?.name || inspectedTask.assignedEmployees?.[0]?.user?.name || inspectedTask.assignedEmployees?.[0]?.name || 'Assigned Staff';
+                  const priority = inspectedTask.priority || inspectedTask.project?.priority || 'MEDIUM';
+                  const dueDate = inspectedTask.dueDate ? new Date(inspectedTask.dueDate).toLocaleDateString() : 'N/A';
+                  const description = inspectedTask.description || inspectedTask.projectScript?.description || 'Video editing assignment for selected script.';
+                  const revisionReason = inspectedTask.mediaRevisionReason || (inspectedTask.revisions && inspectedTask.revisions[0]?.reason);
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Modal Header */}
+                      <div className="flex justify-between items-start border-b border-slate-200 pb-3">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-purple-600 font-bold text-xs block">Task ID: {inspectedTask.taskId}</span>
+                            <span className="px-2.5 py-0.5 rounded-full font-mono font-extrabold text-[10px] border flex items-center gap-1.5 bg-purple-50 text-purple-700 border-purple-300">
+                              <Film className="w-3 h-3" />
+                              VIDEO EDITING TASK
+                            </span>
+                          </div>
+                          <h3 className="text-lg font-bold text-slate-900 mt-1">{scriptName}</h3>
+                        </div>
+                        <button
+                          onClick={() => setInspectedTask(null)}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-bold text-xs"
+                        >
+                          Close
+                        </button>
+                      </div>
+
+                      {/* Under Review Read-Only Banner */}
+                      {['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'APPROVED', 'COMPLETED'].includes(inspectedTask.status) && (
+                        <div className="bg-amber-50 border-2 border-amber-300 p-3.5 rounded-xl text-xs text-amber-950 flex items-start gap-3">
+                          <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <h4 className="font-extrabold text-amber-900 text-xs uppercase tracking-wide">
+                              Under Review — Read-Only Mode
+                            </h4>
+                            <p className="text-[11px] text-amber-800 leading-relaxed">
+                              This video editing task is currently undergoing review (Status: <strong className="font-mono font-bold text-amber-900">{inspectedTask.status}</strong>).
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Revision Feedback Banner */}
+                      {revisionReason && inspectedTask.status !== 'COMPLETED' && inspectedTask.status !== 'APPROVED' && (
+                        <div className="bg-rose-50 border-2 border-rose-300 p-3.5 rounded-xl text-xs text-rose-950 space-y-1.5">
+                          <div className="flex items-center gap-2 font-bold text-rose-900">
+                            <RotateCcw className="w-4 h-4 text-rose-600" />
+                            <span>Technical Review Revision Feedback</span>
+                          </div>
+                          <p className="text-slate-800 text-xs bg-white p-2.5 rounded-lg border border-rose-200 whitespace-pre-wrap">
+                            {revisionReason}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Acceptance Banner if Pending */}
+                      {isPendingAcceptance && (
+                        <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-300 p-4 rounded-xl space-y-3 text-xs shadow-md">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="p-1.5 bg-purple-100 text-purple-700 rounded-lg">
+                                <Sparkles className="w-4 h-4 text-purple-600" />
+                              </span>
+                              <div>
+                                <h4 className="text-purple-950 font-black text-sm">
+                                  Video Editing Task Assigned — Acceptance Required
+                                </h4>
+                                <span className="text-[11px] text-purple-700 font-medium">
+                                  Accept assignment to start video editing on this script.
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleAcknowledgeAcceptance(inspectedTask.id)}
+                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg shadow-md transition-all flex items-center gap-2 text-xs"
+                          >
+                            <Check className="w-4 h-4" /> Accept Task Assignment &amp; Start Work
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Core Task Attributes Card */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Script</span>
+                          <strong className="text-slate-900 block truncate">{scriptName}</strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Clip Code</span>
+                          <span className="font-mono text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded text-[11px] inline-block mt-0.5">
+                            {clipCode}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Project Priority</span>
+                          <span className={"inline-block mt-0.5 px-2 py-0.5 rounded font-extrabold uppercase text-[10px] " + (
+                            priority === 'CRITICAL' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                            priority === 'HIGH' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                            'bg-blue-50 text-blue-700 border border-blue-200'
+                          )}>
+                            {priority} Priority
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Due Date</span>
+                          <strong className="text-amber-800 block mt-0.5">{dueDate}</strong>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Assigned To</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <User className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                            <strong className="text-slate-800">{assignedStaffName}</strong>
+                          </div>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Task Status</span>
+                          <span className="font-mono text-purple-800 font-bold bg-purple-50 px-2 py-0.5 rounded border border-purple-200 text-[11px] inline-block mt-0.5">
+                            {inspectedTask.status?.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Attached Clips Section */}
+                      <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3 text-xs">
+                        <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                            <Film className="w-4 h-4 text-purple-700" /> Attached Clips ({scriptClips.length})
+                          </span>
+                          <span className="font-mono text-[10px] text-purple-700 font-semibold">Clip Code: {clipCode}</span>
+                        </div>
+                        {scriptClips.length === 0 ? (
+                          <div className="p-3 bg-white/80 border border-purple-100 rounded-lg text-slate-500 text-center">
+                            No clips attached to this script yet.
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {scriptClips.map((clip, cIdx) => {
+                              const clipUrl = clip.storagePath?.startsWith('http')
+                                ? clip.storagePath
+                                : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000') + '/' + (clip.storagePath ? clip.storagePath.replace(/^\/?/, '') : '');
+                              return (
+                                <div
+                                  key={clip.id || cIdx}
+                                  className="p-3 bg-white border border-purple-200 rounded-lg flex items-center justify-between gap-3 shadow-xs"
+                                >
+                                  <div className="flex items-center gap-2.5 overflow-hidden">
+                                    <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                                      <Film className="w-4 h-4" />
+                                    </div>
+                                    <div className="truncate">
+                                      <span className="font-bold text-slate-900 block truncate text-xs">{clip.name || ("Clip " + (cIdx + 1))}</span>
+                                      {clip.durationSec && (
+                                        <span className="text-[10px] text-slate-500 font-mono">{clip.durationSec}s duration</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {clip.storagePath && (
+                                    <a
+                                      href={clipUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all shrink-0"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" /> View
+                                    </a>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Task Description */}
+                      <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1.5">
+                        <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Description</span>
+                        <p className="text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">{description}</p>
+                      </div>
+
+                      {/* Operational Remarks & Work Logs */}
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                          <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                            <MessageSquare className="w-3.5 h-3.5 text-amber-600" /> Operational Remarks &amp; Work Logs
+                          </h4>
+                        </div>
+                        <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                          {(!inspectedTask?.remarksHistory || inspectedTask.remarksHistory.length === 0) ? (
+                            <p className="text-slate-400 italic text-[11px] p-2">No remarks yet. Add work notes below.</p>
+                          ) : (
+                            inspectedTask.remarksHistory.map((r, idx) => (
+                              <div key={r.id || idx} className="p-2 bg-white border border-slate-200 rounded text-[11px]">
+                                <div className="flex justify-between text-slate-500 font-mono text-[9px] mb-0.5">
+                                  <strong className="text-slate-800">{r.user?.name || r.name || 'Staff'}</strong>
+                                  <span>{r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</span>
+                                </div>
+                                <p className="text-slate-800 leading-relaxed">{r.message}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        <div className="flex items-end gap-2 pt-1 border-t border-slate-200">
+                          <textarea
+                            value={newRemarkText}
+                            disabled={isPendingAcceptance}
+                            onChange={(e) => setNewRemarkText(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddRemark(inspectedTask.id); } }}
+                            placeholder={isPendingAcceptance ? "Accept task assignment to add remarks." : "Add a work note or status remark... (Enter to send)"}
+                            rows={2}
+                            className="flex-1 bg-white border border-slate-200 text-slate-900 px-3 py-2 rounded-lg text-[11px] resize-none focus:border-amber-500 focus:outline-none placeholder-slate-400 disabled:opacity-50"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAddRemark(inspectedTask.id)}
+                            disabled={!newRemarkText.trim() || submittingRemark || isPendingAcceptance}
+                            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs disabled:opacity-40 flex items-center gap-1 h-[52px]"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            {submittingRemark ? '...' : 'Send'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Direct Submit for Technical Review Button */}
+                      {!['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'APPROVED', 'COMPLETED'].includes(inspectedTask.status) && !isPendingAcceptance && (
+                        <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-2.5 shadow-lg">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-purple-700 text-xs flex items-center gap-1.5">
+                              Submit for Technical Review
+                            </span>
+                            <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-200 px-2 py-0.5 rounded font-mono font-bold">
+                              Status: {inspectedTask.status}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-700">
+                            Submit your video editing work for direct Technical Review by the Technical Reviewer.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleRequestTechnicalReview(inspectedTask.id)}
+                            className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-lg shadow-md transition-all flex items-center gap-2 text-xs"
+                          >
+                            Submit Task for Technical Review
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                        <button
+                          onClick={() => setInspectedTask(null)}
+                          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-semibold text-xs ml-auto"
+                        >
+                          Close Inspector
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+/* VIDEO_EDITING_STAFF_VIEW_END */
+
                 const activeGraphicReq = fullGraphicReq || inspectedTask.graphicRequirement;
                 const graphicReqId = activeGraphicReq?.reqId || activeGraphicReq?.id || inspectedTask.graphicRequirementId;
                 const linkedProject = inspectedTask.project || inspectedTask.graphicRequirement?.project || activeGraphicReq?.project;

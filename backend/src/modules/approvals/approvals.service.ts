@@ -102,6 +102,11 @@ export class ApprovalsService {
         brand: true,
         project: true,
         graphicRequirement: true,
+        projectScript: {
+          include: {
+            clips: { orderBy: { order: 'asc' } },
+          },
+        },
         assignedEmployees: { include: { user: { select: { id: true, name: true, role: true } } } },
         deliverableHistory: { include: { user: { select: { id: true, name: true, role: true } } }, orderBy: { version: 'desc' as const } },
       },
@@ -114,6 +119,11 @@ export class ApprovalsService {
         brand: true,
         project: true,
         graphicRequirement: true,
+        projectScript: {
+          include: {
+            clips: { orderBy: { order: 'asc' } },
+          },
+        },
         assignedEmployees: { include: { user: { select: { id: true, name: true, role: true } } } },
         deliverableHistory: { include: { user: { select: { id: true, name: true, role: true } } }, orderBy: { version: 'desc' as const } },
       },
@@ -163,13 +173,23 @@ export class ApprovalsService {
     }));
 
     // Map Standalone Tasks as queue items
-    const mappedTaskTech = taskTechQueue.map((t) => ({
+    const mappedTaskTech = taskTechQueue.map((t: any) => ({
       id: t.id,
       projectId: t.taskId,
+      taskId: t.taskId,
       name: t.title,
+      taskType: t.taskType,
       client: t.client,
       brand: t.brand,
       status: t.status,
+      priority: t.priority,
+      dueDate: t.dueDate,
+      scriptId: t.scriptId,
+      projectScriptId: t.projectScriptId,
+      projectScript: t.projectScript,
+      clipCode: t.clipCode || t.projectScript?.clipCode,
+      clips: t.projectScript?.clips || [],
+      assignedEmployees: t.assignedEmployees,
       tasks: [t],
       activeDeliverableUrl: t.activeDeliverableUrl,
       activeDeliverableFileName: t.activeDeliverableFileName,
@@ -178,13 +198,23 @@ export class ApprovalsService {
       isStandaloneTask: true,
     }));
 
-    const mappedTaskMedia = taskMediaQueue.map((t) => ({
+    const mappedTaskMedia = taskMediaQueue.map((t: any) => ({
       id: t.id,
       projectId: t.taskId,
+      taskId: t.taskId,
       name: t.title,
+      taskType: t.taskType,
       client: t.client,
       brand: t.brand,
       status: t.status,
+      priority: t.priority,
+      dueDate: t.dueDate,
+      scriptId: t.scriptId,
+      projectScriptId: t.projectScriptId,
+      projectScript: t.projectScript,
+      clipCode: t.clipCode || t.projectScript?.clipCode,
+      clips: t.projectScript?.clips || [],
+      assignedEmployees: t.assignedEmployees,
       tasks: [t],
       activeDeliverableUrl: t.activeDeliverableUrl,
       activeDeliverableFileName: t.activeDeliverableFileName,
@@ -339,17 +369,53 @@ export class ApprovalsService {
     }
 
     if (task) {
-      const newTaskStatus = data.status === 'APPROVED' ? 'WAITING_FOR_MEDIA_REVIEW' : 'IN_PROGRESS';
+      const newTaskStatus = data.status === 'APPROVED' ? 'WAITING_FOR_MEDIA_REVIEW' : 'REVISION_REQUESTED';
       await this.prisma.task.update({
         where: { id: task.id },
         data: {
           status: newTaskStatus,
           technicalReviewApproved: data.status === 'APPROVED',
+          mediaRevisionReason: data.status === 'REJECTED' ? (data.remarks || 'Technical revisions required.').trim() : null,
         },
       });
+
+      if (data.status === 'REJECTED' && data.remarks) {
+        await this.prisma.taskRemark.create({
+          data: {
+            taskId: task.id,
+            userId: reviewerId,
+            message: `Technical Review Rejection: ${data.remarks}`,
+          },
+        }).catch(() => null);
+
+        // Notify assigned staff
+        const assignments = await this.prisma.taskAssignment.findMany({
+          where: { taskId: task.id },
+          select: { userId: true },
+        });
+        for (const a of assignments) {
+          await this.prisma.notification.create({
+            data: {
+              userId: a.userId,
+              title: 'Technical Review Revision Requested',
+              message: `Technical Manager requested revisions on task ${task.taskId}: "${data.remarks}"`,
+              type: 'ALERT',
+              category: 'APPROVAL',
+              priority: 'HIGH',
+              linkUrl: '/tasks',
+              eventType: 'VIDEO_EDITING_REVISION_REQUESTED',
+              entityType: 'TASK',
+              entityId: task.id,
+              entityCode: task.taskId,
+              taskId: task.id,
+              projectId: task.projectId,
+            },
+          }).catch(() => null);
+        }
+      }
     }
 
-    if (data.status === 'REJECTED' && targetId) {
+    if (data.status === 'REJECTED' && targetId && !task) {
       await this.prisma.task.updateMany({
         where: { OR: [{ id: targetId }, { projectId: targetId }, { graphicRequirementId: targetId }] },
         data: { status: 'IN_PROGRESS', technicalReviewApproved: false },

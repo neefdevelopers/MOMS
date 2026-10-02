@@ -12,6 +12,8 @@ import {
   User,
   X,
   Scissors,
+  FileText,
+  Eye,
 } from 'lucide-react';
 
 /**
@@ -62,6 +64,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 export function VideoEditingPanel({ project, user, onReload }: Props) {
   const [tasks, setTasks] = useState<any[]>([]);
+  const [projectScripts, setProjectScripts] = useState<any[]>([]);
   const [staffList, setStaffList] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -89,6 +92,16 @@ export function VideoEditingPanel({ project, user, onReload }: Props) {
     }
   };
 
+  const loadProjectScripts = async () => {
+    try {
+      const res: any = await fetchApi(`/projects/${project.id}/script-documents`);
+      const scripts = Array.isArray(res?.scripts) ? res.scripts : [];
+      setProjectScripts(scripts);
+    } catch {
+      setProjectScripts([]);
+    }
+  };
+
   const loadStaff = async () => {
     try {
       const u = await fetchApi('/users').catch(() => []);
@@ -100,6 +113,7 @@ export function VideoEditingPanel({ project, user, onReload }: Props) {
 
   useEffect(() => {
     load();
+    loadProjectScripts();
     loadStaff();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
@@ -206,6 +220,56 @@ export function VideoEditingPanel({ project, user, onReload }: Props) {
         </div>
       )}
 
+      {/* Scripts list — shows ALL project scripts with clip codes and View buttons */}
+      {projectScripts.length > 0 ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider">Scripts</span>
+            <span className="text-[10px] text-indigo-600 font-mono">({projectScripts.length})</span>
+          </div>
+          {projectScripts.map((script: any, idx: number) => {
+            const clipCodes = Array.isArray(script.clipCodes) ? script.clipCodes : [];
+            const clipCodeDisplay = clipCodes.length > 0
+              ? clipCodes.map((c: any) => c.code).join(', ')
+              : (script.clipCode || null);
+            return (
+              <div key={script.id || idx} className="p-2.5 bg-white border border-indigo-200 rounded-lg">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold text-slate-800 truncate">{script.title || `Script ${idx + 1}`}</p>
+                    {clipCodeDisplay ? (
+                      <p className="text-[10px] text-indigo-700 font-mono mt-0.5">
+                        Clip Code: <span className="font-bold">{clipCodeDisplay}</span>
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 italic mt-0.5">No clip code recorded</p>
+                    )}
+                  </div>
+                  {script.storagePath && (
+                    <a
+                      href={script.storagePath.startsWith('http')
+                        ? script.storagePath
+                        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${script.storagePath.replace(/^\//, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 flex items-center gap-1 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md font-bold text-[10px] transition-colors"
+                    >
+                      <Eye className="w-3 h-3" />
+                      View
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="p-2.5 bg-white border border-indigo-200 rounded-lg">
+          <p className="text-[11px] text-slate-500 italic text-center">No scripts available for this project.</p>
+        </div>
+      )}
+
       {/* Tasks list */}
       {loading ? (
         <div className="text-[11px] text-slate-500 text-center py-2">Loading editing tasks...</div>
@@ -284,26 +348,19 @@ export function VideoEditingPanel({ project, user, onReload }: Props) {
                         type="button"
                         onClick={async () => {
                           try {
-                            await fetchApi(`/tasks/${t.id}/upload-deliverable`, {
+                            await fetchApi(`/projects/${project.id}/video-editing-task/${t.id}/submit-technical-review`, {
                               method: 'POST',
-                              body: JSON.stringify({
-                                url: `/uploads/${project.projectId}/video-editing/${t.taskId}.mp4`,
-                                fileName: 'edited-cut.mp4',
-                              }),
-                            });
-                            await fetchApi(`/tasks/${t.id}/progress`, {
-                              method: 'PATCH',
-                              body: JSON.stringify({ status: 'COMPLETED', completionPercentage: 100 }),
+                              body: JSON.stringify({ comment: 'Submitted for technical review' }),
                             });
                             load();
                             onReload();
                           } catch (e: any) {
-                            setActionError(e?.message || 'Could not mark task completed.');
+                            setActionError(e?.message || 'Could not submit for Technical Review.');
                           }
                         }}
                         className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md font-bold text-[10px]"
                       >
-                        Mark completed
+                        Submit for Technical Review
                       </button>
                     )}
                   </div>
@@ -369,44 +426,6 @@ export function VideoEditingPanel({ project, user, onReload }: Props) {
                       </div>
                     )}
                   </div>
-                )}
-
-                {/* Marketing Manager row */}
-                {isMarketingManager && taskStatus === 'WAITING_FOR_MARKETING_MANAGER_REVIEW' && (
-                  <div className="flex items-start gap-1.5 pt-1">
-                    <textarea
-                      placeholder="Optional comment / rejection reason"
-                      value={reviewingTask === t.id ? reviewComment : ''}
-                      onChange={(e) => {
-                        setReviewingTask(t.id);
-                        setReviewComment(e.target.value);
-                      }}
-                      rows={1}
-                      className="flex-1 bg-white border border-indigo-200 rounded-md px-2 py-1 text-[10px]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleReview(t.id, 'marketing', 'REJECT')}
-                      disabled={reviewingTask === t.id}
-                      className="px-2 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-md font-bold text-[10px]"
-                    >
-                      Reject
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleReview(t.id, 'marketing', 'APPROVE')}
-                      disabled={reviewingTask === t.id}
-                      className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md font-bold text-[10px]"
-                    >
-                      Approve
-                    </button>
-                  </div>
-                )}
-
-                {isMarketingManager && taskStatus !== 'WAITING_FOR_MARKETING_MANAGER_REVIEW' && taskStatus !== 'MARKETING_MANAGER_APPROVED' && (
-                  <p className="text-[10px] text-slate-400 italic pt-1">
-                    Waiting: task reaches WAITING_FOR_MARKETING_MANAGER_REVIEW first.
-                  </p>
                 )}
               </div>
             );

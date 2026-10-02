@@ -460,7 +460,7 @@ export class CalendarService {
       return isNaN(d.getTime()) ? def : d;
     };
 
-    // Execute atomic creation in transaction
+    // Execute atomic creation in transaction (extended timeout for multi-step operations)
     const createdEvent = await this.prisma.$transaction(async (tx) => {
       const eventShootDate = safeDate(data.shootDate, new Date())!;
       const eventDeadline = safeDate(
@@ -522,11 +522,16 @@ export class CalendarService {
             });
           }
         } else {
-          // Auto-create corresponding GraphicRequirement. A parent shoot project is
-          // optional: if none was chosen the requirement stays independent rather than
-          // being silently attached to whichever project happens to share its client and
-          // brand, or to an invented "[GR-CONTAINER]" project.
-          const parentProjectId = data.projectId || null;
+          let parentProjectId = data.projectId || null;
+          if (!parentProjectId) {
+            const parentProj = await tx.shootProject.findFirst({
+              where: { clientId: data.clientId, brandId: data.brandId },
+              orderBy: { createdAt: 'asc' },
+            });
+            if (parentProj) {
+              parentProjectId = parentProj.id;
+            }
+          }
 
           const grCount = await tx.graphicRequirement.count();
           let candidateGrId = `GR-${(grCount + 1).toString().padStart(6, '0')}`;
@@ -558,11 +563,13 @@ export class CalendarService {
 
           await tx.mediaCalendarEvent.update({
             where: { id: event.id },
-            data: { graphicRequirementId: newGr.id },
+            data: {
+              graphicRequirementId: newGr.id,
+              ...(parentProjectId ? { shootId: parentProjectId } : {}),
+            },
           });
 
-          // Persist Creative Asset in FileMetadata vault. FileMetadata requires a project,
-          // so a parentless requirement simply has no vault entry for its creative asset.
+          // Persist Creative Asset in FileMetadata vault.
           if (data.creativePreviewUrl && parentProjectId) {
             await tx.fileMetadata.create({
               data: {
@@ -699,7 +706,7 @@ export class CalendarService {
       }
 
       return event;
-    });
+    }, { timeout: 30000 });
 
     // ── Secondary Records & Audit Logging (Safe post-transaction execution) ──
     try {
@@ -1291,7 +1298,7 @@ export class CalendarService {
       });
 
       return ev;
-    });
+    }, { timeout: 30000 });
 
     await this.sendNotification(
       [editReq.requestedById],
@@ -1578,7 +1585,7 @@ export class CalendarService {
     const previousStatus = event.status;
     const isOverride = user.role === 'MEDIA_MANAGER' && user.id !== event.createdById;
 
-    // Atomic Transaction Execution
+    // Atomic Transaction Execution (extended timeout)
     return this.prisma.$transaction(async (tx) => {
       const eventUpdates: any = {
         status: newStatus,
@@ -1668,19 +1675,9 @@ export class CalendarService {
         },
       });
 
-      // Synchronize linked ShootProject status
-      const targetShootStatus = action === 'APPROVE' ? 'APPROVED' : action === 'REQUEST_CHANGES' ? 'CHANGES_REQUESTED' : 'REJECTED';
-      const shootId = event.shootId;
-      const shootWhere = shootId
-        ? { OR: [{ id: shootId }, { calendarEventId: event.id }] }
-        : { calendarEventId: event.id };
-
-      await tx.shootProject.updateMany({
-        where: shootWhere,
-        data: {
-          status: targetShootStatus,
-        },
-      });
+      // Note: ShootProject status is managed by its own workflow (reviewMarketing, confirmClient, etc.)
+      // and must NOT be overwritten here. The calendar event approval only affects the MediaCalendarEvent
+      // and its linked GraphicRequirement.
 
       // Get current active revision
       const currentRevision = event.revisions.find((r) => r.version === event.version);

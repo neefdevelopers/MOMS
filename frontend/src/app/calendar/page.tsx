@@ -128,10 +128,11 @@ export default function CalendarPage() {
       eventObj.graphicRequirement?.projectId ||
       eventObj.shootProjects?.[0]?.projectId;
 
-    if (projectId) {
+    const queryKey = projectId || eventObj.id;
+    if (queryKey) {
       try {
         setLoadingEventFiles(true);
-        const res = await fetchApi(`/files/project/${projectId}`);
+        const res = await fetchApi(`/files/project/${queryKey}`);
         setEventFiles(res.allFiles || []);
       } catch {
         setEventFiles([]);
@@ -155,6 +156,10 @@ export default function CalendarPage() {
       viewModalEvent.graphicRequirement?.projectId ||
       viewModalEvent.shootProjects?.[0]?.projectId;
 
+    const grId =
+      viewModalEvent.graphicRequirementId ||
+      viewModalEvent.graphicRequirement?.id;
+
     try {
       setUploadingScriptDoc(true);
       for (const file of fileArray) {
@@ -162,8 +167,12 @@ export default function CalendarPage() {
         fd.append('file', file);
         if (projectId) {
           fd.append('projectId', projectId);
-        } else {
+        }
+        if (viewModalEvent.id) {
           fd.append('calendarEventId', viewModalEvent.id);
+        }
+        if (grId) {
+          fd.append('graphicRequirementId', grId);
         }
         fd.append('folderCategory', 'Script Documents');
         fd.append('attachmentCategory', 'SCRIPT_DOCUMENT');
@@ -177,8 +186,9 @@ export default function CalendarPage() {
           ? 'Script document uploaded successfully!'
           : `${fileArray.length} script documents uploaded successfully!`
       );
-      if (projectId) {
-        const res = await fetchApi(`/files/project/${projectId}`);
+      const queryKey = projectId || viewModalEvent.id;
+      if (queryKey) {
+        const res = await fetchApi(`/files/project/${queryKey}`);
         setEventFiles(res.allFiles || []);
       }
       loadData();
@@ -623,14 +633,24 @@ export default function CalendarPage() {
           editingEvent?.shootProjects?.[0]?.id ||
           editingEvent?.graphicRequirement?.projectId;
 
+        const targetGrId =
+          savedRes?.graphicRequirementId ||
+          savedRes?.graphicRequirement?.id ||
+          editingEvent?.graphicRequirementId ||
+          editingEvent?.graphicRequirement?.id;
+
         await Promise.all(
           scriptDocFiles.map((file) => {
             const uploadFd = new FormData();
             uploadFd.append('file', file);
             if (targetProjectId) {
               uploadFd.append('projectId', targetProjectId);
-            } else if (targetEventId) {
+            }
+            if (targetEventId) {
               uploadFd.append('calendarEventId', targetEventId);
+            }
+            if (targetGrId) {
+              uploadFd.append('graphicRequirementId', targetGrId);
             }
             uploadFd.append('folderCategory', 'Script Documents');
             uploadFd.append('attachmentCategory', 'SCRIPT_DOCUMENT');

@@ -1290,6 +1290,136 @@ export default function ApprovalsPage() {
                 </button>
               </div>
 
+              {/* VIDEO_EDITING_APPROVAL_MODAL_VIEW */}
+              {detailModalItem.taskType === 'VIDEO_EDITING' ? (
+                <div className="space-y-4">
+                  {/* Video Editing Metadata Attributes */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Script</span>
+                      <strong className="text-slate-900 block truncate">{detailModalItem.projectScript?.name || detailModalItem.name}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Clip Code</span>
+                      <span className="font-mono text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded text-[11px] inline-block mt-0.5">
+                        {detailModalItem.clipCode || detailModalItem.projectScript?.clipCode || 'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Project Priority</span>
+                      <span className={"inline-block mt-0.5 px-2 py-0.5 rounded font-extrabold uppercase text-[10px] " + (
+                        detailModalItem.priority === 'CRITICAL' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                        detailModalItem.priority === 'HIGH' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                        'bg-blue-50 text-blue-700 border border-blue-200'
+                      )}>
+                        {detailModalItem.priority || 'MEDIUM'} Priority
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Due Date</span>
+                      <strong className="text-amber-800 block mt-0.5">
+                        {detailModalItem.dueDate ? new Date(detailModalItem.dueDate).toLocaleDateString() : 'N/A'}
+                      </strong>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Assigned Video Editor</span>
+                      <strong className="text-slate-800 block mt-0.5">
+                        {detailModalItem.assignedEmployees?.[0]?.user?.name || detailModalItem.assignedEmployees?.[0]?.name || 'Video Editor'}
+                      </strong>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Review Status</span>
+                      <span className="font-mono text-cyan-800 font-bold bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200 text-[11px] inline-block mt-0.5">
+                        {detailModalItem.status || 'WAITING_FOR_TECHNICAL_REVIEW'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Script-Specific Clips Card */}
+                  <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3 text-xs">
+                    <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                        <FileText className="w-4 h-4 text-purple-700" /> Script-Specific Attached Clips ({(detailModalItem.clips || detailModalItem.projectScript?.clips || []).length})
+                      </span>
+                      <span className="font-mono text-[10px] text-purple-700 font-semibold">
+                        Clip Code: {detailModalItem.clipCode || detailModalItem.projectScript?.clipCode || 'N/A'}
+                      </span>
+                    </div>
+                    {(detailModalItem.clips || detailModalItem.projectScript?.clips || []).length === 0 ? (
+                      <p className="text-slate-400 italic text-center py-2">No clips attached to this script.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {(detailModalItem.clips || detailModalItem.projectScript?.clips || []).map((clip, cIdx) => {
+                          const clipUrl = clip.storagePath?.startsWith('http')
+                            ? clip.storagePath
+                            : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000') + '/' + (clip.storagePath ? clip.storagePath.replace(/^\/?/, '') : '');
+                          return (
+                            <div
+                              key={clip.id || cIdx}
+                              className="p-3 bg-white border border-purple-200 rounded-lg flex items-center justify-between gap-3 shadow-xs"
+                            >
+                              <div className="truncate">
+                                <span className="font-bold text-slate-900 block truncate text-xs">{clip.name || ("Clip " + (cIdx + 1))}</span>
+                                {clip.durationSec && (
+                                  <span className="text-[10px] text-slate-500 font-mono">{clip.durationSec}s duration</span>
+                                )}
+                              </div>
+                              {clip.storagePath && (
+                                <a
+                                  href={clipUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all shrink-0"
+                                >
+                                  <Eye className="w-3.5 h-3.5" /> View
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Task Description */}
+                  {detailModalItem.description && (
+                    <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1.5 text-xs">
+                      <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Description</span>
+                      <p className="text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">{detailModalItem.description}</p>
+                    </div>
+                  )}
+
+                  {/* Technical Review Action Controls */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">
+                      Technical Review Decision
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDetailModalItem(null);
+                          openTechConfirmation(detailModalItem, 'APPROVED');
+                        }}
+                        className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-md transition-all flex items-center justify-center gap-2"
+                      >
+                        <ShieldCheck className="w-4 h-4" /> Approve Technical Review
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDetailModalItem(null);
+                          openTechConfirmation(detailModalItem, 'REJECTED');
+                        }}
+                        className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs shadow-md transition-all flex items-center justify-center gap-2"
+                      >
+                        <X className="w-4 h-4" /> Reject & Request Revision
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
               {/* Client & Metadata Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1">
@@ -1541,6 +1671,9 @@ export default function ApprovalsPage() {
                   ))}
                 </div>
               </div>
+
+              </>
+              )}
 
               {/* Modal Navigation Footer */}
               <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-200">

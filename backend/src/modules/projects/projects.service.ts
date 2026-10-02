@@ -204,59 +204,146 @@ export class ProjectsService {
   }
 
   async findOne(id: string, currentUser?: any) {
+    // Trimmed include tree: only relations the Project Details page (and the
+    // equipment-assignments review modal, which reuses this endpoint) actually
+    // render. Revisions, communications, activityLogs and equipmentMovements are
+    // fetched by their own endpoints/tab components, so they are deliberately
+    // NOT loaded here. Auth (canUserViewProject/canUserViewEvent) branches on
+    // calendarEvent, assignedTeam, tasks.assignedEmployees and approvals, so
+    // those keep the exact fields the gate reads.
     const includeConfig = {
-      client: true,
-      brand: true,
-      product: true,
-      campaign: true,
+      client: { select: { id: true, name: true } },
+      brand: { select: { id: true, name: true, shortCode: true } },
+      product: { select: { id: true, name: true } },
+      campaign: { select: { id: true, name: true } },
       calendarEvent: true,
-      createdBy: true,
+      createdBy: { select: { id: true } },
       indoorDetails: true,
       outdoorDetails: true,
-      assignedTeam: { include: { user: { include: { employeeProfile: { include: { department: true } } } } } },
-      graphicRequirements: {
+      assignedTeam: {
         include: {
-          tasks: { include: { assignedEmployees: { include: { user: true } } } },
-          files: true,
-          deliverables: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+              employeeProfile: {
+                select: {
+                  designation: true,
+                  department: { select: { id: true, name: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+      graphicRequirements: {
+        select: {
+          id: true,
+          requirementId: true,
+          name: true,
+          projectId: true,
+          calendarEventId: true,
+          requirementType: true,
+          objective: true,
+          description: true,
+          priority: true,
+          status: true,
+          revisionCount: true,
+          createdById: true,
+          createdAt: true,
+          updatedAt: true,
+          tasks: {
+            select: {
+              id: true,
+              assignedEmployees: { select: { userId: true, acceptanceStatus: true } },
+            },
+          },
         },
         orderBy: { createdAt: 'desc' as const },
+        take: 200,
       },
-      tasks: { include: { assignedEmployees: { include: { user: true } } } },
-      approvals: { include: { reviewer: true }, orderBy: { reviewedAt: 'desc' as const } },
-      clientConfirmations: { orderBy: { createdAt: 'desc' as const } },
-      revisions: { orderBy: { createdAt: 'desc' as const } },
-      equipmentReservations: { include: { equipment: true } },
+      tasks: {
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          priority: true,
+          dueDate: true,
+          status: true,
+          completionPercentage: true,
+          sourceType: true,
+          taskType: true,
+          scriptId: true,
+          graphicRequirementId: true,
+          createdAt: true,
+          updatedAt: true,
+          assignedEmployees: {
+            select: {
+              userId: true,
+              acceptanceStatus: true,
+              assignedAt: true,
+              user: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' as const },
+        take: 200,
+      },
+      approvals: {
+        select: { id: true, approvalType: true, targetRole: true, status: true },
+        orderBy: { reviewedAt: 'desc' as const },
+        take: 200,
+      },
+      clientConfirmations: { select: { id: true }, orderBy: { createdAt: 'desc' as const }, take: 100 },
+      revisions: { select: { id: true }, orderBy: { createdAt: 'desc' as const }, take: 1 },
+      equipmentReservations: {
+        include: {
+          equipment: true,
+          reservedBy: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' as const },
+        take: 200,
+      },
       equipmentRequests: {
         include: {
           equipment: true,
-          requestedBy: { select: { id: true, name: true, email: true, role: true } },
-          reviewedBy: { select: { id: true, name: true, email: true, role: true } },
+          requestedBy: { select: { id: true, name: true } },
+          reviewedBy: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'desc' as const },
+        take: 200,
       },
-      equipmentMovements: { include: { equipment: true, user: true }, orderBy: { timestamp: 'desc' as const } },
       files: {
-        include: {
-          uploadedBy: true,
+        select: {
+          id: true,
+          fileName: true,
+          fileSize: true,
+          fileType: true,
+          storagePath: true,
+          activeVersion: true,
+          attachmentCategory: true,
+          clipCodes: true,
+          graphicRequirementId: true,
+          projectId: true,
+          createdAt: true,
+          uploadedBy: { select: { id: true, name: true } },
           scriptEditorAssignments: {
-            include: {
-              user: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
-              assignedBy: { select: { id: true, name: true, role: true } },
+            select: {
+              id: true,
+              userId: true,
+              taskId: true,
+              editingStatus: true,
+              videoEditingFinished: true,
+              user: { select: { id: true, name: true } },
             },
             orderBy: { assignedAt: 'desc' as const },
           },
         },
         orderBy: { createdAt: 'desc' as const },
+        take: 500,
       },
-      scriptEditorAssignments: {
-        include: {
-          user: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
-          assignedBy: { select: { id: true, name: true, role: true } },
-        },
-        orderBy: { assignedAt: 'desc' as const },
-      },
-      communications: { include: { sender: true }, orderBy: { createdAt: 'desc' as const } },
     };
 
     let project = await this.prisma.shootProject.findUnique({
@@ -278,7 +365,9 @@ export class ProjectsService {
 
     if (!project) throw new NotFoundException('Project not found');
 
-    // Also fetch any graphic requirements and tasks linked via project code, task relation, or calendar event
+    // Also fetch any graphic requirements and tasks linked via project code, task relation, or calendar event.
+    // Both queries only need the same fields the main include returns (id, status, assignedEmployees, etc.)
+    // so they reuse the same select shape — no extra full-row includes.
     const [extraGraphicReqs, extraTasks] = await Promise.all([
       this.prisma.graphicRequirement.findMany({
         where: {
@@ -288,12 +377,30 @@ export class ProjectsService {
             ...(project.calendarEventId ? [{ calendarEventId: project.calendarEventId }] : []),
           ],
         },
-        include: {
-          tasks: { include: { assignedEmployees: { include: { user: true } } } },
-          files: true,
-          deliverables: true,
+        select: {
+          id: true,
+          requirementId: true,
+          name: true,
+          projectId: true,
+          calendarEventId: true,
+          requirementType: true,
+          objective: true,
+          description: true,
+          priority: true,
+          status: true,
+          revisionCount: true,
+          createdById: true,
+          createdAt: true,
+          updatedAt: true,
+          tasks: {
+            select: {
+              id: true,
+              assignedEmployees: { select: { userId: true, acceptanceStatus: true } },
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
+        take: 200,
       }).catch(() => []),
       this.prisma.task.findMany({
         where: {
@@ -308,14 +415,31 @@ export class ProjectsService {
               : []),
           ],
         },
-        include: {
-          assignedEmployees: { include: { user: { include: { employeeProfile: true } } } },
-          revisions: { include: { requestedBy: true, assignedTo: true } },
-          client: true,
-          brand: true,
-          product: true,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          priority: true,
+          dueDate: true,
+          status: true,
+          completionPercentage: true,
+          sourceType: true,
+          taskType: true,
+          scriptId: true,
+          graphicRequirementId: true,
+          createdAt: true,
+          updatedAt: true,
+          assignedEmployees: {
+            select: {
+              userId: true,
+              acceptanceStatus: true,
+              assignedAt: true,
+              user: { select: { id: true, name: true } },
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
+        take: 200,
       }).catch(() => []),
     ]);
 
@@ -379,14 +503,10 @@ export class ProjectsService {
     }
 
     const activityLogs = await this.prisma.activityLog.findMany({
-      where: {
-        OR: [
-          { entity: 'ShootProject', entityId: id },
-          { metadata: { contains: id } },
-        ],
-      },
+      where: { entity: 'ShootProject', entityId: project.id },
       include: { user: true },
       orderBy: { timestamp: 'desc' },
+      take: 100,
     });
 
     const allTasksCompleted =
@@ -440,18 +560,15 @@ export class ProjectsService {
 
     // Refresh the per-document editing state from the linked task before returning, so the
     // page always reflects the current acceptance / review status rather than a stale mirror.
+    // `acceptedTaskIds` is computed in-memory from the already-fetched project.files[*].scriptEditorAssignments
+    // (which now include editingStatus + taskId), avoiding a redundant shootProject findUnique.
     await this.syncScriptEditingStatus(project.id, currentUser);
-    const refreshed = currentUser
-      ? await this.prisma.shootProject
-          .findUnique({
-            where: { id: project.id },
-            select: { files: { select: { scriptEditorAssignments: true } } },
-          })
-          .catch(() => null)
-      : null;
-    const liveAssignments = refreshed?.files?.flatMap((f) => f.scriptEditorAssignments || []) || [];
+    const liveAssignments = (project.files || []).flatMap((f: any) => f.scriptEditorAssignments || []);
     const acceptedTaskIds = new Set(
-      liveAssignments.filter((a: any) => a.editingStatus !== 'ASSIGNED').map((a: any) => a.taskId).filter(Boolean),
+      liveAssignments
+        .filter((a: any) => a.editingStatus && a.editingStatus !== 'ASSIGNED')
+        .map((a: any) => a.taskId)
+        .filter(Boolean),
     );
 
     return {
@@ -2209,53 +2326,206 @@ export class ProjectsService {
   // ────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * Parses the ProjectScript JSON array out of ShootProject.notes without depending on
-   * the frontend helper. Tolerates malformed JSON by returning []; tolerates plain prose
-   * by treating it as a single unnamed script so the operator is not stuck.
+   * Returns every Script Document (FileMetadata row with attachmentCategory='SCRIPT_DOCUMENT')
+   * attached to a project. This is the SAME source the Scripts tab renders, so the
+   * Convert-to-Video Editing Task panel and Script Session always show identical records.
+   *
+   * Each returned script carries:
+   *   - id: the FileMetadata primary key (used as Task.scriptId)
+   *   - title: the uploaded file name
+   *   - clipCodes: parsed from FileMetadata.clipCodes (JSON array of { code, description, addedBy, addedAt })
+   *   - storagePath: the file's storage path (used by the View button)
+   *   - createdAt / uploadedBy: audit fields
    */
-  private parseProjectScripts(rawNotes?: string | null): Array<{ id: string; title: string; scriptText?: string }> {
-    if (!rawNotes) return [];
-    const trimmed = rawNotes.trim();
-    if (!trimmed) return [];
-    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        const arr = Array.isArray(parsed)
-          ? parsed
-          : Array.isArray(parsed?.scripts)
-          ? parsed.scripts
-          : [];
-        return arr
-          .map((s: any, i: number) => ({
-            id: typeof s?.id === 'string' && s.id.trim() ? s.id.trim() : `script-${i + 1}`,
-            title: typeof s?.title === 'string' ? s.title.trim() : `Script ${i + 1}`,
-            scriptText: typeof s?.scriptText === 'string' ? s.scriptText : '',
-          }))
-          .filter((s) => !!s.id);
-      } catch {
-        return [];
+  async getScriptDocuments(projectId: string, user: any) {
+    const project = await this.resolveShootProject(projectId);
+    if (!project) throw new NotFoundException('Project not found');
+    if (!canUserViewProject(user, project)) {
+      throw new ForbiddenException('You do not have access to this project.');
+    }
+    const scripts = await this.getProjectScriptDocuments(project.id);
+    return {
+      projectId: project.id,
+      projectCode: project.projectId,
+      projectName: project.name,
+      videoEditingConverted: project.videoEditingConverted,
+      totalScripts: scripts.length,
+      scripts,
+    };
+  }
+
+  async getVideoEditingTaskScripts(projectId: string, user: any) {
+    const project = await this.resolveShootProject(projectId);
+    if (!project) throw new NotFoundException('Project not found');
+    if (!canUserViewProject(user, project)) {
+      throw new ForbiddenException('You do not have access to this project.');
+    }
+    const scripts = await this.getProjectScriptDocuments(project.id);
+    return {
+      projectId: project.id,
+      projectCode: project.projectId,
+      projectName: project.name,
+      videoEditingConverted: project.videoEditingConverted,
+      totalScripts: scripts.length,
+      scripts,
+    };
+  }
+
+  /**
+   * Fetches and normalizes the Script Documents for a project. Shared by
+   * getVideoEditingTaskScripts and convertToVideoEditing so both paths read the
+   * exact same records.
+   */
+  private async getProjectScriptDocuments(projectId: string) {
+    // 1. Check first-class ProjectScript table
+    const projectScripts = await this.prisma.projectScript.findMany({
+      where: { projectId },
+      include: {
+        clips: { orderBy: { order: 'asc' } },
+        createdBy: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { order: 'asc' },
+    });
+
+    if (projectScripts.length > 0) {
+      return projectScripts.map((ps) => ({
+        id: ps.id,
+        title: ps.name,
+        fileName: ps.name,
+        name: ps.name,
+        storagePath: null,
+        attachmentCategory: 'SCRIPT_DOCUMENT',
+        clipCode: ps.clipCode,
+        clipCodes: ps.clipCode ? [{ code: ps.clipCode, description: ps.description || '' }] : [],
+        clips: ps.clips || [],
+        description: ps.description,
+        order: ps.order,
+        status: ps.status,
+        createdAt: ps.createdAt,
+        uploadedBy: ps.createdBy,
+      }));
+    }
+
+    // 2. Check FileMetadata table
+    const files = await this.prisma.fileMetadata.findMany({
+      where: {
+        projectId,
+        attachmentCategory: 'SCRIPT_DOCUMENT',
+      },
+      include: {
+        uploadedBy: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (files.length > 0) {
+      return files.map((f) => ({
+        id: f.id,
+        title: f.fileName,
+        fileName: f.fileName,
+        name: f.fileName,
+        storagePath: f.storagePath,
+        attachmentCategory: f.attachmentCategory,
+        clipCode: this.parseFileClipCodes(f.clipCodes).map((c: any) => c.code).join(', ') || null,
+        clipCodes: this.parseFileClipCodes(f.clipCodes),
+        clips: [],
+        createdAt: f.createdAt,
+        uploadedBy: f.uploadedBy,
+      }));
+    }
+
+    // 3. Fallback: check ShootProject.notes JSON array
+    const project = await this.prisma.shootProject.findUnique({ where: { id: projectId }, select: { notes: true } });
+    if (project?.notes && typeof project.notes === 'string') {
+      const trimmed = project.notes.trim();
+      if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          const list = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.scripts) ? parsed.scripts : []);
+          if (list.length > 0) {
+            return list.map((s: any, idx: number) => {
+              const code = Array.isArray(s.clipCodes) && s.clipCodes.length > 0
+                ? s.clipCodes.map((c: any) => (typeof c === 'string' ? c : c.code)).join(', ')
+                : (s.clipCode || null);
+              return {
+                id: s.id || `script-${idx + 1}`,
+                title: s.title || `Script #${idx + 1}`,
+                fileName: s.title || `Script #${idx + 1}`,
+                name: s.title || `Script #${idx + 1}`,
+                storagePath: null,
+                attachmentCategory: 'SCRIPT_DOCUMENT',
+                clipCode: code,
+                clipCodes: Array.isArray(s.clipCodes)
+                  ? s.clipCodes.map((c: any) => (typeof c === 'string' ? { code: c } : c))
+                  : (code ? [{ code }] : []),
+                clips: [],
+                description: s.scriptText || s.notes || s.description || null,
+                createdAt: s.createdAt || new Date(),
+              };
+            });
+          }
+        } catch {
+          // not valid json
+        }
       }
     }
-    return [{
-      id: 'script-default-1',
-      title: 'Script 1',
-      scriptText: trimmed,
-    }];
+
+    return [];
+  }
+
+  /**
+   * Parses the FileMetadata.clipCodes JSON column into a normalized array.
+   * Tolerates malformed JSON and non-array values by returning [].
+   */
+  private parseFileClipCodes(raw: any): Array<{ code: string; description?: string; addedBy?: string; addedAt?: string }> {
+    if (!raw) return [];
+    if (Array.isArray(raw)) {
+      return raw
+        .filter((c: any) => c && typeof c.code === 'string' && c.code.trim())
+        .map((c: any) => ({
+          code: c.code.trim(),
+          description: c.description || '',
+          addedBy: c.addedBy || undefined,
+          addedAt: c.addedAt || undefined,
+        }));
+    }
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .filter((c: any) => c && typeof c.code === 'string' && c.code.trim())
+            .map((c: any) => ({
+              code: c.code.trim(),
+              description: c.description || '',
+              addedBy: c.addedBy || undefined,
+              addedAt: c.addedAt || undefined,
+            }));
+        }
+      } catch {
+        // not valid json
+      }
+    }
+    return [];
   }
 
   /**
    * Media Manager converts a completed shoot project into the Video Editing phase.
    * Idempotent on (projectId, scriptId) so a second click never duplicates.
    *
-   * Accepts per-script clip codes and staff assignments from the conversion form. Validates
-   * that every script has both before creating anything (atomic: all-or-nothing).
-   * After conversion the project is locked (videoEditingConverted = true) and its status
-   * becomes VIDEO_EDITING_IN_PROGRESS.
+   * Supports both converting a single selected script (body.scriptId) or batch converting (body.scripts).
+   * Verifies that each script belongs to this project (rejects cross-project scripts).
+   * Stores the exact Script ID, ProjectScript relation, Script Clip Code, Project Priority, and Due Date.
    */
   async convertToVideoEditing(
     projectId: string,
     user: any,
-    body?: { scripts?: Array<{ scriptId: string; clipCode: string; staffId: string }> },
+    body?: {
+      scriptId?: string;
+      staffId?: string;
+      dueDate?: string;
+      scripts?: Array<{ scriptId: string; clipCode?: string; staffId: string; dueDate?: string }>;
+    },
   ) {
     const isMediaManager =
       user?.role === Role.MEDIA_MANAGER || user?.role === 'ADMIN' || user?.role === Role.ADMINISTRATOR;
@@ -2266,19 +2536,17 @@ export class ProjectsService {
     const project = await this.resolveShootProject(projectId);
     if (!project) throw new NotFoundException('Project not found');
 
-    // Per the new Post-Shoot Editing spec: a project becomes "completed" as a shoot at the
-    // moment the Media Manager clicks Complete Project (i.e. declares the shoot itself done).
-    // We allow conversion from any post-shoot status - the click is what ends the shoot
-    // phase. Drafts/cancelled projects are still rejected.
     const convertibleStatuses = [
       ProjectStatus.PLANNED,
       ProjectStatus.READY_FOR_PRODUCTION,
       ProjectStatus.IN_PROGRESS,
+      'IN_PRODUCTION',
       ProjectStatus.WAITING_FOR_TECHNICAL_REVIEW,
       ProjectStatus.WAITING_FOR_MEDIA_REVIEW,
       ProjectStatus.WAITING_FOR_CLIENT_CONFIRMATION,
       ProjectStatus.CLIENT_REVISION_REQUESTED,
       ProjectStatus.COMPLETED,
+      'APPROVED',
     ];
     if (!convertibleStatuses.includes(project.status as ProjectStatus)) {
       throw new BadRequestException(
@@ -2286,45 +2554,43 @@ export class ProjectsService {
       );
     }
 
-    // Per spec section 16: prevent duplicate conversion at the service layer.
-    if (project.videoEditingConverted) {
+    const projectScripts = await this.getProjectScriptDocuments(project.id);
+    if (projectScripts.length === 0) {
       throw new BadRequestException(
-        'This project has already been converted to Video Editing. Duplicate conversion is not allowed.',
+        'No script documents were found on this project. Upload script documents before converting.',
       );
     }
 
-    const scripts = this.parseProjectScripts(project.notes);
-    if (scripts.length === 0) {
-      throw new BadRequestException(
-        'No scripts were found on this project. Add scripts to the project notes before converting.',
-      );
-    }
+    // Determine target scripts to convert
+    let targetScripts = projectScripts;
+    const submitted = body?.scripts || (body?.scriptId && body?.staffId ? [{ scriptId: body.scriptId, clipCode: '', staffId: body.staffId, dueDate: body.dueDate }] : []);
 
-    // Per spec section 15: validate every script has a clip code and staff assignment.
-    const submitted = body?.scripts || [];
-    const errors: string[] = [];
-    for (const script of scripts) {
-      const match = submitted.find((s) => s.scriptId === script.id);
+    if (body?.scriptId) {
+      const match = projectScripts.find((s) => s.id === body.scriptId);
       if (!match) {
-        errors.push(`Script "${script.title}" is missing from the conversion form.`);
-        continue;
+        throw new BadRequestException(`Script with ID '${body.scriptId}' does not belong to Project '${project.projectId}'.`);
       }
-      if (!match.clipCode || !match.clipCode.trim()) {
-        errors.push(`Script "${script.title}" requires a Clip Code.`);
-      }
-      if (!match.staffId || !match.staffId.trim()) {
-        errors.push(`Script "${script.title}" requires a Staff assignment.`);
+      targetScripts = [match];
+    }
+
+    const errors: string[] = [];
+    for (const script of targetScripts) {
+      const match = submitted.find((s) => s.scriptId === script.id);
+      if (!match || !match.staffId || !match.staffId.trim()) {
+        errors.push(`Script "${script.title}" requires a Video Editor assignment.`);
       }
     }
     if (errors.length > 0) {
-      throw new BadRequestException(`Cannot complete conversion:\n${errors.join('\n')}`);
+      throw new BadRequestException(
+        `Please assign a Video Editor to all Scripts before completing the Project Shoot.\n${errors.join('\n')}`
+      );
     }
 
-    // Validate that all assigned staff exist and are active.
-    const staffIds = [...new Set(submitted.map((s) => s.staffId))];
+    // Validate active staff members
+    const staffIds = [...new Set(submitted.map((s) => s.staffId).filter(Boolean))];
     const validStaff = await this.prisma.user.findMany({
       where: { id: { in: staffIds }, isArchived: false, status: 'ACTIVE' },
-      select: { id: true },
+      select: { id: true, name: true },
     });
     if (validStaff.length !== staffIds.length) {
       throw new BadRequestException('One or more selected staff members are not active.');
@@ -2333,14 +2599,33 @@ export class ProjectsService {
     const baseCount = await this.prisma.task.count();
     let nextSeq = baseCount + 1;
     const usedTaskIds = new Set<string>();
-    const created: Array<{ task: any; script: { id: string; title: string } }> = [];
-    const reused: Array<{ task: any; script: { id: string; title: string } }> = [];
+    const created: Array<{ task: any; script: any }> = [];
+    const reused: Array<{ task: any; script: any }> = [];
 
-    // Use a transaction so that if any task creation fails, the project is not partially converted.
     await this.prisma.$transaction(async (tx) => {
-      for (const script of scripts) {
-        const existing = await tx.task.findUnique({
-          where: { projectId_scriptId: { projectId: project.id, scriptId: script.id } },
+      for (const script of targetScripts) {
+        // Ensure first-class ProjectScript record exists
+        let ps = await tx.projectScript.findFirst({
+          where: { id: script.id, projectId: project.id },
+        });
+        if (!ps) {
+          ps = await tx.projectScript.create({
+            data: {
+              id: script.id.startsWith('script-') || script.id.length > 36 ? undefined : script.id,
+              projectId: project.id,
+              name: script.title || script.name || 'Script',
+              clipCode: script.clipCode || (script.clipCodes?.[0]?.code) || null,
+              description: script.description || null,
+              createdById: user?.id || user?.sub || null,
+            },
+          });
+        }
+
+        const existing = await tx.task.findFirst({
+          where: {
+            projectId: project.id,
+            OR: [{ scriptId: script.id }, { projectScriptId: ps.id }],
+          },
           select: { id: true, taskId: true, title: true },
         });
         if (existing) {
@@ -2348,8 +2633,8 @@ export class ProjectsService {
           continue;
         }
 
-        const match = body?.scripts?.find((s) => s.scriptId === script.id);
-        const clipCode = match?.clipCode?.trim() || `CLP-${script.id}`;
+        const match = submitted.find((s) => s.scriptId === script.id);
+        const clipCode = script.clipCode || ps.clipCode || (script.clipCodes && script.clipCodes.length > 0 ? script.clipCodes.map((c: any) => c.code).join(', ') : null);
         const staffId = match?.staffId;
 
         let candidate = `TSK-${String(nextSeq).padStart(6, '0')}`;
@@ -2363,31 +2648,39 @@ export class ProjectsService {
         usedTaskIds.add(candidate);
         nextSeq += 1;
 
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + 5);
+        let taskDueDate = new Date();
+        if (match?.dueDate) {
+          taskDueDate = new Date(match.dueDate);
+        } else if (body?.dueDate) {
+          taskDueDate = new Date(body.dueDate);
+        } else {
+          taskDueDate.setDate(taskDueDate.getDate() + 5);
+        }
 
         const task = await tx.task.create({
           data: {
             taskId: candidate,
             title: `Video Editing - ${script.title}`,
             description:
-              `Video editing task for script "${script.title}" on shoot project ${project.projectId} (${project.name || 'Shoot Project'}). ` +
-              `Clip Code: ${clipCode}. ` +
+              `Video Editing Task for script "${script.title}" on project ${project.projectId} (${project.name || 'Shoot Project'}). ` +
+              (clipCode ? `Clip Code: ${clipCode}. ` : '') +
+              `This is a dedicated Video Editing Task (not a Project Shoot Task). ` +
               `Step 1: Accept this task. ` +
-              `Step 2: Upload the finished cut using the "Deliverable" button on the task row. ` +
-              `Step 3: Press "Tech Review" to send the edit for Technical Manager approval.`,
+              `Step 2: Complete the video editing work for this script. ` +
+              `Step 3: Click "Submit for Technical Review" to send the edit for Technical Manager approval.`,
             projectId: project.id,
             clientId: project.clientId,
             brandId: project.brandId,
             productId: project.productId,
-            priority: Priority.MEDIUM,
-            dueDate,
+            priority: (project.priority as any) || Priority.MEDIUM,
+            dueDate: taskDueDate,
             estimatedHours: 3.0,
             status: TaskStatus.ASSIGNED,
             sourceType: 'SHOOT_PROJECT',
             taskType: 'VIDEO_EDITING',
             completionPercentage: 0,
             scriptId: script.id,
+            projectScriptId: ps.id,
             clipCode,
           },
         });
@@ -2403,7 +2696,7 @@ export class ProjectsService {
             taskId: task.id,
             userId: user?.id || user?.sub || null,
             event: 'TASK_CREATED',
-            description: `Video editing task auto-created by convert-to-video-editing for script "${script.title}".`,
+            description: `Video editing task auto-created for script "${script.title}" with priority ${project.priority || 'MEDIUM'} and due date ${taskDueDate.toLocaleDateString()}.`,
           },
         }).catch(() => null);
 
@@ -2420,14 +2713,15 @@ export class ProjectsService {
         created.push({ task, script });
       }
 
-      // Lock the project after all tasks are created successfully.
+      // Lock project to COMPLETED and read-only
       await tx.shootProject.update({
         where: { id: project.id },
         data: {
           videoEditingConverted: true,
           videoEditingConvertedAt: new Date(),
           videoEditingConvertedBy: user?.id || user?.sub || null,
-          status: ProjectStatus.VIDEO_EDITING_IN_PROGRESS,
+          status: ProjectStatus.COMPLETED,
+          progressPercentage: 100,
         },
       });
     });
@@ -2436,15 +2730,16 @@ export class ProjectsService {
       await this.prisma.notification.create({
         data: {
           userId: user.id || user.sub,
-          title: 'Video Editing Tasks Created',
+          title: 'Project Completed',
           message:
-            `Converted project ${project.projectId}: ${created.length} new task(s), ${reused.length} already existed. ` +
-            `Assign a Staff member to each task from the task list.`,
-          type: 'INFO',
-          category: 'ASSIGNMENT',
+            `Project ${project.projectId} is now COMPLETED. ${created.length} video editing task(s) were created ` +
+            `(${reused.length} already existed). Each assigned Video Editor will independently work through ` +
+            `the technical → media review chain.`,
+          type: 'SUCCESS',
+          category: 'PROJECT',
           priority: 'HIGH',
-          linkUrl: `/tasks`,
-          eventType: 'VIDEO_EDITING_CONVERTED',
+          linkUrl: `/projects/${project.id}`,
+          eventType: 'PROJECT_COMPLETED',
           entityType: 'ShootProject',
           entityId: project.id,
           entityCode: project.projectId,
@@ -2456,12 +2751,32 @@ export class ProjectsService {
     return {
       projectId: project.id,
       projectCode: project.projectId,
-      totalScripts: scripts.length,
+      totalScripts: targetScripts.length,
       createdTaskIds: created.map((c) => c.task.taskId),
       reusedTaskIds: reused.map((c) => c.task.taskId),
       tasks: [
-        ...created.map((c) => ({ taskId: c.task.taskId, scriptId: c.script.id, title: c.task.title, created: true })),
-        ...reused.map((c) => ({ taskId: c.task.taskId, scriptId: c.script.id, title: c.task.title, created: false })),
+        ...created.map((c) => ({
+          taskId: c.task.taskId,
+          scriptId: c.script.id,
+          title: c.task.title,
+          created: true,
+          script: {
+            id: c.script.id,
+            title: c.script.title,
+            clipCodes: c.script.clipCodes || [],
+          },
+        })),
+        ...reused.map((c) => ({
+          taskId: c.task.taskId,
+          scriptId: c.script.id,
+          title: c.task.title,
+          created: false,
+          script: {
+            id: c.script.id,
+            title: c.script.title,
+            clipCodes: c.script.clipCodes || [],
+          },
+        })),
       ],
     };
   }
@@ -2867,5 +3182,134 @@ export class ProjectsService {
         description: `Project auto-completed: all ${editingTasks.length} video editing task(s) reached MARKETING_MANAGER_APPROVED.`,
       },
     }).catch(() => null);
+  }
+
+  /**
+   * Video Editor submits a VIDEO_EDITING task directly for Technical Review.
+   * No Media Manager or Marketing Manager approval is required.
+   * The task must be in ACCEPTED, IN_PROGRESS, or REVISION_REQUESTED status.
+   * Moves the task to WAITING_FOR_TECHNICAL_REVIEW.
+   */
+  async submitVideoEditingForTechnicalReview(
+    projectId: string,
+    taskId: string,
+    body: { deliverableUrl?: string; deliverableFileName?: string; comment?: string },
+    user: any,
+  ) {
+    const project = await this.resolveShootProject(projectId);
+    if (!project) throw new NotFoundException('Project not found');
+
+    const task = await this.prisma.task.findFirst({
+      where: {
+        projectId: project.id,
+        taskType: 'VIDEO_EDITING',
+        OR: [{ id: taskId }, { taskId }],
+      },
+      include: {
+        assignedEmployees: { select: { userId: true } },
+      },
+    });
+    if (!task) throw new NotFoundException('Video editing task not found.');
+
+    // Only assigned staff or admin can submit
+    const isAdmin = user?.role === 'ADMIN' || user?.role === Role.ADMINISTRATOR;
+    const isAssigned = (task as any).assignedEmployees?.some((a: any) => a.userId === user?.id);
+    if (!isAdmin && !isAssigned) {
+      throw new ForbiddenException('Only the assigned Video Editor can submit this task for Technical Review.');
+    }
+
+    const allowedStatuses = ['ACCEPTED', 'IN_PROGRESS', 'REVISION_REQUESTED'];
+    if (!allowedStatuses.includes(task.status)) {
+      throw new BadRequestException(
+        `Task cannot be submitted from status: ${task.status}. Must be ACCEPTED, IN_PROGRESS, or REVISION_REQUESTED.`,
+      );
+    }
+
+    // If a deliverable URL is provided, record it
+    if (body?.deliverableUrl) {
+      const newVersion = (task.activeDeliverableVersion || 0) + 1;
+      await this.prisma.taskDeliverableHistory.create({
+        data: {
+          taskId: task.id,
+          userId: user.id,
+          fileUrl: body.deliverableUrl.trim(),
+          fileName: body.deliverableFileName || `edited-cut-v${newVersion}`,
+          version: newVersion,
+        },
+      }).catch(() => null);
+
+      await this.prisma.task.update({
+        where: { id: task.id },
+        data: {
+          activeDeliverableUrl: body.deliverableUrl.trim(),
+          activeDeliverableFileName: body.deliverableFileName || `edited-cut-v${newVersion}`,
+          activeDeliverableVersion: newVersion,
+        },
+      });
+    }
+
+    // Move to Technical Review
+    const updatedTask = await this.prisma.task.update({
+      where: { id: task.id },
+      data: {
+        status: 'WAITING_FOR_TECHNICAL_REVIEW',
+        completionPercentage: 50,
+        technicalReviewApproved: false,
+        mediaManagerApproved: false,
+        marketingManagerApproved: false,
+      },
+    });
+
+    // Create approval record for Technical Manager
+    await this.prisma.approval.create({
+      data: {
+        projectId: project.id,
+        entityType: 'TASK',
+        entityId: task.id,
+        approvalType: 'TECHNICAL_REVIEW',
+        targetRole: 'TECHNICAL_MANAGER',
+        requestedById: user.id,
+        status: 'PENDING',
+        remarks: body?.comment || `Video editing task ${task.taskId} submitted for Technical Review by ${user.name}.`,
+      },
+    }).catch(() => null);
+
+    // Notify Technical Managers
+    const technicalManagers = await this.prisma.user.findMany({
+      where: { role: 'TECHNICAL_MANAGER', status: 'ACTIVE' },
+      select: { id: true },
+    });
+    for (const tm of technicalManagers) {
+      await this.prisma.notification.create({
+        data: {
+          userId: tm.id,
+          title: 'Video Editing Task Submitted for Technical Review',
+          message: `Video editing task ${task.taskId} (${task.title}) on project ${project.projectId} was submitted for Technical Review.`,
+          type: 'ALERT',
+          category: 'APPROVAL',
+          priority: 'HIGH',
+          linkUrl: `/approvals`,
+          eventType: 'TECHNICAL_REVIEW_REQUESTED',
+          entityType: 'TASK',
+          entityId: task.id,
+          entityCode: task.taskId,
+          taskId: task.id,
+          projectId: project.id,
+        },
+      }).catch(() => null);
+    }
+
+    // Log activity
+    await this.prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action: 'VIDEO_EDITING_SUBMITTED_FOR_TECH_REVIEW',
+        entity: 'Task',
+        entityId: task.id,
+        description: `Video editing task ${task.taskId} submitted for Technical Review by ${user.name}.`,
+      },
+    }).catch(() => null);
+
+    return this.findOne(project.id, user);
   }
 }

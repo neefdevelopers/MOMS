@@ -76,6 +76,7 @@ model User {
   createdGraphicDeliverables  GraphicRequirementDeliverable[] @relation("GraphicDeliverableCreatedBy")
   assignedGraphicDeliverables GraphicRequirementDeliverable[] @relation("GraphicDeliverableAssignedStaff")
   createdGraphicReqs          GraphicRequirement[]            @relation("GraphicReqCreator")
+  createdProjectScripts       ProjectScript[]                 @relation("ProjectScriptCreator")
 }
 
 model Department {
@@ -321,6 +322,7 @@ model ShootProject {
   handoverAuthorizations EquipmentHandoverAuthorization[]
   scriptEditorAssignments ScriptEditorAssignment[]
   sourceForCalendarEvents MediaCalendarEvent[]     @relation("CalendarEventSourceShoot")
+  scripts                ProjectScript[]
 }
 
 model IndoorShootDetails {
@@ -379,6 +381,47 @@ model ProjectAssignment {
   assignedAt DateTime     @default(now())
 
   @@unique([projectId, userId])
+}
+
+// First-class Script record for a Shoot Project. Replaces the legacy "script is a
+// FileMetadata row" model. A Video Editing Task references exactly one ProjectScript
+// via Task.projectScriptId; staff assigned to that task see only this Script and its
+// clips, never the parent Project.
+model ProjectScript {
+  id          String       @id @default(uuid())
+  projectId   String
+  project     ShootProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  clipCode    String?
+  description String?
+  order       Int          @default(0)
+  status      String       @default("DRAFT") // DRAFT, READY, EDITING, COMPLETED
+  createdById String?
+  createdBy   User?        @relation("ProjectScriptCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  clips       Clip[]
+  videoEditingTasks Task[]  @relation("TaskProjectScript")
+
+  @@index([projectId])
+  @@index([projectId, order])
+}
+
+// Individual clip attached to a ProjectScript. Clips are scoped strictly to a Script
+// so a Video Editing Task for Script B never sees Script A's clips.
+model Clip {
+  id          String        @id @default(uuid())
+  scriptId    String
+  script      ProjectScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  name        String
+  storagePath String?
+  fileType    String?       // VIDEO, IMAGE, AUDIO
+  durationSec Float?
+  order       Int           @default(0)
+  createdAt   DateTime      @default(now())
+
+  @@index([scriptId])
 }
 
 // Video editor assigned by a Media Manager to one script document on a shoot project.
@@ -525,6 +568,11 @@ model Task {
   // so each script gets one editing task. Together with (projectId) this is unique per
   // conversion, so clicking Convert twice cannot create duplicates.
   scriptId            String?
+  // First-class FK to ProjectScript. New code should populate this; the legacy
+  // scriptId string above remains for backwards compatibility with rows already
+  // created against FileMetadata.
+  projectScriptId     String?
+  projectScript       ProjectScript? @relation("TaskProjectScript", fields: [projectScriptId], references: [id], onDelete: SetNull)
   revisionId          String?
   technicalReviewApproved Boolean        @default(false)
   mediaManagerApproved    Boolean        @default(false)
@@ -995,6 +1043,9 @@ model ActivityLog {
   description String
   metadata    String?
   timestamp   DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([timestamp])
 }
 
 model OutputFormula {

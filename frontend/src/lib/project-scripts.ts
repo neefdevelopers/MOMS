@@ -27,7 +27,7 @@ export interface ProjectScript {
  */
 export function normalizeProjectScript(item: any, idx: number): ProjectScript {
   return {
-    id: item.id || `script-${idx + 1}-${Date.now()}`,
+    id: item.id || `script-${idx + 1}`,
     title: item.title || `Script #${idx + 1}`,
     scriptText: item.scriptText || item.text || item.content || item.notes || '',
     hook: item.hook || '',
@@ -86,7 +86,7 @@ export function parseProjectScripts(
   // Plain text fallback
   return [
     {
-      id: 'script-default-1',
+      id: 'script-1',
       title: fallbackTitle || 'Master Shooting Script #1',
       scriptText: trimmed,
       sceneNumber: 1,
@@ -112,10 +112,29 @@ export function extractEventScripts(
     return entity.scripts.map(normalizeProjectScript);
   }
 
+  // 1b. For ShootProject entities, entity.notes is the primary storage for scripts.
+  // Check it FIRST before any other candidate to avoid plain-text productionNotes
+  // masking a proper JSON array of multiple scripts.
+  if (entity.notes && typeof entity.notes === 'string') {
+    const trimmed = entity.notes.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(normalizeProjectScript);
+        }
+        if (parsed && typeof parsed === 'object' && Array.isArray(parsed.scripts) && parsed.scripts.length > 0) {
+          return parsed.scripts.map(normalizeProjectScript);
+        }
+      } catch {
+        // not valid json, fall through to other candidates
+      }
+    }
+  }
+
   // 2. Gather candidate strings across all potential properties
   const candidateTexts: (string | null | undefined)[] = [
     entity.productionNotes,
-    entity.notes,
     entity.shootProjects?.[0]?.notes,
     entity.shootProjects?.[1]?.notes,
     entity.shootProjects?.[2]?.notes,
@@ -157,7 +176,7 @@ export function extractEventScripts(
     if (cand && typeof cand === 'string' && cand.trim().length > 0) {
       return [
         {
-          id: 'script-default-1',
+          id: 'script-1',
           title: fallbackTitle || entity.title || entity.name || 'Master Shooting Script #1',
           scriptText: cand.trim(),
           sceneNumber: 1,

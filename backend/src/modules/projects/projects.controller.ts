@@ -154,6 +154,26 @@ export class ProjectsController {
   }
 
   /**
+   * Returns every Script Document (FileMetadata with attachmentCategory='SCRIPT_DOCUMENT')
+   * attached to a project. This is the same source the Scripts tab renders, so the
+   * Convert-to-Video Editing Task panel and Script Session always show identical records.
+   */
+  @Get(':id/script-documents')
+  getScriptDocuments(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.projectsService.getScriptDocuments(id, user);
+  }
+
+  /**
+   * Returns every Script belonging to a project, parsed from ShootProject.notes.
+   * Used by the Convert-to-Video Editing Task workflow so the UI can confirm it sees
+   * ALL scripts (not just one) before creating per-script editing tasks.
+   */
+  @Get(':id/video-editing-task-scripts')
+  getVideoEditingTaskScripts(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.projectsService.getVideoEditingTaskScripts(id, user);
+  }
+
+  /**
    * Media Manager converts a completed Shoot Project into Video Editing.
    *
    * For every Script on the project, creates exactly one Video Editing Task (idempotent:
@@ -198,5 +218,19 @@ export class ProjectsController {
     @CurrentUser() user: any,
   ) {
     return this.projectsService.reviewVideoEditingMarketing(id, taskId, body, user);
+  }
+
+  /**
+   * Video Editor submits a VIDEO_EDITING task directly for Technical Review.
+   * No Media Manager or Marketing Manager approval required.
+   */
+  @Post(':id/video-editing-task/:taskId/submit-technical-review')
+  submitVideoEditingForTechnicalReview(
+    @Param('id') id: string,
+    @Param('taskId') taskId: string,
+    @Body() body: { deliverableUrl?: string; deliverableFileName?: string; comment?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.projectsService.submitVideoEditingForTechnicalReview(id, taskId, body, user);
   }
 }

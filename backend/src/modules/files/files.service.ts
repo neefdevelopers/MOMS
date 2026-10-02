@@ -53,6 +53,23 @@ export class FilesService {
       });
     }
 
+    if (!project) {
+      // Check if projectId is a calendarEventId
+      const calEvt = await this.prisma.mediaCalendarEvent.findUnique({
+        where: { id: projectId },
+        include: { shoot: true, shootProjects: true, graphicRequirement: true },
+      });
+      if (calEvt?.shootId) return this.getProjectFiles(calEvt.shootId);
+      if (calEvt?.shootProjects && calEvt.shootProjects.length > 0) return this.getProjectFiles(calEvt.shootProjects[0].id);
+      if (calEvt?.graphicRequirement?.projectId) return this.getProjectFiles(calEvt.graphicRequirement.projectId);
+
+      // Check if projectId is a graphicRequirementId
+      const gr = await this.prisma.graphicRequirement.findUnique({
+        where: { id: projectId },
+      });
+      if (gr?.projectId) return this.getProjectFiles(gr.projectId);
+    }
+
     if (!project) throw new NotFoundException('Project not found');
 
     // The script document cards read from this endpoint, so the editing state has to be
@@ -193,9 +210,48 @@ export class FilesService {
     if (!resolvedProjectId && data.graphicRequirementId) {
       const gReq = await this.prisma.graphicRequirement.findUnique({
         where: { id: data.graphicRequirementId },
-        select: { projectId: true },
+        select: { id: true, projectId: true, clientId: true, brandId: true, productId: true, name: true, createdById: true },
       });
-      if (gReq?.projectId) resolvedProjectId = gReq.projectId;
+      if (gReq?.projectId) {
+        resolvedProjectId = gReq.projectId;
+      } else if (gReq) {
+        let parentProj = await this.prisma.shootProject.findFirst({
+          where: { clientId: gReq.clientId, brandId: gReq.brandId },
+          orderBy: { createdAt: 'asc' },
+        });
+
+        if (!parentProj) {
+          const spCount = await this.prisma.shootProject.count();
+          let candidateSpId = `SP-${(spCount + 1).toString().padStart(6, '0')}`;
+          let spSeq = spCount + 1;
+          while (await this.prisma.shootProject.findFirst({ where: { projectId: candidateSpId } })) {
+            spSeq++;
+            candidateSpId = `SP-${spSeq.toString().padStart(6, '0')}`;
+          }
+
+          parentProj = await this.prisma.shootProject.create({
+            data: {
+              projectId: candidateSpId,
+              name: `[VAULT] ${gReq.name || 'Client Assets'}`,
+              clientId: gReq.clientId,
+              brandId: gReq.brandId,
+              productId: gReq.productId || null,
+              shootType: 'INDOOR',
+              shootDate: new Date(),
+              shootLocation: 'Media Ops Studio Bay',
+              priority: 'MEDIUM',
+              status: 'PLANNED',
+              createdById: uploadedById || gReq.createdById || 'SYSTEM',
+            },
+          });
+        }
+
+        resolvedProjectId = parentProj.id;
+        await this.prisma.graphicRequirement.update({
+          where: { id: gReq.id },
+          data: { projectId: parentProj.id },
+        }).catch(() => null);
+      }
     }
 
     if (!resolvedProjectId && data.taskId) {
@@ -215,6 +271,52 @@ export class FilesService {
       if (event?.shootId) resolvedProjectId = event.shootId;
       else if (event?.shootProjects && event.shootProjects.length > 0) resolvedProjectId = event.shootProjects[0].id;
       else if (event?.graphicRequirement?.projectId) resolvedProjectId = event.graphicRequirement.projectId;
+
+      if (!resolvedProjectId && event) {
+        let parentProj = await this.prisma.shootProject.findFirst({
+          where: { clientId: event.clientId, brandId: event.brandId },
+          orderBy: { createdAt: 'asc' },
+        });
+
+        if (!parentProj) {
+          const spCount = await this.prisma.shootProject.count();
+          let candidateSpId = `SP-${(spCount + 1).toString().padStart(6, '0')}`;
+          let spSeq = spCount + 1;
+          while (await this.prisma.shootProject.findFirst({ where: { projectId: candidateSpId } })) {
+            spSeq++;
+            candidateSpId = `SP-${spSeq.toString().padStart(6, '0')}`;
+          }
+
+          parentProj = await this.prisma.shootProject.create({
+            data: {
+              projectId: candidateSpId,
+              name: `[VAULT] ${event.title || 'Client Assets'}`,
+              clientId: event.clientId,
+              brandId: event.brandId,
+              productId: event.productId || null,
+              shootType: 'INDOOR',
+              shootDate: event.shootDate || new Date(),
+              shootLocation: 'Media Ops Studio Bay',
+              priority: 'MEDIUM',
+              status: 'PLANNED',
+              createdById: uploadedById || event.createdById || 'SYSTEM',
+            },
+          });
+        }
+
+        resolvedProjectId = parentProj.id;
+        await this.prisma.mediaCalendarEvent.update({
+          where: { id: event.id },
+          data: { shootId: parentProj.id },
+        }).catch(() => null);
+
+        if (event.graphicRequirementId) {
+          await this.prisma.graphicRequirement.update({
+            where: { id: event.graphicRequirementId },
+            data: { projectId: parentProj.id },
+          }).catch(() => null);
+        }
+      }
     }
 
     if (data.graphicRequirementId) {

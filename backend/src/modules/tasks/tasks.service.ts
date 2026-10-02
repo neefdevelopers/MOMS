@@ -333,6 +333,11 @@ export class TasksService {
       client: { select: { id: true, name: true, companyName: true, contactPerson: true, email: true, mobile: true } },
       brand: { select: { id: true, name: true, shortCode: true } },
       product: { select: { id: true, name: true, productCode: true } },
+      projectScript: {
+        include: {
+          clips: { orderBy: { order: 'asc' as const } },
+        },
+      },
       assignedEmployees: { include: { user: { include: { employeeProfile: true } } } },
       remarksHistory: { include: { user: { select: { id: true, name: true, role: true, avatarUrl: true } } }, orderBy: { createdAt: 'desc' as const } },
       deliverableHistory: { include: { user: { select: { id: true, name: true, role: true } } }, orderBy: { version: 'desc' as const } },
@@ -347,7 +352,7 @@ export class TasksService {
       },
     };
 
-    let task = await this.prisma.task.findUnique({
+    let task: any = await this.prisma.task.findUnique({
       where: { id },
       include: taskInclude,
     });
@@ -361,6 +366,39 @@ export class TasksService {
     if (user && !canUserViewTask(user, task)) {
       throw new ForbiddenException('You are not authorized to view this task.');
     }
+
+    // VIDEO_EDITING task isolation & script-specific clip population
+    if (task.taskType === 'VIDEO_EDITING') {
+      if (!task.projectScript && (task.projectScriptId || task.scriptId)) {
+        const psId = task.projectScriptId || task.scriptId;
+        task.projectScript = await this.prisma.projectScript.findFirst({
+          where: {
+            OR: [
+              { id: psId },
+              ...(task.projectId ? [{ projectId: task.projectId, id: psId }] : []),
+            ],
+          },
+          include: { clips: { orderBy: { order: 'asc' } } },
+        });
+      }
+
+      if (task.projectScript) {
+        task.clipCode = task.projectScript.clipCode || task.clipCode;
+      }
+
+      // Backend Isolation: For VIDEO_EDITING tasks, staff members should NOT receive full Shoot Project operational details
+      if (task.project) {
+        task.project = {
+          id: task.project.id,
+          projectId: task.project.projectId,
+          name: task.project.name,
+          priority: task.project.priority,
+          status: task.project.status,
+          videoEditingConverted: task.project.videoEditingConverted,
+        } as any;
+      }
+    }
+
     const [synced] = await this.syncTaskSourceTypes([task]);
     return synced;
   }
@@ -1911,17 +1949,17 @@ export class TasksService {
   }
 
   async requestTechnicalReview(taskId: string, user: any) {
-    const task = await this.findOne(taskId);
+    const task = await this.findOne(taskId, user);
     await this.verifyTaskAcceptance(task, user);
 
     if (user.role === Role.STAFF) {
-      const isAssigned = task.assignedEmployees.some((a) => a.userId === user.id);
+      const isAssigned = task.assignedEmployees?.some((a: any) => a.userId === user.id || a.user?.id === user.id);
       if (!isAssigned) {
         throw new ForbiddenException("Staff cannot request technical review for tasks assigned to others.");
       }
     }
 
-    if (!task.activeDeliverableUrl) {
+    if (task.taskType !== 'VIDEO_EDITING' && !task.activeDeliverableUrl) {
       throw new BadRequestException('Please upload a work deliverable output before requesting Technical Review.');
     }
 
@@ -1935,6 +1973,9 @@ export class TasksService {
       data: {
         status: TaskStatus.WAITING_FOR_TECHNICAL_REVIEW,
         completionPercentage: 50,
+        technicalReviewApproved: false,
+        mediaManagerApproved: false,
+        marketingManagerApproved: false,
       },
     });
 
@@ -1942,7 +1983,9 @@ export class TasksService {
     await this.logTimelineEvent(
       task.id,
       'STATUS_CHANGED',
-      `Technical Review requested by ${user.name} (Deliverable: ${task.activeDeliverableFileName || 'v' + task.activeDeliverableVersion})`,
+      task.taskType === 'VIDEO_EDITING'
+        ? `Video Editing Task for script "${task.projectScript?.name || task.title}" submitted for Technical Review by ${user.name}`
+        : `Technical Review requested by ${user.name} (Deliverable: ${task.activeDeliverableFileName || 'v' + task.activeDeliverableVersion})`,
       user.id,
     );
 
@@ -1956,7 +1999,9 @@ export class TasksService {
         requestedById: user.id,
         projectId: task.projectId || null,
         status: 'PENDING',
-        remarks: `Work deliverable (${task.activeDeliverableFileName || 'v' + task.activeDeliverableVersion}) submitted for Technical Review by ${user.name}. Approval required.`,
+        remarks: task.taskType === 'VIDEO_EDITING'
+          ? `Video Editing Task ${task.taskId} ('${task.title}') submitted for Technical Review by ${user.name}. Approval required.`
+          : `Work deliverable (${task.activeDeliverableFileName || 'v' + task.activeDeliverableVersion}) submitted for Technical Review by ${user.name}. Approval required.`,
       },
     }).catch(() => null);
 

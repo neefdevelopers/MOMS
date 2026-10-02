@@ -130,17 +130,42 @@ export default function ProjectDetailPage() {
 
   // Closure Modal State
   const [showClosureModal, setShowClosureModal] = useState(false);
+  // Convert-to-Video-Editing modal state
   const [showConvertModal, setShowConvertModal] = useState(false);
+  // Eligible video editors for this project, fetched from the backend endpoint that
+  // filters by designation/skills. We avoid listing every active user in the dropdown.
+  const [eligibleVideoEditors, setEligibleVideoEditors] = useState<any[]>([]);
+  // Per-script Video Editor selections inside the Convert-to-Video-Editing modal.
+  // Keyed by script.id so the modal can render every script with its own selector
+  // without relying on DOM lookups (which break when ids contain special characters).
+  const [convertStaffByScript, setConvertStaffByScript] = useState<Record<string, string>>({});
+  const [isCompletingProject, setIsCompletingProject] = useState(false);
   const [pendingStatus, setPendingStatus] = useState('CLOSED');
   const [closureReasonPreset, setClosureReasonPreset] = useState('Client cancelled remaining deliverables');
   const [customClosureReason, setCustomClosureReason] = useState('');
 
-  // Parsed scripts from project notes or calendar event.
-  // Memoized so per-card controlled inputs are not remounted on every render.
-  const parsedScripts: ProjectScript[] = useMemo(
-    () => extractEventScripts(project, project?.name || 'Master Shooting Script #1'),
-    [project]
+  // Script documents (FileMetadata) — the single source of truth for scripts.
+  // Both the Scripts tab and the Convert modal read from this same list so they
+  // always show identical records.
+  const scriptFiles = (filesTree?.allFiles || project?.files || []).filter((f: any) =>
+    f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+    f.folderCategory === 'Script Documents' ||
+    f.storagePath?.toLowerCase().includes('script') ||
+    (f.fileName?.toLowerCase().endsWith('.pdf') && !f.deliverableType) ||
+    f.fileName?.toLowerCase().endsWith('.doc') ||
+    f.fileName?.toLowerCase().endsWith('.docx')
   );
+  const scriptDocuments = useMemo(() => scriptFiles, [scriptFiles]);
+
+  // Parse scripts from project notes (JSON serialized by serializeProjectScripts)
+  const parsedScripts = useMemo(() => {
+    if (!project?.notes) return [];
+    try {
+      return extractEventScripts(project.notes);
+    } catch {
+      return [];
+    }
+  }, [project?.notes]);
 
   // Clip codes may only be added or removed by staff assigned to this project.
   // Every other role (including admins) is strictly read-only - no bypass.
@@ -363,7 +388,11 @@ export default function ProjectDetailPage() {
       setAllEquipment(Array.isArray(eqpRes) ? eqpRes : []);
     } catch (err: any) {
       console.error('Failed to load project details:', err);
-      setAccessDeniedError(err.message || 'Access Denied: Project shoot waiting for Marketing Approval is hidden from Technical Manager.');
+      if (err?.isNetworkError) {
+        setAccessDeniedError(err.message || 'Cannot reach the backend server.');
+      } else {
+        setAccessDeniedError(err.message || 'Access Denied: Project shoot waiting for Marketing Approval is hidden from Technical Manager.');
+      }
     } finally {
       setLoading(false);
     }
@@ -408,16 +437,6 @@ export default function ProjectDetailPage() {
   }, [project, activeTab, setBreadcrumbs]);
 
   
-  // Filter all uploaded Script Documents for this project
-  const scriptFiles = (filesTree?.allFiles || project?.files || []).filter((f: any) =>
-    f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
-    f.folderCategory === 'Script Documents' ||
-    f.storagePath?.toLowerCase().includes('script') ||
-    (f.fileName?.toLowerCase().endsWith('.pdf') && !f.deliverableType) ||
-    f.fileName?.toLowerCase().endsWith('.doc') ||
-    f.fileName?.toLowerCase().endsWith('.docx')
-  );
-
   const handleUploadScriptDoc = async (fileToUpload?: File) => {
     const file = fileToUpload || selectedScriptFile;
     if (!file) {
@@ -756,13 +775,22 @@ export default function ProjectDetailPage() {
   if (loading) return <div className="p-8 text-center text-slate-500">Loading Project Workspace...</div>;
 
   if (accessDeniedError) {
+    const isConnectivity = /timed out|Cannot reach|Backend URL/i.test(accessDeniedError);
     return (
       <div className="p-12 text-center bg-white border border-rose-200 rounded-2xl max-w-xl mx-auto my-12 space-y-4 shadow-2xl">
         <div className="w-16 h-16 bg-rose-50 border border-rose-200 text-rose-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
           !
         </div>
-        <h2 className="text-xl font-bold text-slate-900">Project Access Restricted</h2>
+        <h2 className="text-xl font-bold text-slate-900">{isConnectivity ? 'Could not load project' : 'Project Access Restricted'}</h2>
         <p className="text-xs text-slate-700 leading-relaxed">{accessDeniedError}</p>
+        {isConnectivity && (
+          <button
+            onClick={() => loadProject()}
+            className="inline-block mt-2 mr-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition-all"
+          >
+            Retry
+          </button>
+        )}
         <Link href="/projects" className="inline-block mt-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition-all shadow-lg shadow-blue-600/30">
           Return to Projects List
         </Link>
@@ -784,8 +812,7 @@ export default function ProjectDetailPage() {
     'Team',
     'Equipment',
     'Deliverables',
-    'Approvals',
-    'Timeline',
+
   ];
 
   if (accessDeniedError || !project) {
@@ -921,7 +948,38 @@ export default function ProjectDetailPage() {
             {/* Complete Project — Media Manager declares the shoot done and starts the editing phase. Visible in any post-shoot status. */}
             {user?.role === 'MEDIA_MANAGER' && !project.videoEditingConverted && !['CANCELLED', 'ARCHIVED', 'CLOSED'].includes(project.status) && (
               <button
-                onClick={() => setShowConvertModal(true)}
+                onClick={async () => {
+                  // Reset per-script selections, then pre-fill from any previously saved
+                  // Video Editor assignments so reopening the modal shows the saved values.
+                  const prior: Record<string, string> = {};
+                  const tasksForEditors = (project.tasks || []).filter(
+                    (t: any) => t.taskType === 'VIDEO_EDITING' && t.scriptId
+                  );
+                  for (const t of tasksForEditors) {
+                    const assigned = (t.assignedEmployees || []).find(
+                      (a: any) => a.acceptanceStatus !== 'REJECTED'
+                    );
+                    if (assigned?.userId) {
+                      prior[t.scriptId] = assigned.userId;
+                    }
+                  }
+                  setConvertStaffByScript(prior);
+
+                  // Fetch the eligible Video Editor list once when the modal opens so the
+                  // dropdown only shows users flagged as editors by their designation/skills.
+                  try {
+                    const candidates: any = await fetchApi(
+                      `/projects/${project.id}/video-editor-candidates`
+                    );
+                    setEligibleVideoEditors(
+                      Array.isArray(candidates?.candidates) ? candidates.candidates : []
+                    );
+                  } catch {
+                    setEligibleVideoEditors([]);
+                  }
+
+                  setShowConvertModal(true);
+                }}
                 className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
               >
                 <CheckCircle className="w-4 h-4" /> Complete Project
@@ -3015,565 +3073,6 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* Tab 8: Approvals */}
-        {activeTab === 'Approvals' && (
-          <div className="space-y-6 text-xs">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
-              <div>
-                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-blue-600" /> Multi-Stage Project Approval Engine
-                </h3>
-                <p className="text-slate-500 text-[11px] mt-0.5">
-                  Standardized 4-stage governance workflow: Technical Review → Media Review → Marketing Approval → Client Sign-off.
-                </p>
-              </div>
-              <span className="font-mono text-xs bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-lg font-bold">
-                Current Status: {project.status}
-              </span>
-            </div>
-
-            {/* 4-Stage Visual Workflow Stepper */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-              <h4 className="font-bold text-slate-800 text-xs">Approval Workflow Pipeline Stages</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {/* Stage 1: Technical Review */}
-                <div className={`p-3 rounded-xl border transition-all ${
-                  project.status === 'WAITING_FOR_TECHNICAL_REVIEW'
-                    ? 'bg-purple-50 border-purple-400 ring-2 ring-purple-400/20'
-                    : ['WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status)
-                    ? 'bg-emerald-50 border-emerald-300'
-                    : 'bg-white border-slate-200'
-                }`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-xs text-slate-900">1. Technical Review</span>
-                    {['WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status) ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    ) : project.status === 'WAITING_FOR_TECHNICAL_REVIEW' ? (
-                      <span className="w-2 h-2 rounded-full bg-purple-600 animate-ping" />
-                    ) : (
-                      <span className="text-[10px] text-slate-400 font-mono">Stage 1</span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-500">Technical Manager evaluation & gear/footage compliance</p>
-                </div>
-
-                {/* Stage 2: Media Review */}
-                <div className={`p-3 rounded-xl border transition-all ${
-                  project.status === 'WAITING_FOR_MEDIA_REVIEW'
-                    ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-400/20'
-                    : ['WAITING_FOR_MARKETING_APPROVAL', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status)
-                    ? 'bg-emerald-50 border-emerald-300'
-                    : 'bg-white border-slate-200'
-                }`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-xs text-slate-900">2. Media Review</span>
-                    {['WAITING_FOR_MARKETING_APPROVAL', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status) ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    ) : project.status === 'WAITING_FOR_MEDIA_REVIEW' ? (
-                      <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
-                    ) : (
-                      <span className="text-[10px] text-slate-400 font-mono">Stage 2</span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-500">Media Manager creative check & story quality verification</p>
-                </div>
-
-                {/* Stage 3: Marketing Approval */}
-                <div className={`p-3 rounded-xl border transition-all ${
-                  project.status === 'WAITING_FOR_MARKETING_APPROVAL' || project.status === 'PENDING_APPROVAL' || project.status === 'PENDING_CLIENT_APPROVAL'
-                    ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/20'
-                    : ['WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status)
-                    ? 'bg-emerald-50 border-emerald-300'
-                    : 'bg-white border-slate-200'
-                }`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-xs text-slate-900">3. Marketing Approval</span>
-                    {['WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status) ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    ) : project.status === 'WAITING_FOR_MARKETING_APPROVAL' || project.status === 'PENDING_APPROVAL' ? (
-                      <span className="w-2 h-2 rounded-full bg-amber-600 animate-ping" />
-                    ) : (
-                      <span className="text-[10px] text-slate-400 font-mono">Stage 3</span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-500">Marketing Manager campaign alignment & brand approval</p>
-                </div>
-
-                {/* Stage 4: Client Sign-off */}
-                <div className={`p-3 rounded-xl border transition-all ${
-                  project.status === 'WAITING_FOR_CLIENT_CONFIRMATION'
-                    ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-400/20'
-                    : project.status === 'COMPLETED'
-                    ? 'bg-emerald-100 border-emerald-500'
-                    : 'bg-white border-slate-200'
-                }`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-xs text-slate-900">4. Client Sign-off</span>
-                    {project.status === 'COMPLETED' ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-700" />
-                    ) : project.status === 'WAITING_FOR_CLIENT_CONFIRMATION' ? (
-                      <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping" />
-                    ) : (
-                      <span className="text-[10px] text-slate-400 font-mono">Stage 4</span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-500">Client confirmation & official project sign-off completion</p>
-                </div>
-              </div>
-            </div>
-
-            {/* ══════════════════════════════════════════════════════
-                 VIDEO EDITING WORKFLOW (Shoot Completed → Convert → Edit → Review)
-                 Visible after Stage 4 (Client Sign-off). Media Manager converts a COMPLETED
-                 shoot project into per-script Video Editing Tasks. Each task walks
-                 Staff → Media Manager → Marketing Manager independently, and the project
-                 auto-completes only after every script's task is approved.
-            ══════════════════════════════════════════════════════ */}
-            {!project.videoEditingConverted && !['CANCELLED', 'ARCHIVED', 'CLOSED'].includes(project.status) && (
-              <VideoEditingPanel
-                project={project}
-                user={user}
-                onReload={() => loadProject()}
-              />
-            )}
-
-            {/* ══════════════════════════════════════════════════════
-                 1. TECHNICAL APPROVAL REQUEST SUBMISSION SESSION
-                 Allows staff/assigned team/creator to submit project for Technical Review
-            ══════════════════════════════════════════════════════ */}
-            <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3 shadow-xs">
-              <div className="flex items-center justify-between border-b border-purple-200 pb-2">
-                <h4 className="font-extrabold text-purple-900 text-xs flex items-center gap-2">
-                  <Send className="w-4 h-4 text-purple-600" /> Technical Approval Request Submission Session
-                </h4>
-                <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-2 py-0.5 rounded font-mono font-bold">
-                  Status: {project.status}
-                </span>
-              </div>
-
-              {project.status === 'WAITING_FOR_TECHNICAL_REVIEW' ? (
-                <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-lg space-y-1 text-blue-900">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs flex items-center gap-1.5 text-blue-800">
-                      <Clock className="w-4 h-4 text-blue-600" /> Technical Approval Request Submitted (Round #{(project.revisionCount || 0) + 1})
-                    </span>
-                    <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded font-mono font-bold">
-                      Under Technical Review
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-blue-700">
-                    This project has been submitted and is currently waiting for Technical Manager evaluation. Editing operational parameters is temporarily restricted.
-                  </p>
-                </div>
-              ) : ['WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project.status) ? (
-                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg space-y-1 text-emerald-900">
-                  <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-800">
-                    <CheckCircle className="w-4 h-4 text-emerald-600" /> Technical Review Passed
-                  </span>
-                  <p className="text-[11px] text-emerald-700">
-                    This shoot project has successfully completed Level 1 Technical Review and is advancing through the manager approval pipeline.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-[11px] text-slate-700 leading-relaxed">
-                    {(project.revisionCount || 0) > 0 || project.notes?.includes('Revision')
-                      ? `This shoot project was returned for corrections. Ensure all deliverables, scripts, and production assets are up to date, then click below to submit for Technical Manager Approval (Round #${(project.revisionCount || 0) + 1}).`
-                      : 'Submit this shoot project with all registered video assets, deliverables, and gear allocations to initiate Level 1: Technical Manager Review & Approval.'}
-                  </p>
-                  <div className="flex items-center gap-2 flex-wrap pt-1">
-                    <button
-                      type="button"
-                      onClick={handleSubmitTechnicalReview}
-                      disabled={isProcessingApproval}
-                      className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-extrabold rounded-lg shadow-md shadow-purple-600/30 transition-all flex items-center gap-2 text-xs"
-                    >
-                      {isProcessingApproval ? (
-                        <>
-                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Submitting...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-4 h-4" />
-                          {(project.revisionCount || 0) > 0
-                            ? `Submit Revised Project for Technical Approval (Round #${(project.revisionCount || 0) + 1})`
-                            : 'Request Technical Approval'}
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* ══════════════════════════════════════════════════════
-                 2. REVIEWER EVALUATION & DECISION PANELS
-            ══════════════════════════════════════════════════════ */}
-
-            {/* Technical Manager Action Panel (Level 1) */}
-            {project.status === 'WAITING_FOR_TECHNICAL_REVIEW' && (user?.role === 'TECHNICAL_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
-              <div className="p-4 bg-purple-50 border border-purple-300 rounded-xl space-y-3 shadow-md animate-in fade-in duration-200">
-                <div className="flex items-center justify-between border-b border-purple-200 pb-2">
-                  <h4 className="font-bold text-purple-900 text-xs flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-purple-600" /> Technical Manager Evaluation Panel (Level 1)
-                  </h4>
-                  <span className="text-[10px] bg-purple-600 text-white px-2 py-0.5 rounded font-bold">
-                    Action Required
-                  </span>
-                </div>
-                <p className="text-[11px] text-purple-800">
-                  Evaluate equipment usage, footage technical parameters, audio/video specs, and deliverable streaming quality for this project.
-                </p>
-                <div className="flex items-center gap-2.5 pt-1">
-                  <button
-                    type="button"
-                    disabled={isProcessingApproval}
-                    onClick={() => {
-                      const remarks = prompt('Enter approval notes (optional):') || '';
-                      handleReviewTechnical('APPROVE', remarks);
-                    }}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
-                  >
-                    <Check className="w-4 h-4" /> Approve Technical Review
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isProcessingApproval}
-                    onClick={() => {
-                      const comment = prompt('Enter mandatory rejection reason / revision required:');
-                      if (comment && comment.trim()) {
-                        handleReviewTechnical('REJECT', comment.trim());
-                      } else if (comment !== null) {
-                        alert('A revision reason is mandatory to reject technical review.');
-                      }
-                    }}
-                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
-                  >
-                    <X className="w-4 h-4" /> Reject with Revisions
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Media Manager Action Panel (Level 2) */}
-            {project.status === 'WAITING_FOR_MEDIA_REVIEW' && (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
-              <div className="p-4 bg-blue-50 border border-blue-300 rounded-xl space-y-3 shadow-md animate-in fade-in duration-200">
-                <div className="flex items-center justify-between border-b border-blue-200 pb-2">
-                  <h4 className="font-bold text-blue-900 text-xs flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-blue-600" /> Media Manager Evaluation Panel (Level 2)
-                  </h4>
-                  <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded font-bold">
-                    Action Required
-                  </span>
-                </div>
-                <p className="text-[11px] text-blue-800">
-                  Review creative direction, storyline fulfillment, graphic requirements, and overall production quality before advancing to Marketing Approval.
-                </p>
-                <div className="flex items-center gap-2.5 pt-1">
-                  <button
-                    type="button"
-                    disabled={isProcessingApproval}
-                    onClick={() => {
-                      const remarks = prompt('Enter media approval notes (optional):') || '';
-                      handleReviewMedia('APPROVE', remarks);
-                    }}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
-                  >
-                    <Check className="w-4 h-4" /> Approve Media Review
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isProcessingApproval}
-                    onClick={() => {
-                      const comment = prompt('Enter mandatory media revision reason:');
-                      if (comment && comment.trim()) {
-                        handleReviewMedia('REJECT', comment.trim());
-                      } else if (comment !== null) {
-                        alert('A revision reason is mandatory to return for media revisions.');
-                      }
-                    }}
-                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
-                  >
-                    <X className="w-4 h-4" /> Request Media Revisions
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Marketing Manager Action Panel (Level 3) */}
-            {(project.status === 'WAITING_FOR_MARKETING_APPROVAL' || project.status === 'PENDING_APPROVAL' || project.status === 'PENDING_CLIENT_APPROVAL') && (user?.role === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
-              <div className="p-4 bg-amber-50/90 border border-amber-300 rounded-xl space-y-3 shadow-md animate-in fade-in duration-200">
-                <div className="flex items-center justify-between border-b border-amber-200 pb-2">
-                  <h4 className="font-bold text-amber-900 text-xs flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-amber-600" /> Marketing Manager Approval Panel (Level 3)
-                  </h4>
-                  <span className="text-[10px] bg-amber-600 text-white px-2 py-0.5 rounded font-bold">
-                    Action Required
-                  </span>
-                </div>
-                <p className="text-[11px] text-amber-800">
-                  Verify script copy, campaign alignment, brand integrity, and messaging compliance. You can inspect and edit the shooting script below before granting approval.
-                </p>
-
-                {/* Multi-Script & Copy Inspection Section */}
-                <div className="p-3.5 bg-white/95 rounded-xl border border-amber-200 space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5 text-amber-600" /> Shoot Scripts ({parsedScripts.length}):
-                      </span>
-                      {parsedScripts.length > 0 && (
-                        <span className="text-[10px] font-mono text-slate-500">
-                          Reviewing Script #{activeScriptIndex + 1}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={openCreateScriptModal}
-                        className="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-md font-bold text-[10px] transition-all flex items-center gap-1"
-                      >
-                        <Plus className="w-3 h-3" /> + Add Script
-                      </button>
-                      {parsedScripts.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => openEditSpecificScriptModal(parsedScripts[activeScriptIndex] || parsedScripts[0])}
-                          className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-md font-bold text-[10px] transition-all flex items-center gap-1 shadow-xs"
-                        >
-                          <Edit className="w-3 h-3" /> Edit Script #{activeScriptIndex + 1}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Multi-script pill selector if multiple scripts */}
-                  {parsedScripts.length > 1 && (
-                    <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-thin">
-                      {parsedScripts.map((s, idx) => (
-                        <button
-                          key={s.id || idx}
-                          type="button"
-                          onClick={() => setActiveScriptIndex(idx)}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border ${
-                            activeScriptIndex === idx
-                              ? 'bg-amber-500 text-slate-950 border-amber-500'
-                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          #{idx + 1} {s.title}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {parsedScripts.length > 0 ? (
-                    <div className="space-y-1.5">
-                      {(() => {
-                        const curScript = parsedScripts[activeScriptIndex] || parsedScripts[0];
-                        return (
-                          <>
-                            {curScript.hook && (
-                              <div className="p-2 bg-amber-50/70 rounded-md border border-amber-200/60 text-[10px] text-amber-950 italic">
-                                <strong>Hook:</strong> "{curScript.hook}"
-                              </div>
-                            )}
-                            <div className="p-2.5 bg-slate-50 rounded-lg text-slate-800 text-[11px] font-mono whitespace-pre-wrap max-h-40 overflow-y-auto border border-slate-200/70">
-                              {curScript.scriptText || <span className="text-slate-400 italic">Empty script copy</span>}
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-slate-400 italic py-1">
-                      No scripts have been added yet. Click "+ Add Script" to add one.
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2.5 pt-1">
-                  <button
-                    type="button"
-                    disabled={isProcessingApproval}
-                    onClick={() => {
-                      const remarks = prompt('Enter marketing approval notes (optional):') || '';
-                      handleReviewMarketing('APPROVE', remarks);
-                    }}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
-                  >
-                    <Check className="w-4 h-4" /> Grant Marketing Approval
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isProcessingApproval}
-                    onClick={() => {
-                      const comment = prompt('Enter reason for returning project:');
-                      if (comment && comment.trim()) {
-                        handleReviewMarketing('REJECT', comment.trim());
-                      }
-                    }}
-                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
-                  >
-                    <X className="w-4 h-4" /> Reject / Request Changes
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Client Sign-off Panel (Level 4) */}
-            {project.status === 'WAITING_FOR_CLIENT_CONFIRMATION' && (
-              <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl space-y-3 shadow-md animate-in fade-in duration-200">
-                <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
-                  <h4 className="font-bold text-emerald-900 text-xs flex items-center gap-2">
-                    <CheckSquare className="w-4 h-4 text-emerald-600" /> Client Sign-off &amp; Confirmation Panel (Level 4)
-                  </h4>
-                  <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded font-bold">
-                    Final Sign-off
-                  </span>
-                </div>
-                <p className="text-[11px] text-emerald-800">
-                  Record client review sign-off or log client requested revisions to complete project closure.
-                </p>
-                <div className="flex items-center gap-2.5 pt-1">
-                  <button
-                    type="button"
-                    disabled={isProcessingApproval}
-                    onClick={() => {
-                      const notes = prompt('Enter client confirmation reference notes (optional):') || 'Client confirmed and approved all shoot deliverables.';
-                      handleConfirmClient('CONFIRM', notes);
-                    }}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
-                  >
-                    <Check className="w-4 h-4" /> Confirm Client Sign-off (Complete Project)
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isProcessingApproval}
-                    onClick={() => {
-                      const comment = prompt('Enter client requested revisions / feedback:');
-                      if (comment && comment.trim()) {
-                        handleConfirmClient('REQUEST_CHANGES', comment.trim());
-                      }
-                    }}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
-                  >
-                    <RotateCcw className="w-4 h-4" /> Request Client Revisions
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ══════════════════════════════════════════════════════
-                 3. APPROVAL DECISION HISTORY & AUDIT LOG
-            ══════════════════════════════════════════════════════ */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                <h4 className="font-bold text-slate-900 text-xs flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-blue-600" /> Approval Decision History &amp; Audit Trail
-                </h4>
-                <span className="text-[10px] text-slate-500 font-mono">
-                  {project.approvals?.length || 0} Records
-                </span>
-              </div>
-
-              {(!project.approvals || project.approvals.length === 0) ? (
-                <div className="p-6 text-center bg-white border border-slate-200 rounded-xl space-y-1 text-slate-500">
-                  <ShieldAlert className="w-6 h-6 text-slate-400 mx-auto" />
-                  <p className="font-semibold text-slate-700 text-xs">No formal approval decisions recorded yet.</p>
-                  <p className="text-[11px] text-slate-400">Click "Request Technical Approval" above to start the review process.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {project.approvals.map((app: any) => (
-                    <div key={app.id} className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-1.5 shadow-xs">
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-900 text-xs">{app.approvalType}</span>
-                          {app.round && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-slate-100 text-slate-700 rounded border border-slate-200">
-                              Round {app.round}
-                            </span>
-                          )}
-                        </div>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                          app.status === 'APPROVED'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : app.status === 'REJECTED'
-                            ? 'bg-rose-50 text-rose-700 border-rose-200'
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
-                        }`}>
-                          {app.status}
-                        </span>
-                      </div>
-
-                      <div className="text-[11px] text-slate-500 flex items-center gap-3 flex-wrap">
-                        <span>Reviewer: <strong className="text-slate-700">{app.reviewer?.name || 'Manager'}</strong> ({app.reviewer?.role || app.targetRole || 'Reviewer'})</span>
-                        <span>•</span>
-                        <span>{new Date(app.reviewedAt || app.createdAt).toLocaleString()}</span>
-                      </div>
-
-                      {app.remarks && (
-                        <p className="text-xs text-slate-700 italic bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                          "{app.remarks}"
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-
-
-        {/* Tab 11: Timeline */}
-        {activeTab === 'Timeline' && (
-          <div className="space-y-6 text-xs">
-            <div>
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <Clock className="w-4 h-4 text-blue-600" /> Permanent Operational Timeline (Immutable)
-              </h3>
-              <p className="text-slate-500 text-[11px] mt-0.5">
-                Audit log of all project lifecycle events, assignments, status transitions, and milestone confirmations. Timeline records cannot be deleted.
-              </p>
-            </div>
-
-            <div className="space-y-4 border-l-2 border-blue-600/40 pl-4 py-1">
-              {project.activityLogs && project.activityLogs.length > 0 ? (
-                project.activityLogs.map((log: any) => (
-                  <div key={log.id} className="relative space-y-1 bg-slate-50/60 p-3 rounded-lg border border-slate-200">
-                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500 absolute -left-[21px] top-4 border-2 border-card"></div>
-                    <div className="flex justify-between items-center">
-                      <span className="font-mono text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded uppercase">
-                        {log.action.replace(/_/g, ' ')}
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono">
-                        {new Date(log.timestamp).toLocaleString()}
-                      </span>
-                    </div>
-                    <p className="text-slate-800 font-semibold text-xs pt-1">{log.description}</p>
-                    {log.user && (
-                      <p className="text-[10px] text-slate-500">Performed by: <strong className="text-slate-700">{log.user.name}</strong></p>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="relative space-y-1">
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500 absolute -left-[21px] top-1 border-2 border-card"></div>
-                  <div className="font-bold text-slate-900 text-xs">Project Created</div>
-                  <div className="text-slate-500 text-[11px]">{new Date(project.createdAt).toLocaleString()}</div>
-                  <div className="text-slate-400 text-[10px]">Initial project setup & database initialization</div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Tab 12: Shoot Checklist */}
         {(activeTab === 'Shoot Checklist' || activeTab === 'Checklist') && (
           <div className="space-y-6 text-xs">
@@ -3711,15 +3210,18 @@ export default function ProjectDetailPage() {
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Video className="w-5 h-5 text-blue-600" />
-                  Convert to Video Editing
+                  <CheckCircle className="w-5 h-5 text-blue-600" />
+                  Complete Project
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Assign a Video Editor to each script. Existing Clip Codes are shown read-only. One Video Editing Task will be created per script.
+                  Assign a Video Editor to every Script below, then complete the Project. Existing Clip Codes are shown read-only.
                 </p>
               </div>
               <button
-                onClick={() => setShowConvertModal(false)}
+                onClick={() => {
+                  setShowConvertModal(false);
+                  setConvertStaffByScript({});
+                }}
                 className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5 text-slate-400" />
@@ -3727,87 +3229,100 @@ export default function ProjectDetailPage() {
             </div>
 
             <div className="space-y-3">
-              {parsedScripts.map((script, idx) => (
-                <div key={script.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Script {idx + 1}</span>
-                    <span className="text-sm font-bold text-slate-900">{script.title}</span>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Existing Clip Codes</label>
-                      {(!script.clipCodes || script.clipCodes.length === 0) ? (
-                        <p className="text-xs text-slate-400 italic">No clip codes recorded for this script.</p>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5">
-                          {script.clipCodes.map((clip, clipIdx) => (
-                            <span
-                              key={`${clip.code}-${clipIdx}`}
-                              className="inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-semibold"
-                            >
-                              {clip.code}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+              {scriptDocuments.map((script, idx) => {
+                const missing = !convertStaffByScript[script.id];
+                const docClips = readFileClipCodes(script.clipCodes);
+                return (
+                  <div key={script.id} className={`p-4 border rounded-xl space-y-3 ${missing ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Script {idx + 1}</span>
+                      <span className="text-sm font-bold text-slate-900">{script.fileName || script.title}</span>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Video Editor *</label>
-                      <select
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm"
-                        id={`staff-${script.id}`}
-                      >
-                        <option value="">-- Select Staff --</option>
-                        {allUsers
-                          .filter((u: any) => u.status !== 'ARCHIVED' && !u.isArchived)
-                          .map((u: any) => (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Clip Code</label>
+                        {docClips.length === 0 ? (
+                          <p className="text-xs text-slate-400 italic">No clip codes recorded for this script.</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {docClips.map((clip, clipIdx) => (
+                              <span
+                                key={`${clip.code}-${clipIdx}`}
+                                className="inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-semibold"
+                              >
+                                {clip.code}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Video Editor *</label>
+                        <select
+                          className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm"
+                          value={convertStaffByScript[script.id] || ''}
+                          onChange={(e) =>
+                            setConvertStaffByScript((prev) => ({ ...prev, [script.id]: e.target.value }))
+                          }
+                        >
+                          <option value="">-- Select Video Editor --</option>
+                          {eligibleVideoEditors.map((u: any) => (
                             <option key={u.id} value={u.id}>
-                              {u.name} ({u.role})
+                              {u.name}{u.designation ? ` (${u.designation})` : ''}
                             </option>
                           ))}
-                      </select>
+                        </select>
+                        {missing && (
+                          <p className="text-xs text-amber-600 font-medium mt-1">A Video Editor is required for this Script.</p>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
               <button
-                onClick={() => setShowConvertModal(false)}
+                onClick={() => {
+                  setShowConvertModal(false);
+                  setConvertStaffByScript({});
+                }}
                 className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={async () => {
-                  const scripts = parsedScripts.map((script, idx) => {
-                    const staffEl = document.getElementById(`staff-${script.id}`) as HTMLSelectElement;
-                    return {
-                      scriptId: script.id,
-                      clipCode: script.clipCodes?.map((c: any) => c.code).join(', ') || '',
-                      staffId: staffEl?.value || '',
-                    };
-                  });
+                  const scripts = scriptDocuments.map((script) => ({
+                    scriptId: script.id,
+                    clipCode: readFileClipCodes(script.clipCodes).map((c: any) => c.code).join(', ') || '',
+                    staffId: convertStaffByScript[script.id] || '',
+                  }));
                   const missing = scripts.filter((s) => !s.staffId);
                   if (missing.length > 0) {
-                    alert(`Cannot complete conversion:\n${missing.map((_, i) => `Script ${scripts.indexOf(missing[i]) + 1} requires a Video Editor assignment`).join('\n')}`);
+                    alert(`Cannot complete Project:\n${missing.map((_, i) => `Script ${scripts.indexOf(missing[i]) + 1} requires a Video Editor assignment`).join('\n')}`);
                     return;
                   }
+                  setIsCompletingProject(true);
                   try {
                     await fetchApi(`/projects/${project.id}/convert-to-video-editing`, {
                       method: 'POST',
                       body: JSON.stringify({ scripts }),
                     });
                     setShowConvertModal(false);
+                    setConvertStaffByScript({});
                     loadProject();
                   } catch (e: any) {
-                    alert(e.message || 'Failed to convert project.');
+                    alert(e.message || 'Failed to complete Project.');
+                  } finally {
+                    setIsCompletingProject(false);
                   }
                 }}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow transition-all text-sm"
+                disabled={isCompletingProject}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow transition-all text-sm"
               >
-                Confirm Conversion
+                {isCompletingProject ? 'Completing...' : 'Complete Project'}
               </button>
             </div>
           </div>
