@@ -84,7 +84,12 @@ export async function fetchApi(
   timeoutMs = 30000,
 ): Promise<any> {
   const method = (options.method || 'GET').toUpperCase();
-  const token = typeof window !== 'undefined' ? localStorage.getItem('moms_token') : null;
+  const token =
+    typeof window !== 'undefined'
+      ? localStorage.getItem('moms_token') ||
+        localStorage.getItem('token') ||
+        localStorage.getItem('accessToken')
+      : null;
 
   // On data mutations (POST, PUT, PATCH, DELETE), automatically invalidate cached data
   if (method !== 'GET') {
