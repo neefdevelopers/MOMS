@@ -2044,7 +2044,7 @@ export class TasksService {
       }).catch(() => null);
     }
 
-    if (task.projectId) {
+    if (task.projectId && task.taskType !== 'VIDEO_EDITING') {
       await this.prisma.shootProject.updateMany({
         where: { id: task.projectId },
         data: { status: 'WAITING_FOR_TECHNICAL_REVIEW' },
