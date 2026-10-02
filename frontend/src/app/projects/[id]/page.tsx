@@ -139,14 +139,13 @@ export default function ProjectDetailPage() {
   // Keyed by script.id so the modal can render every script with its own selector
   // without relying on DOM lookups (which break when ids contain special characters).
   const [convertStaffByScript, setConvertStaffByScript] = useState<Record<string, string>>({});
+  const [projectScriptsList, setProjectScriptsList] = useState<any[]>([]);
   const [isCompletingProject, setIsCompletingProject] = useState(false);
   const [pendingStatus, setPendingStatus] = useState('CLOSED');
   const [closureReasonPreset, setClosureReasonPreset] = useState('Client cancelled remaining deliverables');
   const [customClosureReason, setCustomClosureReason] = useState('');
 
-  // Script documents (FileMetadata) — the single source of truth for scripts.
-  // Both the Scripts tab and the Convert modal read from this same list so they
-  // always show identical records.
+  // Script documents — combines ProjectScript DB records and uploaded FileMetadata.
   const scriptFiles = (filesTree?.allFiles || project?.files || []).filter((f: any) =>
     f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
     f.folderCategory === 'Script Documents' ||
@@ -155,7 +154,12 @@ export default function ProjectDetailPage() {
     f.fileName?.toLowerCase().endsWith('.doc') ||
     f.fileName?.toLowerCase().endsWith('.docx')
   );
-  const scriptDocuments = useMemo(() => scriptFiles, [scriptFiles]);
+  const scriptDocuments = useMemo(() => {
+    if (projectScriptsList && projectScriptsList.length > 0) return projectScriptsList;
+    if (scriptFiles && scriptFiles.length > 0) return scriptFiles;
+    if (project?.projectScripts && project.projectScripts.length > 0) return project.projectScripts;
+    return [];
+  }, [projectScriptsList, scriptFiles, project?.projectScripts]);
 
   // Parse scripts from project notes (JSON serialized by serializeProjectScripts)
   const parsedScripts = useMemo(() => {
@@ -183,16 +187,23 @@ export default function ProjectDetailPage() {
     setClipCodeInputs((prev) => ({ ...prev, [fileId]: code }));
   };
 
-  /** Parses the clipCodes JSON column returned on a file record. */
+  /** Parses the clipCodes JSON column returned on a file/script record. */
   const readFileClipCodes = (raw: any): { code: string; description?: string; addedBy?: string; addedAt?: string }[] => {
     if (!raw) return [];
-    if (Array.isArray(raw)) return raw;
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.filter((c: any) => c && (typeof c === 'string' || c.code)).map((c: any) => typeof c === 'string' ? { code: c.trim() } : c);
+      } catch {
+        return raw.split(',').map((c: string) => ({ code: c.trim() })).filter((c: any) => c.code);
+      }
     }
+    if (Array.isArray(raw)) {
+      return raw
+        .filter((c: any) => c && (typeof c === 'string' || (c.code && typeof c.code === 'string')))
+        .map((c: any) => (typeof c === 'string' ? { code: c.trim() } : c));
+    }
+    return [];
   };
 
   /** Adds or removes one clip code on an uploaded document (assigned staff only). */
@@ -378,14 +389,18 @@ export default function ProjectDetailPage() {
         });
       }
 
-      const [treeRes, usersRes, eqpRes] = await Promise.all([
+      const [treeRes, usersRes, eqpRes, scriptDocsRes] = await Promise.all([
         fetchApi(`/files/project/${id}`).catch(() => null),
         fetchApi('/users').catch(() => []),
         fetchApi('/equipment').catch(() => []),
+        fetchApi(`/projects/${id}/script-documents`).catch(() => ({ scripts: [] })),
       ]);
       setFilesTree(treeRes);
       setAllUsers(Array.isArray(usersRes) ? usersRes : []);
       setAllEquipment(Array.isArray(eqpRes) ? eqpRes : []);
+      if (scriptDocsRes && Array.isArray(scriptDocsRes.scripts)) {
+        setProjectScriptsList(scriptDocsRes.scripts);
+      }
     } catch (err: any) {
       console.error('Failed to load project details:', err);
       if (err?.isNetworkError) {
@@ -968,12 +983,16 @@ export default function ProjectDetailPage() {
                   // Fetch the eligible Video Editor list once when the modal opens so the
                   // dropdown only shows users flagged as editors by their designation/skills.
                   try {
-                    const candidates: any = await fetchApi(
-                      `/projects/${project.id}/video-editor-candidates`
-                    );
+                    const [candidates, scriptDocsRes]: any = await Promise.all([
+                      fetchApi(`/projects/${project.id}/video-editor-candidates`).catch(() => ({ candidates: [] })),
+                      fetchApi(`/projects/${project.id}/script-documents`).catch(() => ({ scripts: [] })),
+                    ]);
                     setEligibleVideoEditors(
                       Array.isArray(candidates?.candidates) ? candidates.candidates : []
                     );
+                    if (scriptDocsRes && Array.isArray(scriptDocsRes.scripts)) {
+                      setProjectScriptsList(scriptDocsRes.scripts);
+                    }
                   } catch {
                     setEligibleVideoEditors([]);
                   }
@@ -3229,57 +3248,86 @@ export default function ProjectDetailPage() {
             </div>
 
             <div className="space-y-3">
-              {scriptDocuments.map((script, idx) => {
-                const missing = !convertStaffByScript[script.id];
-                const docClips = readFileClipCodes(script.clipCodes);
-                return (
-                  <div key={script.id} className={`p-4 border rounded-xl space-y-3 ${missing ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Script {idx + 1}</span>
-                      <span className="text-sm font-bold text-slate-900">{script.fileName || script.title}</span>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Clip Code</label>
-                        {docClips.length === 0 ? (
-                          <p className="text-xs text-slate-400 italic">No clip codes recorded for this script.</p>
-                        ) : (
-                          <div className="flex flex-wrap gap-1.5">
-                            {docClips.map((clip, clipIdx) => (
-                              <span
-                                key={`${clip.code}-${clipIdx}`}
-                                className="inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-semibold"
-                              >
-                                {clip.code}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Video Editor *</label>
-                        <select
-                          className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm"
-                          value={convertStaffByScript[script.id] || ''}
-                          onChange={(e) =>
-                            setConvertStaffByScript((prev) => ({ ...prev, [script.id]: e.target.value }))
-                          }
-                        >
-                          <option value="">-- Select Video Editor --</option>
-                          {eligibleVideoEditors.map((u: any) => (
-                            <option key={u.id} value={u.id}>
-                              {u.name}{u.designation ? ` (${u.designation})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                        {missing && (
-                          <p className="text-xs text-amber-600 font-medium mt-1">A Video Editor is required for this Script.</p>
-                        )}
-                      </div>
-                    </div>
+              {scriptDocuments.length === 0 ? (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Main Video Edit</span>
+                    <span className="text-sm font-bold text-slate-900">{project.name || 'Shoot Project'} - Main Cut</span>
                   </div>
-                );
-              })}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Assign Video Editor *</label>
+                    <select
+                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm"
+                      value={convertStaffByScript['default'] || ''}
+                      onChange={(e) =>
+                        setConvertStaffByScript((prev) => ({ ...prev, default: e.target.value }))
+                      }
+                    >
+                      <option value="">-- Select Video Editor --</option>
+                      {eligibleVideoEditors.map((u: any) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name}{u.designation ? ` (${u.designation})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {!convertStaffByScript['default'] && (
+                      <p className="text-xs text-amber-600 font-medium mt-1">A Video Editor is required to complete and convert this project.</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                scriptDocuments.map((script, idx) => {
+                  const missing = !convertStaffByScript[script.id];
+                  const docClips = readFileClipCodes(script.clipCodes || (script.clipCode ? [{ code: script.clipCode }] : []));
+                  return (
+                    <div key={script.id || `script-${idx}`} className={`p-4 border rounded-xl space-y-3 ${missing ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Script {idx + 1}</span>
+                        <span className="text-sm font-bold text-slate-900">{script.fileName || script.title || script.name || `Script ${idx + 1}`}</span>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Clip Code</label>
+                          {docClips.length === 0 ? (
+                            <p className="text-xs text-slate-400 italic">No clip codes recorded for this script.</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {docClips.map((clip, clipIdx) => (
+                                <span
+                                  key={`${clip.code}-${clipIdx}`}
+                                  className="inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-semibold"
+                                >
+                                  {clip.code}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Video Editor *</label>
+                          <select
+                            className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm"
+                            value={convertStaffByScript[script.id] || ''}
+                            onChange={(e) =>
+                              setConvertStaffByScript((prev) => ({ ...prev, [script.id]: e.target.value }))
+                            }
+                          >
+                            <option value="">-- Select Video Editor --</option>
+                            {eligibleVideoEditors.map((u: any) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name}{u.designation ? ` (${u.designation})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          {missing && (
+                            <p className="text-xs text-amber-600 font-medium mt-1">A Video Editor is required for this Script.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
@@ -3294,25 +3342,38 @@ export default function ProjectDetailPage() {
               </button>
               <button
                 onClick={async () => {
-                  const scripts = scriptDocuments.map((script) => ({
-                    scriptId: script.id,
-                    clipCode: readFileClipCodes(script.clipCodes).map((c: any) => c.code).join(', ') || '',
-                    staffId: convertStaffByScript[script.id] || '',
-                  }));
-                  const missing = scripts.filter((s) => !s.staffId);
-                  if (missing.length > 0) {
-                    alert(`Cannot complete Project:\n${missing.map((_, i) => `Script ${scripts.indexOf(missing[i]) + 1} requires a Video Editor assignment`).join('\n')}`);
-                    return;
+                  let payload: any = {};
+                  if (scriptDocuments.length === 0) {
+                    const defaultStaffId = convertStaffByScript['default'];
+                    if (!defaultStaffId) {
+                      alert('Please select a Video Editor to complete the project.');
+                      return;
+                    }
+                    payload = { staffId: defaultStaffId };
+                  } else {
+                    const scripts = scriptDocuments.map((script) => ({
+                      scriptId: script.id,
+                      clipCode: (script.clipCode || readFileClipCodes(script.clipCodes).map((c: any) => c.code).join(', ') || '').trim(),
+                      staffId: convertStaffByScript[script.id] || '',
+                    }));
+                    const missing = scripts.filter((s) => !s.staffId);
+                    if (missing.length > 0) {
+                      alert(`Cannot complete Project:\n${missing.map((m) => `Script "${scriptDocuments.find((s) => s.id === m.scriptId)?.title || scriptDocuments.find((s) => s.id === m.scriptId)?.name || 'Untitled'}" requires a Video Editor assignment`).join('\n')}`);
+                      return;
+                    }
+                    payload = { scripts };
                   }
+
                   setIsCompletingProject(true);
                   try {
                     await fetchApi(`/projects/${project.id}/convert-to-video-editing`, {
                       method: 'POST',
-                      body: JSON.stringify({ scripts }),
+                      body: JSON.stringify(payload),
                     });
                     setShowConvertModal(false);
                     setConvertStaffByScript({});
-                    loadProject();
+                    await loadProject();
+                    alert('Project completed and converted to Video Editing successfully!');
                   } catch (e: any) {
                     alert(e.message || 'Failed to complete Project.');
                   } finally {

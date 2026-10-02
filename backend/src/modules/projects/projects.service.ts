@@ -2554,30 +2554,57 @@ export class ProjectsService {
       );
     }
 
-    const projectScripts = await this.getProjectScriptDocuments(project.id);
+    let projectScripts = await this.getProjectScriptDocuments(project.id);
     if (projectScripts.length === 0) {
-      throw new BadRequestException(
-        'No script documents were found on this project. Upload script documents before converting.',
-      );
+      const defaultPs = await this.prisma.projectScript.create({
+        data: {
+          projectId: project.id,
+          name: `${project.name || 'Shoot Project'} - Main Cut`,
+          clipCode: project.projectId,
+          description: `Main video editing cut for project ${project.projectId}`,
+          createdById: user?.id || user?.sub || null,
+        },
+      });
+      projectScripts = [{
+        id: defaultPs.id,
+        title: defaultPs.name,
+        fileName: defaultPs.name,
+        name: defaultPs.name,
+        storagePath: null,
+        attachmentCategory: 'SCRIPT_DOCUMENT',
+        clipCode: defaultPs.clipCode,
+        clipCodes: defaultPs.clipCode ? [{ code: defaultPs.clipCode }] : [],
+        clips: [],
+        createdAt: defaultPs.createdAt,
+        uploadedBy: null,
+      }];
     }
 
     // Determine target scripts to convert
     let targetScripts = projectScripts;
-    const submitted = body?.scripts || (body?.scriptId && body?.staffId ? [{ scriptId: body.scriptId, clipCode: '', staffId: body.staffId, dueDate: body.dueDate }] : []);
+    let submitted = body?.scripts || (body?.scriptId && body?.staffId ? [{ scriptId: body.scriptId, clipCode: '', staffId: body.staffId, dueDate: body.dueDate }] : []);
+    
+    // If a global staffId was passed or single staff was selected for the project
+    if (submitted.length === 0 && body?.staffId) {
+      submitted = targetScripts.map((s) => ({ scriptId: s.id, clipCode: s.clipCode || '', staffId: body.staffId!, dueDate: body?.dueDate }));
+    }
 
     if (body?.scriptId) {
       const match = projectScripts.find((s) => s.id === body.scriptId);
-      if (!match) {
-        throw new BadRequestException(`Script with ID '${body.scriptId}' does not belong to Project '${project.projectId}'.`);
+      if (match) {
+        targetScripts = [match];
       }
-      targetScripts = [match];
     }
 
     const errors: string[] = [];
-    for (const script of targetScripts) {
-      const match = submitted.find((s) => s.scriptId === script.id);
+    for (let i = 0; i < targetScripts.length; i++) {
+      const script = targetScripts[i];
+      let match = submitted.find((s) => s.scriptId === script.id);
+      if (!match && submitted.length === 1 && targetScripts.length === 1) {
+        match = submitted[0];
+      }
       if (!match || !match.staffId || !match.staffId.trim()) {
-        errors.push(`Script "${script.title}" requires a Video Editor assignment.`);
+        errors.push(`Script "${script.title || script.name}" requires a Video Editor assignment.`);
       }
     }
     if (errors.length > 0) {
@@ -2606,12 +2633,16 @@ export class ProjectsService {
       for (const script of targetScripts) {
         // Ensure first-class ProjectScript record exists
         let ps = await tx.projectScript.findFirst({
-          where: { id: script.id, projectId: project.id },
+          where: {
+            OR: [
+              { id: script.id },
+              { projectId: project.id, name: script.title || script.name || 'Script' },
+            ],
+          },
         });
         if (!ps) {
           ps = await tx.projectScript.create({
             data: {
-              id: script.id.startsWith('script-') || script.id.length > 36 ? undefined : script.id,
               projectId: project.id,
               name: script.title || script.name || 'Script',
               clipCode: script.clipCode || (script.clipCodes?.[0]?.code) || null,
@@ -2624,7 +2655,12 @@ export class ProjectsService {
         const existing = await tx.task.findFirst({
           where: {
             projectId: project.id,
-            OR: [{ scriptId: script.id }, { projectScriptId: ps.id }],
+            taskType: 'VIDEO_EDITING',
+            OR: [
+              { scriptId: script.id },
+              { scriptId: ps.id },
+              { projectScriptId: ps.id },
+            ],
           },
           select: { id: true, taskId: true, title: true },
         });
@@ -2633,8 +2669,11 @@ export class ProjectsService {
           continue;
         }
 
-        const match = submitted.find((s) => s.scriptId === script.id);
-        const clipCode = script.clipCode || ps.clipCode || (script.clipCodes && script.clipCodes.length > 0 ? script.clipCodes.map((c: any) => c.code).join(', ') : null);
+        let match = submitted.find((s) => s.scriptId === script.id || s.scriptId === ps.id);
+        if (!match && submitted.length === 1 && targetScripts.length === 1) {
+          match = submitted[0];
+        }
+        const clipCode = match?.clipCode || script.clipCode || ps.clipCode || (script.clipCodes && script.clipCodes.length > 0 ? script.clipCodes.map((c: any) => c.code).join(', ') : null);
         const staffId = match?.staffId;
 
         let candidate = `TSK-${String(nextSeq).padStart(6, '0')}`;
@@ -2660,9 +2699,9 @@ export class ProjectsService {
         const task = await tx.task.create({
           data: {
             taskId: candidate,
-            title: `Video Editing - ${script.title}`,
+            title: `Video Editing - ${script.title || script.name || 'Script'}`,
             description:
-              `Video Editing Task for script "${script.title}" on project ${project.projectId} (${project.name || 'Shoot Project'}). ` +
+              `Video Editing Task for script "${script.title || script.name || 'Script'}" on project ${project.projectId} (${project.name || 'Shoot Project'}). ` +
               (clipCode ? `Clip Code: ${clipCode}. ` : '') +
               `This is a dedicated Video Editing Task (not a Project Shoot Task). ` +
               `Step 1: Accept this task. ` +
@@ -2679,7 +2718,7 @@ export class ProjectsService {
             sourceType: 'SHOOT_PROJECT',
             taskType: 'VIDEO_EDITING',
             completionPercentage: 0,
-            scriptId: script.id,
+            scriptId: ps.id,
             projectScriptId: ps.id,
             clipCode,
           },
