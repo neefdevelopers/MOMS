@@ -34,6 +34,7 @@ export function resolveFileUrl(rawUrl?: string): string {
 export interface FetchApiOptions extends RequestInit {
   skipCache?: boolean;
   cacheTtlMs?: number;
+  skipCacheInvalidation?: boolean;
 }
 
 // In-memory response cache & in-flight request deduplication map
@@ -64,6 +65,18 @@ export function clearApiCache() {
 
 export function invalidateApiCache(pattern?: string | RegExp) {
   if (!pattern) {
+    // Preserve long-cache reference endpoints unless explicitly specified
+    const keysToDelete: string[] = [];
+    apiCache.forEach((_, key) => {
+      const isRef = LONG_CACHE_ENDPOINTS.some((ep) => key.startsWith(ep));
+      if (!isRef) {
+        keysToDelete.push(key);
+      }
+    });
+    keysToDelete.forEach((k) => apiCache.delete(k));
+    return;
+  }
+  if (pattern === 'all') {
     apiCache.clear();
     return;
   }
@@ -91,9 +104,16 @@ export async function fetchApi(
         localStorage.getItem('accessToken')
       : null;
 
-  // On data mutations (POST, PUT, PATCH, DELETE), automatically invalidate cached data
-  if (method !== 'GET') {
-    clearApiCache();
+  // On real data mutations (POST, PUT, PATCH, DELETE), invalidate non-reference cache items
+  // Passive tracking / checking endpoints like /recent-access must not purge cache
+  const isPassive =
+    options.skipCacheInvalidation ||
+    endpoint.startsWith('/recent-access') ||
+    endpoint.startsWith('/favorites/check') ||
+    endpoint.startsWith('/notifications/system-alerts/scan');
+
+  if (method !== 'GET' && !isPassive) {
+    invalidateApiCache();
   }
 
   const isGet = method === 'GET';

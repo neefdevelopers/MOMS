@@ -227,14 +227,17 @@ export function KeyboardShortcutsProvider({ children }: { children: React.ReactN
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  const value = React.useMemo(
+    () => ({
+      showHelpModal,
+      setShowHelpModal,
+      shortcuts: SHORTCUTS_LIST,
+    }),
+    [showHelpModal]
+  );
+
   return (
-    <KeyboardShortcutsContext.Provider
-      value={{
-        showHelpModal,
-        setShowHelpModal,
-        shortcuts: SHORTCUTS_LIST,
-      }}
-    >
+    <KeyboardShortcutsContext.Provider value={value}>
       {children}
     </KeyboardShortcutsContext.Provider>
   );

@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = React.useCallback(async (email: string, password: string) => {
     const res = await fetchApi('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
@@ -86,21 +86,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('moms_user', JSON.stringify(res.user));
     setToken(res.accessToken);
     setUser(res.user);
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = React.useCallback(() => {
     localStorage.removeItem('moms_token');
     localStorage.removeItem('moms_user');
     setToken(null);
     setUser(null);
-  };
+  }, []);
 
-  const quickSwitchUser = async (email: string) => {
+  const quickSwitchUser = React.useCallback(async (email: string) => {
     await login(email, 'Password123!');
-  };
+  }, [login]);
+
+  const value = React.useMemo(
+    () => ({ user, token, isLoading, login, logout, quickSwitchUser }),
+    [user, token, isLoading, login, logout, quickSwitchUser]
+  );
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, quickSwitchUser }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

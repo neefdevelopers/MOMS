@@ -31,14 +31,27 @@ export interface RecordRecentAccessPayload {
   metadata?: Record<string, any> | string;
 }
 
+let lastRecordedKey = '';
+let lastRecordedTime = 0;
+
 /**
  * Non-blocking helper to log an access event
  */
 export function recordRecentAccess(payload: RecordRecentAccessPayload) {
+  const key = `${payload.entityType}:${payload.entityId}`;
+  const now = Date.now();
+  // Throttle duplicate logs for same entity within 3 seconds
+  if (key === lastRecordedKey && now - lastRecordedTime < 3000) {
+    return;
+  }
+  lastRecordedKey = key;
+  lastRecordedTime = now;
+
   try {
     fetchApi('/recent-access', {
       method: 'POST',
       body: JSON.stringify(payload),
+      skipCacheInvalidation: true,
     }).catch(() => {
       // Ignore background tracking failures gracefully
     });

@@ -50,13 +50,16 @@ export function BreadcrumbsProvider({ children }: { children: React.ReactNode })
     setCustomCrumbs(null);
   }, [pathname]);
 
+  const value = React.useMemo(
+    () => ({
+      customCrumbs,
+      setBreadcrumbs: setCustomCrumbs,
+    }),
+    [customCrumbs]
+  );
+
   return (
-    <BreadcrumbsContext.Provider
-      value={{
-        customCrumbs,
-        setBreadcrumbs: setCustomCrumbs,
-      }}
-    >
+    <BreadcrumbsContext.Provider value={value}>
       {children}
     </BreadcrumbsContext.Provider>
   );

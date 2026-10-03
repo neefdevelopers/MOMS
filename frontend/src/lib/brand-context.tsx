@@ -106,7 +106,7 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
     refreshBrands();
   }, [refreshBrands]);
 
-  const setActiveBrandId = (id: string | null) => {
+  const setActiveBrandId = useCallback((id: string | null) => {
     const cleanId = id && id !== 'ALL' && id.trim() !== '' ? id.trim() : null;
     setActiveBrandIdState(cleanId);
     if (typeof window !== 'undefined') {
@@ -116,21 +116,26 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem(STORAGE_KEY);
       }
     }
-  };
+  }, []);
 
-  const activeBrand = activeBrandId ? brands.find((b) => b.id === activeBrandId) || null : null;
+  const activeBrand = React.useMemo(() => {
+    return activeBrandId ? brands.find((b) => b.id === activeBrandId) || null : null;
+  }, [activeBrandId, brands]);
+
+  const value = React.useMemo(
+    () => ({
+      brands,
+      activeBrandId,
+      activeBrand,
+      isLoading,
+      setActiveBrandId,
+      refreshBrands,
+    }),
+    [brands, activeBrandId, activeBrand, isLoading, setActiveBrandId, refreshBrands]
+  );
 
   return (
-    <BrandContext.Provider
-      value={{
-        brands,
-        activeBrandId,
-        activeBrand,
-        isLoading,
-        setActiveBrandId,
-        refreshBrands,
-      }}
-    >
+    <BrandContext.Provider value={value}>
       {children}
     </BrandContext.Provider>
   );

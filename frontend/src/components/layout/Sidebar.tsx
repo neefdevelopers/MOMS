@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, useTransition } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import {
   LayoutDashboard,
@@ -256,25 +256,8 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { user } = useAuth();
-  const [optimisticPath, setOptimisticPath] = useState<string>(pathname);
-  const [isPending, startTransition] = useTransition();
-
   const userRole = (user?.role || 'STAFF') as AppRole;
-
-  useEffect(() => {
-    setOptimisticPath(pathname);
-  }, [pathname]);
-
-  const activePath = optimisticPath || pathname;
-
-  const handleNavClick = (href: string) => {
-    setOptimisticPath(href);
-    startTransition(() => {
-      // Smooth non-blocking transition
-    });
-  };
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-full shrink-0 z-30 select-none">
@@ -316,10 +299,9 @@ export function Sidebar() {
               {visibleItems.map((item) => {
                 const Icon = item.icon;
                 const isActive =
-                  activePath === item.href ||
-                  (item.href !== '/' && activePath === item.href) ||
-                  (item.href === '/equipment' && activePath === '/equipment');
-                const isItemNavigating = isPending && optimisticPath === item.href;
+                  pathname === item.href ||
+                  (item.href !== '/' && pathname.startsWith(item.href)) ||
+                  (item.href === '/equipment' && pathname.startsWith('/equipment'));
 
                 let displayName =
                   userRole === 'MARKETING_MANAGER' && item.clientName
@@ -342,27 +324,20 @@ export function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    prefetch={true}
-                    onMouseEnter={() => router.prefetch(item.href)}
-                    onClick={() => handleNavClick(item.href)}
-                    className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all group ${
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors group ${
                       isActive
                         ? 'bg-blue-50 text-blue-700 border border-blue-200 font-bold shadow-xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      {isItemNavigating ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
-                      ) : (
-                        <Icon
-                          className={`w-4 h-4 transition-colors shrink-0 ${
-                            isActive
-                              ? 'text-blue-600'
-                              : 'text-slate-400 group-hover:text-slate-600'
-                          }`}
-                        />
-                      )}
+                      <Icon
+                        className={`w-4 h-4 transition-colors shrink-0 ${
+                          isActive
+                            ? 'text-blue-600'
+                            : 'text-slate-400 group-hover:text-slate-600'
+                        }`}
+                      />
                       <span className="truncate">{displayName}</span>
                     </div>
 

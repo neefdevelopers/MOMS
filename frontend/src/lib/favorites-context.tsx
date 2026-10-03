@@ -99,8 +99,10 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     [favorites]
   );
 
-  const toggleFavorite = async (payload: ToggleFavoritePayload): Promise<boolean> => {
-    const currentlyFav = isFavorite(payload.entityType, payload.entityId);
+  const toggleFavorite = useCallback(async (payload: ToggleFavoritePayload): Promise<boolean> => {
+    const currentlyFav = favorites.some(
+      (f) => f.entityType === payload.entityType && f.entityId === payload.entityId
+    );
 
     // Optimistic UI Update
     if (currentlyFav) {
@@ -135,38 +137,38 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify(payload),
       });
 
-      window.dispatchEvent(new CustomEvent('moms:favorites-updated'));
-      loadFavorites();
       return res?.favorited ?? !currentlyFav;
     } catch (err) {
       console.error('Failed to toggle favorite:', err);
       loadFavorites();
       return currentlyFav;
     }
-  };
+  }, [favorites, user?.id, loadFavorites]);
 
-  const removeFavorite = async (id: string) => {
+  const removeFavorite = useCallback(async (id: string) => {
     setFavorites((prev) => prev.filter((f) => f.id !== id));
     try {
       await fetchApi(`/favorites/${id}`, { method: 'DELETE' });
-      window.dispatchEvent(new CustomEvent('moms:favorites-updated'));
     } catch (err) {
       console.error('Failed to remove favorite:', err);
       loadFavorites();
     }
-  };
+  }, [loadFavorites]);
+
+  const value = React.useMemo(
+    () => ({
+      favorites,
+      loading,
+      isFavorite,
+      toggleFavorite,
+      removeFavorite,
+      refreshFavorites: loadFavorites,
+    }),
+    [favorites, loading, isFavorite, toggleFavorite, removeFavorite, loadFavorites]
+  );
 
   return (
-    <FavoritesContext.Provider
-      value={{
-        favorites,
-        loading,
-        isFavorite,
-        toggleFavorite,
-        removeFavorite,
-        refreshFavorites: loadFavorites,
-      }}
-    >
+    <FavoritesContext.Provider value={value}>
       {children}
     </FavoritesContext.Provider>
   );
