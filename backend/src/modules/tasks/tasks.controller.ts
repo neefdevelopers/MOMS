@@ -16,6 +16,7 @@ export class TasksController {
     @CurrentUser() user: any,
     @Query('search') search?: string,
     @Query('status') status?: string,
+    @Query('taskType') taskType?: string,
     @Query('projectId') projectId?: string,
     @Query('clientId') clientId?: string,
     @Query('brandId') brandId?: string,
@@ -30,6 +31,7 @@ export class TasksController {
     return this.tasksService.findAll({
       search,
       status,
+      taskType,
       priority,
       projectId,
       clientId,

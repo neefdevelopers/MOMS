@@ -19,10 +19,11 @@ export class ClientsController {
     @CurrentUser() user: any,
     @Query('search') search?: string,
     @Query('status') status?: ClientStatus,
+    @Query('brandId') brandId?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.clientsService.findAll(search, status, page, limit, user);
+    return this.clientsService.findAll(search, status, page, limit, user, brandId);
   }
 
   /**
@@ -31,8 +32,12 @@ export class ClientsController {
    */
   @RequirePermission(ModuleType.CLIENTS, PermissionType.VIEW)
   @Get(':id')
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.clientsService.findOne(id, user);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Query('brandId') brandId?: string,
+  ) {
+    return this.clientsService.findOne(id, user, brandId);
   }
 
   /**

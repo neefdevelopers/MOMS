@@ -28,11 +28,22 @@ import {
   getAllowedReportTabs,
   ReportTab,
 } from '@/lib/report-permissions';
+import { useBrand } from '@/lib/brand-context';
 
 type DatePreset = 'this_month' | 'today' | 'this_week' | 'custom';
 
+const formatTaskTypeLabel = (type?: string) => {
+  if (!type) return 'Others';
+  if (type === 'OTHERS' || type === 'OTHER') return 'Others';
+  if (type === 'SHOOT' || type === 'PROJECT') return 'Shoot';
+  if (type === 'GRAPHIC' || type === 'GRAPHIC_REQUIREMENT') return 'Graphic';
+  if (type === 'VIDEO_EDITING') return 'Video Editing';
+  return type.replace(/_/g, ' ');
+};
+
 export default function ReportsPage() {
   const { user } = useAuth();
+  const { activeBrandId, activeBrand, setActiveBrandId } = useBrand();
   const userRole = (user?.role || '') as string;
   const isMarketingManager = userRole === 'MARKETING_MANAGER';
   const isMediaManager = userRole === 'MEDIA_MANAGER' || userRole === 'ADMINISTRATOR' || userRole === 'ADMIN';
@@ -147,7 +158,8 @@ export default function ReportsPage() {
       }
 
       if (selectedClient) params.append('clientId', selectedClient);
-      if (selectedBrand) params.append('brandId', selectedBrand);
+      const effectiveBrand = selectedBrand || (activeBrandId && activeBrandId !== 'ALL' ? activeBrandId : '');
+      if (effectiveBrand) params.append('brandId', effectiveBrand);
       if (selectedProject) params.append('projectId', selectedProject);
       if (selectedStatus && selectedStatus !== 'ALL') params.append('status', selectedStatus);
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
@@ -206,6 +218,7 @@ export default function ReportsPage() {
     endDate,
     selectedClient,
     selectedBrand,
+    activeBrandId,
     selectedProject,
     selectedStatus,
     searchQuery,
@@ -420,6 +433,31 @@ export default function ReportsPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Active Brand Context Banner */}
+      {activeBrand && (
+        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-full ring-2 ring-blue-400 animate-pulse"
+              style={{ backgroundColor: activeBrand.primaryColor || '#3B82F6' }}
+            />
+            <span>
+              Active Brand Filter: <strong>{activeBrand.name}</strong>{' '}
+              <span className="font-mono font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[10px]">
+                [{activeBrand.shortCode}]
+              </span>
+              . Reports and metrics are filtered to this brand.
+            </span>
+          </div>
+          <button
+            onClick={() => setActiveBrandId(null)}
+            className="text-[11px] text-blue-700 hover:text-blue-900 font-bold hover:underline"
+          >
+            Reset to All Brands
+          </button>
+        </div>
+      )}
+
       {/* ─── Page Header & Report Switcher ────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
@@ -668,21 +706,38 @@ export default function ReportsPage() {
 
           {/* Report-Specific Slot 1 */}
           {activeTab === 'task_assignments' && (
-            <div>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Assigned To</label>
-              <select
-                value={selectedAssignedTo}
-                onChange={(e) => setSelectedAssignedTo(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">All Assignees</option>
-                {usersList.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Task Type</label>
+                <select
+                  value={selectedTaskType}
+                  onChange={(e) => setSelectedTaskType(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="ALL">All Task Types</option>
+                  <option value="SHOOT">Shoot</option>
+                  <option value="GRAPHIC">Graphic</option>
+                  <option value="VIDEO_EDITING">Video Editing</option>
+                  <option value="OTHERS">Others</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Assigned To</label>
+                <select
+                  value={selectedAssignedTo}
+                  onChange={(e) => setSelectedAssignedTo(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">All Assignees</option>
+                  {usersList.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
           )}
 
           {activeTab === 'shoot_reports' && (
@@ -701,21 +756,38 @@ export default function ReportsPage() {
           )}
 
           {activeTab === 'staff_work' && (
-            <div>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Staff Member</label>
-              <select
-                value={selectedStaffId}
-                onChange={(e) => setSelectedStaffId(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">All Staff</option>
-                {usersList.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Staff Member</label>
+                <select
+                  value={selectedStaffId}
+                  onChange={(e) => setSelectedStaffId(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">All Staff</option>
+                  {usersList.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Task Type</label>
+                <select
+                  value={selectedTaskType}
+                  onChange={(e) => setSelectedTaskType(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="ALL">All Task Types</option>
+                  <option value="SHOOT">Shoot</option>
+                  <option value="GRAPHIC">Graphic</option>
+                  <option value="VIDEO_EDITING">Video Editing</option>
+                  <option value="OTHERS">Others</option>
+                </select>
+              </div>
+            </>
           )}
 
           {activeTab === 'equipment_rental' && (
@@ -1009,7 +1081,7 @@ export default function ReportsPage() {
                             {row.taskName}
                           </Link>
                         </td>
-                        <td className="py-3 px-4 text-slate-600">{row.taskType}</td>
+                        <td className="py-3 px-4 text-slate-600">{formatTaskTypeLabel(row.taskType)}</td>
                         <td className="py-3 px-4 text-slate-700">{row.assignedTo}</td>
                         <td className="py-3 px-4 text-slate-600">{row.assignedBy}</td>
                         <td className="py-3 px-4">
@@ -1077,7 +1149,7 @@ export default function ReportsPage() {
                             {row.projectName}
                           </Link>
                         </td>
-                        <td className="py-3 px-4 text-slate-600">{row.taskType}</td>
+                        <td className="py-3 px-4 text-slate-600">{formatTaskTypeLabel(row.taskType)}</td>
                         <td className="py-3 px-4 font-semibold text-indigo-800 bg-indigo-50/30">
                           {row.assignedBy}
                         </td>
@@ -1521,7 +1593,7 @@ export default function ReportsPage() {
                         </td>
                         <td className="py-2.5 px-3 font-medium text-slate-800">{task.brandName}</td>
                         <td className="py-2.5 px-3 text-slate-600">{task.projectName}</td>
-                        <td className="py-2.5 px-3 text-slate-600">{task.taskType}</td>
+                        <td className="py-2.5 px-3 text-slate-600">{formatTaskTypeLabel(task.taskType)}</td>
                         <td className="py-2.5 px-3 text-slate-600">{formatDate(task.assignedDate)}</td>
                         <td className="py-2.5 px-3 text-slate-600">
                           {formatDate(task.dueDate)}

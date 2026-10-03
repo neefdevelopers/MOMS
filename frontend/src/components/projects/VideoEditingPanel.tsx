@@ -185,10 +185,12 @@ export function VideoEditingPanel({ project, user, onReload }: Props) {
   };
 
   // KPIs (per spec section 15).
+  const hasBrand = Boolean(project?.brandId || project?.brand?.id);
   const totalTasks = tasks.length;
   const completedByStaff = tasks.filter((t) => t.mediaManagerApproved || t.marketingManagerApproved || t.status === 'COMPLETED').length;
   const mediaApproved = tasks.filter((t) => t.mediaManagerApproved).length;
   const marketingApproved = tasks.filter((t) => t.marketingManagerApproved).length;
+  const finalApproved = hasBrand ? marketingApproved : tasks.filter((t) => t.status === 'COMPLETED' || t.mediaManagerApproved).length;
 
   return (
     <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-3 shadow-xs">
@@ -197,7 +199,7 @@ export function VideoEditingPanel({ project, user, onReload }: Props) {
           <Video className="w-4 h-4 text-indigo-600" /> Video Editing Workflow
         </h4>
         <span className="text-[10px] bg-indigo-100 text-indigo-800 border border-indigo-300 px-2 py-0.5 rounded font-mono font-bold">
-          {totalTasks === 0 ? 'Not Started' : `${marketingApproved}/${totalTasks} approved`}
+          {totalTasks === 0 ? 'Not Started' : `${finalApproved}/${totalTasks} completed`}
         </span>
       </div>
 
@@ -211,7 +213,11 @@ export function VideoEditingPanel({ project, user, onReload }: Props) {
         <Kpi label="Editing Tasks" value={totalTasks} />
         <Kpi label="Completed by Staff" value={`${completedByStaff}/${totalTasks}`} />
         <Kpi label="Media Approved" value={`${mediaApproved}/${totalTasks}`} />
-        <Kpi label="Marketing Approved" value={`${marketingApproved}/${totalTasks}`} />
+        {hasBrand ? (
+          <Kpi label="Marketing Approved" value={`${marketingApproved}/${totalTasks}`} />
+        ) : (
+          <Kpi label="Fully Completed" value={`${finalApproved}/${totalTasks}`} />
+        )}
       </div>
 
       {/* Convert action (Media Manager only) — now lives in the project header */}

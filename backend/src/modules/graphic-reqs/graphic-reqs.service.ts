@@ -95,7 +95,9 @@ export class GraphicReqsService {
 
     if (p.projectId) where.projectId = p.projectId;
     if (p.clientId) where.clientId = p.clientId;
-    if (p.brandId) where.brandId = p.brandId;
+    if (p.brandId && p.brandId !== 'ALL' && p.brandId.trim() !== '') {
+      where.brandId = p.brandId.trim();
+    }
     if (p.productId) where.productId = p.productId;
     if (p.priority && p.priority !== 'ALL') where.priority = p.priority;
 

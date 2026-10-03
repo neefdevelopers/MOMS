@@ -14,6 +14,7 @@ import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
 import RevisionsTab from '@/components/revisions/RevisionsTab';
 import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
+import { useBrand } from '@/lib/brand-context';
 
 const DEFAULT_REQUIREMENT_TYPES = [
   'Poster',
@@ -129,6 +130,7 @@ export default function GraphicReqsPage() {
   const inspectIdParam = searchParams ? (searchParams.get('inspect') || searchParams.get('id') || searchParams.get('graphicId') || searchParams.get('reqId') || searchParams.get('inspectId')) : null;
   const isReadOnlyParam = searchParams ? (searchParams.get('readOnly') === 'true' || searchParams.get('source') === 'marketing_approval' || searchParams.get('mode') === 'view' || searchParams.get('mode') === 'readonly') : false;
   const isMarketingApprovalSession = isReadOnlyParam || (user?.role === 'MARKETING_MANAGER' && Boolean(searchParams?.get('reqId') || searchParams?.get('readOnly') || searchParams?.get('source')));
+  const { activeBrandId, activeBrand, setActiveBrandId } = useBrand();
   const [reqs, setReqs] = useState<any[]>([]);
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [clientsList, setClientsList] = useState<any[]>([]);
@@ -328,8 +330,14 @@ export default function GraphicReqsPage() {
   const loadGraphicReqs = async () => {
     setLoading(true);
     try {
-      const dataReqs = await fetchApi('/graphic-reqs').catch(() => []);
-      const loadedReqs = Array.isArray(dataReqs) ? dataReqs : [];
+      let url = '/graphic-reqs';
+      const params = new URLSearchParams();
+      const effectiveBrand = selectedBrand || (activeBrandId && activeBrandId !== 'ALL' ? activeBrandId : '');
+      if (effectiveBrand) params.append('brandId', effectiveBrand);
+      if (params.toString()) url += `?${params.toString()}`;
+
+      const dataReqs = await fetchApi(url).catch(() => []);
+      const loadedReqs = Array.isArray(dataReqs) ? dataReqs : (dataReqs?.data || dataReqs?.requirements || []);
       setReqs(loadedReqs);
 
       // Merge standard requirement types with any custom types from database records
@@ -364,7 +372,7 @@ export default function GraphicReqsPage() {
   useEffect(() => {
     loadReferenceData();
     loadGraphicReqs();
-  }, []);
+  }, [activeBrandId, selectedBrand]);
 
   useEffect(() => {
     if (inspectIdParam) {
@@ -797,6 +805,31 @@ export default function GraphicReqsPage() {
 
   return (
     <div className="space-y-6 text-xs">
+      {/* Active Brand Context Banner */}
+      {activeBrand && (
+        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-full ring-2 ring-blue-400 animate-pulse"
+              style={{ backgroundColor: activeBrand.primaryColor || '#3B82F6' }}
+            />
+            <span>
+              Active Brand Filter: <strong>{activeBrand.name}</strong>{' '}
+              <span className="font-mono font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[10px]">
+                [{activeBrand.shortCode}]
+              </span>
+              . Graphic requirements directory is scoped to this brand.
+            </span>
+          </div>
+          <button
+            onClick={() => setActiveBrandId(null)}
+            className="text-[11px] text-blue-700 hover:text-blue-900 font-bold hover:underline"
+          >
+            Reset to All Brands
+          </button>
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="bg-white border border-slate-200 p-6 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
         <div>
@@ -811,21 +844,6 @@ export default function GraphicReqsPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Opens the Create Graphic Requirement modal, which contains the optional
-              Parent Shoot Project selector. Without this the whole form was unreachable. */}
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedProjectId('');
-              setNewReqClientId('');
-              setNewReqBrandId('');
-              setShowCreateModal(true);
-            }}
-            className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg flex items-center gap-2 shadow-md shadow-amber-600/30 transition-colors text-xs"
-          >
-            <Plus className="w-4 h-4" /> New Graphic Requirement
-          </button>
-
           {(user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (
             <Link
               href="/calendar"

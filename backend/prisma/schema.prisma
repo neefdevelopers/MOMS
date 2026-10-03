@@ -565,7 +565,7 @@ model Task {
   activeDeliverableFileName String?
   activeDeliverableVersion Int           @default(0)
   sourceType          String             @default("DIRECT_TASK") // DIRECT_TASK, CALENDAR_EVENT, GRAPHIC_REQUIREMENT, REVISION
-  taskType            String             @default("PRODUCTION_TASK") // PRODUCTION_TASK, REVISION, VIDEO_EDITING
+  taskType            String             @default("PRODUCTION_TASK") // PRODUCTION_TASK, REVISION, VIDEO_EDITING, OTHERS
   // Keyed on the ProjectScript.id from the JSON array stored in ShootProject.notes,
   // so each script gets one editing task. Together with (projectId) this is unique per
   // conversion, so clicking Convert twice cannot create duplicates.

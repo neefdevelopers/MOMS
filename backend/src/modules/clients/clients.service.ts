@@ -6,7 +6,7 @@ import { ClientStatus } from '../../common/enums';
 export class ClientsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(search?: string, status?: string, page?: number, limit?: number, user?: any) {
+  async findAll(search?: string, status?: string, page?: number, limit?: number, user?: any, brandId?: string) {
     const where: any = {};
     if (status) where.status = status;
     if (search) {
@@ -17,6 +17,10 @@ export class ClientsService {
         { email: { contains: search } },
         { mobile: { contains: search } },
       ];
+    }
+
+    if (brandId && brandId !== 'ALL' && brandId.trim() !== '') {
+      where.brands = { some: { id: brandId.trim() } };
     }
 
     if (user && user.role === 'MARKETING_MANAGER') {
@@ -66,7 +70,7 @@ export class ClientsService {
     return data;
   }
 
-  async findOne(id: string, user?: any) {
+  async findOne(id: string, user?: any, brandId?: string) {
     if (user && user.role === 'MARKETING_MANAGER') {
       const assignments = await this.prisma.clientAssignment.findMany({
         where: { userId: user.id },
@@ -78,15 +82,36 @@ export class ClientsService {
       }
     }
 
+    const activeBrandFilter = brandId && brandId !== 'ALL' && brandId.trim() !== '' ? brandId.trim() : undefined;
+
     const client = await this.prisma.client.findUnique({
       where: { id },
       include: {
-        brands: { include: { products: true } },
+        brands: activeBrandFilter
+          ? { where: { id: activeBrandFilter }, include: { products: true } }
+          : { include: { products: true } },
         projects: {
-          select: { id: true, projectId: true, name: true, status: true, shootType: true, shootDate: true },
+          where: activeBrandFilter ? { brandId: activeBrandFilter } : undefined,
+          select: { id: true, projectId: true, name: true, status: true, shootType: true, shootDate: true, brandId: true },
           orderBy: { createdAt: 'desc' },
         },
-        calendarEvents: true,
+        calendarEvents: {
+          where: activeBrandFilter ? { brandId: activeBrandFilter } : undefined,
+        },
+        graphicReqs: {
+          where: activeBrandFilter ? { brandId: activeBrandFilter } : undefined,
+        },
+        tasks: {
+          where: activeBrandFilter
+            ? {
+                OR: [
+                  { brandId: activeBrandFilter },
+                  { project: { brandId: activeBrandFilter } },
+                  { graphicRequirement: { brandId: activeBrandFilter } },
+                ],
+              }
+            : undefined,
+        },
       },
     });
     if (!client) throw new NotFoundException('Client not found');

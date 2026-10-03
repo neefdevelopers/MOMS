@@ -70,14 +70,21 @@ export class ReportsService {
         if (projectId && item.projectId !== projectId) return false;
         if (status && item.status !== status) return false;
         if (employeeId && !item.assignedEmployees?.some((e: any) => e.userId === employeeId)) return false;
-        if (clientId && item.project?.clientId !== clientId) return false;
-        if (brandId && item.project?.brandId !== brandId) return false;
-        if (productId && item.project?.productId !== productId) return false;
+        const taskClientId = item.clientId || item.project?.clientId || item.graphicRequirement?.clientId;
+        if (clientId && taskClientId !== clientId) return false;
+        const taskBrandId = item.brandId || item.project?.brandId || item.graphicRequirement?.brandId;
+        if (brandId && taskBrandId !== brandId) return false;
+        const taskProductId = item.productId || item.project?.productId || item.graphicRequirement?.productId;
+        if (productId && taskProductId !== productId) return false;
         if (departmentId && !item.assignedEmployees?.some((e: any) => e.user?.employeeProfile?.departmentId === departmentId)) return false;
         if (q) {
-          const match = item.project?.name?.toLowerCase().includes(q) ||
+          const match = item.title?.toLowerCase().includes(q) ||
+                        item.project?.name?.toLowerCase().includes(q) ||
+                        item.client?.name?.toLowerCase().includes(q) ||
                         item.project?.client?.name?.toLowerCase().includes(q) ||
+                        item.brand?.name?.toLowerCase().includes(q) ||
                         item.project?.brand?.name?.toLowerCase().includes(q) ||
+                        item.product?.name?.toLowerCase().includes(q) ||
                         item.project?.product?.name?.toLowerCase().includes(q) ||
                         item.assignedEmployees?.some((e: any) => e.user?.name?.toLowerCase().includes(q));
           if (!match) return false;
@@ -89,13 +96,20 @@ export class ReportsService {
       } else if (type === 'graphics') {
         if (projectId && item.projectId !== projectId) return false;
         if (status && item.status !== status) return false;
-        if (clientId && item.project?.clientId !== clientId) return false;
-        if (brandId && item.project?.brandId !== brandId) return false;
-        if (productId && item.project?.productId !== productId) return false;
+        const gClientId = item.clientId || item.project?.clientId;
+        if (clientId && gClientId !== clientId) return false;
+        const gBrandId = item.brandId || item.project?.brandId;
+        if (brandId && gBrandId !== brandId) return false;
+        const gProductId = item.productId || item.project?.productId;
+        if (productId && gProductId !== productId) return false;
         if (q) {
-          const match = item.project?.name?.toLowerCase().includes(q) ||
+          const match = item.name?.toLowerCase().includes(q) ||
+                        item.project?.name?.toLowerCase().includes(q) ||
+                        item.client?.name?.toLowerCase().includes(q) ||
                         item.project?.client?.name?.toLowerCase().includes(q) ||
+                        item.brand?.name?.toLowerCase().includes(q) ||
                         item.project?.brand?.name?.toLowerCase().includes(q) ||
+                        item.product?.name?.toLowerCase().includes(q) ||
                         item.project?.product?.name?.toLowerCase().includes(q);
           if (!match) return false;
         }
@@ -2618,7 +2632,17 @@ export class ReportsService {
       ];
     }
     if (filters.projectId) where.projectId = filters.projectId;
-    if (filters.taskType && filters.taskType !== 'ALL') where.taskType = filters.taskType;
+    if (filters.taskType && filters.taskType !== 'ALL') {
+      if (filters.taskType === 'OTHERS' || filters.taskType === 'OTHER') {
+        where.taskType = { in: ['OTHERS', 'OTHER'] };
+      } else if (filters.taskType === 'SHOOT' || filters.taskType === 'PROJECT') {
+        where.taskType = { in: ['SHOOT', 'PROJECT'] };
+      } else if (filters.taskType === 'GRAPHIC' || filters.taskType === 'GRAPHIC_REQUIREMENT') {
+        where.taskType = { in: ['GRAPHIC', 'GRAPHIC_REQUIREMENT'] };
+      } else {
+        where.taskType = filters.taskType;
+      }
+    }
     if (filters.status && filters.status !== 'ALL') where.status = filters.status;
     if (filters.assignedToId) {
       where.assignedEmployees = { some: { userId: filters.assignedToId } };
@@ -2993,8 +3017,17 @@ export class ReportsService {
 
         if (filters.clientId && task.clientId !== filters.clientId && task.project?.client?.name !== filters.clientId) continue;
         if (filters.brandId && task.brandId !== filters.brandId && task.project?.brand?.name !== filters.brandId) continue;
-        if (filters.projectId && task.projectId !== filters.projectId) continue;
-        if (filters.taskType && filters.taskType !== 'ALL' && task.taskType !== filters.taskType) continue;
+        if (filters.taskType && filters.taskType !== 'ALL') {
+          if (filters.taskType === 'OTHERS' || filters.taskType === 'OTHER') {
+            if (task.taskType !== 'OTHERS' && task.taskType !== 'OTHER') continue;
+          } else if (filters.taskType === 'SHOOT' || filters.taskType === 'PROJECT') {
+            if (task.taskType !== 'SHOOT' && task.taskType !== 'PROJECT') continue;
+          } else if (filters.taskType === 'GRAPHIC' || filters.taskType === 'GRAPHIC_REQUIREMENT') {
+            if (task.taskType !== 'GRAPHIC' && task.taskType !== 'GRAPHIC_REQUIREMENT') continue;
+          } else if (task.taskType !== filters.taskType) {
+            continue;
+          }
+        }
         if (filters.status && filters.status !== 'ALL' && task.status !== filters.status) continue;
 
         const assignedDate = assignment.assignedAt || task.createdAt;

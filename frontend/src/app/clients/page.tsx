@@ -12,6 +12,8 @@ import { usePagination } from '@/lib/usePagination';
 import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
 
+import { useBrand } from '@/lib/brand-context';
+
 export default function ClientsPage() {
   return (
     <RouteGuard module="CLIENTS">
@@ -22,6 +24,7 @@ export default function ClientsPage() {
 
 function ClientsContent() {
   const { user } = useAuth();
+  const { activeBrandId, activeBrand, setActiveBrandId } = useBrand();
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -69,10 +72,11 @@ function ClientsContent() {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
       if (statusFilter) params.append('status', statusFilter);
+      if (activeBrandId && activeBrandId !== 'ALL') params.append('brandId', activeBrandId);
       if (params.toString()) url += `?${params.toString()}`;
 
       const res = await fetchApi(url);
-      setClients(res);
+      setClients(Array.isArray(res) ? res : res?.data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -82,7 +86,7 @@ function ClientsContent() {
 
   useEffect(() => {
     loadClients();
-  }, [search, statusFilter]);
+  }, [search, statusFilter, activeBrandId]);
 
   const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Only allow numbers and optional leading +
@@ -209,6 +213,24 @@ function ClientsContent() {
           </button>
         )}
       </div>
+
+      {/* Active Brand Context Banner (Marketing Manager Only) */}
+      {user?.role === 'MARKETING_MANAGER' && activeBrand && (
+        <div className="flex items-center justify-between px-4 py-2.5 bg-blue-50/80 border border-blue-200 rounded-xl text-xs text-blue-900 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+            <span>
+              Active Brand Filter: <strong>{activeBrand.name}</strong> <span className="font-mono font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[10px]">[{activeBrand.shortCode}]</span>. Showing associated clients.
+            </span>
+          </div>
+          <button
+            onClick={() => setActiveBrandId(null)}
+            className="text-[11px] text-blue-700 hover:text-blue-900 font-semibold hover:underline"
+          >
+            Show All Clients
+          </button>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="flex flex-col sm:flex-row items-center gap-3 bg-white border border-slate-200 p-4 rounded-xl">

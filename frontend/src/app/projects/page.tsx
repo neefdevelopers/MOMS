@@ -40,9 +40,11 @@ import {
   serializeProjectScripts,
   parseProjectScripts,
 } from '@/lib/project-scripts';
+import { useBrand } from '@/lib/brand-context';
 
 export default function ProjectsPage() {
   const { user } = useAuth();
+  const { activeBrandId, activeBrand, setActiveBrandId } = useBrand();
   const [projects, setProjects] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
@@ -152,7 +154,8 @@ export default function ProjectsPage() {
       let query = '?';
       if (search) query += `search=${encodeURIComponent(search)}&`;
       if (selectedClient) query += `clientId=${selectedClient}&`;
-      if (selectedBrand) query += `brandId=${selectedBrand}&`;
+      const effectiveBrand = selectedBrand || (activeBrandId && activeBrandId !== 'ALL' ? activeBrandId : '');
+      if (effectiveBrand) query += `brandId=${effectiveBrand}&`;
       if (selectedProduct) query += `productId=${selectedProduct}&`;
       if (selectedType) query += `shootType=${selectedType}&`;
       if (selectedStatus) query += `status=${selectedStatus}&`;
@@ -182,6 +185,7 @@ export default function ProjectsPage() {
     search,
     selectedClient,
     selectedBrand,
+    activeBrandId,
     selectedProduct,
     selectedType,
     selectedStatus,
@@ -232,8 +236,7 @@ export default function ProjectsPage() {
   };
 
   const openCreateModal = () => {
-    const defaultClient = activeClients[0];
-    const defaultClientId = defaultClient?.id || '';
+    const defaultClientId = activeBrand ? activeBrand.clientId : (activeClients[0]?.id || '');
     const defaultBrands = (brands || []).filter(
       (b) => b?.status === 'ACTIVE' && (!defaultClientId || b.clientId === defaultClientId)
     );
@@ -241,7 +244,7 @@ export default function ProjectsPage() {
     setProjectName('');
     setCustomProjectId('');
     setClientId(defaultClientId);
-    setBrandId(defaultBrands[0]?.id || '');
+    setBrandId(activeBrand ? activeBrand.id : (defaultBrands[0]?.id || ''));
     setProductId('');
     setCampaignId('');
     setCalendarEventId('');
@@ -367,6 +370,31 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Active Brand Context Banner */}
+      {activeBrand && (
+        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-full ring-2 ring-blue-400 animate-pulse"
+              style={{ backgroundColor: activeBrand.primaryColor || '#3B82F6' }}
+            />
+            <span>
+              Active Brand Filter: <strong>{activeBrand.name}</strong>{' '}
+              <span className="font-mono font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[10px]">
+                [{activeBrand.shortCode}]
+              </span>
+              . Projects directory is scoped to this brand.
+            </span>
+          </div>
+          <button
+            onClick={() => setActiveBrandId(null)}
+            className="text-[11px] text-blue-700 hover:text-blue-900 font-bold hover:underline"
+          >
+            Reset to All Brands
+          </button>
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 p-6 rounded-xl">
         <div>

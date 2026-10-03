@@ -17,6 +17,7 @@ import RevisionsTab from '@/components/revisions/RevisionsTab';
 import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
 import { TimelineView, TimelineEntry } from '@/components/common/TimelineView';
 import { RouteGuard } from '@/components/common/RouteGuard';
+import { useBrand } from '@/lib/brand-context';
 
 const isTaskRevision = (t: any) =>
   Boolean(
@@ -30,68 +31,106 @@ const isTaskRevision = (t: any) =>
     t?.title?.toLowerCase().includes('revision')
   );
 
+const isTaskOther = (t: any) =>
+  Boolean(
+    t &&
+    !isTaskRevision(t) &&
+    t.taskType !== 'VIDEO_EDITING' &&
+    t.sourceType !== 'VIDEO_EDITING' &&
+    (
+      t.taskType === 'OTHERS' ||
+      t.taskType === 'OTHER' ||
+      t.sourceType === 'DIRECT_TASK' ||
+      t.sourceType === 'OTHER' ||
+      t.sourceType === 'OTHERS' ||
+      (!t.scriptId && !t.projectScriptId && !t.graphicRequirementId && !t.graphicRequirement && !t.projectId && !t.project)
+    )
+  );
+
 const getTaskTypeInfo = (task: any) => {
-  if (!task) return { type: 'OTHER', label: 'Other Task', shortLabel: 'Other', badgeClass: 'bg-slate-100 text-slate-700 border-slate-300', icon: Layers };
+  if (!task) return { type: 'OTHERS', label: 'Others', shortLabel: 'Others', badgeClass: 'bg-slate-100 text-slate-700 border-slate-300', icon: Layers };
 
   if (isTaskRevision(task) || (task.revisions && task.revisions.length > 0) || (task.revisionCount && task.revisionCount > 0) || task.taskType === 'REVISION' || task.sourceType === 'REVISION') {
     return {
       type: 'REVISION',
-      label: 'Revision Task',
+      label: 'Revision',
       shortLabel: 'Revision',
       badgeClass: 'bg-rose-50 text-rose-700 border-rose-300',
       icon: RotateCcw
     };
   }
 
-  // Explicit OTHER or DIRECT_TASK check takes priority over linked parent project
-  if (task.taskType === 'OTHER' || task.sourceType === 'DIRECT_TASK' || task.sourceType === 'OTHER') {
+  if (task.taskType === 'VIDEO_EDITING' || task.sourceType === 'VIDEO_EDITING') {
     return {
-      type: 'OTHER',
-      label: 'Other Task',
-      shortLabel: 'Other',
+      type: 'VIDEO_EDITING',
+      label: 'Video Editing',
+      shortLabel: 'Video Editing',
+      badgeClass: 'bg-purple-50 text-purple-700 border-purple-300',
+      icon: Scissors
+    };
+  }
+
+  // Explicit OTHERS / OTHER or DIRECT_TASK check takes priority over linked parent project
+  if (task.taskType === 'OTHERS' || task.taskType === 'OTHER' || task.sourceType === 'DIRECT_TASK' || task.sourceType === 'OTHER' || task.sourceType === 'OTHERS') {
+    return {
+      type: 'OTHERS',
+      label: 'Others',
+      shortLabel: 'Others',
       badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
       icon: Layers
     };
   }
 
-  
-
   if (task.graphicRequirement || task.graphicRequirementId || task.sourceType === 'GRAPHIC_REQUIREMENT' || task.sourceType === 'GRAPHIC' || task.taskType === 'GRAPHIC_REQUIREMENT' || task.taskType === 'GRAPHIC') {
     return {
       type: 'GRAPHIC',
-      label: 'Graphic Req Task',
-      shortLabel: 'Graphic Req',
+      label: 'Graphic Req',
+      shortLabel: 'Graphic',
       badgeClass: 'bg-amber-50 text-amber-700 border-amber-300',
       icon: FileText
     };
   }
 
-  if (task.sourceType === 'SHOOT_PROJECT' || task.taskType === 'PROJECT' || ((task.project || task.projectId) && !task.script && !task.scriptId && !task.graphicRequirement && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER')) {
+  if (task.sourceType === 'SHOOT_PROJECT' || task.taskType === 'PROJECT' || task.taskType === 'SHOOT' || ((task.project || task.projectId) && !task.script && !task.scriptId && !task.graphicRequirement && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER' && task.taskType !== 'OTHERS')) {
     return {
-      type: 'PROJECT',
-      label: 'Shoot Project Task',
-      shortLabel: 'Shoot Project',
+      type: 'SHOOT',
+      label: 'Shoot Project',
+      shortLabel: 'Shoot',
       badgeClass: 'bg-blue-50 text-blue-700 border-blue-300',
       icon: Camera
     };
   }
 
   return {
-    type: 'OTHER',
-    label: 'Other Task',
-    shortLabel: 'Other',
+    type: 'OTHERS',
+    label: 'Others',
+    shortLabel: 'Others',
     badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
     icon: Layers
   };
 };
+
+function hasTaskBrand(task: any): boolean {
+  if (!task) return false;
+  const brandId = task.brandId || task.brand?.id || task.project?.brandId || task.graphicRequirement?.brandId;
+  return Boolean(
+    brandId &&
+    typeof brandId === 'string' &&
+    brandId.trim() !== '' &&
+    brandId.trim().toLowerCase() !== 'null' &&
+    brandId.trim().toLowerCase() !== 'undefined'
+  );
+}
 
 const TaskWorkflowTimeline = ({ task }: { task: any }) => {
   if (!task) return null;
 
   const isRevision = isTaskRevision(task);
   const isDirect = task.sourceType === 'DIRECT_TASK';
-  const isShootTask = task.sourceType === 'SHOOT_PROJECT' || task.taskType === 'PROJECT' || Boolean((task.project || task.projectId) && !task.script && !task.scriptId && !task.graphicRequirement && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER' && task.taskType !== 'VIDEO_EDITING');
+  const isShootTask = task.sourceType === 'SHOOT_PROJECT' || task.taskType === 'PROJECT' || task.taskType === 'SHOOT' || Boolean((task.project || task.projectId) && !task.script && !task.scriptId && !task.graphicRequirement && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER' && task.taskType !== 'OTHERS' && task.taskType !== 'VIDEO_EDITING');
   const isScriptTask = false;
+
+  const hasBrand = hasTaskBrand(task);
 
   const shootStages = [
     { key: 'ASSIGNED', label: 'Assigned' },
@@ -100,15 +139,24 @@ const TaskWorkflowTimeline = ({ task }: { task: any }) => {
     { key: 'COMPLETED', label: 'Completed' },
   ];
 
-  const scriptStages = [
-    { key: 'CREATED', label: '1. Created' },
-    { key: 'PRODUCTION_COMPLETED', label: '2. Updated as Completed' },
-    { key: 'WAITING_FOR_TECHNICAL_REVIEW', label: '3. Request for Tech Review' },
-    { key: 'TECHNICAL_REVIEW_APPROVED', label: '4. Tech Review Accepted' },
-    { key: 'WAITING_FOR_MARKETING_APPROVAL', label: '5. Waiting MM Approval' },
-    { key: 'APPROVED', label: '6. Approved' },
-    { key: 'COMPLETED', label: '7. Completed' },
-  ];
+  const scriptStages = hasBrand
+    ? [
+        { key: 'CREATED', label: '1. Created' },
+        { key: 'PRODUCTION_COMPLETED', label: '2. Updated as Completed' },
+        { key: 'WAITING_FOR_TECHNICAL_REVIEW', label: '3. Request for Tech Review' },
+        { key: 'TECHNICAL_REVIEW_APPROVED', label: '4. Tech Review Accepted' },
+        { key: 'WAITING_FOR_MARKETING_APPROVAL', label: '5. Waiting MM Approval' },
+        { key: 'APPROVED', label: '6. Approved' },
+        { key: 'COMPLETED', label: '7. Completed' },
+      ]
+    : [
+        { key: 'CREATED', label: '1. Created' },
+        { key: 'PRODUCTION_COMPLETED', label: '2. Updated as Completed' },
+        { key: 'WAITING_FOR_TECHNICAL_REVIEW', label: '3. Request for Tech Review' },
+        { key: 'TECHNICAL_REVIEW_APPROVED', label: '4. Tech Review Accepted' },
+        { key: 'APPROVED', label: '5. Approved' },
+        { key: 'COMPLETED', label: '6. Completed' },
+      ];
 
   const revisionStages = [
     { key: 'ASSIGNED', label: 'Assigned' },
@@ -119,16 +167,25 @@ const TaskWorkflowTimeline = ({ task }: { task: any }) => {
     { key: 'COMPLETED', label: 'Completed' },
   ];
 
-  const eventStages = [
-    { key: 'PENDING_MARKETING_APPROVAL', label: 'Marketing Approval' },
-    { key: 'APPROVED', label: 'Approved' },
-    { key: 'ASSIGNED', label: 'Assigned' },
-    { key: 'ACCEPTED', label: 'Accepted' },
-    { key: 'IN_PROGRESS', label: 'In Progress' },
-    { key: 'WAITING_FOR_TECHNICAL_REVIEW', label: 'Technical Review' },
-    { key: 'WAITING_FOR_MEDIA_REVIEW', label: 'Media Review' },
-    { key: 'COMPLETED', label: 'Completed' },
-  ];
+  const eventStages = hasBrand
+    ? [
+        { key: 'PENDING_MARKETING_APPROVAL', label: 'Marketing Approval' },
+        { key: 'APPROVED', label: 'Approved' },
+        { key: 'ASSIGNED', label: 'Assigned' },
+        { key: 'ACCEPTED', label: 'Accepted' },
+        { key: 'IN_PROGRESS', label: 'In Progress' },
+        { key: 'WAITING_FOR_TECHNICAL_REVIEW', label: 'Technical Review' },
+        { key: 'WAITING_FOR_MEDIA_REVIEW', label: 'Media Review' },
+        { key: 'COMPLETED', label: 'Completed' },
+      ]
+    : [
+        { key: 'ASSIGNED', label: 'Assigned' },
+        { key: 'ACCEPTED', label: 'Accepted' },
+        { key: 'IN_PROGRESS', label: 'In Progress' },
+        { key: 'WAITING_FOR_TECHNICAL_REVIEW', label: 'Technical Review' },
+        { key: 'WAITING_FOR_MEDIA_REVIEW', label: 'Media Review' },
+        { key: 'COMPLETED', label: 'Completed' },
+      ];
 
   const directStages = [
     { key: 'ASSIGNED', label: 'Assigned' },
@@ -142,14 +199,14 @@ const TaskWorkflowTimeline = ({ task }: { task: any }) => {
   let stages = directStages;
   let currentIdx = -1;
 
-  if (isShootTask) {
+  if (isShootTask || isTaskOther(task)) {
     stages = shootStages;
     currentIdx = stages.findIndex((s) => s.key === task.status);
   } else if (isScriptTask) {
     stages = scriptStages;
-    if (task.status === 'COMPLETED') currentIdx = 6;
-    else if (task.status === 'APPROVED') currentIdx = 5;
-    else if (task.status === 'WAITING_FOR_MARKETING_APPROVAL' || task.status === 'WAITING_FOR_MEDIA_REVIEW') currentIdx = 4;
+    if (task.status === 'COMPLETED') currentIdx = stages.length - 1;
+    else if (task.status === 'APPROVED') currentIdx = stages.length - 2;
+    else if (task.status === 'WAITING_FOR_MARKETING_APPROVAL' || task.status === 'WAITING_FOR_MEDIA_REVIEW') currentIdx = stages.length - 3;
     else if (task.technicalReviewApproved || task.status === 'TECHNICAL_REVIEW_APPROVED') currentIdx = 3;
     else if (task.status === 'WAITING_FOR_TECHNICAL_REVIEW') currentIdx = 2;
     else if (task.status === 'WAITING_FOR_REVIEW' || task.productionCompleted || task.status === 'IN_PROGRESS' || task.status === 'ACCEPTED') currentIdx = 1;
@@ -252,6 +309,7 @@ const TaskWorkflowTimeline = ({ task }: { task: any }) => {
 
 export default function TasksPage() {
   const { user } = useAuth();
+  const { activeBrandId, activeBrand, setActiveBrandId } = useBrand();
   const searchParams = useSearchParams();
   const reassignUserParam = searchParams.get('reassignUser');
   const employeeIdParam = searchParams.get('employeeId');
@@ -295,6 +353,7 @@ export default function TasksPage() {
   // Filtration States (Project-Style Filtration Control Panel)
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selectedTaskType, setSelectedTaskType] = useState('ALL');
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('');
   const [selectedProduct, setSelectedProduct] = useState('');
@@ -523,7 +582,7 @@ export default function TasksPage() {
 
   // Create Task Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [parentEntityType, setParentEntityType] = useState<'PROJECT' | 'GRAPHIC_REQ' | 'VIDEO_EDITING'>('PROJECT');
+  const [parentEntityType, setParentEntityType] = useState<'PROJECT' | 'GRAPHIC_REQ' | 'VIDEO_EDITING' | 'OTHERS'>('PROJECT');
   const [taskClipCode, setTaskClipCode] = useState('');
   const [selectedParentId, setSelectedParentId] = useState('');
   const [selectedParentProjectId, setSelectedParentProjectId] = useState('');
@@ -705,8 +764,10 @@ export default function TasksPage() {
       let query = '?';
       if (searchQuery.trim()) query += `search=${encodeURIComponent(searchQuery.trim())}&`;
       if (statusFilter && statusFilter !== 'ALL' && user?.role !== 'STAFF') query += `status=${statusFilter}&`;
+      if (selectedTaskType && selectedTaskType !== 'ALL') query += `taskType=${selectedTaskType}&`;
       if (selectedClient) query += `clientId=${selectedClient}&`;
-      if (selectedBrand) query += `brandId=${selectedBrand}&`;
+      const effectiveBrand = selectedBrand || (activeBrandId && activeBrandId !== 'ALL' ? activeBrandId : '');
+      if (effectiveBrand) query += `brandId=${effectiveBrand}&`;
       if (selectedProduct) query += `productId=${selectedProduct}&`;
       if (selectedProject) query += `projectId=${selectedProject}&`;
       if (selectedEmployee) query += `employeeId=${selectedEmployee}&`;
@@ -799,7 +860,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     loadTasks();
-  }, [user, searchQuery, statusFilter, selectedClient, selectedBrand, selectedProduct, selectedProject, selectedEmployee, selectedPriority]);
+  }, [user, searchQuery, statusFilter, selectedTaskType, selectedClient, selectedBrand, activeBrandId, selectedProduct, selectedProject, selectedEmployee, selectedPriority]);
 
   const loadData = loadTasks;
 
@@ -810,6 +871,7 @@ export default function TasksPage() {
       const isVideoEditing = parentEntityType === 'VIDEO_EDITING';
       const isGraphic = parentEntityType === 'GRAPHIC_REQ';
       const isShoot = parentEntityType === 'PROJECT';
+      const isOthers = parentEntityType === 'OTHERS';
 
       const payload: any = {
         title: taskTitle,
@@ -818,8 +880,8 @@ export default function TasksPage() {
         dueDate: taskDueDate || new Date(Date.now() + 86400000).toISOString(),
         estimatedHours: parseFloat(taskEstimatedHours) || 2.0,
         parentEntityType: parentEntityType,
-        taskType: isVideoEditing ? 'VIDEO_EDITING' : (isShoot ? 'PROJECT' : 'GRAPHIC_REQUIREMENT'),
-        sourceType: isVideoEditing ? 'SCRIPT' : (isShoot ? 'SHOOT_PROJECT' : 'GRAPHIC_REQUIREMENT'),
+        taskType: isOthers ? 'OTHERS' : (isVideoEditing ? 'VIDEO_EDITING' : (isShoot ? 'PROJECT' : 'GRAPHIC_REQUIREMENT')),
+        sourceType: isOthers ? 'DIRECT_TASK' : (isVideoEditing ? 'SCRIPT' : (isShoot ? 'SHOOT_PROJECT' : 'GRAPHIC_REQUIREMENT')),
         clipCode: isVideoEditing ? (taskClipCode.trim() || undefined) : undefined,
         clientId: taskClientId || undefined,
         brandId: taskBrandId || undefined,
@@ -853,7 +915,7 @@ export default function TasksPage() {
         equipmentIds: taskEquipmentIds.length > 0 ? taskEquipmentIds : undefined,
       };
 
-      if (parentEntityType === 'PROJECT' || parentEntityType === 'VIDEO_EDITING') {
+      if (parentEntityType === 'PROJECT' || parentEntityType === 'VIDEO_EDITING' || parentEntityType === 'OTHERS') {
         payload.projectId = selectedParentId || selectedParentProjectId || undefined;
       } else if (parentEntityType === 'GRAPHIC_REQ') {
         if (selectedParentId) payload.graphicRequirementId = selectedParentId;
@@ -1343,6 +1405,31 @@ export default function TasksPage() {
   return (
     <RouteGuard module="TASKS">
       <div className="space-y-6">
+      {/* Active Brand Context Banner */}
+      {activeBrand && (
+        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-full ring-2 ring-blue-400 animate-pulse"
+              style={{ backgroundColor: activeBrand.primaryColor || '#3B82F6' }}
+            />
+            <span>
+              Active Brand Filter: <strong>{activeBrand.name}</strong>{' '}
+              <span className="font-mono font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[10px]">
+                [{activeBrand.shortCode}]
+              </span>
+              . Tasks directory is scoped to this brand.
+            </span>
+          </div>
+          <button
+            onClick={() => setActiveBrandId(null)}
+            className="text-[11px] text-blue-700 hover:text-blue-900 font-bold hover:underline"
+          >
+            Reset to All Brands
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 p-6 rounded-xl">
         <div>
@@ -1397,9 +1484,9 @@ export default function TasksPage() {
             >
               <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600" />
               <span>Advanced Filters</span>
-              {([selectedClient, selectedBrand, selectedProduct, selectedProject, selectedEmployee, selectedPriority].filter(Boolean).length > 0) && (
+              {([selectedTaskType !== 'ALL' ? selectedTaskType : null, selectedClient, selectedBrand, selectedProduct, selectedProject, selectedEmployee, selectedPriority].filter(Boolean).length > 0) && (
                 <span className="w-4 h-4 rounded-full bg-purple-500 text-white font-bold text-[10px] flex items-center justify-center">
-                  {[selectedClient, selectedBrand, selectedProduct, selectedProject, selectedEmployee, selectedPriority].filter(Boolean).length}
+                  {[selectedTaskType !== 'ALL' ? selectedTaskType : null, selectedClient, selectedBrand, selectedProduct, selectedProject, selectedEmployee, selectedPriority].filter(Boolean).length}
                 </span>
               )}
             </button>
@@ -1413,11 +1500,12 @@ export default function TasksPage() {
               }}
             />
 
-            {(searchQuery || statusFilter !== 'ALL' || selectedClient || selectedBrand || selectedProduct || selectedProject || selectedEmployee || selectedPriority) && (
+            {(searchQuery || statusFilter !== 'ALL' || selectedTaskType !== 'ALL' || selectedClient || selectedBrand || selectedProduct || selectedProject || selectedEmployee || selectedPriority) && (
               <button
                 onClick={() => {
                   setSearchQuery('');
                   setStatusFilter('ALL');
+                  setSelectedTaskType('ALL');
                   setSelectedClient('');
                   setSelectedBrand('');
                   setSelectedProduct('');
@@ -1494,9 +1582,15 @@ export default function TasksPage() {
         )}
 
         {/* Active Filter Chips / Pills */}
-        {(selectedClient || selectedBrand || selectedProduct || selectedProject || selectedEmployee || selectedPriority) && (
+        {(selectedTaskType !== 'ALL' || selectedClient || selectedBrand || selectedProduct || selectedProject || selectedEmployee || selectedPriority) && (
           <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-200">
             <span className="text-slate-400 text-[11px] font-semibold">Active Filters:</span>
+            {selectedTaskType !== 'ALL' && (
+              <span className="px-2.5 py-1 bg-slate-100 text-slate-800 border border-slate-300 rounded-full flex items-center gap-1 text-[11px] font-bold">
+                Type: {selectedTaskType === 'OTHERS' ? 'Others' : selectedTaskType === 'SHOOT' ? 'Shoot' : selectedTaskType === 'GRAPHIC' ? 'Graphic' : selectedTaskType === 'VIDEO_EDITING' ? 'Video Editing' : selectedTaskType}
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setSelectedTaskType('ALL')} />
+              </span>
+            )}
             {selectedClient && (
               <span className="px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-full flex items-center gap-1 text-[11px]">
                 Client: {clientsList.find((c) => c.id === selectedClient)?.name}
@@ -1622,12 +1716,24 @@ export default function TasksPage() {
                 </div>
               </div>
 
-              {/* Group 3: Priority */}
+              {/* Group 3: Type & Priority */}
               <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
                 <div className="font-bold text-amber-800 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Flame className="w-3.5 h-3.5 text-amber-600" /> Priority Level
+                  <Flame className="w-3.5 h-3.5 text-amber-600" /> Type &amp; Priority
                 </div>
                 <div className="space-y-2">
+                  <select
+                    value={selectedTaskType}
+                    onChange={(e) => setSelectedTaskType(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white font-bold"
+                  >
+                    <option value="ALL">All Task Types</option>
+                    <option value="SHOOT">Shoot</option>
+                    <option value="GRAPHIC">Graphic</option>
+                    <option value="VIDEO_EDITING">Video Editing</option>
+                    <option value="OTHERS">Others</option>
+                  </select>
+
                   <select
                     value={selectedPriority}
                     onChange={(e) => setSelectedPriority(e.target.value)}
@@ -1710,6 +1816,19 @@ export default function TasksPage() {
                 {(() => {
                   const filteredAndSorted = sortData(
                     visibleTasks.filter((t) => {
+                      if (selectedTaskType && selectedTaskType !== 'ALL') {
+                        const tInfo = getTaskTypeInfo(t);
+                        if (selectedTaskType === 'OTHERS') {
+                          if (t.taskType !== 'OTHERS' && t.taskType !== 'OTHER' && tInfo.type !== 'OTHERS') return false;
+                        } else if (selectedTaskType === 'SHOOT' || selectedTaskType === 'PROJECT') {
+                          if (t.taskType !== 'SHOOT' && t.taskType !== 'PROJECT' && tInfo.type !== 'SHOOT') return false;
+                        } else if (selectedTaskType === 'GRAPHIC' || selectedTaskType === 'GRAPHIC_REQUIREMENT') {
+                          if (t.taskType !== 'GRAPHIC' && t.taskType !== 'GRAPHIC_REQUIREMENT' && tInfo.type !== 'GRAPHIC') return false;
+                        } else if (selectedTaskType === 'VIDEO_EDITING') {
+                          if (t.taskType !== 'VIDEO_EDITING' && tInfo.type !== 'VIDEO_EDITING') return false;
+                        }
+                      }
+
                       if (user?.role === 'STAFF') {
                         const userAssignment = t.assignedEmployees?.find((a: any) => a.userId === user?.id || a.user?.id === user?.id);
                         const isAccepted = userAssignment?.acceptanceStatus === 'ACCEPTED' || t.status === 'ACCEPTED' || t.status === 'IN_PROGRESS' || t.status === 'COMPLETED';
@@ -1947,6 +2066,21 @@ export default function TasksPage() {
                                       Update
                                     </button>
 
+                                    {/* Direct Complete Action for OTHER Tasks */}
+                                    {isTaskOther(task) && task.status !== 'COMPLETED' && task.status !== 'CANCELLED' && (
+                                      <button
+                                        onClick={async () => {
+                                          if (window.confirm(`Mark "${task.title}" as Completed?`)) {
+                                            await handleUpdateStatus(task.id, 'COMPLETED');
+                                          }
+                                        }}
+                                        className="px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold transition-all shadow flex items-center gap-1"
+                                        title="Assigned Staff: Mark this other task as Completed (100%)"
+                                      >
+                                        <Check className="w-3 h-3" /> Complete
+                                      </button>
+                                    )}
+
                                     {/* Upload Deliverables Action — hidden for VIDEO_EDITING tasks */}
                                     {['IN_PROGRESS', 'ON_HOLD'].includes(task.status) && task.taskType !== 'VIDEO_EDITING' && (
                                       <button
@@ -2003,7 +2137,7 @@ export default function TasksPage() {
                                     )}
 
                                     {/* Video Editing: Marketing Manager Review */}
-                                    {task.taskType === 'VIDEO_EDITING' && task.status === 'WAITING_FOR_MARKETING_MANAGER_REVIEW' && user?.role === 'MARKETING_MANAGER' && (
+                                    {task.taskType === 'VIDEO_EDITING' && hasTaskBrand(task) && (task.status === 'WAITING_FOR_MARKETING_MANAGER_REVIEW' || task.status === 'WAITING_FOR_MARKETING_APPROVAL') && user?.role === 'MARKETING_MANAGER' && (
                                       <button
                                         onClick={() => {
                                           const c = window.prompt('Optional comment for Marketing review (leave blank to approve):', '');
@@ -2094,7 +2228,7 @@ export default function TasksPage() {
                 <label className="block text-slate-600 font-bold mb-2 text-xs uppercase tracking-wider">
                   Task Type / Workflow Origin *
                 </label>
-                <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-100 rounded-xl border border-slate-200">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 bg-slate-100 rounded-xl border border-slate-200">
 
                   <button
                     type="button"
@@ -2142,6 +2276,22 @@ export default function TasksPage() {
                   >
                     <Scissors className="w-4 h-4 shrink-0" />
                     <span>Video Editing</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setParentEntityType('OTHERS');
+                      setSelectedParentId('');
+                    }}
+                    className={`py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                      parentEntityType === 'OTHERS'
+                        ? 'bg-slate-800 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <CheckSquare className="w-4 h-4 shrink-0" />
+                    <span>Others</span>
                   </button>
                 </div>
               </div>
@@ -3200,6 +3350,242 @@ export default function TasksPage() {
                           className="w-full bg-white border border-slate-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 text-sm transition-colors resize-none"
                         />
                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {/* FORM TYPE 4: OTHERS TASK CREATION (Generic Task Workflow)                  */}
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {parentEntityType === 'OTHERS' && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  {/* Section 1: Task Information */}
+                  <div className="space-y-4 bg-slate-50/80 p-5 sm:p-6 rounded-xl border border-slate-200">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block flex items-center gap-1.5">
+                      <CheckSquare className="w-4 h-4 text-slate-600" />
+                      Section 1 • Task Details *
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="col-span-1 sm:col-span-2">
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Task Name / Title *</label>
+                        <input
+                          type="text"
+                          required
+                          value={taskTitle}
+                          onChange={(e) => setTaskTitle(e.target.value)}
+                          placeholder="e.g. Website Update, Social Media Audit, Client Presentation..."
+                          className="w-full bg-white border border-slate-200 focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm transition-colors"
+                        />
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2">
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Linked Project (Optional)</label>
+                        <select
+                          value={selectedParentId}
+                          onChange={(e) => {
+                            const pId = e.target.value;
+                            setSelectedParentId(pId);
+                            setSelectedParentProjectId(pId);
+                            if (pId) {
+                              const proj = projectsList.find((p) => p.id === pId);
+                              if (proj) {
+                                if (proj.clientId) setTaskClientId(proj.clientId);
+                                if (proj.brandId) setTaskBrandId(proj.brandId);
+                                if (proj.productId) setTaskProductId(proj.productId);
+                                if (proj.campaign) setTaskCampaign(proj.campaign);
+                              }
+                            }
+                          }}
+                          className="w-full bg-white border border-slate-200 focus:border-slate-500 rounded-lg p-2.5 text-slate-800 text-sm font-semibold transition-colors"
+                        >
+                          <option value="">-- Standalone / Independent Task (No Project) --</option>
+                          {projectsList.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              [{p.projectId || 'PRJ'}] {p.name || 'Project'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Client (Optional)</label>
+                        <select
+                          value={taskClientId}
+                          onChange={(e) => {
+                            setTaskClientId(e.target.value);
+                            setTaskBrandId('');
+                            setTaskProductId('');
+                          }}
+                          className="w-full bg-white border border-slate-200 focus:border-slate-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        >
+                          <option value="">Select Client (Optional)</option>
+                          {clientsList.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Brand (Optional)</label>
+                        <select
+                          value={taskBrandId}
+                          onChange={(e) => {
+                            setTaskBrandId(e.target.value);
+                            setTaskProductId('');
+                          }}
+                          disabled={!taskClientId}
+                          className="w-full bg-white border border-slate-200 focus:border-slate-500 disabled:bg-slate-100 disabled:text-slate-400 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        >
+                          <option value="">Select Brand (Optional)</option>
+                          {brandsList
+                            .filter((b) => !taskClientId || b.clientId === taskClientId)
+                            .map((b) => (
+                              <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2">
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Task Description / Instructions</label>
+                        <textarea
+                          rows={3}
+                          value={taskDescription}
+                          onChange={(e) => setTaskDescription(e.target.value)}
+                          placeholder="Provide details, deliverables, goals, or instructions for this task..."
+                          className="w-full bg-white border border-slate-200 focus:border-slate-500 rounded-lg p-2.5 text-slate-800 text-sm transition-colors resize-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 2: Assignment & Schedule */}
+                  <div className="space-y-4 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200">
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+                      Section 2 • Assignment &amp; Schedule *
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Priority</label>
+                        <select
+                          value={taskPriority}
+                          onChange={(e) => setTaskPriority(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-slate-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        >
+                          <option value="LOW">Low</option>
+                          <option value="MEDIUM">Medium</option>
+                          <option value="HIGH">High</option>
+                          <option value="CRITICAL">Critical</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Due Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={taskDueDate}
+                          onChange={(e) => setTaskDueDate(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-slate-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Est. Hours</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0.5"
+                          value={taskEstimatedHours}
+                          onChange={(e) => setTaskEstimatedHours(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-slate-500 rounded-lg p-2.5 text-slate-800 text-sm transition-colors"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Assign Staff Member(s)</label>
+                      <div className="flex gap-2">
+                        <select
+                          value={staffPickerValue}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val && !assignedStaffIds.includes(val)) {
+                              setAssignedStaffIds((prev) => [...prev, val]);
+                            }
+                            setStaffPickerValue('');
+                          }}
+                          className="w-full bg-white border border-slate-200 focus:border-slate-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        >
+                          <option value="">-- Add Staff Member --</option>
+                          {staffUsersList
+                            .filter((u) => !assignedStaffIds.includes(u.id))
+                            .map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name} ({u.designation || u.role})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
+                      {/* Selected Assignees Chips */}
+                      <div className="flex flex-wrap gap-2 mt-2.5">
+                        {assignedStaffIds.map((sId) => {
+                          const userObj = staffUsersList.find((u) => u.id === sId);
+                          return (
+                            <span
+                              key={sId}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-200 border border-slate-300 text-slate-800 rounded-lg text-xs font-bold shadow-2xs"
+                            >
+                              <User className="w-3.5 h-3.5 text-slate-700" />
+                              {userObj?.name || 'Staff'}
+                              <button
+                                type="button"
+                                onClick={() => setAssignedStaffIds((prev) => prev.filter((id) => id !== sId))}
+                                className="text-slate-600 hover:text-rose-600 ml-1 font-extrabold"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Reference Files (Optional) */}
+                  <div className="space-y-4 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200">
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider block flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-slate-600" />
+                      Section 3 • Attachments &amp; Reference Files (Optional)
+                    </span>
+
+                    <div>
+                      <div className="p-3 bg-white border border-slate-200 rounded-lg flex items-center justify-between gap-2">
+                        <input
+                          type="file"
+                          id="taskOthersDocInput"
+                          accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.zip,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                          onChange={(e) => setTaskScriptDocFile(e.target.files?.[0] || null)}
+                          className="text-xs text-slate-700 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-800 hover:file:bg-slate-200 cursor-pointer"
+                        />
+                        {taskScriptDocFile && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTaskScriptDocFile(null);
+                              const input = document.getElementById('taskOthersDocInput') as HTMLInputElement;
+                              if (input) input.value = '';
+                            }}
+                            className="text-xs text-rose-600 hover:text-rose-800 font-bold"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1">Upload reference documents, briefs, or assets for this task.</p>
                     </div>
                   </div>
                 </div>
@@ -5119,8 +5505,47 @@ export default function TasksPage() {
                         </div>
                       )}
 
+                      {/* Dedicated Completion Card for OTHER Task */}
+                      {isTaskOther(inspectedTask) && inspectedTask.status !== 'COMPLETED' && inspectedTask.status !== 'CANCELLED' && !isPendingAcceptance && (
+                        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2.5 shadow-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-emerald-800 text-xs flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              Complete Other Task
+                            </span>
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded font-mono font-bold">
+                              Status: {inspectedTask.status}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-700">
+                            Assigned staff can update this other task directly as Completed once the required work is finished.
+                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (window.confirm(`Mark task "${inspectedTask.title}" as Completed?`)) {
+                                  await handleUpdateStatus(inspectedTask.id, 'COMPLETED');
+                                  setInspectedTask((prev: any) => prev ? { ...prev, status: 'COMPLETED', completionPercentage: 100 } : prev);
+                                }
+                              }}
+                              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg shadow-md transition-all flex items-center gap-2 text-xs"
+                            >
+                              <Check className="w-4 h-4" /> Mark Task as Completed (100%)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openUpdateTaskModal(inspectedTask)}
+                              className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold rounded-lg text-xs transition-colors"
+                            >
+                              Update Progress %
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Modal Footer Actions */}
-                      <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                      <div className="flex items-center justify-between pt-3 border-t border-slate-200 gap-2 flex-wrap">
                         {isPendingAcceptance ? (
                           <button
                             type="button"
@@ -5128,6 +5553,19 @@ export default function TasksPage() {
                             className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg shadow-md hover:shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 text-xs"
                           >
                             <Check className="w-4 h-4" /> Accept Task Assignment &amp; Start Work
+                          </button>
+                        ) : isTaskOther(inspectedTask) && inspectedTask.status !== 'COMPLETED' && inspectedTask.status !== 'CANCELLED' ? (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (window.confirm(`Mark task "${inspectedTask.title}" as Completed?`)) {
+                                await handleUpdateStatus(inspectedTask.id, 'COMPLETED');
+                                setInspectedTask((prev: any) => prev ? { ...prev, status: 'COMPLETED', completionPercentage: 100 } : prev);
+                              }
+                            }}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shadow"
+                          >
+                            <Check className="w-3.5 h-3.5" /> Mark Completed
                           </button>
                         ) : <div />}
 

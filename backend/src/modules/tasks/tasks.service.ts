@@ -3,6 +3,24 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { TaskStatus, Priority, Role } from '../../common/enums';
 import { canUserViewTask } from '../../common/utils/event-auth';
 
+export function isTaskWithBrand(task: {
+  brandId?: string | null;
+  brand?: { id?: string | null } | null;
+  project?: { brandId?: string | null } | null;
+  graphicRequirement?: { brandId?: string | null } | null;
+}): boolean {
+  if (!task) return false;
+  const brandId = task.brandId || task.brand?.id || task.project?.brandId || task.graphicRequirement?.brandId;
+  return Boolean(
+    brandId &&
+    typeof brandId === 'string' &&
+    brandId.trim() !== '' &&
+    brandId.trim().toLowerCase() !== 'null' &&
+    brandId.trim().toLowerCase() !== 'undefined'
+  );
+}
+
+
 @Injectable()
 export class TasksService {
   constructor(private prisma: PrismaService) {}
@@ -12,6 +30,7 @@ export class TasksService {
     status?: string;
     priority?: string;
     projectId?: string;
+    taskType?: string;
     clientId?: string;
     brandId?: string;
     productId?: string;
@@ -26,12 +45,36 @@ export class TasksService {
   }) {
     const where: any = {};
 
+    const andConditions: any[] = [];
+
     if (params.projectId) where.projectId = params.projectId;
     if (params.clientId) where.clientId = params.clientId;
-    if (params.brandId) where.brandId = params.brandId;
     if (params.productId) where.productId = params.productId;
     if (params.status && params.status !== 'ALL') where.status = params.status;
     if (params.priority && params.priority !== 'ALL') where.priority = params.priority;
+
+    if (params.brandId && params.brandId !== 'ALL' && params.brandId.trim() !== '') {
+      const bId = params.brandId.trim();
+      andConditions.push({
+        OR: [
+          { brandId: bId },
+          { project: { brandId: bId } },
+          { graphicRequirement: { brandId: bId } },
+        ],
+      });
+    }
+
+    if (params.taskType && params.taskType !== 'ALL') {
+      if (params.taskType === 'OTHERS' || params.taskType === 'OTHER') {
+        where.taskType = { in: ['OTHERS', 'OTHER'] };
+      } else if (params.taskType === 'SHOOT' || params.taskType === 'PROJECT') {
+        where.taskType = { in: ['SHOOT', 'PROJECT'] };
+      } else if (params.taskType === 'GRAPHIC' || params.taskType === 'GRAPHIC_REQUIREMENT') {
+        where.taskType = { in: ['GRAPHIC', 'GRAPHIC_REQUIREMENT'] };
+      } else {
+        where.taskType = params.taskType;
+      }
+    }
 
     if (params.departmentId && params.departmentId !== 'ALL') {
       where.assignedEmployees = {
@@ -70,20 +113,26 @@ export class TasksService {
     // 7-Attribute Search Query: Task ID, Task Name, Employee, Client, Brand, Product, Project, Status
     if (params.search && params.search.trim()) {
       const query = params.search.trim();
-      where.OR = [
-        { taskId: { contains: query } },
-        { title: { contains: query } },
-        { description: { contains: query } },
-        { status: { contains: query } },
-        { client: { name: { contains: query } } },
-        { brand: { name: { contains: query } } },
-        { brand: { shortCode: { contains: query } } },
-        { product: { name: { contains: query } } },
-        { product: { productCode: { contains: query } } },
-        { project: { name: { contains: query } } },
-        { project: { projectId: { contains: query } } },
-        { assignedEmployees: { some: { user: { name: { contains: query } } } } },
-      ];
+      andConditions.push({
+        OR: [
+          { taskId: { contains: query } },
+          { title: { contains: query } },
+          { description: { contains: query } },
+          { status: { contains: query } },
+          { client: { name: { contains: query } } },
+          { brand: { name: { contains: query } } },
+          { brand: { shortCode: { contains: query } } },
+          { product: { name: { contains: query } } },
+          { product: { productCode: { contains: query } } },
+          { project: { name: { contains: query } } },
+          { project: { projectId: { contains: query } } },
+          { assignedEmployees: { some: { user: { name: { contains: query } } } } },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const tasks = await this.prisma.task.findMany({
@@ -218,11 +267,12 @@ export class TasksService {
 
   private async syncTaskSourceTypes(tasks: any[]) {
     if (!tasks || !tasks.length) return tasks;
+    const updates: Promise<any>[] = [];
     for (const t of tasks) {
       let computed = t.sourceType || 'DIRECT_TASK';
-      if (t.taskType === 'OTHER' || t.sourceType === 'DIRECT_TASK' || t.sourceType === 'OTHER') {
+      if (t.taskType === 'OTHERS' || t.taskType === 'OTHER' || t.sourceType === 'DIRECT_TASK' || t.sourceType === 'OTHER' || t.sourceType === 'OTHERS') {
         computed = 'DIRECT_TASK';
-      } else if (t.sourceType === 'SHOOT_PROJECT' || (t.taskType === 'PROJECT' && !t.graphicRequirementId) || (t.projectId && !t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'DIRECT_TASK' && t.sourceType !== 'OTHER' && t.taskType !== 'OTHER')) {
+      } else if (t.sourceType === 'SHOOT_PROJECT' || (t.taskType === 'PROJECT' && !t.graphicRequirementId) || (t.projectId && !t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'DIRECT_TASK' && t.sourceType !== 'OTHER' && t.sourceType !== 'OTHERS' && t.taskType !== 'OTHER' && t.taskType !== 'OTHERS')) {
         computed = 'SHOOT_PROJECT';
       } else if (t.sourceType === 'GRAPHIC_REQUIREMENT' || t.graphicRequirementId || t.graphicRequirement || t.taskType === 'GRAPHIC_REQUIREMENT' || t.taskType === 'GRAPHIC') {
         computed = 'GRAPHIC_REQUIREMENT';
@@ -232,52 +282,81 @@ export class TasksService {
         computed = t.sourceType || 'DIRECT_TASK';
       }
 
-      // Ensure status & progress consistency
+      const dbUpdateData: any = {};
       let mappedProgress = t.completionPercentage || 0;
       if ((t.status === TaskStatus.ASSIGNED || (t.status as any) === 'REVISION_REQUESTED') && mappedProgress > 0) {
         mappedProgress = 0;
-        await this.prisma.task.update({
-          where: { id: t.id },
-          data: { completionPercentage: 0 },
-        }).catch(() => null);
+        dbUpdateData.completionPercentage = 0;
         t.completionPercentage = 0;
       } else if (t.status === TaskStatus.IN_PROGRESS && mappedProgress >= 100) {
         mappedProgress = 25;
-        await this.prisma.task.update({
-          where: { id: t.id },
-          data: { completionPercentage: 25 },
-        }).catch(() => null);
+        dbUpdateData.completionPercentage = 25;
         t.completionPercentage = 25;
       }
 
-      // Video Editing Task Rule: Must have Marketing Manager Approval before reaching COMPLETED
+      // Video Editing Task Rule: Must have Marketing Manager Approval before reaching COMPLETED ONLY IF task has a Brand
+      const hasBrand = isTaskWithBrand(t);
       const isVideoEditingTask = t.taskType === 'VIDEO_EDITING' || t.sourceType === 'VIDEO_EDITING' || computed === 'VIDEO_EDITING';
       if (isVideoEditingTask) {
-        if (!t.marketingManagerApproved && (t.status === TaskStatus.COMPLETED || (t.status as any) === 'APPROVED')) {
-          const correctStatus = t.mediaManagerApproved 
-            ? 'WAITING_FOR_MARKETING_APPROVAL'
-            : t.technicalReviewApproved 
-            ? 'WAITING_FOR_MEDIA_REVIEW' 
-            : 'WAITING_FOR_TECHNICAL_REVIEW';
-          const correctProgress = t.mediaManagerApproved ? 75 : t.technicalReviewApproved ? 50 : 25;
-          await this.prisma.task.update({
-            where: { id: t.id },
-            data: { status: correctStatus, completionPercentage: correctProgress },
-          }).catch(() => null);
+        if (hasBrand) {
+          if (!t.marketingManagerApproved && (t.status === TaskStatus.COMPLETED || (t.status as any) === 'APPROVED')) {
+            const correctStatus = t.mediaManagerApproved 
+              ? 'WAITING_FOR_MARKETING_APPROVAL'
+              : t.technicalReviewApproved 
+              ? 'WAITING_FOR_MEDIA_REVIEW' 
+              : 'WAITING_FOR_TECHNICAL_REVIEW';
+            const correctProgress = t.mediaManagerApproved ? 75 : t.technicalReviewApproved ? 50 : 25;
+            dbUpdateData.status = correctStatus;
+            dbUpdateData.completionPercentage = correctProgress;
+            t.status = correctStatus;
+            t.completionPercentage = correctProgress;
+          } else if (t.status === 'WAITING_FOR_MARKETING_MANAGER_REVIEW') {
+            t.status = 'WAITING_FOR_MARKETING_APPROVAL';
+          }
+        } else {
+          // Task WITHOUT a Brand: Marketing Manager approval is NOT required.
+          // If task is stuck in waiting marketing approval, advance it directly to COMPLETED (if media approved) or appropriate review state
+          if (t.status === 'WAITING_FOR_MARKETING_APPROVAL' || t.status === 'PENDING_MARKETING_APPROVAL' || t.status === 'WAITING_FOR_MARKETING_MANAGER_REVIEW') {
+            const correctStatus = t.mediaManagerApproved
+              ? TaskStatus.COMPLETED
+              : t.technicalReviewApproved
+              ? 'WAITING_FOR_MEDIA_REVIEW'
+              : 'WAITING_FOR_TECHNICAL_REVIEW';
+            const correctProgress = t.mediaManagerApproved ? 100 : t.technicalReviewApproved ? 50 : 25;
+            dbUpdateData.status = correctStatus;
+            dbUpdateData.completionPercentage = correctProgress;
+            t.status = correctStatus;
+            t.completionPercentage = correctProgress;
+          }
+        }
+      } else {
+        // Non-video editing tasks WITHOUT a brand: normalize any accidental marketing approval status
+        if (!hasBrand && (t.status === 'PENDING_MARKETING_APPROVAL' || t.status === 'WAITING_FOR_MARKETING_APPROVAL' || t.status === 'WAITING_FOR_MARKETING_MANAGER_REVIEW')) {
+          const correctStatus = t.mediaManagerApproved
+            ? TaskStatus.COMPLETED
+            : t.technicalReviewApproved
+            ? 'WAITING_FOR_MEDIA_REVIEW'
+            : (t.assignedEmployees?.length ? TaskStatus.ASSIGNED : TaskStatus.APPROVED);
+          const correctProgress = t.mediaManagerApproved ? 100 : t.completionPercentage || 0;
+          dbUpdateData.status = correctStatus;
+          dbUpdateData.completionPercentage = correctProgress;
           t.status = correctStatus;
           t.completionPercentage = correctProgress;
-        } else if (t.status === 'WAITING_FOR_MARKETING_MANAGER_REVIEW') {
-          t.status = 'WAITING_FOR_MARKETING_APPROVAL';
         }
       }
 
       if (computed !== t.sourceType) {
-        await this.prisma.task.update({
-          where: { id: t.id },
-          data: { sourceType: computed },
-        }).catch(() => null);
+        dbUpdateData.sourceType = computed;
         t.sourceType = computed;
       }
+
+      if (Object.keys(dbUpdateData).length > 0) {
+        updates.push(this.prisma.task.update({ where: { id: t.id }, data: dbUpdateData }).catch(() => null));
+      }
+    }
+
+    if (updates.length > 0) {
+      Promise.all(updates).catch(() => null);
     }
 
     // Attach approvalHistory containing reviewer validations and remarks.
@@ -735,7 +814,9 @@ export class TasksService {
     const isOtherType =
       data.parentEntityType === 'NONE' ||
       data.parentEntityType === 'OTHER' ||
+      data.parentEntityType === 'OTHERS' ||
       data.taskType === 'OTHER' ||
+      data.taskType === 'OTHERS' ||
       data.sourceType === 'DIRECT_TASK';
 
     // Determine target entity classification with strict Shoot priority
@@ -1078,9 +1159,12 @@ export class TasksService {
       sourceType = 'DIRECT_TASK';
     }
 
-    // Business Rule Validation: Marketing Manager Approval ONLY applies to events originated from Event Creation (Media Calendar)
+    // Business Rule Validation: Marketing Manager Approval ONLY applies to events originated from Event Creation (Media Calendar) WITH an assigned Brand
+    const finalBrandId = verifiedBrandId || project?.brandId || (graphicReqId ? (await this.prisma.graphicRequirement.findUnique({ where: { id: graphicReqId } }))?.brandId : null);
+    const hasBrand = Boolean(finalBrandId && typeof finalBrandId === 'string' && finalBrandId.trim() !== '');
+
     const isEventCreationOrigin = Boolean(calendarEvent || rawCalendarEventId);
-    if (isEventCreationOrigin && calendarEvent) {
+    if (hasBrand && isEventCreationOrigin && calendarEvent) {
       isMarketingApproved =
         ['APPROVED', 'CLIENT_APPROVED', 'SCHEDULED', 'PUBLISHED', 'READY', 'IN_PROGRESS', 'COMPLETED', 'TASK_ASSIGNED'].includes(calendarEvent.status) ||
         calendarEvent.approvalStatus === 'APPROVED';
@@ -1091,13 +1175,13 @@ export class TasksService {
         );
       }
     } else {
-      // Direct Task Creation does NOT require Marketing Manager approval
+      // Direct Task Creation or Tasks WITHOUT a Brand do NOT require Marketing Manager approval
       isMarketingApproved = true;
     }
 
     // Determine initial status based on sourceType and Marketing Approval
     let initialTaskStatus = data.assignedUserIds?.length ? TaskStatus.ASSIGNED : TaskStatus.PENDING;
-    if (sourceType !== 'DIRECT_TASK' && isEventCreationOrigin && !isMarketingApproved) {
+    if (hasBrand && sourceType !== 'DIRECT_TASK' && isEventCreationOrigin && !isMarketingApproved) {
       initialTaskStatus = TaskStatus.PENDING_MARKETING_APPROVAL;
       if (data.assignedUserIds?.length) {
         throw new BadRequestException(
@@ -1168,7 +1252,7 @@ export class TasksService {
         estimatedHours: parseFloat(data.estimatedHours) || 2.0,
         status: initialTaskStatus,
         sourceType: isOtherType ? 'DIRECT_TASK' : sourceType,
-        taskType: isOtherType ? 'OTHER' : (data.taskType || (sourceType === 'SHOOT_PROJECT' ? 'PROJECT' : 'PRODUCTION_TASK')),
+        taskType: isOtherType ? 'OTHERS' : (data.taskType || (sourceType === 'SHOOT_PROJECT' ? 'PROJECT' : 'PRODUCTION_TASK')),
         clipCode: data.clipCode || null,
         scriptId: data.scriptId || null,
         projectScriptId: data.projectScriptId || null,
@@ -1459,10 +1543,11 @@ export class TasksService {
       const isShootTask = !isVideoEditing && (
         task.sourceType === 'SHOOT_PROJECT' ||
         task.taskType === 'PROJECT' ||
-        Boolean(task.projectId && !task.scriptId && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER')
+        task.taskType === 'SHOOT' ||
+        Boolean(task.projectId && !task.scriptId && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER' && task.taskType !== 'OTHERS')
       );
       const isRevision = task.taskType === 'REVISION' || task.sourceType === 'REVISION';
-      const isOther = task.taskType === 'OTHER' || task.sourceType === 'DIRECT_TASK' || task.sourceType === 'OTHER';
+      const isOther = task.taskType === 'OTHERS' || task.taskType === 'OTHER' || task.sourceType === 'DIRECT_TASK' || task.sourceType === 'OTHER' || task.sourceType === 'OTHERS';
 
       const reviewStatuses = [
         TaskStatus.WAITING_FOR_TECHNICAL_REVIEW,
@@ -1471,7 +1556,7 @@ export class TasksService {
         TaskStatus.PENDING_MARKETING_APPROVAL,
         TaskStatus.COMPLETED,
       ];
-      if (!isShootTask && reviewStatuses.includes(task.status as any)) {
+      if (!isShootTask && !isOther && reviewStatuses.includes(task.status as any)) {
         throw new ForbiddenException("Task is currently undergoing review and in read-only mode. Updates are locked during review.");
       }
     }
@@ -1487,10 +1572,11 @@ export class TasksService {
       const isShootTask = !isVideoEditing && (
         task.sourceType === 'SHOOT_PROJECT' ||
         task.taskType === 'PROJECT' ||
-        Boolean(task.projectId && !task.scriptId && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER')
+        task.taskType === 'SHOOT' ||
+        Boolean(task.projectId && !task.scriptId && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER' && task.taskType !== 'OTHERS')
       );
       const isRevision = task.taskType === 'REVISION' || task.sourceType === 'REVISION';
-      const isOther = task.taskType === 'OTHER' || task.sourceType === 'DIRECT_TASK' || task.sourceType === 'OTHER';
+      const isOther = task.taskType === 'OTHERS' || task.taskType === 'OTHER' || task.sourceType === 'DIRECT_TASK' || task.sourceType === 'OTHER' || task.sourceType === 'OTHERS';
 
       if (!isShootTask && !isRevision && !isOther) {
         if (user.role === Role.STAFF) {
@@ -1500,8 +1586,9 @@ export class TasksService {
           throw new BadRequestException('Task must pass Media Manager review before being marked as Completed.');
         }
       }
-      if (task.taskType === 'VIDEO_EDITING' && !task.marketingManagerApproved && user.role !== Role.MARKETING_MANAGER && user.role !== Role.ADMINISTRATOR) {
-        throw new BadRequestException('Video Editing tasks must receive Marketing Manager Approval before being marked as Completed.');
+      const hasBrand = isTaskWithBrand(task);
+      if (hasBrand && task.taskType === 'VIDEO_EDITING' && !task.marketingManagerApproved && user.role !== Role.MARKETING_MANAGER && user.role !== Role.ADMINISTRATOR) {
+        throw new BadRequestException('Video Editing tasks with a Brand must receive Marketing Manager Approval before being marked as Completed.');
       }
     }
 
@@ -1836,8 +1923,9 @@ export class TasksService {
   async startProduction(taskId: string, user: any) {
     const task = await this.findOne(taskId);
     
-    // Check Marketing Approval gating for event-bound work
-    if (task.sourceType !== 'DIRECT_TASK' && task.status === TaskStatus.PENDING_MARKETING_APPROVAL) {
+    // Check Marketing Approval gating for event-bound work only if task has a Brand
+    const hasBrand = isTaskWithBrand(task);
+    if (hasBrand && task.sourceType !== 'DIRECT_TASK' && task.status === TaskStatus.PENDING_MARKETING_APPROVAL) {
       throw new BadRequestException('Marketing Manager approval is required before starting production.');
     }
 
@@ -2015,7 +2103,8 @@ export class TasksService {
     const isShootTask = !isVideoEditing && (
       task.sourceType === 'SHOOT_PROJECT' ||
       task.taskType === 'PROJECT' ||
-      Boolean(task.projectId && !task.scriptId && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER')
+      task.taskType === 'SHOOT' ||
+      Boolean(task.projectId && !task.scriptId && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER' && task.taskType !== 'OTHERS')
     );
     if (isShootTask) {
       throw new BadRequestException('Shoot project tasks do not require technical review or approvals.');

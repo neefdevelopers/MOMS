@@ -7,6 +7,7 @@ import { Header } from './Header';
 import { Breadcrumbs } from '../common/Breadcrumbs';
 import { BreadcrumbsProvider } from '@/lib/breadcrumbs-context';
 import { FavoritesProvider } from '@/lib/favorites-context';
+import { BrandProvider } from '@/lib/brand-context';
 import { KeyboardShortcutsProvider } from '@/lib/keyboard-shortcuts-context';
 import { KeyboardShortcutsModal } from '../common/KeyboardShortcutsModal';
 import { useRouter, usePathname } from 'next/navigation';
@@ -65,13 +66,14 @@ export function MainLayout({
   }
 
   return (
-    <KeyboardShortcutsProvider>
-      <FavoritesProvider>
-        <BreadcrumbsProvider>
-          {/* Standard Application Layout Shell */}
-          <div className="flex h-full w-full overflow-hidden bg-background text-slate-800 m-0 p-0">
-            {/* 1. Left Sidebar Navigation */}
-            <Sidebar />
+    <BrandProvider>
+      <KeyboardShortcutsProvider>
+        <FavoritesProvider>
+          <BreadcrumbsProvider>
+            {/* Standard Application Layout Shell */}
+            <div className="flex h-full w-full overflow-hidden bg-background text-slate-800 m-0 p-0">
+              {/* 1. Left Sidebar Navigation */}
+              <Sidebar />
 
             <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
               {/* 2. Top Navigation Bar */}
@@ -109,5 +111,6 @@ export function MainLayout({
         </BreadcrumbsProvider>
       </FavoritesProvider>
     </KeyboardShortcutsProvider>
+    </BrandProvider>
   );
 }

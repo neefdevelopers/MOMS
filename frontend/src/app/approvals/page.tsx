@@ -32,6 +32,7 @@ import {
   Eye,
   Plus,
 } from 'lucide-react';
+import { useBrand } from '@/lib/brand-context';
 import { RoleGuard } from '@/components/common/RoleGuard';
 import { extractEventScripts, ProjectScript } from '@/lib/project-scripts';
 
@@ -63,6 +64,12 @@ interface ConfirmModalState {
 
 export default function ApprovalsPage() {
   const { user } = useAuth();
+  const isTechnicalManager = user?.role === 'TECHNICAL_MANAGER';
+  const isMediaManager = user?.role === 'MEDIA_MANAGER';
+  const isMarketingManager = (user?.role as string) === 'MARKETING_MANAGER' || (user?.role as string) === 'ADMINISTRATOR';
+  const isAdmin = (user?.role as string) === 'ADMINISTRATOR';
+
+  const { activeBrandId, activeBrand, setActiveBrandId } = useBrand();
   const [queue, setQueue] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -200,8 +207,6 @@ export default function ApprovalsPage() {
       setSubmittingId(null);
     }
   };
-
-  const isTechnicalManager = user?.role === 'TECHNICAL_MANAGER';
 
   const getDeliverableItems = (proj: any) => {
     if (!proj) return [];
@@ -402,6 +407,23 @@ export default function ApprovalsPage() {
   };
 
   const rawTechQueue: any[] = queue?.technicalReviewQueue || [];
+  const effectiveMarketingQueue = (queue?.marketingReviewQueue || []).filter(
+    (item: any) =>
+      !activeBrandId ||
+      item.brandId === activeBrandId ||
+      item.project?.brandId === activeBrandId ||
+      item.graphicRequirement?.brandId === activeBrandId ||
+      item.brand?.id === activeBrandId,
+  );
+  const effectiveClientConfirmationQueue = (queue?.clientConfirmationQueue || []).filter(
+    (item: any) =>
+      !activeBrandId ||
+      item.brandId === activeBrandId ||
+      item.project?.brandId === activeBrandId ||
+      item.graphicRequirement?.brandId === activeBrandId ||
+      item.brand?.id === activeBrandId,
+  );
+
   const filteredTechQueue = rawTechQueue.filter((item) => {
     const itemType = getItemType(item);
     if (typeFilter !== 'ALL' && itemType !== typeFilter) return false;
@@ -446,7 +468,13 @@ export default function ApprovalsPage() {
                   <ShieldCheck className="w-5 h-5 text-cyan-600" />
                 </span>
                 <h1 className="text-xl font-extrabold text-slate-900 tracking-wide">
-                  {isTechnicalManager ? 'Technical Review & Quality Sign-Off' : '3-Stage Production Approval Engine'}
+                  {isTechnicalManager
+                    ? 'Technical Review & Quality Sign-Off'
+                    : isMediaManager
+                    ? 'Media Manager Review Session'
+                    : isMarketingManager
+                    ? 'Marketing Manager Approval Session'
+                    : '3-Stage Production Approval Engine'}
                 </h1>
               </div>
             </div>
@@ -454,7 +482,15 @@ export default function ApprovalsPage() {
             <div className="flex items-center gap-2.5 flex-wrap">
               <div className="bg-cyan-50 border border-cyan-200 px-3.5 py-2 rounded-xl text-center min-w-[90px]">
                 <span className="text-[10px] font-mono text-cyan-700 block uppercase font-bold">Pending Review</span>
-                <strong className="text-lg font-mono font-extrabold text-cyan-900">{rawTechQueue.length}</strong>
+                <strong className="text-lg font-mono font-extrabold text-cyan-900">
+                  {isTechnicalManager
+                    ? rawTechQueue.length
+                    : isMediaManager
+                    ? queue?.mediaReviewQueue?.length || 0
+                    : isMarketingManager
+                    ? effectiveMarketingQueue.length
+                    : rawTechQueue.length}
+                </strong>
               </div>
 
               <div className="bg-indigo-50 border border-indigo-200 px-3.5 py-2 rounded-xl text-center min-w-[90px]">
@@ -475,53 +511,84 @@ export default function ApprovalsPage() {
           </div>
         </div>
 
-        {/* Multi-queue tabs (only visible to non-Technical Managers, e.g. Admins / Media Managers / Marketing Managers) */}
-        {!isTechnicalManager && (
+        {/* Active Brand Context Banner (Marketing Manager Only) */}
+        {user?.role === 'MARKETING_MANAGER' && activeBrand && (
+          <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span
+                className="w-2.5 h-2.5 rounded-full ring-2 ring-blue-400 animate-pulse"
+                style={{ backgroundColor: activeBrand.primaryColor || '#3B82F6' }}
+              />
+              <span>
+                Active Brand Filter: <strong>{activeBrand.name}</strong>{' '}
+                <span className="font-mono font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[10px]">
+                  [{activeBrand.shortCode}]
+                </span>
+                . Approvals and deliverables are filtered to this brand.
+              </span>
+            </div>
+            <button
+              onClick={() => setActiveBrandId(null)}
+              className="text-[11px] text-blue-700 hover:text-blue-900 font-bold hover:underline"
+            >
+              Reset to All Brands
+            </button>
+          </div>
+        )}
+
+        {/* Multi-queue tabs (hidden for Technical Manager & Media Manager since they are dedicated to single queues) */}
+        {!isTechnicalManager && !isMediaManager && (
           <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
-            <button
-              onClick={() => setActiveTab('TECH')}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
-                activeTab === 'TECH'
-                  ? 'bg-cyan-50 text-cyan-700 border border-cyan-200 shadow-lg shadow-cyan-500/10'
-                  : 'bg-white hover:bg-slate-100 text-slate-500 border border-slate-200'
-              }`}
-            >
-              <Clock className="w-4 h-4 text-cyan-600" />
-              <span>1. Technical Review</span>
-              <span className="px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 text-[10px] font-mono border border-cyan-200 font-bold">
-                {rawTechQueue.length}
-              </span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('TECH')}
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+                  activeTab === 'TECH'
+                    ? 'bg-cyan-50 text-cyan-700 border border-cyan-200 shadow-lg shadow-cyan-500/10'
+                    : 'bg-white hover:bg-slate-100 text-slate-500 border border-slate-200'
+                }`}
+              >
+                <Clock className="w-4 h-4 text-cyan-600" />
+                <span>1. Technical Review</span>
+                <span className="px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 text-[10px] font-mono border border-cyan-200 font-bold">
+                  {rawTechQueue.length}
+                </span>
+              </button>
+            )}
 
-            <button
-              onClick={() => setActiveTab('MEDIA')}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
-                activeTab === 'MEDIA'
-                  ? 'bg-purple-50 text-purple-700 border border-purple-200 shadow-lg shadow-purple-500/10'
-                  : 'bg-white hover:bg-slate-100 text-slate-500 border border-slate-200'
-              }`}
-            >
-              <CheckCircle2 className="w-4 h-4 text-purple-600" />
-              <span>2. Media Review</span>
-              <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-mono border border-purple-200 font-bold">
-                {queue?.mediaReviewQueue?.length || 0}
-              </span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('MEDIA')}
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+                  activeTab === 'MEDIA'
+                    ? 'bg-purple-50 text-purple-700 border border-purple-200 shadow-lg shadow-purple-500/10'
+                    : 'bg-white hover:bg-slate-100 text-slate-500 border border-slate-200'
+                }`}
+              >
+                <CheckCircle2 className="w-4 h-4 text-purple-600" />
+                <span>2. Media Review</span>
+                <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-mono border border-purple-200 font-bold">
+                  {queue?.mediaReviewQueue?.length || 0}
+                </span>
+              </button>
+            )}
 
-            <button
-              onClick={() => setActiveTab('MARKETING')}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
-                activeTab === 'MARKETING'
-                  ? 'bg-amber-50 text-amber-800 border border-amber-300 shadow-lg shadow-amber-500/10'
-                  : 'bg-white hover:bg-slate-100 text-slate-500 border border-slate-200'
-              }`}
-            >
-              <Sparkles className="w-4 h-4 text-amber-600" />
-              <span>3. Marketing Approval</span>
-              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-mono border border-amber-300 font-bold">
-                {queue?.marketingReviewQueue?.length || 0}
-              </span>
-            </button>
+            {isMarketingManager && (
+              <button
+                onClick={() => setActiveTab('MARKETING')}
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+                  activeTab === 'MARKETING'
+                    ? 'bg-amber-50 text-amber-800 border border-amber-300 shadow-lg shadow-amber-500/10'
+                    : 'bg-white hover:bg-slate-100 text-slate-500 border border-slate-200'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                <span>{isAdmin ? '3. Marketing Approval' : 'Marketing Approval'}</span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-mono border border-amber-300 font-bold">
+                  {effectiveMarketingQueue.length}
+                </span>
+              </button>
+            )}
 
             <button
               onClick={() => setActiveTab('CLIENT')}
@@ -532,16 +599,16 @@ export default function ApprovalsPage() {
               }`}
             >
               <PhoneCall className="w-4 h-4 text-emerald-600" />
-              <span>4. Client Confirmation</span>
+              <span>{isAdmin ? '4. Client Confirmation' : 'Client Confirmation'}</span>
               <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-mono border border-emerald-200 font-bold">
-                {queue?.clientConfirmationQueue?.length || 0}
+                {effectiveClientConfirmationQueue.length}
               </span>
             </button>
           </div>
         )}
 
         {/* Technical Review Queue Tab */}
-        {(activeTab === 'TECH' || isTechnicalManager) && (
+        {((activeTab === 'TECH' && !isMediaManager) || isTechnicalManager) && (
           <div className="space-y-4">
             {/* Filter & Search Bar */}
             <div className="bg-white border border-slate-200 p-4 rounded-xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-md">
@@ -1004,32 +1071,42 @@ export default function ApprovalsPage() {
           </div>
         )}
 
-        {/* Marketing Review Queue Tab (non-tech managers) */}
-        {activeTab === 'MARKETING' && !isTechnicalManager && (
-          <div className="bg-white border border-slate-200 p-6 rounded-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <div>
-                <h2 className="font-bold text-amber-700 text-base flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-amber-600" /> 3. Marketing Approval Queue
-                </h2>
-                <p className="text-slate-500 text-xs mt-0.5">
-                  Marketing Manager confirms strategic messaging, client guidelines, and final approval for video editing tasks & deliverables.
-                </p>
-              </div>
-              <span className="font-bold text-amber-800 font-mono bg-amber-50 px-3 py-1 rounded-full border border-amber-300 text-xs">
-                {queue?.marketingReviewQueue?.length || 0} Pending Items
-              </span>
-            </div>
+        {/* Marketing Review Queue Tab (restricted to Marketing Manager & Admin) */}
+        {activeTab === 'MARKETING' && isMarketingManager && (() => {
+          const effectiveMarketingQueue = (queue?.marketingReviewQueue || []).filter(
+            (item: any) =>
+              !activeBrandId ||
+              item.brandId === activeBrandId ||
+              item.project?.brandId === activeBrandId ||
+              item.graphicRequirement?.brandId === activeBrandId ||
+              item.brand?.id === activeBrandId,
+          );
 
-            {queue?.marketingReviewQueue?.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 space-y-2">
-                <Sparkles className="w-10 h-10 text-amber-400 mx-auto" />
-                <p className="font-semibold text-sm text-slate-700">No items pending marketing manager approval.</p>
-                <p className="text-xs text-slate-500">Video editing tasks and deliverables will appear here after passing Media Review approval.</p>
+          return (
+            <div className="bg-white border border-slate-200 p-6 rounded-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <div>
+                  <h2 className="font-bold text-amber-700 text-base flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-amber-600" /> 3. Marketing Approval Queue
+                  </h2>
+                  <p className="text-slate-500 text-xs mt-0.5">
+                    Marketing Manager confirms strategic messaging, client guidelines, and final approval for video editing tasks & deliverables.
+                  </p>
+                </div>
+                <span className="font-bold text-amber-800 font-mono bg-amber-50 px-3 py-1 rounded-full border border-amber-300 text-xs">
+                  {effectiveMarketingQueue.length} Pending Items
+                </span>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {queue?.marketingReviewQueue?.map((item: any) => {
+
+              {effectiveMarketingQueue.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 space-y-2">
+                  <Sparkles className="w-10 h-10 text-amber-400 mx-auto" />
+                  <p className="font-semibold text-sm text-slate-700">No items pending marketing manager approval.</p>
+                  <p className="text-xs text-slate-500">Video editing tasks and deliverables will appear here after passing Media Review approval.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {effectiveMarketingQueue.map((item: any) => {
                   const deliverables = getDeliverableItems(item);
                   const detailsUrl = getItemDetailsUrl(item);
                   const sessionLabel = getItemSessionName(item);
@@ -1134,10 +1211,10 @@ export default function ApprovalsPage() {
               </div>
             )}
           </div>
-        )}
+        ); })()}
 
-        {/* Client Confirmation Queue Tab (non-tech managers) */}
-        {activeTab === 'CLIENT' && !isTechnicalManager && (
+        {/* Client Confirmation Queue Tab (restricted to Marketing Manager & Admin, hidden from Media Manager) */}
+        {activeTab === 'CLIENT' && !isTechnicalManager && !isMediaManager && (
           <div className="bg-white border border-slate-200 p-6 rounded-xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
@@ -1149,18 +1226,18 @@ export default function ApprovalsPage() {
                 </p>
               </div>
               <span className="font-bold text-emerald-700 font-mono bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 text-xs">
-                {queue?.clientConfirmationQueue?.length || 0} Pending Items
+                {effectiveClientConfirmationQueue.length} Pending Items
               </span>
             </div>
 
-            {queue?.clientConfirmationQueue?.length === 0 ? (
+            {effectiveClientConfirmationQueue.length === 0 ? (
               <div className="py-12 text-center text-slate-400 space-y-2">
                 <PhoneCall className="w-10 h-10 text-gray-600 mx-auto" />
                 <p className="font-semibold text-sm">No items pending client confirmation.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {queue?.clientConfirmationQueue?.map((proj: any) => {
+                {effectiveClientConfirmationQueue.map((proj: any) => {
                   const detailsUrl = getItemDetailsUrl(proj);
                   const sessionLabel = getItemSessionName(proj);
 

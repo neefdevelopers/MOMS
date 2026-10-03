@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ApprovalType, ApprovalStatus, ProjectStatus, ClientDecision } from '../../common/enums';
+import { ApprovalType, ApprovalStatus, ProjectStatus, ClientDecision, TaskStatus } from '../../common/enums';
+import { isTaskWithBrand } from '../tasks/tasks.service';
 
 @Injectable()
 export class ApprovalsService {
@@ -258,7 +259,9 @@ export class ApprovalsService {
       isStandaloneTask: true,
     }));
 
-    const mappedTaskMarketing = taskMarketingQueue.map((t: any) => ({
+    const mappedTaskMarketing = taskMarketingQueue
+      .filter((t: any) => isTaskWithBrand(t))
+      .map((t: any) => ({
       id: t.id,
       projectId: t.taskId,
       taskId: t.taskId,
@@ -565,7 +568,9 @@ export class ApprovalsService {
 
     const approval = await this.prisma.approval.create({
       data: {
-        projectId: project ? project.id : null,
+        entityType: task ? 'TASK' : gReq ? 'GRAPHIC_REQ' : 'PROJECT',
+        entityId: task ? task.id : gReq ? gReq.id : project ? project.id : null,
+        projectId: project ? project.id : task?.projectId || null,
         approvalType: ApprovalType.MEDIA_REVIEW,
         reviewerId,
         status: data.status === 'APPROVED' ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
@@ -584,19 +589,37 @@ export class ApprovalsService {
       });
 
       if (data.status === 'APPROVED') {
-        await this.prisma.task.updateMany({
-          where: {
-            projectId: project.id,
-            taskType: 'VIDEO_EDITING',
-            status: { notIn: ['CANCELLED'] },
-            marketingManagerApproved: false,
-          },
-          data: {
-            status: 'WAITING_FOR_MARKETING_APPROVAL',
-            mediaManagerApproved: true,
-            completionPercentage: 75,
-          },
-        }).catch(() => null);
+        const projectHasBrand = Boolean(project.brandId && typeof project.brandId === 'string' && project.brandId.trim() !== '' && project.brandId.trim().toLowerCase() !== 'null');
+
+        if (projectHasBrand) {
+          await this.prisma.task.updateMany({
+            where: {
+              projectId: project.id,
+              taskType: 'VIDEO_EDITING',
+              status: { notIn: ['CANCELLED'] },
+              marketingManagerApproved: false,
+            },
+            data: {
+              status: 'WAITING_FOR_MARKETING_APPROVAL',
+              mediaManagerApproved: true,
+              completionPercentage: 75,
+            },
+          }).catch(() => null);
+        } else {
+          // Project WITHOUT a Brand: Marketing Manager approval is NOT required. Complete directly!
+          await this.prisma.task.updateMany({
+            where: {
+              projectId: project.id,
+              taskType: 'VIDEO_EDITING',
+              status: { notIn: ['CANCELLED'] },
+            },
+            data: {
+              status: TaskStatus.COMPLETED,
+              mediaManagerApproved: true,
+              completionPercentage: 100,
+            },
+          }).catch(() => null);
+        }
       }
     }
 
@@ -613,15 +636,25 @@ export class ApprovalsService {
 
     if (task) {
       const isVideoEditing = task.taskType === 'VIDEO_EDITING' || task.sourceType === 'VIDEO_EDITING';
+      
+      let taskWithRelations = task;
+      if (!task.project && !task.graphicRequirement && !task.brand && (task.projectId || task.graphicRequirementId || task.brandId)) {
+        taskWithRelations = (await this.prisma.task.findUnique({
+          where: { id: task.id },
+          include: { brand: true, project: true, graphicRequirement: true },
+        })) || task;
+      }
+      const hasBrand = isTaskWithBrand(taskWithRelations);
+
       const newTaskStatus = data.status === 'APPROVED' 
-        ? (isVideoEditing ? 'WAITING_FOR_MARKETING_APPROVAL' : 'COMPLETED') 
+        ? (isVideoEditing && hasBrand ? 'WAITING_FOR_MARKETING_APPROVAL' : TaskStatus.COMPLETED) 
         : 'REVISION_REQUESTED';
       await this.prisma.task.update({
         where: { id: task.id },
         data: {
           status: newTaskStatus,
           mediaManagerApproved: data.status === 'APPROVED',
-          completionPercentage: data.status === 'APPROVED' ? (isVideoEditing ? 75 : 100) : 50,
+          completionPercentage: data.status === 'APPROVED' ? (isVideoEditing && hasBrand ? 75 : 100) : 50,
           mediaRevisionReason: data.status === 'REJECTED' ? (data.remarks || 'Creative revisions required.').trim() : null,
         },
       });
@@ -671,31 +704,41 @@ export class ApprovalsService {
     }
 
     if (data.status === 'APPROVED') {
-      // Notify Marketing Managers that item passed Media Review and is ready for Marketing Manager Approval
-      const marketingManagers = await this.prisma.user.findMany({
-        where: { role: { in: ['MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
-        select: { id: true },
-      });
-      if (marketingManagers.length > 0) {
-        const entityLabel = task ? `Task ${task.taskId} ('${task.title}')` : project ? `Project "${project.name}"` : gReq ? `Graphic Requirement "${gReq.name}"` : 'Production item';
-        await this.prisma.notification.createMany({
-          data: marketingManagers.map((mm) => ({
-            userId: mm.id,
-            title: 'Marketing Manager Approval Requested 📢',
-            message: `${entityLabel} was approved by Media Manager and is ready for Marketing Manager Approval.`,
-            type: 'ALERT',
-            category: 'APPROVAL',
-            priority: 'HIGH',
-            linkUrl: task ? '/tasks' : '/approvals',
-            eventType: 'MARKETING_REVIEW_REQUESTED',
-            entityType: task ? 'TASK' : project ? 'PROJECT' : 'GRAPHIC_REQ',
-            entityId: (task?.id || project?.id || gReq?.id) as string,
-            entityCode: task?.taskId || project?.projectId || gReq?.requirementId || undefined,
-            taskId: task?.id || undefined,
-            projectId: project?.id || task?.projectId || undefined,
-            graphicRequirementId: gReq?.id || undefined,
-          })),
-        }).catch(() => null);
+      const entityHasBrand = task 
+        ? isTaskWithBrand(task) 
+        : project 
+        ? Boolean(project.brandId && typeof project.brandId === 'string' && project.brandId.trim() !== '') 
+        : gReq 
+        ? Boolean(gReq.brandId && typeof gReq.brandId === 'string' && gReq.brandId.trim() !== '') 
+        : false;
+
+      // Only notify Marketing Managers if the item has an assigned Brand
+      if (entityHasBrand) {
+        const marketingManagers = await this.prisma.user.findMany({
+          where: { role: { in: ['MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
+          select: { id: true },
+        });
+        if (marketingManagers.length > 0) {
+          const entityLabel = task ? `Task ${task.taskId} ('${task.title}')` : project ? `Project "${project.name}"` : gReq ? `Graphic Requirement "${gReq.name}"` : 'Production item';
+          await this.prisma.notification.createMany({
+            data: marketingManagers.map((mm) => ({
+              userId: mm.id,
+              title: 'Marketing Manager Approval Requested 📢',
+              message: `${entityLabel} was approved by Media Manager and is ready for Marketing Manager Approval.`,
+              type: 'ALERT',
+              category: 'APPROVAL',
+              priority: 'HIGH',
+              linkUrl: task ? '/tasks' : '/approvals',
+              eventType: 'MARKETING_REVIEW_REQUESTED',
+              entityType: task ? 'TASK' : project ? 'PROJECT' : 'GRAPHIC_REQ',
+              entityId: (task?.id || project?.id || gReq?.id) as string,
+              entityCode: task?.taskId || project?.projectId || gReq?.requirementId || undefined,
+              taskId: task?.id || undefined,
+              projectId: project?.id || task?.projectId || undefined,
+              graphicRequirementId: gReq?.id || undefined,
+            })),
+          }).catch(() => null);
+        }
       }
     }
 

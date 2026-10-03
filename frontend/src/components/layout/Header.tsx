@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { AdvancedSearchModal } from './AdvancedSearchModal';
 import { FavoritesQuickMenu } from './FavoritesQuickMenu';
+import { BrandSwitcher } from './BrandSwitcher';
 import { PermissionsMatrixModal } from '../common/PermissionsMatrixModal';
 import { NotificationDetailModal } from '../notifications/NotificationDetailModal';
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts-context';
@@ -396,6 +397,13 @@ export function Header() {
         >
           <SlidersHorizontal className="w-4 h-4 text-blue-600" />
         </button>
+
+        {/* Global Brand Context Switcher (Marketing Manager Only) */}
+        {user?.role === 'MARKETING_MANAGER' && (
+          <div className="flex items-center pl-2 border-l border-slate-200">
+            <BrandSwitcher />
+          </div>
+        )}
       </div>
 
       {/* Advanced Multi-Condition Search Modal */}

@@ -8,7 +8,9 @@ export class ProductsService {
 
   async findAll(brandId?: string, status?: string, search?: string, user?: any) {
     const where: any = {};
-    if (brandId) where.brandId = brandId;
+    if (brandId && brandId !== 'ALL' && brandId.trim() !== '') {
+      where.brandId = brandId.trim();
+    }
     if (status) where.status = status;
     if (search) {
       const cleanSearch = search.trim();

@@ -18,7 +18,9 @@ export class CalendarService {
   ) {
     const where: any = {};
     if (clientId) where.clientId = clientId;
-    if (brandId) where.brandId = brandId;
+    if (brandId && brandId !== 'ALL' && brandId.trim() !== '') {
+      where.brandId = brandId.trim();
+    }
     if (shootType) where.shootType = shootType;
 
     // Status filtering logic (Strict Approval Gate for Media Calendar)
@@ -66,26 +68,8 @@ export class CalendarService {
       where.status = status;
     }
 
-    // Client data isolation for MARKETING_MANAGER (Ensure full access to client approval events)
-    if (role === 'MARKETING_MANAGER' && userId) {
-      const allClients = await this.prisma.client.findMany({ select: { id: true } });
-      const assignments = await this.prisma.clientAssignment.findMany({
-        where: { userId },
-        select: { clientId: true },
-      });
-      const assignedIds = assignments.map((a) => a.clientId);
-      const missingClientIds = allClients.map((c) => c.id).filter((id) => !assignedIds.includes(id));
-      
-      if (missingClientIds.length > 0) {
-        await Promise.all(
-          missingClientIds.map((cId) =>
-            this.prisma.clientAssignment.create({
-              data: { userId, clientId: cId },
-            }).catch(() => null),
-          ),
-        );
-      }
-
+    // Client data isolation for MARKETING_MANAGER
+    if (role === 'MARKETING_MANAGER') {
       if (clientId) {
         where.clientId = clientId;
       }
@@ -94,9 +78,39 @@ export class CalendarService {
     const rawEvents = await this.prisma.mediaCalendarEvent.findMany({
       where,
       include: {
-        client: true,
-        brand: true,
-        product: true,
+        client: { select: { id: true, name: true, companyName: true, status: true } },
+        brand: { select: { id: true, name: true, shortCode: true, primaryColor: true, status: true } },
+        product: { select: { id: true, name: true, productCode: true, status: true } },
+        assignedStaff: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
+        createdBy: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
+        approvalAssignedTo: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
+        editRequestedBy: { select: { id: true, name: true, role: true, email: true } },
+        editApprovedBy: { select: { id: true, name: true, role: true, email: true } },
+        approvalHistory: {
+          orderBy: { timestamp: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            action: true,
+            newStatus: true,
+            comment: true,
+            timestamp: true,
+            user: { select: { id: true, name: true, role: true, avatarUrl: true } },
+          },
+        },
+        editRequests: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            status: true,
+            reason: true,
+            requestedValues: true,
+            originalValues: true,
+            createdAt: true,
+            requestedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+            reviewedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
+          },
+        },
         graphicRequirement: {
           select: {
             id: true,
@@ -122,50 +136,28 @@ export class CalendarService {
             shootType: true,
             shootDate: true,
             priority: true,
-            indoorDetails: true,
-            outdoorDetails: true,
             notes: true,
-            equipmentReservations: { include: { equipment: true } },
-            assignedTeam: { include: { user: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } } } },
             tasks: { select: { id: true, taskId: true, status: true, title: true } },
           },
-        },
-        createdBy: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
-        assignedStaff: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
-        approvalAssignedTo: { select: { id: true, name: true, email: true, role: true, avatarUrl: true } },
-        revisions: {
-          orderBy: { version: 'desc' },
-          include: { createdBy: { select: { id: true, name: true, role: true } } },
-        },
-        approvalHistory: {
-          orderBy: { timestamp: 'desc' },
-          include: { user: { select: { id: true, name: true, role: true, avatarUrl: true } } },
         },
         shootProjects: {
-          include: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            shootType: true,
+            shootDate: true,
+            estimatedCompletionDate: true,
+            brandId: true,
+            shootLocation: true,
+            locationCategory: true,
+            notes: true,
             indoorDetails: true,
             outdoorDetails: true,
-            equipmentReservations: { include: { equipment: true } },
-            assignedTeam: { include: { user: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } } } },
+            equipmentReservations: { select: { id: true, equipmentId: true, equipment: { select: { id: true, name: true, model: true, availability: true } } } },
+            assignedTeam: { select: { id: true, userId: true, roleInProject: true, user: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } } } },
             tasks: { select: { id: true, taskId: true, status: true, title: true } },
           },
-        },
-        lastModifiedBy: { select: { id: true, name: true, role: true, email: true } },
-        editRequestedBy: { select: { id: true, name: true, role: true, email: true } },
-        editApprovedBy: { select: { id: true, name: true, role: true, email: true } },
-        editRequests: {
-          include: {
-            requestedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
-            reviewedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-        editHistories: {
-          include: {
-            requestedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
-            approvedBy: { select: { id: true, name: true, role: true, email: true, avatarUrl: true } },
-          },
-          orderBy: { createdAt: 'desc' },
         },
       },
       orderBy: { shootDate: 'asc' },
@@ -462,11 +454,11 @@ export class CalendarService {
 
     // Execute atomic creation in transaction (extended timeout for multi-step operations)
     const createdEvent = await this.prisma.$transaction(async (tx) => {
-      const eventShootDate = safeDate(data.shootDate, new Date())!;
       const eventDeadline = safeDate(
         data.clientApprovalDeadline,
         safeDate(data.deadline, safeDate(data.shootDate, new Date())),
-      );
+      )!;
+      const eventShootDate = safeDate(data.shootDate, eventDeadline)!;
 
       const event = await tx.mediaCalendarEvent.create({
         data: {
@@ -484,7 +476,7 @@ export class CalendarService {
           caption: data.caption || null,
           creativePreviewUrl: data.creativePreviewUrl || null,
           description: data.description || null,
-          shootDate: eventShootDate,
+          shootDate: eventDeadline, // Store on the scheduled deadline date
           clientApprovalDeadline: eventDeadline,
           influencerTalent: data.influencerTalent || null,
           priority: data.priority || Priority.MEDIUM,
@@ -852,12 +844,15 @@ export class CalendarService {
     if (data.creativePreviewUrl !== undefined) updateData.creativePreviewUrl = data.creativePreviewUrl;
     if (data.campaign !== undefined) updateData.campaign = data.campaign;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.shootType !== undefined) updateData.shootType = data.shootType;
-    if (data.shootDate !== undefined) updateData.shootDate = new Date(data.shootDate);
-    if (data.clientApprovalDeadline !== undefined) {
-      updateData.clientApprovalDeadline = data.clientApprovalDeadline ? new Date(data.clientApprovalDeadline) : (data.deadline ? new Date(data.deadline) : null);
-    } else if (data.deadline !== undefined) {
-      updateData.clientApprovalDeadline = data.deadline ? new Date(data.deadline) : null;
+    if (data.clientApprovalDeadline !== undefined || data.deadline !== undefined) {
+      const d = data.clientApprovalDeadline || data.deadline;
+      const parsedDeadline = d ? new Date(d) : null;
+      updateData.clientApprovalDeadline = parsedDeadline;
+      if (parsedDeadline) {
+        updateData.shootDate = parsedDeadline;
+      }
+    } else if (data.shootDate !== undefined) {
+      updateData.shootDate = data.shootDate ? new Date(data.shootDate) : null;
     }
     if (data.influencerTalent !== undefined) updateData.influencerTalent = data.influencerTalent;
     if (data.priority !== undefined) updateData.priority = data.priority;
@@ -1458,7 +1453,10 @@ export class CalendarService {
 
     await this.prisma.mediaCalendarEvent.update({
       where: { id },
-      data: { clientApprovalDeadline: newDeadline },
+      data: {
+        clientApprovalDeadline: newDeadline,
+        shootDate: newDeadline,
+      },
     });
 
     await this.prisma.calendarApprovalHistory.create({
@@ -1617,6 +1615,7 @@ export class CalendarService {
           const newD = dDate.toISOString().split('T')[0];
           if (prevD !== newD) {
             eventUpdates.clientApprovalDeadline = dDate;
+            eventUpdates.shootDate = dDate;
             await tx.calendarApprovalHistory.create({
               data: {
                 calendarEventId: event.id,

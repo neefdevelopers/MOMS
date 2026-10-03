@@ -59,8 +59,11 @@ import {
   formatScriptsAsSummaryText,
 } from '@/lib/project-scripts';
 
+import { useBrand } from '@/lib/brand-context';
+
 export default function ClientReviewPage() {
   const { user } = useAuth();
+  const { activeBrandId, activeBrand, setActiveBrandId } = useBrand();
   const router = useRouter();
   const [events, setEvents] = useState<any[]>([]);
   const [editRequests, setEditRequests] = useState<any[]>([]);
@@ -116,13 +119,18 @@ export default function ClientReviewPage() {
       const rawReqs = Array.isArray(resReqs) ? resReqs : (resReqs?.data || resReqs?.items || []);
       const rawQueueTasks = resQueue?.marketingReviewQueue || [];
       const allTaskList = Array.isArray(resTasks) ? resTasks : (resTasks?.data || []);
-      const additionalTasks = allTaskList.filter((t: any) =>
-        t.taskType === 'VIDEO_EDITING' &&
-        (t.status === 'WAITING_FOR_MARKETING_APPROVAL' ||
-         t.status === 'WAITING_FOR_MARKETING_MANAGER_REVIEW' ||
-         t.status === 'PENDING_MARKETING_APPROVAL' ||
-         (t.mediaManagerApproved && !t.marketingManagerApproved && t.status !== 'CANCELLED'))
-      );
+      const additionalTasks = allTaskList.filter((t: any) => {
+        const taskBrand = t.brandId || t.brand?.id || t.project?.brandId || t.graphicRequirement?.brandId;
+        const hasBrand = Boolean(taskBrand && typeof taskBrand === 'string' && taskBrand.trim() !== '' && taskBrand.trim().toLowerCase() !== 'null');
+        return (
+          hasBrand &&
+          t.taskType === 'VIDEO_EDITING' &&
+          (t.status === 'WAITING_FOR_MARKETING_APPROVAL' ||
+           t.status === 'WAITING_FOR_MARKETING_MANAGER_REVIEW' ||
+           t.status === 'PENDING_MARKETING_APPROVAL' ||
+           (t.mediaManagerApproved && !t.marketingManagerApproved && t.status !== 'CANCELLED'))
+        );
+      });
 
       // Merge unique tasks by id
       const taskMap = new Map<string, any>();
@@ -181,6 +189,7 @@ export default function ClientReviewPage() {
   };
 
   const filteredEvents = events.filter((e) => {
+    if (activeBrandId && e.brandId !== activeBrandId) return false;
     if (statusFilter === 'PENDING_CLIENT_APPROVAL') {
       if (
         e.status !== 'PENDING_CLIENT_APPROVAL' &&
@@ -386,15 +395,28 @@ export default function ClientReviewPage() {
 
   const pendingEventsCount = events.filter(
     (e) =>
-      e.status === 'PENDING_CLIENT_APPROVAL' ||
-      e.status === 'PENDING_CLIENT_REVIEW' ||
-      e.status === 'PENDING_MARKETING_APPROVAL' ||
-      e.status === 'WAITING_FOR_MEDIA_REVIEW',
+      (!activeBrandId || e.brandId === activeBrandId) &&
+      (e.status === 'PENDING_CLIENT_APPROVAL' ||
+        e.status === 'PENDING_CLIENT_REVIEW' ||
+        e.status === 'PENDING_MARKETING_APPROVAL' ||
+        e.status === 'WAITING_FOR_MEDIA_REVIEW'),
   ).length;
 
-  const pendingCount = pendingEventsCount + editRequests.length + videoTasks.length;
+  const scopedEditRequests = editRequests.filter(
+    (r) => !activeBrandId || r.brandId === activeBrandId || r.calendarEvent?.brandId === activeBrandId,
+  );
 
-  const filteredVideoTasks = videoTasks.filter((t) => {
+  const scopedVideoTasks = videoTasks.filter(
+    (t) =>
+      !activeBrandId ||
+      t.brandId === activeBrandId ||
+      t.project?.brandId === activeBrandId ||
+      t.graphicRequirement?.brandId === activeBrandId,
+  );
+
+  const pendingCount = pendingEventsCount + scopedEditRequests.length + scopedVideoTasks.length;
+
+  const filteredVideoTasks = scopedVideoTasks.filter((t) => {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       const matchTitle = (t.name || t.title || '').toLowerCase().includes(q);
@@ -409,6 +431,31 @@ export default function ClientReviewPage() {
 
   return (
     <div className="space-y-6 pb-12 select-none">
+      {/* Active Brand Context Banner */}
+      {activeBrand && (
+        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-full ring-2 ring-blue-400 animate-pulse"
+              style={{ backgroundColor: activeBrand.primaryColor || '#3B82F6' }}
+            />
+            <span>
+              Active Brand Filter: <strong>{activeBrand.name}</strong>{' '}
+              <span className="font-mono font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[10px]">
+                [{activeBrand.shortCode}]
+              </span>
+              . Review approvals are filtered to this brand.
+            </span>
+          </div>
+          <button
+            onClick={() => setActiveBrandId(null)}
+            className="text-[11px] text-blue-700 hover:text-blue-900 font-bold hover:underline"
+          >
+            Reset to All Brands
+          </button>
+        </div>
+      )}
+
       {/* Clean Page Header */}
       <div className="flex items-center justify-between pb-4 border-b border-slate-200">
         <div className="flex items-center gap-3">
@@ -445,8 +492,8 @@ export default function ClientReviewPage() {
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto scrollbar-none">
           {[
             { label: `Pending Calendar Review (${pendingEventsCount})`, value: 'PENDING_CLIENT_APPROVAL' },
-            { label: `Video Editing Approvals (${videoTasks.length})`, value: 'VIDEO_EDITING' },
-            { label: `Pending Edit Requests (${editRequests.length})`, value: 'EDIT_REQUESTS' },
+            { label: `Video Editing Approvals (${scopedVideoTasks.length})`, value: 'VIDEO_EDITING' },
+            { label: `Pending Edit Requests (${scopedEditRequests.length})`, value: 'EDIT_REQUESTS' },
             { label: 'Approved', value: 'APPROVED' },
             { label: 'Changes Req.', value: 'CHANGES_REQUESTED' },
             { label: 'Rejected', value: 'REJECTED' },
@@ -462,9 +509,9 @@ export default function ClientReviewPage() {
               }`}
             >
               {tab.label}
-              {tab.value === 'VIDEO_EDITING' && videoTasks.length > 0 && (
+              {tab.value === 'VIDEO_EDITING' && scopedVideoTasks.length > 0 && (
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${statusFilter === 'VIDEO_EDITING' ? 'bg-slate-950 text-white' : 'bg-purple-600 text-white'}`}>
-                  {videoTasks.length}
+                  {scopedVideoTasks.length}
                 </span>
               )}
             </button>
@@ -634,13 +681,13 @@ export default function ClientReviewPage() {
           </div>
         )
       ) : statusFilter === 'EDIT_REQUESTS' ? (
-        editRequests.length === 0 ? (
+        scopedEditRequests.length === 0 ? (
           <div className="p-12 text-center text-slate-400 bg-white border border-slate-200 rounded-2xl">
             No pending edit requests awaiting Marketing Manager review.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {editRequests.map((req) => (
+            {scopedEditRequests.map((req) => (
               <div
                 key={req.id}
                 onClick={() => setSelectedEditRequest(req)}

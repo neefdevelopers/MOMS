@@ -5,6 +5,7 @@ import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { Package, Plus, Edit, Filter, Tag, Search } from 'lucide-react';
 
+import { useBrand } from '@/lib/brand-context';
 import { RouteGuard } from '@/components/common/RouteGuard';
 
 export default function ProductsPage() {
@@ -17,6 +18,7 @@ export default function ProductsPage() {
 
 function ProductsContent() {
   const { user } = useAuth();
+  const { activeBrandId, activeBrand, setActiveBrandId } = useBrand();
   const [products, setProducts] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +47,8 @@ function ProductsContent() {
       let url = '/products';
       const params = new URLSearchParams();
       if (searchQuery) params.append('search', searchQuery);
-      if (brandIdFilter) params.append('brandId', brandIdFilter);
+      const effectiveBrand = brandIdFilter || (activeBrandId && activeBrandId !== 'ALL' ? activeBrandId : '');
+      if (effectiveBrand) params.append('brandId', effectiveBrand);
       if (statusFilter) params.append('status', statusFilter);
       if (params.toString()) url += `?${params.toString()}`;
 
@@ -66,7 +69,7 @@ function ProductsContent() {
 
   useEffect(() => {
     loadData();
-  }, [searchQuery, brandIdFilter, statusFilter]);
+  }, [searchQuery, brandIdFilter, statusFilter, activeBrandId]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,6 +136,7 @@ function ProductsContent() {
           <button
             onClick={() => {
               resetForm();
+              setFormData((prev) => ({ ...prev, brandId: activeBrandId || '' }));
               setEditingProduct(null);
               setShowAddModal(true);
             }}
@@ -142,6 +146,34 @@ function ProductsContent() {
           </button>
         )}
       </div>
+
+      {/* Active Brand Context Banner */}
+      {activeBrand && (
+        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-full ring-2 ring-blue-400 animate-pulse"
+              style={{ backgroundColor: activeBrand.primaryColor || '#3B82F6' }}
+            />
+            <span>
+              Active Brand Filter: <strong>{activeBrand.name}</strong>{' '}
+              <span className="font-mono font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[10px]">
+                [{activeBrand.shortCode}]
+              </span>
+              . Showing products for this brand.
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setActiveBrandId(null);
+              setBrandIdFilter('');
+            }}
+            className="text-[11px] text-blue-700 hover:text-blue-900 font-bold hover:underline"
+          >
+            Show All Products
+          </button>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="flex flex-col md:flex-row items-center gap-3 bg-white border border-slate-200 p-4 rounded-xl text-xs">

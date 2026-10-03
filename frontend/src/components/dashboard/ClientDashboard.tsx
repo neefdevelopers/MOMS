@@ -23,7 +23,10 @@ import {
   Video,
 } from 'lucide-react';
 
+import { useBrand } from '@/lib/brand-context';
+
 export default function ClientDashboard() {
+  const { activeBrandId, activeBrand, setActiveBrandId } = useBrand();
   const [events, setEvents] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [videoTasks, setVideoTasks] = useState<any[]>([]);
@@ -32,7 +35,7 @@ export default function ClientDashboard() {
   const loadClientDashboardData = async () => {
     try {
       const [resEvents, resClients, resQueue] = await Promise.all([
-        fetchApi('/calendar').catch(() => []),
+        fetchApi('/calendar?status=ALL').catch(() => []),
         fetchApi('/clients').catch(() => []),
         fetchApi('/approvals/queue').catch(() => ({ marketingReviewQueue: [] })),
       ]);
@@ -52,21 +55,38 @@ export default function ClientDashboard() {
     loadClientDashboardData();
   }, []);
 
-  const pendingApprovals = events.filter(
+  const effectiveEvents = activeBrandId
+    ? events.filter((e) => e.brandId === activeBrandId)
+    : events;
+
+  const effectiveClients = activeBrandId
+    ? clients.filter((c) => (c.brands || []).some((b: any) => b.id === activeBrandId))
+    : clients;
+
+  const effectiveVideoTasks = activeBrandId
+    ? videoTasks.filter(
+        (t) =>
+          t.brandId === activeBrandId ||
+          t.project?.brandId === activeBrandId ||
+          t.graphicRequirement?.brandId === activeBrandId,
+      )
+    : videoTasks;
+
+  const pendingApprovals = effectiveEvents.filter(
     (e) => e.status === 'PENDING_CLIENT_APPROVAL' || e.status === 'PENDING_CLIENT_REVIEW',
   );
-  const approvedEvents = events.filter(
+  const approvedEvents = effectiveEvents.filter(
     (e) => e.status === 'APPROVED' || e.status === 'CLIENT_APPROVED' || e.status === 'SCHEDULED' || e.status === 'PUBLISHED',
   );
-  const changesRequested = events.filter((e) => e.status === 'CHANGES_REQUESTED');
-  const rejectedEvents = events.filter((e) => e.status === 'REJECTED');
+  const changesRequested = effectiveEvents.filter((e) => e.status === 'CHANGES_REQUESTED');
+  const rejectedEvents = effectiveEvents.filter((e) => e.status === 'REJECTED');
 
   const now = new Date();
   const overdueApprovals = pendingApprovals.filter(
     (e) => e.clientApprovalDeadline && new Date(e.clientApprovalDeadline) < now
   );
 
-  const recentApprovalsAndComments = events
+  const recentApprovalsAndComments = effectiveEvents
     .flatMap((e) =>
       (e.approvalHistory || []).map((h: any) => ({
         ...h,
@@ -93,6 +113,31 @@ export default function ClientDashboard() {
 
   return (
     <div className="space-y-6 pb-12">
+      {/* Active Brand Context Banner */}
+      {activeBrand && (
+        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-full ring-2 ring-blue-400 animate-pulse"
+              style={{ backgroundColor: activeBrand.primaryColor || '#3B82F6' }}
+            />
+            <span>
+              Active Brand Filter: <strong>{activeBrand.name}</strong>{' '}
+              <span className="font-mono font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[10px]">
+                [{activeBrand.shortCode}]
+              </span>
+              . Dashboard stats and reviews are scoped to this brand.
+            </span>
+          </div>
+          <button
+            onClick={() => setActiveBrandId(null)}
+            className="text-[11px] text-blue-700 hover:text-blue-900 font-bold hover:underline"
+          >
+            Reset to All Brands
+          </button>
+        </div>
+      )}
+
       {/* Welcome Banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-50 via-white to-amber-50/50 border border-amber-200 p-6 md:p-8 shadow-sm">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -157,7 +202,7 @@ export default function ClientDashboard() {
             <Video className="w-5 h-5 group-hover:scale-110 transition-transform" />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-purple-950">{videoTasks.length}</span>
+            <span className="text-2xl font-black text-purple-950">{effectiveVideoTasks.length}</span>
             <span className="text-xs text-purple-700 font-medium">Awaiting Sign-off</span>
           </div>
         </Link>
@@ -197,7 +242,7 @@ export default function ClientDashboard() {
       </div>
 
       {/* Video Editing Deliverables Awaiting Marketing Approval */}
-      {videoTasks.length > 0 && (
+      {effectiveVideoTasks.length > 0 && (
         <div className="p-5 rounded-2xl bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-300 shadow-sm space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2.5">
@@ -206,7 +251,7 @@ export default function ClientDashboard() {
               </span>
               <div>
                 <h3 className="font-extrabold text-purple-950 text-base">
-                  Video Editing Deliverables Awaiting Marketing Quality Approval ({videoTasks.length})
+                  Video Editing Deliverables Awaiting Marketing Quality Approval ({effectiveVideoTasks.length})
                 </h3>
                 <p className="text-xs text-purple-800">
                   Media Manager has completed review on these video tasks and forwarded them for your final sign-off.
@@ -217,12 +262,12 @@ export default function ClientDashboard() {
               href="/client-review?tab=VIDEO_EDITING"
               className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/20"
             >
-              <CheckCircle2 className="w-4 h-4" /> Open Video Approval Session ({videoTasks.length})
+              <CheckCircle2 className="w-4 h-4" /> Open Video Approval Session ({effectiveVideoTasks.length})
             </Link>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
-            {videoTasks.slice(0, 3).map((t: any) => (
+            {effectiveVideoTasks.slice(0, 3).map((t: any) => (
               <div key={t.id} className="p-3 bg-white/90 border border-purple-200 rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-mono font-bold text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">

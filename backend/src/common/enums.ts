@@ -129,6 +129,13 @@ export enum GraphicReqStatus {
   CANCELLED = 'CANCELLED',
 }
 
+export enum TaskType {
+  SHOOT = 'SHOOT',
+  GRAPHIC = 'GRAPHIC',
+  VIDEO_EDITING = 'VIDEO_EDITING',
+  OTHERS = 'OTHERS',
+}
+
 export enum TaskSourceType {
   DIRECT_TASK = 'DIRECT_TASK',
   CALENDAR_EVENT = 'CALENDAR_EVENT',

@@ -7,6 +7,7 @@ import { Calendar, Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTria
 import Link from 'next/link';
 import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
 import { TimelineView, TimelineEntry } from '@/components/common/TimelineView';
+import { useBrand } from '@/lib/brand-context';
 
 const APPROVED_CALENDAR_STATUSES = [
   'APPROVED',
@@ -63,11 +64,22 @@ const isSameCalendarDate = (dateVal: any, targetYear: number, targetMonth: numbe
 
 const getEventCalendarDate = (evt: any): any => {
   if (!evt) return null;
-  return evt.clientApprovalDeadline || evt.deadline || evt.shootDate || evt.createdAt;
+  // Always prioritize deadline / clientApprovalDeadline first so calendar events are scheduled and displayed on their deadline
+  return (
+    evt.clientApprovalDeadline ||
+    evt.deadline ||
+    evt.shootProjects?.[0]?.estimatedCompletionDate ||
+    evt.graphicRequirement?.estimatedCompletion ||
+    evt.shootDate ||
+    evt.shoot?.shootDate ||
+    evt.shootProjects?.[0]?.shootDate ||
+    evt.createdAt
+  );
 };
 
 export default function CalendarPage() {
   const { user } = useAuth();
+  const { activeBrandId, activeBrand, setActiveBrandId } = useBrand();
   const [events, setEvents] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
@@ -90,7 +102,7 @@ export default function CalendarPage() {
   const [brandIdFilter, setBrandIdFilter] = useState('');
   const [shootTypeFilter, setShootTypeFilter] = useState('');
   const [eventSourceFilter, setEventSourceFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('OPERATIONAL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -394,13 +406,15 @@ export default function CalendarPage() {
     }
   };
 
-  const loadData = async () => {
+  const loadData = async (showLoadingState = false) => {
     try {
-      setLoading(true);
+      if (showLoadingState || events.length === 0) {
+        setLoading(true);
+      }
       const [resEvents, resClients, resBrands, resProducts, resUsers, resEq, resGr, resProj] = await Promise.all([
         fetchApi('/calendar?status=ALL', { skipCache: true }).catch((err) => {
           console.error('Failed to fetch /calendar:', err);
-          return [];
+          return null;
         }),
         fetchApi('/clients').catch(() => []),
         fetchApi('/brands').catch(() => []),
@@ -416,8 +430,10 @@ export default function CalendarPage() {
       const rawGr = Array.isArray(resGr) ? resGr : (resGr?.data || resGr?.requirements || resGr?.items || []);
       const rawProj = Array.isArray(resProj) ? resProj : (resProj?.data || resProj?.projects || resProj?.items || []);
 
-      const rawEvents = Array.isArray(resEvents) ? resEvents : (resEvents?.data || resEvents?.events || resEvents?.items || []);
-      setEvents(rawEvents);
+      if (resEvents !== null) {
+        const rawEvents = Array.isArray(resEvents) ? resEvents : (resEvents?.data || resEvents?.events || resEvents?.items || []);
+        setEvents(rawEvents);
+      }
       setClients(Array.isArray(resClients) ? resClients : []);
       setBrands(Array.isArray(resBrands) ? resBrands : []);
       setProducts(Array.isArray(resProducts) ? resProducts : []);
@@ -444,7 +460,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeBrandId]);
 
   // Cascading Selection Handlers (Client -> Brand -> Product)
   const handleClientChange = (cId: string) => {
@@ -580,6 +596,7 @@ export default function CalendarPage() {
     const resolvedDeadline = formData.clientApprovalDeadline || formData.deadline || formData.shootDate;
     const payload = {
       ...formData,
+      shootDate: resolvedDeadline,
       clientApprovalDeadline: resolvedDeadline,
       deadline: resolvedDeadline,
       assignedStaffId: formData.assignedStaffId || formData.teamUserIds[0] || null,
@@ -799,8 +816,8 @@ export default function CalendarPage() {
   };
 
   const resetForm = () => {
-    const defaultClient = clients.find((c) => c.status === 'ACTIVE')?.id || '';
-    const defaultBrand = brands.find((b) => b.status === 'ACTIVE' && (!defaultClient || b.clientId === defaultClient))?.id || '';
+    const defaultClient = activeBrand ? activeBrand.clientId : (clients.find((c) => c.status === 'ACTIVE')?.id || '');
+    const defaultBrand = activeBrand ? activeBrand.id : (brands.find((b) => b.status === 'ACTIVE' && (!defaultClient || b.clientId === defaultClient))?.id || '');
 
     setFormData({
       eventSource: 'GRAPHIC_REQUIREMENT',
@@ -954,8 +971,8 @@ export default function CalendarPage() {
       const isPendingAny = isPendingMarketing || isPendingClient || isRejected || isDraft || isChangesRequested || UNAPPROVED_CALENDAR_STATUSES.includes(evt.status);
 
       // Status Filter Gating:
-      // 1. Default Operational Calendar (Approved Only): Pending / unapproved / rejected events are strictly hidden
-      if (!statusFilter || statusFilter === 'OPERATIONAL' || statusFilter === 'APPROVED' || statusFilter === 'CLIENT_APPROVED') {
+      // 1. Operational Calendar (Approved Only): Pending / unapproved / rejected events are strictly hidden
+      if (statusFilter === 'OPERATIONAL' || statusFilter === 'APPROVED' || statusFilter === 'CLIENT_APPROVED') {
         if (!isApproved || isPendingAny) {
           return false;
         }
@@ -984,10 +1001,17 @@ export default function CalendarPage() {
         if (evt.status !== 'REJECTED' && evt.status !== 'CANCELLED' && evt.approvalStatus !== 'REJECTED') {
           return false;
         }
-      } else if (statusFilter !== 'ALL') {
+      } else if (statusFilter && statusFilter !== 'ALL') {
         if (evt.status !== statusFilter) {
           return false;
         }
+      }
+
+      if (clientIdFilter && evt.clientId !== clientIdFilter) return false;
+      const effectiveBrand = brandIdFilter || (activeBrandId && activeBrandId !== 'ALL' ? activeBrandId : '');
+      if (effectiveBrand) {
+        const eventBrandId = evt.brandId || evt.brand?.id || evt.graphicRequirement?.brandId || evt.shoot?.brandId || evt.shootProjects?.[0]?.brandId;
+        if (eventBrandId && eventBrandId !== effectiveBrand) return false;
       }
 
       if (searchQuery.trim()) {
@@ -1054,6 +1078,31 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
+      {/* Active Brand Context Banner */}
+      {activeBrand && (
+        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-full ring-2 ring-blue-400 animate-pulse"
+              style={{ backgroundColor: activeBrand.primaryColor || '#3B82F6' }}
+            />
+            <span>
+              Active Brand Filter: <strong>{activeBrand.name}</strong>{' '}
+              <span className="font-mono font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[10px]">
+                [{activeBrand.shortCode}]
+              </span>
+              . Calendar schedule is scoped to this brand.
+            </span>
+          </div>
+          <button
+            onClick={() => setActiveBrandId(null)}
+            className="text-[11px] text-blue-700 hover:text-blue-900 font-bold hover:underline"
+          >
+            Reset to All Brands
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 p-6 rounded-xl">
         <div>
@@ -1143,9 +1192,20 @@ export default function CalendarPage() {
         {canCreateEvents && (
           <div className="flex items-center gap-2 pb-1 border-b border-slate-200 flex-wrap">
             <button
+              onClick={() => setStatusFilter('ALL')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                statusFilter === 'ALL' || !statusFilter
+                  ? 'bg-purple-600 text-white shadow'
+                  : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
+              }`}
+            >
+              All Events
+            </button>
+
+            <button
               onClick={() => setStatusFilter('OPERATIONAL')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                statusFilter === 'OPERATIONAL' || !statusFilter
+                statusFilter === 'OPERATIONAL'
                   ? 'bg-blue-600 text-white shadow'
                   : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
               }`}
@@ -1171,17 +1231,6 @@ export default function CalendarPage() {
                   {events.filter((e) => UNAPPROVED_CALENDAR_STATUSES.includes(e.status) || e.approvalStatus === 'PENDING_MARKETING_APPROVAL' || e.status === 'PENDING_MARKETING_APPROVAL' || e.status === 'PENDING_CLIENT_APPROVAL' || e.status === 'REJECTED' || e.approvalStatus === 'REJECTED').length}
                 </span>
               )}
-            </button>
-
-            <button
-              onClick={() => setStatusFilter('ALL')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                statusFilter === 'ALL'
-                  ? 'bg-purple-600 text-white shadow'
-                  : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
-              }`}
-            >
-              All Events
             </button>
           </div>
         )}
