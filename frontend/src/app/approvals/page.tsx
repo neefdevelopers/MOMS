@@ -35,6 +35,7 @@ import {
 import { useBrand } from '@/lib/brand-context';
 import { RoleGuard } from '@/components/common/RoleGuard';
 import { extractEventScripts, ProjectScript } from '@/lib/project-scripts';
+import { ScriptDocumentViewerModal } from '@/components/common/ScriptDocumentViewerModal';
 
 const TECHNICAL_CHECKLIST_ITEMS = [
   'File Integrity & Codec Parsing',
@@ -90,6 +91,9 @@ export default function ApprovalsPage() {
   // Detailed view inspection modal state
   const [detailModalItem, setDetailModalItem] = useState<any | null>(null);
   const [activeApprovalScriptIdx, setActiveApprovalScriptIdx] = useState(0);
+
+  // In-app Script Document Preview Modal state
+  const [previewScriptDoc, setPreviewScriptDoc] = useState<any | null>(null);
 
   const loadQueue = async () => {
     try {
@@ -1853,15 +1857,14 @@ export default function ApprovalsPage() {
                             </div>
                           </div>
 
-                          <a
-                            href={sf.fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-[11px] transition-all flex items-center gap-1 shrink-0"
+                          <button
+                            type="button"
+                            onClick={() => setPreviewScriptDoc(sf)}
+                            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-[11px] transition-all flex items-center gap-1 shrink-0 cursor-pointer"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>View Script</span>
-                          </a>
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -1938,6 +1941,12 @@ export default function ApprovalsPage() {
             </div>
           </div>
         )}
+
+        {/* In-app Script Document Viewer Modal */}
+        <ScriptDocumentViewerModal
+          doc={previewScriptDoc}
+          onClose={() => setPreviewScriptDoc(null)}
+        />
       </div>
     </RoleGuard>
   );

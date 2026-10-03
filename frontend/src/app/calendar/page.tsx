@@ -8,6 +8,7 @@ import Link from 'next/link';
 import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
 import { TimelineView, TimelineEntry } from '@/components/common/TimelineView';
 import { useBrand } from '@/lib/brand-context';
+import { ScriptDocumentViewerModal } from '@/components/common/ScriptDocumentViewerModal';
 
 const APPROVED_CALENDAR_STATUSES = [
   'APPROVED',
@@ -123,6 +124,7 @@ export default function CalendarPage() {
   const [uploadingScriptDoc, setUploadingScriptDoc] = useState(false);
   const [loadingEventFiles, setLoadingEventFiles] = useState(false);
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
+  const [previewScriptDoc, setPreviewScriptDoc] = useState<any | null>(null);
 
   useEffect(() => {
     if (viewModalEvent) {
@@ -3728,14 +3730,13 @@ export default function CalendarPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                              <a
-                                href={fileUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all"
+                              <button
+                                type="button"
+                                onClick={() => setPreviewScriptDoc(sf)}
+                                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer"
                               >
                                 <Eye className="w-3.5 h-3.5" /> View Script
-                              </a>
+                              </button>
                             </div>
                           </div>
                         );
@@ -3967,6 +3968,12 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      {/* In-app Script Document Viewer Modal */}
+      <ScriptDocumentViewerModal
+        doc={previewScriptDoc}
+        onClose={() => setPreviewScriptDoc(null)}
+      />
     </div>
   );
 }

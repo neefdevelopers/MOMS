@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, resolveFileUrl } from '@/lib/api';
 import { ProjectEquipmentTab } from '@/components/projects/ProjectEquipmentTab';
 import { VideoEditingPanel } from '@/components/projects/VideoEditingPanel';
 import { useAuth } from '@/lib/auth-context';
@@ -64,6 +64,7 @@ import {
   extractEventScripts,
   serializeProjectScripts,
 } from '@/lib/project-scripts';
+import { ScriptDocumentViewerModal } from '@/components/common/ScriptDocumentViewerModal';
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
@@ -101,6 +102,7 @@ export default function ProjectDetailPage() {
   const [uploadingScriptDoc, setUploadingScriptDoc] = useState(false);
   const [selectedScriptFile, setSelectedScriptFile] = useState<File | null>(null);
   const [scriptDocNotes, setScriptDocNotes] = useState('');
+  const [previewScriptDoc, setPreviewScriptDoc] = useState<any | null>(null);
 
   // Graphic Requirements Creation State
   const [newGraphicTitle, setNewGraphicTitle] = useState('');
@@ -1523,17 +1525,16 @@ export default function ProjectDetailPage() {
                       </div>
 
                       <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
-                        <a
-                          href={fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 py-1.5 px-2.5 bg-purple-50 hover:bg-purple-100 text-purple-800 rounded-lg font-bold text-[11px] text-center flex items-center justify-center gap-1 transition-colors"
+                        <button
+                          type="button"
+                          onClick={() => setPreviewScriptDoc(sf)}
+                          className="flex-1 py-1.5 px-2.5 bg-purple-50 hover:bg-purple-100 text-purple-800 rounded-lg font-bold text-[11px] text-center flex items-center justify-center gap-1 transition-colors cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5 text-purple-600" />
                           <span>View Script</span>
-                        </a>
+                        </button>
                         <a
-                          href={fileUrl}
+                          href={resolveFileUrl(sf.storagePath || sf.fileUrl)}
                           download={sf.fileName}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -2880,6 +2881,12 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       )}
+
+      {/* In-app Script Document Viewer Modal */}
+      <ScriptDocumentViewerModal
+        doc={previewScriptDoc}
+        onClose={() => setPreviewScriptDoc(null)}
+      />
     </div>
   );
 }

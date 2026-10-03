@@ -18,6 +18,7 @@ import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
 import { TimelineView, TimelineEntry } from '@/components/common/TimelineView';
 import { RouteGuard } from '@/components/common/RouteGuard';
 import { useBrand } from '@/lib/brand-context';
+import { ScriptDocumentViewerModal } from '@/components/common/ScriptDocumentViewerModal';
 
 const isTaskRevision = (t: any) =>
   Boolean(
@@ -642,6 +643,7 @@ export default function TasksPage() {
   const [inspectedProjectFiles, setInspectedProjectFiles] = useState<any[]>([]);
   const [loadingInspectedFiles, setLoadingInspectedFiles] = useState(false);
   const [inspectedFilesError, setInspectedFilesError] = useState<string>('');
+  const [previewScriptDoc, setPreviewScriptDoc] = useState<any | null>(null);
 
   useEffect(() => {
     if (inspectedTask) {
@@ -5238,14 +5240,13 @@ export default function TasksPage() {
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-2 shrink-0">
-                                        <a
-                                          href={fileUrl}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all"
+                                        <button
+                                          type="button"
+                                          onClick={() => setPreviewScriptDoc(sf)}
+                                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer"
                                         >
                                           <Eye className="w-3.5 h-3.5" /> View Script
-                                        </a>
+                                        </button>
                                         <button
                                           type="button"
                                           onClick={() => handleDeleteScriptDocForTask(sf)}
@@ -5815,6 +5816,12 @@ export default function TasksPage() {
           isRevision={isTaskRevision(revisionModalTask)}
         />
       )}
+
+      {/* In-app Script Document Viewer Modal */}
+      <ScriptDocumentViewerModal
+        doc={previewScriptDoc}
+        onClose={() => setPreviewScriptDoc(null)}
+      />
     </div>
     </RouteGuard>
   );

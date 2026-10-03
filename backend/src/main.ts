@@ -21,6 +21,13 @@ async function bootstrap() {
   // Handles unversioned /api/... or direct /auth/login, /users, etc., rewriting them to /api/v1/... (excluding health, root, and static uploads)
   app.use((req: Request, res: Response, next: NextFunction) => {
     const rawPath = req.url.split('?')[0];
+
+    // If client requested static uploads via /api/v1/uploads/... or /api/uploads/..., strip API prefix to route to static asset handler
+    if (rawPath.startsWith('/api/v1/uploads/') || rawPath.startsWith('/api/uploads/')) {
+      req.url = req.url.replace(/^\/api(\/v1)?/, '');
+      return next();
+    }
+
     const isExcluded =
       rawPath === '' ||
       rawPath === '/' ||
