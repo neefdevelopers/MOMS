@@ -36,10 +36,12 @@ const STATUS_LABEL: Record<string, string> = {
   ASSIGNED: 'Awaiting Staff',
   ACCEPTED: 'Accepted - Staff editing',
   IN_PROGRESS: 'In progress (Staff)',
-  COMPLETED: 'Completed by Staff',
+  COMPLETED: 'Completed & Approved',
   WAITING_FOR_TECHNICAL_REVIEW: 'In technical review',
+  WAITING_FOR_MEDIA_REVIEW: 'Awaiting Media Manager',
   WAITING_FOR_MEDIA_MANAGER_REVIEW: 'Awaiting Media Manager',
   MEDIA_MANAGER_APPROVED: 'Media Manager approved',
+  WAITING_FOR_MARKETING_APPROVAL: 'Awaiting Marketing Manager',
   WAITING_FOR_MARKETING_MANAGER_REVIEW: 'Awaiting Marketing Manager',
   MARKETING_MANAGER_APPROVED: 'Marketing Manager approved',
   REVISION_REQUESTED: 'Revision requested',
@@ -53,8 +55,10 @@ const STATUS_BADGE: Record<string, string> = {
   IN_PROGRESS: 'bg-blue-100 text-blue-800',
   COMPLETED: 'bg-emerald-100 text-emerald-800',
   WAITING_FOR_TECHNICAL_REVIEW: 'bg-amber-100 text-amber-800',
-  WAITING_FOR_MEDIA_MANAGER_REVIEW: 'bg-amber-100 text-amber-800',
+  WAITING_FOR_MEDIA_REVIEW: 'bg-cyan-100 text-cyan-800',
+  WAITING_FOR_MEDIA_MANAGER_REVIEW: 'bg-cyan-100 text-cyan-800',
   MEDIA_MANAGER_APPROVED: 'bg-emerald-100 text-emerald-800',
+  WAITING_FOR_MARKETING_APPROVAL: 'bg-violet-100 text-violet-800',
   WAITING_FOR_MARKETING_MANAGER_REVIEW: 'bg-violet-100 text-violet-800',
   MARKETING_MANAGER_APPROVED: 'bg-emerald-100 text-emerald-800',
   REVISION_REQUESTED: 'bg-rose-100 text-rose-800',
@@ -215,7 +219,7 @@ export function VideoEditingPanel({ project, user, onReload }: Props) {
         <div className="p-3 bg-white border border-indigo-200 rounded-lg">
           <p className="text-[12px] font-bold text-slate-800">Shoot project is COMPLETED.</p>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Click <strong>Complete Project</strong> in the project header to open the conversion form and create one Video Editing Task per script.
+            Click <strong>Convert to Video Editing</strong> in the project header to open the conversion form and create one Video Editing Task per script.
           </p>
         </div>
       )}

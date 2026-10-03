@@ -11,27 +11,76 @@ export class EquipmentService {
 
   async findAll(
     category?: string,
-    availability?: EquipmentAvailability,
+    availability?: string,
     includeArchived = false,
     userId?: string,
     role?: string,
+    search?: string,
+    condition?: string,
+    location?: string,
   ) {
     const where: any = {};
-    if (category) where.category = category;
-    if (availability) where.availability = availability;
+    if (category && category !== 'ALL') where.category = category;
+    if (availability && availability !== 'ALL') {
+      where.OR = [
+        { availability },
+        { status: availability },
+      ];
+    }
+    if (condition && condition !== 'ALL') where.condition = condition;
+    if (location && location !== 'ALL') where.storageLocation = location;
 
     // Business Rule 4: Retired/archived equipment is hidden by default but never deleted
     if (!includeArchived) {
       where.isArchived = false;
     }
 
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: [
+            { name: { contains: q, mode: 'insensitive' } },
+            { equipmentId: { contains: q, mode: 'insensitive' } },
+            { serialNumber: { contains: q, mode: 'insensitive' } },
+            { brand: { contains: q, mode: 'insensitive' } },
+            { model: { contains: q, mode: 'insensitive' } },
+            { currentHolder: { contains: q, mode: 'insensitive' } },
+            { storageLocation: { contains: q, mode: 'insensitive' } },
+            { rentalCustomer: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
+
     return this.prisma.equipment.findMany({
       where,
       include: {
-        reservations: { include: { project: true, reservedBy: { select: { id: true, name: true, email: true, role: true } } } },
-        movements: { include: { user: true, project: true }, orderBy: { timestamp: 'desc' } },
+        assignedProject: { select: { id: true, name: true, projectId: true, shootType: true } },
+        assignedUser: { select: { id: true, name: true, email: true, role: true } },
+        reservations: {
+          where: { status: 'RESERVED' },
+          include: { project: true, reservedBy: { select: { id: true, name: true, email: true, role: true } } },
+          take: 1,
+        },
+        movements: {
+          include: { user: true, project: true, employee: true, returnedBy: true },
+          orderBy: { timestamp: 'desc' },
+          take: 5,
+        },
+        damageReports: {
+          where: { repairStatus: { not: 'REPAIRED' } },
+          orderBy: { date: 'desc' },
+          take: 1,
+        },
+        maintenanceRecords: {
+          where: { status: { not: 'COMPLETED' } },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       },
-      orderBy: { name: 'asc' },
+      orderBy: { equipmentId: 'asc' },
     });
   }
 
@@ -40,8 +89,10 @@ export class EquipmentService {
     return this.prisma.equipment.findMany({
       where: { isArchived: true },
       include: {
+        assignedProject: { select: { id: true, name: true, projectId: true, shootType: true } },
+        assignedUser: { select: { id: true, name: true, email: true, role: true } },
         reservations: { include: { project: true, reservedBy: { select: { id: true, name: true, email: true, role: true } } } },
-        movements: { include: { user: true, project: true }, orderBy: { timestamp: 'desc' } },
+        movements: { include: { user: true, project: true, employee: true, returnedBy: true }, orderBy: { timestamp: 'desc' } },
       },
       orderBy: { archivedAt: 'desc' },
     });
@@ -51,8 +102,24 @@ export class EquipmentService {
     const item = await this.prisma.equipment.findUnique({
       where: { id },
       include: {
-        reservations: { include: { project: true, reservedBy: { select: { id: true, name: true, email: true, role: true } } } },
-        movements: { include: { user: true, project: true }, orderBy: { timestamp: 'desc' } },
+        assignedProject: { select: { id: true, name: true, projectId: true, shootType: true } },
+        assignedUser: { select: { id: true, name: true, email: true, role: true } },
+        reservations: {
+          include: { project: true, reservedBy: { select: { id: true, name: true, email: true, role: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+        movements: {
+          include: { user: true, project: true, employee: true, returnedBy: true },
+          orderBy: { timestamp: 'desc' },
+        },
+        damageReports: {
+          include: { reportedBy: { select: { id: true, name: true, email: true, role: true } } },
+          orderBy: { date: 'desc' },
+        },
+        maintenanceRecords: {
+          include: { clearedBy: { select: { id: true, name: true, email: true, role: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
     if (!item) throw new NotFoundException('Equipment not found');
@@ -1680,6 +1747,20 @@ export class EquipmentService {
     });
   }
 
+  async getDamageReports(equipmentId?: string) {
+    const where: any = {};
+    if (equipmentId) where.equipmentId = equipmentId;
+
+    return this.prisma.equipmentDamageReport.findMany({
+      where,
+      include: {
+        equipment: true,
+        reportedBy: { select: { id: true, name: true, email: true, role: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   // ─── Permanent Audit Movement Timeline ────────────────────────────────────
   async getEquipmentTimeline(equipmentId: string) {
     return this.prisma.equipmentMovement.findMany({
@@ -1743,10 +1824,12 @@ export class EquipmentService {
     };
   }
 
-  // ─── Technical Manager Global Monitoring ──────────────────────────────────
+  // ─── Operational Equipment Monitoring ──────────────────────────────────
   async getMonitoringData() {
     const items = await this.prisma.equipment.findMany({
       include: {
+        assignedProject: { select: { id: true, name: true, projectId: true } },
+        assignedUser: { select: { id: true, name: true, email: true } },
         reservations: {
           where: { status: 'RESERVED' },
           include: {
@@ -1781,6 +1864,29 @@ export class EquipmentService {
       const activeRes = eq.reservations[0];
       const lastMovement = eq.movements[0];
 
+      let holder = eq.currentHolder || 'Unassigned';
+      let project = 'N/A';
+      let expectedReturn = eq.expectedReturnDate || activeReq?.expectedReturnDate || activeRes?.endDate || null;
+
+      if (eq.availability === EquipmentAvailability.ASSIGNED_TO_PROJECT) {
+        holder = eq.assignedUser?.name || activeReq?.requestedBy?.name || lastMovement?.employee?.name || eq.currentHolder || 'Project Team';
+        project = eq.assignedProject ? `${eq.assignedProject.projectId} - ${eq.assignedProject.name}` : (activeReq?.project?.name || activeRes?.project?.name || 'N/A');
+        expectedReturn = eq.expectedReturnDate || activeReq?.expectedReturnDate || activeRes?.endDate || null;
+      } else if (eq.availability === EquipmentAvailability.RENTED_OUT) {
+        holder = eq.rentalCustomer ? `${eq.rentalCustomer}${eq.rentalContact ? ` (${eq.rentalContact})` : ''}` : (eq.currentHolder || 'Outside Client');
+        project = 'Outside Rental';
+        expectedReturn = eq.rentalExpectedReturnDate || eq.expectedReturnDate || null;
+      } else if (eq.availability === EquipmentAvailability.UNDER_MAINTENANCE) {
+        holder = 'Maintenance / Service Center';
+        project = 'Maintenance';
+      } else if (eq.availability === EquipmentAvailability.DAMAGED) {
+        holder = eq.currentHolder || 'Holding / Quarantined';
+        project = 'Quarantined (Damaged)';
+      } else if (eq.availability === EquipmentAvailability.LOST) {
+        holder = eq.currentHolder || 'Unknown / Missing';
+        project = 'Lost / Missing';
+      }
+
       return {
         id: eq.id,
         equipmentId: eq.equipmentId,
@@ -1791,12 +1897,20 @@ export class EquipmentService {
         serialNumber: eq.serialNumber,
         currentStatus: eq.availability,
         storageLocation: eq.storageLocation || 'Studio Storage Bay',
-        currentEmployee: activeReq?.requestedBy?.name || lastMovement?.employee?.name || eq.currentHolder || 'Unassigned',
-        assignedProject: activeReq?.project?.name || activeRes?.project?.name || 'N/A',
-        checkoutDate: activeReq?.requiredDate || lastMovement?.timestamp || null,
-        expectedReturnDate: activeReq?.expectedReturnDate || activeRes?.endDate || null,
+        currentEmployee: holder,
+        currentHolder: holder,
+        assignedProject: project,
+        assignedProjectId: eq.assignedProjectId,
+        checkoutDate: eq.assignedDate || activeReq?.requiredDate || lastMovement?.timestamp || null,
+        expectedReturnDate: expectedReturn,
         condition: eq.condition,
         maintenanceStatus: eq.maintenanceStatus,
+        rentalCustomer: eq.rentalCustomer,
+        rentalContact: eq.rentalContact,
+        rentalStartDate: eq.rentalStartDate,
+        rentalExpectedReturnDate: eq.rentalExpectedReturnDate,
+        rentalFee: eq.rentalFee,
+        rentalNotes: eq.rentalNotes,
         lastInspection: lastMovement?.timestamp || eq.updatedAt,
         lastUpdated: eq.updatedAt,
         isArchived: eq.isArchived,
@@ -1889,5 +2003,535 @@ export class EquipmentService {
     }
 
     return { message: 'Equipment reservation cancelled successfully.' };
+  }
+
+  // ─── 1. ASSIGN TO SHOOT PROJECT ─────────────────────────────────────────────
+  async assignToShootProject(
+    id: string,
+    data: {
+      projectId: string;
+      assignedUserId?: string;
+      assignedDate?: string;
+      expectedReturnDate: string;
+      notes?: string;
+    },
+    userId: string,
+  ) {
+    const eqp = await this.findOne(id);
+    if (eqp.isArchived) throw new BadRequestException('Cannot assign retired equipment.');
+    if (eqp.availability === EquipmentAvailability.DAMAGED || eqp.status === 'DAMAGED') {
+      throw new BadRequestException('Cannot assign DAMAGED equipment. Repair and mark ready first.');
+    }
+    if (eqp.availability === EquipmentAvailability.UNDER_MAINTENANCE || eqp.status === 'UNDER_MAINTENANCE') {
+      throw new BadRequestException('Cannot assign equipment that is UNDER MAINTENANCE.');
+    }
+    if (eqp.availability === 'RENTED_OUT' || eqp.status === 'RENTED_OUT') {
+      throw new BadRequestException('Equipment is currently RENTED OUT.');
+    }
+    if (eqp.availability === 'ASSIGNED_TO_PROJECT' || eqp.status === 'ASSIGNED_TO_PROJECT' || eqp.availability === EquipmentAvailability.CHECKED_OUT) {
+      throw new BadRequestException('Equipment is already assigned to a project.');
+    }
+
+    const project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
+    if (!project) throw new NotFoundException('Shoot Project not found');
+
+    let assignedUserName = '';
+    if (data.assignedUserId) {
+      const u = await this.prisma.user.findUnique({ where: { id: data.assignedUserId } });
+      if (u) assignedUserName = u.name;
+    }
+
+    const assignDate = data.assignedDate ? new Date(data.assignedDate) : new Date();
+    const returnDate = new Date(data.expectedReturnDate);
+
+    // Update equipment status and links
+    const updated = await this.prisma.equipment.update({
+      where: { id },
+      data: {
+        status: 'ASSIGNED_TO_PROJECT',
+        availability: 'ASSIGNED_TO_PROJECT',
+        assignedProjectId: data.projectId,
+        assignedUserId: data.assignedUserId || null,
+        assignedDate: assignDate,
+        expectedReturnDate: returnDate,
+        assignmentNotes: data.notes || null,
+        currentHolder: assignedUserName || project.name,
+      },
+    });
+
+    // Create reservation record for shoot project integration
+    await this.prisma.equipmentReservation.create({
+      data: {
+        equipmentId: id,
+        projectId: data.projectId,
+        startDate: assignDate,
+        endDate: returnDate,
+        reservedById: userId,
+        status: 'RESERVED',
+      },
+    }).catch(() => null);
+
+    // Create movement log
+    await this.prisma.equipmentMovement.create({
+      data: {
+        equipmentId: id,
+        projectId: data.projectId,
+        employeeId: data.assignedUserId || null,
+        userId,
+        action: 'ASSIGNED_TO_PROJECT',
+        expectedReturnDate: returnDate,
+        condition: eqp.condition,
+        notes: data.notes || `Assigned to Shoot Project "${project.name}" (Holder: ${assignedUserName || project.name})`,
+      },
+    });
+
+    return updated;
+  }
+
+  // ─── 2. RETURN FROM SHOOT PROJECT ───────────────────────────────────────────
+  async returnFromShootProject(
+    id: string,
+    data: {
+      returnDate?: string;
+      condition: string; // 'Good', 'Damaged', 'Needs Maintenance'
+      missingAccessoriesNotes?: string;
+      physicalDamageNotes?: string;
+      notes?: string;
+    },
+    userId: string,
+  ) {
+    const eqp = await this.findOne(id);
+    const returnDateObj = data.returnDate ? new Date(data.returnDate) : new Date();
+    const prevProject = eqp.assignedProject;
+    const prevProjectId = eqp.assignedProjectId;
+
+    let nextStatus = 'AVAILABLE';
+    let nextAvailability = EquipmentAvailability.AVAILABLE;
+    let nextMaintenanceStatus = MaintenanceStatus.OPERATIONAL;
+    let nextCondition = data.condition || 'Good';
+
+    if (data.condition === 'Damaged' || data.physicalDamageNotes) {
+      nextStatus = 'DAMAGED';
+      nextAvailability = EquipmentAvailability.DAMAGED;
+      nextMaintenanceStatus = MaintenanceStatus.NEEDS_SERVICE;
+      nextCondition = 'Damaged';
+
+      await this.prisma.equipmentDamageReport.create({
+        data: {
+          equipmentId: id,
+          reportedById: userId,
+          date: returnDateObj,
+          description: data.physicalDamageNotes || data.notes || 'Damage reported on return from shoot project',
+          severity: 'HIGH',
+          repairStatus: 'PENDING',
+        },
+      });
+    } else if (data.condition === 'Needs Maintenance' || data.condition === 'UNDER_MAINTENANCE') {
+      nextStatus = 'UNDER_MAINTENANCE';
+      nextAvailability = EquipmentAvailability.UNDER_MAINTENANCE;
+      nextMaintenanceStatus = MaintenanceStatus.NEEDS_SERVICE;
+      nextCondition = 'Needs Maintenance';
+
+      const count = await this.prisma.equipmentMaintenanceRecord.count();
+      await this.prisma.equipmentMaintenanceRecord.create({
+        data: {
+          maintenanceId: `MNT-${(count + 1).toString().padStart(6, '0')}`,
+          equipmentId: id,
+          maintenanceType: 'ROUTINE_SERVICE',
+          performedBy: 'Internal Service',
+          status: 'SCHEDULED',
+          scheduledDate: returnDateObj,
+          notes: data.notes || 'Maintenance flagged on return from shoot project',
+        },
+      });
+    }
+
+    const updated = await this.prisma.equipment.update({
+      where: { id },
+      data: {
+        status: nextStatus,
+        availability: nextAvailability,
+        maintenanceStatus: nextMaintenanceStatus,
+        condition: nextCondition,
+        assignedProjectId: null,
+        assignedUserId: null,
+        assignedDate: null,
+        expectedReturnDate: null,
+        assignmentNotes: null,
+        currentHolder: null,
+      },
+    });
+
+    if (prevProjectId) {
+      await this.prisma.equipmentReservation.updateMany({
+        where: { equipmentId: id, projectId: prevProjectId, status: 'RESERVED' },
+        data: { status: 'COMPLETED' },
+      }).catch(() => null);
+    }
+
+    await this.prisma.equipmentMovement.create({
+      data: {
+        equipmentId: id,
+        projectId: prevProjectId || null,
+        userId,
+        returnedById: userId,
+        action: 'RETURNED',
+        condition: nextCondition,
+        hasPhysicalDamage: Boolean(data.physicalDamageNotes || data.condition === 'Damaged'),
+        physicalDamageNotes: data.physicalDamageNotes || null,
+        hasMissingAccessories: Boolean(data.missingAccessoriesNotes),
+        missingAccessoriesNotes: data.missingAccessoriesNotes || null,
+        notes: data.notes || `Returned from Shoot Project "${prevProject?.name || 'Project'}". Condition: ${nextCondition}. Status: ${nextStatus}.`,
+      },
+    });
+
+    return updated;
+  }
+
+  // ─── 3. OUTSIDE EQUIPMENT RENTAL ────────────────────────────────────────────
+  async rentOut(
+    id: string,
+    data: {
+      customer: string;
+      contact?: string;
+      rentalStartDate?: string;
+      expectedReturnDate: string;
+      rentalNotes?: string;
+      rentalFee?: number;
+    },
+    userId: string,
+  ) {
+    const eqp = await this.findOne(id);
+    if (eqp.isArchived) throw new BadRequestException('Cannot rent retired equipment.');
+    if (eqp.availability === EquipmentAvailability.DAMAGED || eqp.status === 'DAMAGED') {
+      throw new BadRequestException('Cannot rent DAMAGED equipment. Repair and mark ready first.');
+    }
+    if (eqp.availability === EquipmentAvailability.UNDER_MAINTENANCE || eqp.status === 'UNDER_MAINTENANCE') {
+      throw new BadRequestException('Cannot rent equipment that is UNDER MAINTENANCE.');
+    }
+    if (eqp.availability === 'ASSIGNED_TO_PROJECT' || eqp.status === 'ASSIGNED_TO_PROJECT') {
+      throw new BadRequestException('Equipment is currently ASSIGNED TO A SHOOT PROJECT.');
+    }
+    if (eqp.availability === 'RENTED_OUT' || eqp.status === 'RENTED_OUT') {
+      throw new BadRequestException('Equipment is already RENTED OUT.');
+    }
+
+    const startDate = data.rentalStartDate ? new Date(data.rentalStartDate) : new Date();
+    const returnDate = new Date(data.expectedReturnDate);
+
+    const updated = await this.prisma.equipment.update({
+      where: { id },
+      data: {
+        status: 'RENTED_OUT',
+        availability: 'RENTED_OUT',
+        rentalCustomer: data.customer,
+        rentalContact: data.contact || null,
+        rentalStartDate: startDate,
+        rentalExpectedReturnDate: returnDate,
+        rentalNotes: data.rentalNotes || null,
+        rentalFee: data.rentalFee ? parseFloat(data.rentalFee as any) : null,
+        currentHolder: data.customer,
+      },
+    });
+
+    await this.prisma.equipmentMovement.create({
+      data: {
+        equipmentId: id,
+        userId,
+        action: 'RENTED_OUT',
+        rentalCustomer: data.customer,
+        rentalContact: data.contact || null,
+        rentalFee: data.rentalFee ? parseFloat(data.rentalFee as any) : null,
+        expectedReturnDate: returnDate,
+        condition: eqp.condition,
+        notes: data.rentalNotes || `Rented to external organization "${data.customer}". Expected return: ${returnDate.toLocaleDateString()}`,
+      },
+    });
+
+    return updated;
+  }
+
+  // ─── 4. RETURN FROM OUTSIDE RENTAL ──────────────────────────────────────────
+  async returnRental(
+    id: string,
+    data: {
+      returnDate?: string;
+      condition: string;
+      damageNotes?: string;
+      missingItemsNotes?: string;
+      notes?: string;
+    },
+    userId: string,
+  ) {
+    const eqp = await this.findOne(id);
+    const returnDateObj = data.returnDate ? new Date(data.returnDate) : new Date();
+    const prevCustomer = eqp.rentalCustomer || 'Customer';
+
+    let nextStatus = 'AVAILABLE';
+    let nextAvailability = EquipmentAvailability.AVAILABLE;
+    let nextMaintenanceStatus = MaintenanceStatus.OPERATIONAL;
+    let nextCondition = data.condition || 'Good';
+
+    if (data.condition === 'Damaged' || data.damageNotes) {
+      nextStatus = 'DAMAGED';
+      nextAvailability = EquipmentAvailability.DAMAGED;
+      nextMaintenanceStatus = MaintenanceStatus.NEEDS_SERVICE;
+      nextCondition = 'Damaged';
+
+      await this.prisma.equipmentDamageReport.create({
+        data: {
+          equipmentId: id,
+          reportedById: userId,
+          date: returnDateObj,
+          description: data.damageNotes || data.notes || `Damage noted on return from rental by ${prevCustomer}`,
+          severity: 'HIGH',
+          repairStatus: 'PENDING',
+        },
+      });
+    } else if (data.condition === 'Needs Maintenance' || data.condition === 'UNDER_MAINTENANCE') {
+      nextStatus = 'UNDER_MAINTENANCE';
+      nextAvailability = EquipmentAvailability.UNDER_MAINTENANCE;
+      nextMaintenanceStatus = MaintenanceStatus.NEEDS_SERVICE;
+      nextCondition = 'Needs Maintenance';
+
+      const count = await this.prisma.equipmentMaintenanceRecord.count();
+      await this.prisma.equipmentMaintenanceRecord.create({
+        data: {
+          maintenanceId: `MNT-${(count + 1).toString().padStart(6, '0')}`,
+          equipmentId: id,
+          maintenanceType: 'ROUTINE_SERVICE',
+          performedBy: 'Internal Service',
+          status: 'SCHEDULED',
+          scheduledDate: returnDateObj,
+          notes: data.notes || `Maintenance flagged on return from rental by ${prevCustomer}`,
+        },
+      });
+    }
+
+    const updated = await this.prisma.equipment.update({
+      where: { id },
+      data: {
+        status: nextStatus,
+        availability: nextAvailability,
+        maintenanceStatus: nextMaintenanceStatus,
+        condition: nextCondition,
+        rentalCustomer: null,
+        rentalContact: null,
+        rentalStartDate: null,
+        rentalExpectedReturnDate: null,
+        rentalNotes: null,
+        rentalFee: null,
+        currentHolder: null,
+      },
+    });
+
+    await this.prisma.equipmentMovement.create({
+      data: {
+        equipmentId: id,
+        userId,
+        returnedById: userId,
+        action: 'RENTAL_RETURN',
+        rentalCustomer: prevCustomer,
+        condition: nextCondition,
+        hasPhysicalDamage: Boolean(data.damageNotes || data.condition === 'Damaged'),
+        physicalDamageNotes: data.damageNotes || null,
+        hasMissingAccessories: Boolean(data.missingItemsNotes),
+        missingAccessoriesNotes: data.missingItemsNotes || null,
+        notes: data.notes || `Returned from outside rental by "${prevCustomer}". Condition: ${nextCondition}. Status: ${nextStatus}.`,
+      },
+    });
+
+    return updated;
+  }
+
+  // ─── 5. REPORT DAMAGE ───────────────────────────────────────────────────────
+  async reportDamage(
+    id: string,
+    data: {
+      damageDate?: string;
+      damageType?: string;
+      description: string;
+      severity?: string;
+      projectId?: string;
+      notes?: string;
+    },
+    userId: string,
+  ) {
+    const eqp = await this.findOne(id);
+    const dmgDate = data.damageDate ? new Date(data.damageDate) : new Date();
+
+    const report = await this.prisma.equipmentDamageReport.create({
+      data: {
+        equipmentId: id,
+        reportedById: userId,
+        date: dmgDate,
+        description: data.description || 'Physical damage reported',
+        severity: data.severity || 'HIGH',
+        repairStatus: 'PENDING',
+        repairNotes: data.notes || null,
+      },
+    });
+
+    await this.prisma.equipment.update({
+      where: { id },
+      data: {
+        status: 'DAMAGED',
+        availability: EquipmentAvailability.DAMAGED,
+        condition: 'Damaged',
+        maintenanceStatus: MaintenanceStatus.NEEDS_SERVICE,
+      },
+    });
+
+    await this.prisma.equipmentMovement.create({
+      data: {
+        equipmentId: id,
+        projectId: data.projectId || eqp.assignedProjectId || null,
+        userId,
+        action: 'DAMAGED',
+        condition: 'Damaged',
+        hasPhysicalDamage: true,
+        physicalDamageNotes: data.description,
+        notes: `Damage reported (${data.severity || 'HIGH'} severity): ${data.description}`,
+      },
+    });
+
+    return report;
+  }
+
+  // ─── 6. SEND TO MAINTENANCE ────────────────────────────────────────────────
+  async sendToMaintenance(
+    id: string,
+    data: {
+      maintenanceType?: string;
+      performedBy: string;
+      problem?: string;
+      notes?: string;
+      scheduledDate?: string;
+      cost?: number;
+    },
+    userId: string,
+  ) {
+    const eqp = await this.findOne(id);
+    const count = await this.prisma.equipmentMaintenanceRecord.count();
+    const autoMntId = `MNT-${(count + 1).toString().padStart(6, '0')}`;
+    const schDate = data.scheduledDate ? new Date(data.scheduledDate) : new Date();
+
+    const record = await this.prisma.equipmentMaintenanceRecord.create({
+      data: {
+        maintenanceId: autoMntId,
+        equipmentId: id,
+        maintenanceType: data.maintenanceType || 'REPAIR',
+        performedBy: data.performedBy,
+        status: 'IN_PROGRESS',
+        scheduledDate: schDate,
+        cost: data.cost ? parseFloat(data.cost as any) : null,
+        notes: data.problem || data.notes || 'Sent to maintenance for service/repair.',
+      },
+    });
+
+    await this.prisma.equipment.update({
+      where: { id },
+      data: {
+        status: 'UNDER_MAINTENANCE',
+        availability: EquipmentAvailability.UNDER_MAINTENANCE,
+        maintenanceStatus: MaintenanceStatus.UNDER_REPAIR,
+      },
+    });
+
+    await this.prisma.equipmentMovement.create({
+      data: {
+        equipmentId: id,
+        userId,
+        action: 'MAINTENANCE',
+        condition: eqp.condition,
+        notes: `Moved into maintenance with ${data.performedBy}. Type: ${data.maintenanceType || 'REPAIR'}. Problem: ${data.problem || data.notes || 'Service in progress'}`,
+      },
+    });
+
+    return record;
+  }
+
+  // ─── 7. MARK READY ─────────────────────────────────────────────────────────
+  async markReady(
+    id: string,
+    data: {
+      notes?: string;
+      condition?: string;
+    },
+    userId: string,
+  ) {
+    const eqp = await this.findOne(id);
+
+    // Complete latest pending/in-progress maintenance record
+    const activeMnt = await this.prisma.equipmentMaintenanceRecord.findFirst({
+      where: { equipmentId: id, status: { in: ['IN_PROGRESS', 'SCHEDULED'] } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (activeMnt) {
+      await this.prisma.equipmentMaintenanceRecord.update({
+        where: { id: activeMnt.id },
+        data: {
+          status: 'COMPLETED',
+          completedDate: new Date(),
+          clearedById: userId,
+          clearedAt: new Date(),
+          notes: activeMnt.notes ? `${activeMnt.notes} | Completed: ${data.notes || 'Verified Ready'}` : data.notes,
+        },
+      });
+    }
+
+    // Resolve any open damage reports
+    await this.prisma.equipmentDamageReport.updateMany({
+      where: { equipmentId: id, repairStatus: { not: 'REPAIRED' } },
+      data: {
+        repairStatus: 'REPAIRED',
+        repairedAt: new Date(),
+        repairNotes: data.notes || 'Repaired and verified operational.',
+      },
+    }).catch(() => null);
+
+    const updated = await this.prisma.equipment.update({
+      where: { id },
+      data: {
+        status: 'AVAILABLE',
+        availability: EquipmentAvailability.AVAILABLE,
+        maintenanceStatus: MaintenanceStatus.OPERATIONAL,
+        condition: data.condition || 'Good',
+      },
+    });
+
+    await this.prisma.equipmentMovement.create({
+      data: {
+        equipmentId: id,
+        userId,
+        action: 'READY',
+        condition: data.condition || 'Good',
+        notes: data.notes || 'Equipment inspected, serviced, and marked ready for operational deployment.',
+      },
+    });
+
+    return updated;
+  }
+
+  // ─── 8. CONSOLIDATED HISTORY ────────────────────────────────────────────────
+  async getConsolidatedHistory(equipmentId?: string) {
+    const where: any = {};
+    if (equipmentId) where.equipmentId = equipmentId;
+
+    const movements = await this.prisma.equipmentMovement.findMany({
+      where,
+      include: {
+        equipment: { select: { id: true, name: true, equipmentId: true, category: true, brand: true, model: true } },
+        user: { select: { id: true, name: true, email: true, role: true } },
+        employee: { select: { id: true, name: true, email: true, role: true } },
+        returnedBy: { select: { id: true, name: true, email: true, role: true } },
+        project: { select: { id: true, name: true, projectId: true } },
+      },
+      orderBy: { timestamp: 'desc' },
+      take: 200,
+    });
+
+    return movements;
   }
 }

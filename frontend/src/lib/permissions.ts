@@ -192,7 +192,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     BRANDS: ['VIEW'],
     PRODUCTS: ['VIEW'],
     STAFF: [],
-    REPORTS: ['VIEW', 'EXPORT'],
+    REPORTS: [],
     CALENDAR: ['VIEW', 'EXPORT'],
     COMMUNICATIONS: ['VIEW', 'CREATE', 'EDIT'],
     REVISIONS: ['VIEW', 'CREATE', 'EDIT', 'APPROVE'],
@@ -209,7 +209,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     BRANDS: [],
     PRODUCTS: [],
     STAFF: [],
-    REPORTS: ['VIEW'],
+    REPORTS: [],
     CALENDAR: ['VIEW'],
     COMMUNICATIONS: ['VIEW'],
     REVISIONS: ['VIEW', 'EDIT'],
@@ -226,7 +226,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     BRANDS: [],
     PRODUCTS: [],
     STAFF: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'ASSIGN'],
-    REPORTS: ['VIEW'],
+    REPORTS: [],
     CALENDAR: ['VIEW'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
     REVISIONS: ['VIEW'],
@@ -243,7 +243,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     BRANDS: ['VIEW'],
     PRODUCTS: ['VIEW'],
     STAFF: ['VIEW'],
-    REPORTS: ['VIEW', 'EXPORT'],
+    REPORTS: [],
     CALENDAR: ['VIEW'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
     REVISIONS: ['VIEW'],
@@ -277,7 +277,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     BRANDS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     PRODUCTS: ['VIEW', 'CREATE', 'EDIT', 'DELETE', 'EXPORT', 'ARCHIVE', 'RESTORE'],
     STAFF: [],
-    REPORTS: ['VIEW'],
+    REPORTS: ['VIEW', 'EXPORT'],
     CALENDAR: ['VIEW', 'CREATE', 'EDIT', 'APPROVE', 'EXPORT'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
     REVISIONS: ['VIEW', 'APPROVE'],
@@ -294,7 +294,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     BRANDS: ['VIEW'],
     PRODUCTS: ['VIEW'],
     STAFF: ['VIEW'],
-    REPORTS: ['VIEW'],
+    REPORTS: [],
     CALENDAR: ['VIEW'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
     REVISIONS: ['VIEW'],
@@ -311,7 +311,7 @@ export const ROLE_PERMISSION_MATRIX: Record<Role, Record<ModuleType, PermissionT
     BRANDS: ['VIEW'],
     PRODUCTS: ['VIEW'],
     STAFF: ['VIEW'],
-    REPORTS: ['VIEW'],
+    REPORTS: [],
     CALENDAR: ['VIEW'],
     COMMUNICATIONS: ['VIEW', 'CREATE'],
     REVISIONS: ['VIEW'],
@@ -384,11 +384,11 @@ export function canAccessRoute(role: string, route: string): boolean {
     return role === 'TECHNICAL_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
   }
   if (route.startsWith('/equipment/create')) {
-    return role === 'MEDIA_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
+    return role === 'MEDIA_MANAGER' || role === 'TECHNICAL_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
   }
   if (route.startsWith('/equipment/my')) return true;
   if (route.startsWith('/equipment')) {
-    return role === 'MEDIA_MANAGER' || role === 'TECHNICAL_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
+    return role === 'MEDIA_MANAGER' || role === 'TECHNICAL_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR' || hasModuleAccess(role, 'EQUIPMENT');
   }
   if (route.startsWith('/attendance')) return role === 'MEDIA_MANAGER' || role === 'STAFF' || role === 'SOCIAL_MEDIA_MANAGER' || role === 'ADMIN' || role === 'ADMINISTRATOR';
   if (route.startsWith('/client-review')) {

@@ -43,7 +43,16 @@ export class ApprovalsController {
     return this.approvalsService.submitMediaReview(data, reviewerId);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MARKETING_MANAGER, Role.MEDIA_MANAGER)
+  @Post('marketing-review')
+  submitMarketingReview(
+    @Body() data: { projectId: string; status: 'APPROVED' | 'REJECTED'; remarks?: string },
+    @CurrentUser('id') reviewerId: string,
+  ) {
+    return this.approvalsService.submitMarketingReview(data, reviewerId);
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.MARKETING_MANAGER)
   @Post('client-confirmation')
   recordClientConfirmation(
     @Body()

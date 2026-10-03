@@ -4,35 +4,68 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { fetchApi } from '@/lib/api';
 import { RoleGuard } from '@/components/common/RoleGuard';
-import { Wrench, ArrowLeft, Plus, CheckCircle2, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import {
+  Wrench,
+  AlertTriangle,
+  Sparkles,
+  Plus,
+  RefreshCw,
+  X,
+  CheckCircle2,
+} from 'lucide-react';
 
 export default function EquipmentMaintenancePage() {
-  const [records, setRecords] = useState<any[]>([]);
+  const { user } = useAuth();
+  const userRole = user?.role as string | undefined;
+  const isManager = userRole === 'ADMIN' || userRole === 'ADMINISTRATOR' || userRole === 'MEDIA_MANAGER' || userRole === 'TECHNICAL_MANAGER';
+
+  const [activeTab, setActiveTab] = useState<'DAMAGE' | 'MAINTENANCE'>('DAMAGE');
   const [equipmentList, setEquipmentList] = useState<any[]>([]);
+  const [maintenanceRecords, setMaintenanceRecords] = useState<any[]>([]);
+  const [damageReports, setDamageReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Form State
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [form, setForm] = useState({
+  // Modals
+  const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [selectedEquipment, setSelectedEquipment] = useState<any | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Forms
+  const [damageForm, setDamageForm] = useState({
     equipmentId: '',
-    maintenanceType: 'ROUTINE_SERVICE',
-    performedBy: '',
-    cost: '',
+    damageType: 'PHYSICAL',
+    description: '',
+    severity: 'MEDIUM',
     notes: '',
-    scheduledDate: new Date().toISOString().split('T')[0],
   });
-  const [submitting, setSubmitting] = useState(false);
+
+  const [maintenanceForm, setMaintenanceForm] = useState({
+    equipmentId: '',
+    problem: '',
+    expectedCompletionDate: '',
+    notes: '',
+  });
+
+  const [readyForm, setReadyForm] = useState({
+    inspectionNotes: 'Equipment tested, verified functional and restored to deployment status.',
+    condition: 'EXCELLENT',
+  });
 
   const loadData = async () => {
+    setLoading(true);
     try {
-      const [recs, eq] = await Promise.all([
-        fetchApi('/equipment/maintenance-records'),
+      const [eqRes, maintRes, damageRes] = await Promise.all([
         fetchApi('/equipment'),
+        fetchApi('/equipment/maintenance-records').catch(() => []),
+        fetchApi('/equipment/damage-reports').catch(() => []),
       ]);
-      if (Array.isArray(recs)) setRecords(recs);
-      if (Array.isArray(eq)) setEquipmentList(eq);
+      if (Array.isArray(eqRes)) setEquipmentList(eqRes);
+      if (Array.isArray(maintRes)) setMaintenanceRecords(maintRes);
+      if (Array.isArray(damageRes)) setDamageReports(damageRes);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load maintenance data:', err);
     } finally {
       setLoading(false);
     }
@@ -42,238 +75,521 @@ export default function EquipmentMaintenancePage() {
     loadData();
   }, []);
 
-  const handleCreateMaintenance = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.equipmentId || !form.performedBy) {
-      alert('Please select an equipment item and technician/vendor.');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await fetchApi('/equipment/maintenance-records', {
-        method: 'POST',
-        body: JSON.stringify(form),
+  const openActionModal = (type: string, item?: any) => {
+    setSelectedEquipment(item || null);
+    setActionError(null);
+    if (type === 'REPORT_DAMAGE') {
+      setDamageForm({
+        equipmentId: item?.id || '',
+        damageType: 'PHYSICAL',
+        description: '',
+        severity: 'MEDIUM',
+        notes: '',
       });
-      alert('Maintenance record successfully created and equipment status set to UNDER_MAINTENANCE.');
-      setShowAddModal(false);
+    } else if (type === 'SEND_MAINTENANCE') {
+      setMaintenanceForm({
+        equipmentId: item?.id || '',
+        problem: item?.condition === 'DAMAGED' ? 'Repair reported damage' : '',
+        expectedCompletionDate: '',
+        notes: '',
+      });
+    } else if (type === 'MARK_READY') {
+      setReadyForm({
+        inspectionNotes: 'Equipment tested, verified functional and restored to deployment status.',
+        condition: 'EXCELLENT',
+      });
+    }
+    setActiveModal(type);
+  };
+
+  const closeModal = () => {
+    setActiveModal(null);
+    setSelectedEquipment(null);
+    setActionError(null);
+  };
+
+  const handleReportDamage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetId = selectedEquipment?.id || damageForm.equipmentId;
+    if (!targetId) return;
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      await fetchApi(`/equipment/${targetId}/report-damage`, {
+        method: 'POST',
+        body: JSON.stringify(damageForm),
+      });
+      closeModal();
       loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to create maintenance record');
+      setActionError(err.message || 'Failed to report damage.');
     } finally {
-      setSubmitting(false);
+      setActionLoading(false);
     }
   };
 
-  const handleClearMaintenance = async (recordId: string) => {
-    if (!confirm('Are you sure you want to clear maintenance and restore equipment availability to OPERATIONAL?')) return;
+  const handleSendMaintenance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetId = selectedEquipment?.id || maintenanceForm.equipmentId;
+    if (!targetId) return;
+    setActionLoading(true);
+    setActionError(null);
     try {
-      await fetchApi(`/equipment/maintenance-records/${recordId}/clear`, {
+      await fetchApi(`/equipment/${targetId}/send-maintenance`, {
         method: 'POST',
-        body: JSON.stringify({ notes: 'Cleared by Technical Manager' }),
+        body: JSON.stringify(maintenanceForm),
       });
-      alert('Maintenance cleared. Equipment restored to AVAILABLE.');
+      closeModal();
       loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to clear maintenance');
+      setActionError(err.message || 'Failed to send equipment to maintenance.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleMarkReady = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEquipment) return;
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      await fetchApi(`/equipment/${selectedEquipment.id}/mark-ready`, {
+        method: 'POST',
+        body: JSON.stringify(readyForm),
+      });
+      closeModal();
+      loadData();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to mark equipment ready.');
+    } finally {
+      setActionLoading(false);
     }
   };
 
   return (
     <RoleGuard>
-      <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
-        <div className="flex items-center justify-between border-b border-slate-200 pb-5">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/equipment"
-              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                <Wrench className="w-7 h-7 text-cyan-600" />
-                Equipment Maintenance Administration
-              </h1>
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-200">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">Damage & Maintenance</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Track equipment damage, repairs, and service verification</p>
           </div>
-
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Schedule Maintenance
-          </button>
-        </div>
-
-        {/* Maintenance Table */}
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          {loading ? (
-            <div className="p-12 text-center text-slate-500">Loading maintenance records...</div>
-          ) : records.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">No active or historical maintenance records.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-bold">
-                    <th className="p-3.5">Maintenance Code</th>
-                    <th className="p-3.5">Equipment</th>
-                    <th className="p-3.5">Scheduled Date</th>
-                    <th className="p-3.5">Maintenance Type</th>
-                    <th className="p-3.5">Performed By</th>
-                    <th className="p-3.5">Cost ($)</th>
-                    <th className="p-3.5">Status</th>
-                    <th className="p-3.5">Notes</th>
-                    <th className="p-3.5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {records.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-100/40">
-                      <td className="p-3.5 font-mono font-bold text-cyan-600">{r.maintenanceId}</td>
-                      <td className="p-3.5">
-                        <div className="font-bold text-slate-900">{r.equipment?.name}</div>
-                        <div className="font-mono text-[11px] text-slate-500">{r.equipment?.equipmentId}</div>
-                      </td>
-                      <td className="p-3.5 font-mono text-slate-700">
-                        {r.scheduledDate ? new Date(r.scheduledDate).toISOString().split('T')[0] : 'N/A'}
-                      </td>
-                      <td className="p-3.5 font-bold text-slate-800">{r.maintenanceType}</td>
-                      <td className="p-3.5 text-slate-700">{r.performedBy}</td>
-                      <td className="p-3.5 font-mono text-slate-700">{r.cost ? `$${r.cost.toFixed(2)}` : '—'}</td>
-                      <td className="p-3.5">
-                        <span
-                          className={`px-2 py-0.5 rounded font-extrabold text-[10px] uppercase border ${
-                            r.status === 'COMPLETED'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-cyan-50 text-cyan-700 border-cyan-200'
-                          }`}
-                        >
-                          {r.status}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-slate-500">{r.notes || '—'}</td>
-                      <td className="p-3.5 text-right">
-                        {r.status !== 'COMPLETED' && (
-                          <button
-                            onClick={() => handleClearMaintenance(r.id)}
-                            className="px-2.5 py-1 rounded bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-700 border border-emerald-200 text-[11px] font-bold"
-                          >
-                            Clear & Restore
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {isManager && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => openActionModal('REPORT_DAMAGE')}
+                className="inline-flex items-center px-3 py-2 border border-rose-300 rounded-lg text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 mr-1 text-rose-600" />
+                Report Damage
+              </button>
+              <button
+                onClick={() => openActionModal('SEND_MAINTENANCE')}
+                className="inline-flex items-center px-3.5 py-2 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors shadow-xs"
+              >
+                <Wrench className="w-3.5 h-3.5 mr-1" />
+                Send to Maintenance
+              </button>
             </div>
           )}
         </div>
 
-        {/* Schedule Maintenance Modal */}
-        {showAddModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-lg rounded-2xl border border-slate-200 p-6 space-y-4 shadow-2xl">
-              <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-                <Wrench className="w-5 h-5 text-cyan-600" />
-                Schedule Maintenance
-              </h2>
+        {/* 2 Simple Tabs: Damage | Maintenance */}
+        <div className="flex border-b border-gray-200 gap-6">
+          <button
+            onClick={() => setActiveTab('DAMAGE')}
+            className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'DAMAGE'
+                ? 'border-rose-600 text-rose-600 font-semibold'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Damage
+            <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-800 font-semibold">
+              {damageReports.length}
+            </span>
+          </button>
 
-              <form onSubmit={handleCreateMaintenance} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Equipment *</label>
-                  <select
-                    required
-                    value={form.equipmentId}
-                    onChange={(e) => setForm({ ...form, equipmentId: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
-                  >
-                    <option value="">Select Equipment Item</option>
-                    {equipmentList.map((eq) => (
-                      <option key={eq.id} value={eq.id}>
-                        {eq.equipmentId} - {eq.name} ({eq.availability})
-                      </option>
-                    ))}
-                  </select>
+          <button
+            onClick={() => setActiveTab('MAINTENANCE')}
+            className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'MAINTENANCE'
+                ? 'border-blue-600 text-blue-600 font-semibold'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Maintenance
+            <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800 font-semibold">
+              {maintenanceRecords.length}
+            </span>
+          </button>
+        </div>
+
+        {/* TAB 1: DAMAGE */}
+        {activeTab === 'DAMAGE' && (
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-600 font-medium">
+                    <th className="px-5 py-3">Equipment</th>
+                    <th className="px-4 py-3">Damage Description</th>
+                    <th className="px-4 py-3">Reported Date</th>
+                    <th className="px-4 py-3">Reported By</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-5 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6} className="px-5 py-8 text-center text-gray-500">
+                        Loading damage reports...
+                      </td>
+                    </tr>
+                  ) : damageReports.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-5 py-8 text-center text-gray-500">
+                        No active damage reports.
+                      </td>
+                    </tr>
+                  ) : (
+                    damageReports.map((d) => (
+                      <tr key={d.id} className="hover:bg-gray-50/60">
+                        <td className="px-5 py-3">
+                          <Link href={`/equipment/${d.equipment?.id || d.equipmentId}`} className="font-medium text-gray-900 hover:text-blue-600">
+                            {d.equipment?.name || 'Equipment'}
+                          </Link>
+                          <div className="font-mono text-gray-400 text-[11px]">{d.equipment?.equipmentId}</div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 max-w-sm truncate">
+                          {d.description || d.notes || 'Damage reported'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                          {new Date(d.createdAt || d.date).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                          {d.reportedBy?.name || 'Staff'}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200/60">
+                            {d.repairStatus || 'DAMAGED'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-2">
+                            {isManager && d.repairStatus !== 'REPAIRED' && (
+                              <button
+                                onClick={() => openActionModal('SEND_MAINTENANCE', d.equipment)}
+                                className="px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded transition-colors"
+                              >
+                                Send to Maintenance
+                              </button>
+                            )}
+                            <Link
+                              href={`/equipment/${d.equipment?.id || d.equipmentId}`}
+                              className="text-blue-600 hover:underline font-medium"
+                            >
+                              View
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: MAINTENANCE */}
+        {activeTab === 'MAINTENANCE' && (
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-600 font-medium">
+                    <th className="px-5 py-3">Equipment</th>
+                    <th className="px-4 py-3">Issue / Problem</th>
+                    <th className="px-4 py-3">Started</th>
+                    <th className="px-4 py-3">Expected Completion</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-5 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6} className="px-5 py-8 text-center text-gray-500">
+                        Loading maintenance records...
+                      </td>
+                    </tr>
+                  ) : maintenanceRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-5 py-8 text-center text-gray-500">
+                        No active maintenance records.
+                      </td>
+                    </tr>
+                  ) : (
+                    maintenanceRecords.map((m) => (
+                      <tr key={m.id} className="hover:bg-gray-50/60">
+                        <td className="px-5 py-3">
+                          <Link href={`/equipment/${m.equipment?.id || m.equipmentId}`} className="font-medium text-gray-900 hover:text-blue-600">
+                            {m.equipment?.name || 'Equipment'}
+                          </Link>
+                          <div className="font-mono text-gray-400 text-[11px]">{m.equipment?.equipmentId}</div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 max-w-sm truncate">
+                          {m.notes || m.maintenanceType || 'Service / Repair'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                          {new Date(m.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                          {m.completedDate ? new Date(m.completedDate).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 rounded text-xs font-medium border ${
+                              m.status === 'COMPLETED'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+                                : 'bg-amber-50 text-amber-700 border-amber-200/60'
+                            }`}
+                          >
+                            {m.status || 'IN_PROGRESS'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-2">
+                            {isManager && m.status !== 'COMPLETED' && (
+                              <button
+                                onClick={() => openActionModal('MARK_READY', m.equipment)}
+                                className="px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded transition-colors"
+                              >
+                                Mark Ready
+                              </button>
+                            )}
+                            <Link
+                              href={`/equipment/${m.equipment?.id || m.equipmentId}`}
+                              className="text-blue-600 hover:underline font-medium"
+                            >
+                              View
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ================= MODALS ================= */}
+
+        {/* 1. Report Damage Modal */}
+        {activeModal === 'REPORT_DAMAGE' && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl max-w-md w-full p-5 shadow-lg border border-gray-200">
+              <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900">Report Damage</h3>
+                <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {actionError && (
+                <div className="mt-3 p-2.5 bg-rose-50 border border-rose-200 rounded text-rose-700 text-xs">
+                  {actionError}
                 </div>
+              )}
 
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={handleReportDamage} className="mt-3 space-y-3 text-xs">
+                {!selectedEquipment && (
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Maintenance Type</label>
+                    <label className="block text-gray-600 mb-1">Select Equipment *</label>
                     <select
-                      value={form.maintenanceType}
-                      onChange={(e) => setForm({ ...form, maintenanceType: e.target.value })}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
+                      required
+                      value={damageForm.equipmentId}
+                      onChange={(e) => setDamageForm({ ...damageForm, equipmentId: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs bg-white"
                     >
-                      <option value="ROUTINE_SERVICE">ROUTINE_SERVICE</option>
-                      <option value="REPAIR">REPAIR</option>
-                      <option value="INSPECTION">INSPECTION</option>
-                      <option value="CLEANING">CLEANING</option>
+                      <option value="">Select Equipment</option>
+                      {equipmentList.map((eq) => (
+                        <option key={eq.id} value={eq.id}>
+                          {eq.equipmentId} - {eq.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Technician / Vendor *</label>
-                    <input
-                      type="text"
-                      required
-                      value={form.performedBy}
-                      onChange={(e) => setForm({ ...form, performedBy: e.target.value })}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
-                      placeholder="e.g. Sony Service Center"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Scheduled Date</label>
-                    <input
-                      type="date"
-                      value={form.scheduledDate}
-                      onChange={(e) => setForm({ ...form, scheduledDate: e.target.value })}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Estimated Cost ($)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={form.cost}
-                      onChange={(e) => setForm({ ...form, cost: e.target.value })}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
-                      placeholder="150.00"
-                    />
-                  </div>
-                </div>
+                )}
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Notes</label>
+                  <label className="block text-gray-600 mb-1">Damage Description *</label>
                   <textarea
-                    rows={2}
-                    value={form.notes}
-                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
-                    placeholder="e.g. Sensor cleaning & firmware update"
+                    required
+                    rows={3}
+                    value={damageForm.description}
+                    onChange={(e) => setDamageForm({ ...damageForm, description: e.target.value })}
+                    placeholder="Describe problem details, symptoms, drop incident..."
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs"
                   />
                 </div>
 
-                <div className="flex justify-end gap-3 pt-2">
+                <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
                   <button
                     type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 text-xs font-bold text-slate-700"
+                    onClick={closeModal}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={submitting}
-                    className="px-5 py-2 rounded-xl bg-blue-600 text-xs font-bold text-white"
+                    disabled={actionLoading}
+                    className="px-3.5 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-medium hover:bg-rose-700 disabled:opacity-50"
                   >
-                    {submitting ? 'Scheduling...' : 'Confirm Maintenance'}
+                    {actionLoading ? 'Recording...' : 'Report Damage'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* 2. Send to Maintenance Modal */}
+        {activeModal === 'SEND_MAINTENANCE' && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl max-w-md w-full p-5 shadow-lg border border-gray-200">
+              <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900">Send to Maintenance</h3>
+                <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {actionError && (
+                <div className="mt-3 p-2.5 bg-rose-50 border border-rose-200 rounded text-rose-700 text-xs">
+                  {actionError}
+                </div>
+              )}
+
+              <form onSubmit={handleSendMaintenance} className="mt-3 space-y-3 text-xs">
+                {!selectedEquipment && (
+                  <div>
+                    <label className="block text-gray-600 mb-1">Select Equipment *</label>
+                    <select
+                      required
+                      value={maintenanceForm.equipmentId}
+                      onChange={(e) => setMaintenanceForm({ ...maintenanceForm, equipmentId: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs bg-white"
+                    >
+                      <option value="">Select Equipment</option>
+                      {equipmentList.map((eq) => (
+                        <option key={eq.id} value={eq.id}>
+                          {eq.equipmentId} - {eq.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-gray-600 mb-1">Problem / Repair Scope *</label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="e.g. Lens zoom calibration, sensor clean, cracked mount"
+                    value={maintenanceForm.problem}
+                    onChange={(e) => setMaintenanceForm({ ...maintenanceForm, problem: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-600 mb-1">Expected Completion Date</label>
+                  <input
+                    type="date"
+                    value={maintenanceForm.expectedCompletionDate}
+                    onChange={(e) => setMaintenanceForm({ ...maintenanceForm, expectedCompletionDate: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="px-3.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Updating...' : 'Send to Maintenance'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* 3. Mark Ready Modal */}
+        {activeModal === 'MARK_READY' && selectedEquipment && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl max-w-md w-full p-5 shadow-lg border border-gray-200">
+              <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900">Mark Ready</h3>
+                <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {actionError && (
+                <div className="mt-3 p-2.5 bg-rose-50 border border-rose-200 rounded text-rose-700 text-xs">
+                  {actionError}
+                </div>
+              )}
+
+              <form onSubmit={handleMarkReady} className="mt-3 space-y-3 text-xs">
+                <p className="text-gray-600">
+                  Confirming inspection will resolve open maintenance records and restore this equipment to <strong>Available</strong> status.
+                </p>
+
+                <div>
+                  <label className="block text-gray-600 mb-1">Final Condition *</label>
+                  <select
+                    value={readyForm.condition}
+                    onChange={(e) => setReadyForm({ ...readyForm, condition: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs bg-white"
+                  >
+                    <option value="EXCELLENT">Excellent</option>
+                    <option value="GOOD">Good</option>
+                    <option value="FAIR">Fair</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="px-3.5 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Marking Ready...' : 'Confirm Ready'}
                   </button>
                 </div>
               </form>

@@ -2623,162 +2623,167 @@ export class ProjectsService {
       throw new BadRequestException('One or more selected staff members are not active.');
     }
 
-    const baseCount = await this.prisma.task.count();
-    let nextSeq = baseCount + 1;
-    const usedTaskIds = new Set<string>();
+    const existingTasks = await this.prisma.task.findMany({
+      where: { taskId: { startsWith: 'TSK-' } },
+      select: { taskId: true },
+    });
+    const usedTaskIds = new Set<string>(existingTasks.map((t) => t.taskId));
+    let nextSeq = existingTasks.length + 1;
     const created: Array<{ task: any; script: any }> = [];
     const reused: Array<{ task: any; script: any }> = [];
 
-    await this.prisma.$transaction(async (tx) => {
-      for (const script of targetScripts) {
-        // Ensure first-class ProjectScript record exists
-        let ps = await tx.projectScript.findFirst({
-          where: {
-            OR: [
-              { id: script.id },
-              { projectId: project.id, name: script.title || script.name || 'Script' },
-            ],
-          },
-        });
-        if (!ps) {
-          ps = await tx.projectScript.create({
-            data: {
-              projectId: project.id,
-              name: script.title || script.name || 'Script',
-              clipCode: script.clipCode || (script.clipCodes?.[0]?.code) || null,
-              description: script.description || null,
-              createdById: user?.id || user?.sub || null,
+    await this.prisma.$transaction(
+      async (tx) => {
+        for (const script of targetScripts) {
+          // Ensure first-class ProjectScript record exists
+          let ps = await tx.projectScript.findFirst({
+            where: {
+              OR: [
+                { id: script.id },
+                { projectId: project.id, name: script.title || script.name || 'Script' },
+              ],
             },
           });
-        }
+          if (!ps) {
+            ps = await tx.projectScript.create({
+              data: {
+                projectId: project.id,
+                name: script.title || script.name || 'Script',
+                clipCode: script.clipCode || (script.clipCodes?.[0]?.code) || null,
+                description: script.description || null,
+                createdById: user?.id || user?.sub || null,
+              },
+            });
+          }
 
-        const existing = await tx.task.findFirst({
-          where: {
-            projectId: project.id,
-            taskType: 'VIDEO_EDITING',
-            OR: [
-              { scriptId: script.id },
-              { scriptId: ps.id },
-              { projectScriptId: ps.id },
-            ],
-          },
-          select: { id: true, taskId: true, title: true },
-        });
-        if (existing) {
-          reused.push({ task: existing, script });
-          continue;
-        }
+          const existing = await tx.task.findFirst({
+            where: {
+              projectId: project.id,
+              taskType: 'VIDEO_EDITING',
+              OR: [
+                { scriptId: script.id },
+                { scriptId: ps.id },
+                { projectScriptId: ps.id },
+              ],
+            },
+            select: { id: true, taskId: true, title: true },
+          });
+          if (existing) {
+            reused.push({ task: existing, script });
+            continue;
+          }
 
-        let match = submitted.find((s) => s.scriptId === script.id || s.scriptId === ps.id);
-        if (!match && submitted.length === 1 && targetScripts.length === 1) {
-          match = submitted[0];
-        }
-        const clipCode = match?.clipCode || script.clipCode || ps.clipCode || (script.clipCodes && script.clipCodes.length > 0 ? script.clipCodes.map((c: any) => c.code).join(', ') : null);
-        const staffId = match?.staffId;
+          let match = submitted.find((s) => s.scriptId === script.id || s.scriptId === ps.id);
+          if (!match && submitted.length === 1 && targetScripts.length === 1) {
+            match = submitted[0];
+          }
+          const clipCode = match?.clipCode || script.clipCode || ps.clipCode || (script.clipCodes && script.clipCodes.length > 0 ? script.clipCodes.map((c: any) => c.code).join(', ') : null);
+          const staffId = match?.staffId;
 
-        let candidate = `TSK-${String(nextSeq).padStart(6, '0')}`;
-        while (
-          usedTaskIds.has(candidate) ||
-          (await tx.task.findUnique({ where: { taskId: candidate }, select: { id: true } }))
-        ) {
+          let candidate = `TSK-${String(nextSeq).padStart(6, '0')}`;
+          while (usedTaskIds.has(candidate)) {
+            nextSeq += 1;
+            candidate = `TSK-${String(nextSeq).padStart(6, '0')}`;
+          }
+          usedTaskIds.add(candidate);
           nextSeq += 1;
-          candidate = `TSK-${String(nextSeq).padStart(6, '0')}`;
-        }
-        usedTaskIds.add(candidate);
-        nextSeq += 1;
 
-        let taskDueDate = new Date();
-        if (match?.dueDate) {
-          taskDueDate = new Date(match.dueDate);
-        } else if (body?.dueDate) {
-          taskDueDate = new Date(body.dueDate);
-        } else {
-          taskDueDate.setDate(taskDueDate.getDate() + 5);
+          let taskDueDate = new Date();
+          if (match?.dueDate) {
+            taskDueDate = new Date(match.dueDate);
+          } else if (body?.dueDate) {
+            taskDueDate = new Date(body.dueDate);
+          } else {
+            taskDueDate.setDate(taskDueDate.getDate() + 5);
+          }
+
+          const task = await tx.task.create({
+            data: {
+              taskId: candidate,
+              title: `Video Editing - ${script.title || script.name || 'Script'}`,
+              description:
+                `Video Editing Task for script "${script.title || script.name || 'Script'}" on project ${project.projectId} (${project.name || 'Shoot Project'}). ` +
+                (clipCode ? `Clip Code: ${clipCode}. ` : '') +
+                `This is a dedicated Video Editing Task (not a Project Shoot Task). ` +
+                `Step 1: Accept this task. ` +
+                `Step 2: Complete the video editing work for this script. ` +
+                `Step 3: Click "Submit for Technical Review" to send the edit for Technical Manager approval.`,
+              projectId: project.id,
+              clientId: project.clientId,
+              brandId: project.brandId,
+              productId: project.productId,
+              priority: (project.priority as any) || Priority.MEDIUM,
+              dueDate: taskDueDate,
+              estimatedHours: 3.0,
+              status: TaskStatus.ASSIGNED,
+              sourceType: 'SHOOT_PROJECT',
+              taskType: 'VIDEO_EDITING',
+              completionPercentage: 0,
+              scriptId: ps.id,
+              projectScriptId: ps.id,
+              clipCode,
+            },
+          });
+
+          if (staffId) {
+            await tx.taskAssignment.create({
+              data: { taskId: task.id, userId: staffId, acceptanceStatus: 'NOT_YET_ACCEPTED' },
+            }).catch(() => null);
+          }
+
+          await tx.taskTimeline.create({
+            data: {
+              taskId: task.id,
+              userId: user?.id || user?.sub || null,
+              event: 'TASK_CREATED',
+              description: `Video editing task auto-created for script "${script.title || script.name || 'Script'}" with priority ${project.priority || 'MEDIUM'} and due date ${taskDueDate.toLocaleDateString()}.`,
+            },
+          }).catch(() => null);
+
+          await tx.activityLog.create({
+            data: {
+              userId: user?.id || user?.sub || null,
+              action: 'CONVERT_TO_VIDEO_EDITING',
+              entity: 'Task',
+              entityId: task.id,
+              description: `Auto-created video editing task ${task.taskId} for script "${script.title || script.name || 'Script'}" on project ${project.projectId}.`,
+            },
+          }).catch(() => null);
+
+          created.push({ task, script });
         }
 
-        const task = await tx.task.create({
+        // Transition project to CONVERTED_TO_VIDEO_EDITING
+        await tx.shootProject.update({
+          where: { id: project.id },
           data: {
-            taskId: candidate,
-            title: `Video Editing - ${script.title || script.name || 'Script'}`,
-            description:
-              `Video Editing Task for script "${script.title || script.name || 'Script'}" on project ${project.projectId} (${project.name || 'Shoot Project'}). ` +
-              (clipCode ? `Clip Code: ${clipCode}. ` : '') +
-              `This is a dedicated Video Editing Task (not a Project Shoot Task). ` +
-              `Step 1: Accept this task. ` +
-              `Step 2: Complete the video editing work for this script. ` +
-              `Step 3: Click "Submit for Technical Review" to send the edit for Technical Manager approval.`,
-            projectId: project.id,
-            clientId: project.clientId,
-            brandId: project.brandId,
-            productId: project.productId,
-            priority: (project.priority as any) || Priority.MEDIUM,
-            dueDate: taskDueDate,
-            estimatedHours: 3.0,
-            status: TaskStatus.ASSIGNED,
-            sourceType: 'SHOOT_PROJECT',
-            taskType: 'VIDEO_EDITING',
-            completionPercentage: 0,
-            scriptId: ps.id,
-            projectScriptId: ps.id,
-            clipCode,
+            videoEditingConverted: true,
+            videoEditingConvertedAt: new Date(),
+            videoEditingConvertedBy: user?.id || user?.sub || null,
+            status: ProjectStatus.CONVERTED_TO_VIDEO_EDITING,
+            progressPercentage: 50,
           },
         });
-
-        if (staffId) {
-          await tx.taskAssignment.create({
-            data: { taskId: task.id, userId: staffId, acceptanceStatus: 'NOT_YET_ACCEPTED' },
-          }).catch(() => null);
-        }
-
-        await tx.taskTimeline.create({
-          data: {
-            taskId: task.id,
-            userId: user?.id || user?.sub || null,
-            event: 'TASK_CREATED',
-            description: `Video editing task auto-created for script "${script.title}" with priority ${project.priority || 'MEDIUM'} and due date ${taskDueDate.toLocaleDateString()}.`,
-          },
-        }).catch(() => null);
-
-        await tx.activityLog.create({
-          data: {
-            userId: user?.id || user?.sub || null,
-            action: 'CONVERT_TO_VIDEO_EDITING',
-            entity: 'Task',
-            entityId: task.id,
-            description: `Auto-created video editing task ${task.taskId} for script "${script.title}" on project ${project.projectId}.`,
-          },
-        }).catch(() => null);
-
-        created.push({ task, script });
-      }
-
-      // Lock project to COMPLETED and read-only
-      await tx.shootProject.update({
-        where: { id: project.id },
-        data: {
-          videoEditingConverted: true,
-          videoEditingConvertedAt: new Date(),
-          videoEditingConvertedBy: user?.id || user?.sub || null,
-          status: ProjectStatus.COMPLETED,
-          progressPercentage: 100,
-        },
-      });
-    });
+      },
+      {
+        maxWait: 10000,
+        timeout: 30000,
+      },
+    );
 
     if (user?.id || user?.sub) {
       await this.prisma.notification.create({
         data: {
           userId: user.id || user.sub,
-          title: 'Project Completed',
+          title: 'Project Converted to Video Editing',
           message:
-            `Project ${project.projectId} is now COMPLETED. ${created.length} video editing task(s) were created ` +
-            `(${reused.length} already existed). Each assigned Video Editor will independently work through ` +
-            `the technical → media review chain.`,
+            `Project ${project.projectId} status is now CONVERTED TO VIDEO EDITING. ${created.length} video editing task(s) were created ` +
+            `(${reused.length} already existed). The project will automatically complete once all video editing tasks receive final Marketing Manager approval.`,
           type: 'SUCCESS',
           category: 'PROJECT',
           priority: 'HIGH',
           linkUrl: `/projects/${project.id}`,
-          eventType: 'PROJECT_COMPLETED',
+          eventType: 'PROJECT_CONVERTED_TO_VIDEO_EDITING',
           entityType: 'ShootProject',
           entityId: project.id,
           entityCode: project.projectId,
@@ -2851,17 +2856,12 @@ export class ProjectsService {
     if (!task) throw new NotFoundException('Video editing task not found.');
 
     if (body?.action === 'APPROVE') {
-      if (task.status !== 'COMPLETED') {
-        throw new BadRequestException(
-          `Task must be COMPLETED by the editor before Media Manager review. Current status: ${task.status}.`,
-        );
-      }
-
       await this.prisma.task.update({
         where: { id: task.id },
         data: {
-          status: TaskStatus.WAITING_FOR_MARKETING_MANAGER_REVIEW,
+          status: 'WAITING_FOR_MARKETING_APPROVAL',
           mediaManagerApproved: true,
+          completionPercentage: 75,
           mediaRevisionReason: null,
         },
       });
@@ -3024,16 +3024,10 @@ export class ProjectsService {
     if (!task) throw new NotFoundException('Video editing task not found.');
 
     if (body?.action === 'APPROVE') {
-      if (task.status !== TaskStatus.WAITING_FOR_MARKETING_MANAGER_REVIEW) {
-        throw new BadRequestException(
-          `Task must be in WAITING_FOR_MARKETING_MANAGER_REVIEW. Current status: ${task.status}.`,
-        );
-      }
-
       await this.prisma.task.update({
         where: { id: task.id },
         data: {
-          status: TaskStatus.MARKETING_MANAGER_APPROVED,
+          status: TaskStatus.COMPLETED,
           completionPercentage: 100,
           marketingManagerApproved: true,
           marketingRevisionReason: null,
@@ -3164,7 +3158,7 @@ export class ProjectsService {
     });
     if (editingTasks.length === 0) return;
     const allApproved = editingTasks.every(
-      (t) => t.marketingManagerApproved === true && t.status === TaskStatus.MARKETING_MANAGER_APPROVED,
+      (t) => t.marketingManagerApproved === true && (t.status === 'COMPLETED' || t.status === 'APPROVED' || t.status === TaskStatus.MARKETING_MANAGER_APPROVED),
     );
     if (!allApproved) return;
 

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Calendar, Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck, FileText, User, ChevronLeft, ChevronRight, ArrowUpDown, MapPin, Eye, Zap, CheckCircle2, Link as LinkIcon, ExternalLink, Trash2 } from 'lucide-react';
+import { Calendar, Calendar as CalendarIcon, Plus, Filter, Video, Sun, AlertTriangle, Clock, Edit, XCircle, ArrowRight, Search, SlidersHorizontal, RotateCcw, X, Building2, Camera, Flame, Send, ShieldCheck, FileText, User, ChevronLeft, ChevronRight, ArrowUpDown, MapPin, Eye, Zap, CheckCircle2, Link as LinkIcon, ExternalLink, Trash2, UploadCloud, Upload } from 'lucide-react';
 import Link from 'next/link';
 import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
 import { TimelineView, TimelineEntry } from '@/components/common/TimelineView';
@@ -106,6 +106,7 @@ export default function CalendarPage() {
 
   // Multi-Script Document state
   const [scriptDocFiles, setScriptDocFiles] = useState<File[]>([]);
+  const [creativeAssetFiles, setCreativeAssetFiles] = useState<File[]>([]);
   const [eventFiles, setEventFiles] = useState<any[]>([]);
   const [uploadingScriptDoc, setUploadingScriptDoc] = useState(false);
   const [loadingEventFiles, setLoadingEventFiles] = useState(false);
@@ -509,13 +510,6 @@ export default function CalendarPage() {
     const selectedShoot = shootProjectsList.find((sp) => sp.id === sId);
     if (!selectedShoot) return;
 
-    // Duplicate Check
-    const existingEvent = events.find(
-      (e) => e.shootId === sId && e.status !== 'CANCELLED' && e.status !== 'REJECTED',
-    );
-    if (existingEvent) {
-      alert(`This Shoot already has a Media Calendar Event (ID: ${existingEvent.eventId || existingEvent.id}).`);
-    }
 
     const shootDateStr = selectedShoot.shootDate
       ? new Date(selectedShoot.shootDate).toISOString().split('T')[0]
@@ -621,7 +615,13 @@ export default function CalendarPage() {
         });
       }
 
-      if (scriptDocFiles && scriptDocFiles.length > 0 && (savedRes || editingEvent)) {
+      if (
+        formData.eventSource !== 'GRAPHIC_REQUIREMENT' &&
+        !formData.graphicRequirementId &&
+        scriptDocFiles &&
+        scriptDocFiles.length > 0 &&
+        (savedRes || editingEvent)
+      ) {
         const targetEventId = savedRes?.id || editingEvent?.id;
         const targetProjectId =
           savedRes?.shootId ||
@@ -664,7 +664,46 @@ export default function CalendarPage() {
         );
       }
 
+      if (creativeAssetFiles.length > 0) {
+        const targetEventId = savedRes?.id || editingEvent?.id;
+        const targetProjectId =
+          savedRes?.shootId ||
+          savedRes?.projectId ||
+          savedRes?.shoot?.id ||
+          savedRes?.shootProjects?.[0]?.id ||
+          savedRes?.graphicRequirement?.projectId ||
+          editingEvent?.shootId ||
+          editingEvent?.shoot?.id ||
+          editingEvent?.shootProjects?.[0]?.id ||
+          editingEvent?.graphicRequirement?.projectId;
+
+        const targetGrId =
+          savedRes?.graphicRequirementId ||
+          savedRes?.graphicRequirement?.id ||
+          editingEvent?.graphicRequirementId ||
+          editingEvent?.graphicRequirement?.id;
+
+        await Promise.all(
+          creativeAssetFiles.map((file) => {
+            const uploadFd = new FormData();
+            uploadFd.append('file', file);
+            if (targetProjectId) uploadFd.append('projectId', targetProjectId);
+            if (targetEventId) uploadFd.append('calendarEventId', targetEventId);
+            if (targetGrId) uploadFd.append('graphicRequirementId', targetGrId);
+            uploadFd.append('folderCategory', 'Creative Assets');
+            uploadFd.append('attachmentCategory', 'REFERENCE_FILE');
+            return fetchApi('/files/upload', {
+              method: 'POST',
+              body: uploadFd,
+            }).catch((uploadErr) => {
+              console.warn('Creative asset file upload error:', uploadErr);
+            });
+          })
+        );
+      }
+
       setScriptDocFiles([]);
+      setCreativeAssetFiles([]);
       setShowAddModal(false);
       setEditingEvent(null);
       setEditReason('');
@@ -808,6 +847,8 @@ export default function CalendarPage() {
       expectedWrapTime: '05:00 PM',
       specialOutdoorRequirements: '',
     });
+    setCreativeAssetFiles([]);
+    setScriptDocFiles([]);
   };
 
   const activeClients = clients.filter((c) => c.status === 'ACTIVE');
@@ -2095,29 +2136,24 @@ export default function CalendarPage() {
                   </div>
                 )}
 
-                {/* Optional link to an existing Shoot Project. When set, the event attaches to
-                    that project instead of creating a brand new one; when left blank a new
-                    ShootProject is created as before. */}
+                {/* Optional link to an existing Shoot Project */}
                 {formData.eventSource === 'SHOOT' && (
                   <div className="col-span-1 sm:col-span-2">
                     <label className="text-slate-700 block mb-1 font-semibold">Parent Shoot Project (Optional)</label>
                     <select
                       value={formData.shootId || ''}
-                      onChange={(e) => setFormData({ ...formData, shootId: e.target.value || undefined })}
+                      onChange={(e) => handleShootSelect(e.target.value)}
                       className="w-full bg-slate-50 border border-blue-200 rounded p-2 text-slate-800 font-medium"
                     >
                       <option value="">-- New Shoot Project (No Parent Project) --</option>
-                      {shootProjectsList
-                        .filter((p) => !p.calendarEventId)
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.projectId || 'SP'} • {p.name} ({p.client?.name || 'Client'})
-                          </option>
-                        ))}
+                      {shootProjectsList.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.projectId || 'SP'} • {p.name} ({p.client?.name || 'Client'})
+                        </option>
+                      ))}
                     </select>
                     <p className="text-[10px] text-slate-500 mt-1">
-                      Leave blank to create a new Shoot Project. Only projects without an existing
-                      calendar event can be linked.
+                      Link this calendar event to an existing Shoot Project, or leave blank to create a new Shoot Project.
                     </p>
                   </div>
                 )}
@@ -2195,22 +2231,30 @@ export default function CalendarPage() {
                   <div className="col-span-1 sm:col-span-2">
                     <label className="text-slate-700 block mb-1 font-semibold">Parent Shoot Project (Optional)</label>
                     <select
-                      value={formData.projectId}
-                      onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                      value={formData.projectId || ''}
+                      onChange={(e) => {
+                        const pid = e.target.value;
+                        const sp = shootProjectsList.find((p) => p.id === pid);
+                        setFormData((prev) => ({
+                          ...prev,
+                          projectId: pid || undefined,
+                          clientId: sp?.clientId || prev.clientId,
+                          brandId: sp?.brandId || prev.brandId,
+                          productId: sp?.productId || prev.productId,
+                          campaign: sp?.campaign || prev.campaign,
+                        }));
+                      }}
                       className="w-full bg-slate-50 border border-purple-200 rounded p-2 text-slate-800 font-medium"
                     >
                       <option value="">-- Independent Graphic Requirement (No Parent Project) --</option>
-                      {shootProjectsList
-                        .filter((p) => !p.calendarEventId)
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.projectId || 'SP'} • {p.name} ({p.client?.name || 'Client'})
-                          </option>
-                        ))}
+                      {shootProjectsList.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.projectId || 'SP'} • {p.name} ({p.client?.name || 'Client'})
+                        </option>
+                      ))}
                     </select>
                     <p className="text-[10px] text-slate-500 mt-1">
-                      Leave blank to create an independent Graphic Requirement. Only projects
-                      without an existing calendar event can be linked.
+                      Optionally link this Graphic Requirement to a parent Shoot Project.
                     </p>
                   </div>
                 )}
@@ -2623,91 +2667,166 @@ export default function CalendarPage() {
 
 
 
-            {/* SECTION: CREATIVE ASSETS & REFERENCE FILES (Link & Name Method) */}
-            <div className="space-y-3 bg-slate-50/70 p-4 rounded-xl border border-slate-200 text-xs">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <LinkIcon className="w-4 h-4 text-indigo-600" /> Creative Assets &amp; Reference Files (File Name &amp; Link Method)
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 text-indigo-800">
-                  Cloud / URL Reference
-                </span>
-              </div>
+            {/* SECTION: ATTACHED REFERENCE DOCUMENTS & CREATIVE ASSETS */}
+            {(() => {
+              const existingReferenceFiles = (eventFiles || []).filter(
+                (f: any) =>
+                  f.attachmentCategory === 'REFERENCE_FILE' ||
+                  f.folderCategory === 'Reference Documents' ||
+                  f.folderCategory === 'Creative Assets' ||
+                  f.folderCategory === 'Attachments' ||
+                  (f.attachmentCategory !== 'SCRIPT_DOCUMENT' &&
+                   f.folderCategory !== 'Script Documents' &&
+                   !f.storagePath?.includes('Script Documents'))
+              );
+              const totalRefDocsCount = existingReferenceFiles.length + creativeAssetFiles.length;
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-800 font-bold block mb-1">Creative Asset / File Name</label>
-                  <input
-                    type="text"
-                    value={formData.creativeAssetName || ''}
-                    onChange={(e) => setFormData({ ...formData, creativeAssetName: e.target.value })}
-                    placeholder="e.g. Summer_Sale_Main_Creative_v1 or Campaign_Assets_Drive"
-                    className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-medium"
-                  />
-                </div>
+              return (
+                <div className="space-y-3 bg-indigo-50/60 p-4 rounded-xl border border-indigo-200 text-xs">
+                  <div className="flex items-center justify-between border-b border-indigo-200/80 pb-2 flex-wrap gap-2">
+                    <span className="text-[10px] font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <UploadCloud className="w-4 h-4 text-indigo-600" /> Attached Reference Docs &amp; Creative Assets ({totalRefDocsCount})
+                    </span>
+                    <span className="text-[10px] text-indigo-800 font-mono bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 font-bold">
+                      PDF / DOC / Images / Zip
+                    </span>
+                  </div>
 
-                <div>
-                  <label className="text-slate-800 font-bold block mb-1">Asset Link / File URL (Cloud / Web Link)</label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="url"
-                      value={formData.creativePreviewUrl || ''}
-                      onChange={(e) => setFormData({ ...formData, creativePreviewUrl: e.target.value })}
-                      placeholder="https://drive.google.com/... or https://figma.com/..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-slate-800 font-mono text-xs"
-                    />
-                    {formData.creativePreviewUrl && (
-                      <a
-                        href={formData.creativePreviewUrl.startsWith('http') ? formData.creativePreviewUrl : `https://${formData.creativePreviewUrl}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-2.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-bold text-xs flex items-center gap-1 shrink-0"
-                        title="Test and open link in new tab"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>Test</span>
-                      </a>
+                  <div>
+                    <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                      <label className="text-slate-800 font-bold block">
+                        Reference Documents, Briefs &amp; Visual Assets
+                      </label>
+                      <label className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs cursor-pointer flex items-center gap-1.5 transition-all shadow-xs">
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Add Reference Files</span>
+                        <input
+                          type="file"
+                          id="creativeAssetFileInput"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files || []);
+                            if (files.length > 0) {
+                              setCreativeAssetFiles((prev) => [...prev, ...files]);
+                              if (!formData.creativeAssetName) {
+                                setFormData((prev) => ({ ...prev, creativeAssetName: files[0].name }));
+                              }
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Staged New Reference Files */}
+                    {creativeAssetFiles.length > 0 && (
+                      <div className="mb-3 space-y-1.5">
+                        <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider block">
+                          New Reference Files to Upload ({creativeAssetFiles.length})
+                        </span>
+                        {creativeAssetFiles.map((f, idx) => (
+                          <div key={`${f.name}-${idx}`} className="flex items-center justify-between p-2 bg-white border border-indigo-200 rounded-lg text-xs">
+                            <div className="flex items-center gap-2 truncate">
+                              <FileText className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                              <span className="font-semibold text-slate-800 truncate">{f.name}</span>
+                              <span className="text-[10px] text-slate-400 font-mono">({(f.size / 1024 / 1024).toFixed(2)} MB)</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setCreativeAssetFiles((prev) => prev.filter((_, i) => i !== idx))}
+                              className="text-rose-500 hover:text-rose-700 font-bold text-[10px]"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* List of Existing Reference Docs already in Vault */}
+                    {existingReferenceFiles.length > 0 && (
+                      <div className="space-y-2 mb-2">
+                        <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider block">
+                          Existing Attached Reference Documents ({existingReferenceFiles.length})
+                        </span>
+                        {existingReferenceFiles.map((rf: any) => {
+                          const ext = rf.fileName?.split('.').pop()?.toUpperCase() || 'FILE';
+                          const isDeleting = deletingScriptId === rf.id;
+                          const fileUrl = rf.storagePath?.startsWith('http')
+                            ? rf.storagePath
+                            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${rf.storagePath?.replace(/^\/?/, '')}`;
+
+                          return (
+                            <div
+                              key={rf.id || rf.fileName}
+                              className="flex items-center justify-between p-2.5 bg-white border border-indigo-200/90 rounded-lg shadow-xs gap-2"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-indigo-100 text-indigo-900 border border-indigo-200 shrink-0">
+                                  {ext}
+                                </span>
+                                <div className="min-w-0 overflow-hidden">
+                                  <p className="font-bold text-slate-900 text-xs truncate" title={rf.fileName}>
+                                    {rf.fileName}
+                                  </p>
+                                  <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 flex-wrap mt-0.5">
+                                    {rf.fileSize && <span>{(rf.fileSize / 1024).toFixed(1)} KB</span>}
+                                    {rf.uploadedBy && (
+                                      <span className="font-semibold text-indigo-700 bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200">
+                                        Uploaded by {rf.uploadedBy.name || 'User'}
+                                      </span>
+                                    )}
+                                    {rf.createdAt && (
+                                      <span className="text-slate-400">• {new Date(rf.createdAt).toLocaleDateString()}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <a
+                                  href={fileUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors shadow-xs"
+                                  title="Open / Preview reference file"
+                                >
+                                  <Eye className="w-3.5 h-3.5" /> View
+                                </a>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteExistingScriptFile(rf.id, rf.fileName)}
+                                  disabled={isDeleting}
+                                  className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs transition-colors disabled:opacity-50"
+                                  title="Delete this reference document"
+                                >
+                                  {isDeleting ? (
+                                    <RotateCcw className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                                  ) : (
+                                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 </div>
-              </div>
-
-              {/* Live Preview Card if URL is provided */}
-              {formData.creativePreviewUrl && (
-                <div className="p-3 bg-indigo-50/60 border border-indigo-200 rounded-lg flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2.5 overflow-hidden">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center justify-center shrink-0">
-                      <LinkIcon className="w-4 h-4" />
-                    </div>
-                    <div className="truncate">
-                      <strong className="text-slate-900 block truncate">
-                        {formData.creativeAssetName || 'Creative Asset Reference'}
-                      </strong>
-                      <span className="text-[11px] font-mono text-indigo-700 truncate block">
-                        {formData.creativePreviewUrl}
-                      </span>
-                    </div>
-                  </div>
-                  <a
-                    href={formData.creativePreviewUrl.startsWith('http') ? formData.creativePreviewUrl : `https://${formData.creativePreviewUrl}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 shrink-0"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" /> Open Asset
-                  </a>
-                </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* SCRIPT DOCUMENTS (MULTI-FILE SUPPORT & VAULT MANAGEMENT) */}
-            {(() => {
+            {formData.eventSource !== 'GRAPHIC_REQUIREMENT' && !formData.graphicRequirementId && (() => {
               const existingScriptFiles = (eventFiles || []).filter(
                 (f: any) =>
-                  f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
-                  f.folderCategory === 'Script Documents' ||
-                  f.storagePath?.includes('Script Documents') ||
-                  f.fileName?.match(/\.(pdf|doc|docx|txt)$/i)
+                  (f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+                   f.folderCategory === 'Script Documents' ||
+                   f.storagePath?.includes('Script Documents')) &&
+                  f.attachmentCategory !== 'REFERENCE_FILE'
               );
               const totalCount = existingScriptFiles.length + scriptDocFiles.length;
 
@@ -3397,116 +3516,186 @@ export default function CalendarPage() {
               </div>
             )}
 
-            {/* CREATIVE ASSETS & REFERENCE FILES CARD */}
-            {viewModalEvent.creativePreviewUrl && (
-              <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 text-xs">
-                <div className="flex items-center justify-between border-b border-indigo-200 pb-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-800 flex items-center gap-1.5">
-                    <LinkIcon className="w-4 h-4 text-indigo-600" /> Attached Creative Asset &amp; Reference File
-                  </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold">
-                    File Reference
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-3 pt-1">
-                  <div className="space-y-0.5 overflow-hidden">
-                    <span className="text-slate-900 font-bold text-sm block truncate">
-                      {viewModalEvent.creativeAssetName || 'Primary Creative Asset'}
+            {/* 1. ATTACHED REFERENCE DOCUMENTS & CREATIVE ASSETS CARD */}
+            {(() => {
+              const referenceFiles = (eventFiles || []).filter(
+                (f: any) =>
+                  f.attachmentCategory === 'REFERENCE_FILE' ||
+                  f.folderCategory === 'Reference Documents' ||
+                  f.folderCategory === 'Creative Assets' ||
+                  f.folderCategory === 'Attachments' ||
+                  (f.attachmentCategory !== 'SCRIPT_DOCUMENT' &&
+                   f.folderCategory !== 'Script Documents' &&
+                   !f.storagePath?.includes('Script Documents'))
+              );
+              const hasLegacyUrl = !!viewModalEvent.creativePreviewUrl;
+
+              return (
+                <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-3 text-xs">
+                  <div className="flex items-center justify-between border-b border-indigo-200 pb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+                      <UploadCloud className="w-4 h-4 text-indigo-700" /> Attached Reference Documents &amp; Creative Assets ({referenceFiles.length + (hasLegacyUrl ? 1 : 0)})
                     </span>
-                    <span className="text-indigo-700 font-mono text-xs truncate block">
-                      {viewModalEvent.creativePreviewUrl}
+                    <span className="text-[10px] font-mono text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 font-bold">
+                      PDF / DOC / Images / Zip
                     </span>
                   </div>
-                  <a
-                    href={viewModalEvent.creativePreviewUrl.startsWith('http') ? viewModalEvent.creativePreviewUrl : `https://${viewModalEvent.creativePreviewUrl}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shrink-0 shadow-sm transition-all"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" /> Open Asset Link
-                  </a>
-                </div>
-              </div>
-            )}
 
-            {/* SCRIPT DOCUMENTS CARD */}
-            <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3 text-xs">
-              <div className="flex items-center justify-between border-b border-purple-200 pb-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-purple-700" /> Attached Script Documents
-                </span>
-                <span className="text-[10px] font-mono text-purple-800 bg-purple-100 px-2 py-0.5 rounded border border-purple-200 font-bold">
-                  PDF / DOC / DOCX / TXT
-                </span>
-              </div>
-
-              {loadingEventFiles ? (
-                <div className="text-slate-500 py-2 text-center text-xs">Loading script files...</div>
-              ) : (() => {
-                const scriptFiles = (eventFiles || []).filter(
-                  (f: any) =>
-                    f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
-                    f.folderCategory === 'Script Documents' ||
-                    f.storagePath?.includes('Script Documents') ||
-                    f.fileName?.toLowerCase().endsWith('.pdf') ||
-                    f.fileName?.toLowerCase().endsWith('.doc') ||
-                    f.fileName?.toLowerCase().endsWith('.docx')
-                );
-
-                if (scriptFiles.length === 0) {
-                  return (
-                    <div className="p-3 bg-white/80 border border-purple-100 rounded-lg text-slate-500 flex items-center justify-between">
-                      <span>No script documents attached to this shoot event yet.</span>
+                  {loadingEventFiles ? (
+                    <div className="text-slate-500 py-2 text-center text-xs">Loading reference documents...</div>
+                  ) : referenceFiles.length === 0 && !hasLegacyUrl ? (
+                    <div className="p-3 bg-white/80 border border-indigo-100 rounded-lg text-slate-500 flex items-center justify-between">
+                      <span>No reference documents or creative assets attached to this event.</span>
                     </div>
-                  );
-                }
+                  ) : (
+                    <div className="space-y-2">
+                      {referenceFiles.map((rf: any) => {
+                        const ext = rf.fileName?.split('.').pop()?.toUpperCase() || 'FILE';
+                        const fileUrl = rf.storagePath?.startsWith('http')
+                          ? rf.storagePath
+                          : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${rf.storagePath?.replace(/^\/?/, '')}`;
 
-                return (
-                  <div className="space-y-2">
-                    {scriptFiles.map((sf: any) => {
-                      const fileUrl = sf.storagePath?.startsWith('http')
-                        ? sf.storagePath
-                        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${sf.storagePath?.replace(/^\/?/, '')}`;
-
-                      return (
-                        <div
-                          key={sf.id || sf.fileName}
-                          className="p-3 bg-white border border-purple-200 rounded-lg flex items-center justify-between gap-3 shadow-xs"
-                        >
-                          <div className="flex items-center gap-2.5 overflow-hidden">
-                            <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
-                              <FileText className="w-4 h-4" />
-                            </div>
-                            <div className="truncate">
-                              <span className="font-bold text-slate-900 block truncate">{sf.fileName}</span>
-                              <div className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap mt-0.5 font-mono">
-                                {sf.fileSize && <span>{(sf.fileSize / 1024).toFixed(1)} KB</span>}
-                                {sf.uploadedBy && (
-                                  <span className="font-semibold text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded border border-purple-200">
-                                    Uploaded by {sf.uploadedBy.name || 'User'} ({sf.uploadedBy.role?.replace(/_/g, ' ') || 'Staff'})
-                                  </span>
-                                )}
-                                {sf.createdAt && <span>• {new Date(sf.createdAt).toLocaleDateString()}</span>}
+                        return (
+                          <div
+                            key={rf.id || rf.fileName}
+                            className="p-3 bg-white border border-indigo-200 rounded-lg flex items-center justify-between gap-3 shadow-xs"
+                          >
+                            <div className="flex items-center gap-2.5 overflow-hidden">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-indigo-100 text-indigo-900 border border-indigo-200 shrink-0">
+                                {ext}
+                              </span>
+                              <div className="truncate">
+                                <span className="font-bold text-slate-900 block truncate">{rf.fileName}</span>
+                                <div className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap mt-0.5 font-mono">
+                                  {rf.fileSize && <span>{(rf.fileSize / 1024).toFixed(1)} KB</span>}
+                                  {rf.uploadedBy && (
+                                    <span className="font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                                      Uploaded by {rf.uploadedBy.name || 'User'}
+                                    </span>
+                                  )}
+                                  {rf.createdAt && <span>• {new Date(rf.createdAt).toLocaleDateString()}</span>}
+                                </div>
                               </div>
                             </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all"
+                              >
+                                <Eye className="w-3.5 h-3.5" /> View File
+                              </a>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <a
-                              href={fileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all"
-                            >
-                              <Eye className="w-3.5 h-3.5" /> View Script
-                            </a>
+                        );
+                      })}
+
+                      {hasLegacyUrl && (
+                        <div className="p-3 bg-white border border-indigo-200 rounded-lg flex items-center justify-between gap-3 shadow-xs">
+                          <div className="truncate">
+                            <span className="font-bold text-slate-900 block truncate">
+                              {viewModalEvent.creativeAssetName || 'Legacy Asset Reference'}
+                            </span>
+                            <span className="text-[10px] font-mono text-indigo-700 truncate block">
+                              {viewModalEvent.creativePreviewUrl}
+                            </span>
                           </div>
+                          <a
+                            href={viewModalEvent.creativePreviewUrl.startsWith('http') ? viewModalEvent.creativePreviewUrl : `https://${viewModalEvent.creativePreviewUrl}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all shrink-0"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" /> Open Link
+                          </a>
                         </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-            </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* 2. SCRIPT DOCUMENTS CARD */}
+            {viewModalEvent.eventSource !== 'GRAPHIC_REQUIREMENT' && !viewModalEvent.graphicRequirementId && !viewModalEvent.graphicRequirement && (
+              <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3 text-xs">
+                <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-purple-700" /> Attached Script Documents
+                  </span>
+                  <span className="text-[10px] font-mono text-purple-800 bg-purple-100 px-2 py-0.5 rounded border border-purple-200 font-bold">
+                    Screenplay / Dialogue / Notes
+                  </span>
+                </div>
+
+                {loadingEventFiles ? (
+                  <div className="text-slate-500 py-2 text-center text-xs">Loading script files...</div>
+                ) : (() => {
+                  const scriptFiles = (eventFiles || []).filter(
+                    (f: any) =>
+                      (f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+                       f.folderCategory === 'Script Documents' ||
+                       f.storagePath?.includes('Script Documents')) &&
+                      f.attachmentCategory !== 'REFERENCE_FILE'
+                  );
+
+                  if (scriptFiles.length === 0) {
+                    return (
+                      <div className="p-3 bg-white/80 border border-purple-100 rounded-lg text-slate-500 flex items-center justify-between">
+                        <span>No script documents attached to this event yet.</span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      {scriptFiles.map((sf: any) => {
+                        const ext = sf.fileName?.split('.').pop()?.toUpperCase() || 'SCRIPT';
+                        const fileUrl = sf.storagePath?.startsWith('http')
+                          ? sf.storagePath
+                          : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${sf.storagePath?.replace(/^\/?/, '')}`;
+
+                        return (
+                          <div
+                            key={sf.id || sf.fileName}
+                            className="p-3 bg-white border border-purple-200 rounded-lg flex items-center justify-between gap-3 shadow-xs"
+                          >
+                            <div className="flex items-center gap-2.5 overflow-hidden">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-purple-100 text-purple-900 border border-purple-200 shrink-0">
+                                {ext}
+                              </span>
+                              <div className="truncate">
+                                <span className="font-bold text-slate-900 block truncate">{sf.fileName}</span>
+                                <div className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap mt-0.5 font-mono">
+                                  {sf.fileSize && <span>{(sf.fileSize / 1024).toFixed(1)} KB</span>}
+                                  {sf.uploadedBy && (
+                                    <span className="font-semibold text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded border border-purple-200">
+                                      Uploaded by {sf.uploadedBy.name || 'User'} ({sf.uploadedBy.role?.replace(/_/g, ' ') || 'Staff'})
+                                    </span>
+                                  )}
+                                  {sf.createdAt && <span>• {new Date(sf.createdAt).toLocaleDateString()}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all"
+                              >
+                                <Eye className="w-3.5 h-3.5" /> View Script
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
 
             {/* Production Notes */}
             {viewModalEvent.productionNotes && (

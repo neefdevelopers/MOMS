@@ -1,1759 +1,486 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import {
-  Camera,
-  Plus,
-  Wrench,
-  ShieldCheck,
-  ArrowRightLeft,
-  Search,
-  SlidersHorizontal,
-  RotateCcw,
-  X,
-  Tag,
-  Building2,
-  Archive,
-  AlertTriangle,
-  ChevronDown,
-  ChevronUp,
-  ChevronRight,
-  PackageX,
-  BadgeCheck,
-  CalendarDays,
-  Receipt,
-} from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
-import { SortSelector } from '@/components/common/TableSortHeader';
-import { PaginationControls } from '@/components/common/PaginationControls';
-import { recordRecentAccess } from '@/lib/recent-access';
-import { usePagination } from '@/lib/usePagination';
-import { sortData, SortField, SortOrder } from '@/utils/sortUtils';
 import { RoleGuard } from '@/components/common/RoleGuard';
+import {
+  Search,
+  Plus,
+  SlidersHorizontal,
+  X,
+  ChevronRight,
+  MoreVertical,
+  Film,
+  Building2,
+  AlertTriangle,
+  Wrench,
+  Sparkles,
+  ArrowRightLeft,
+  RotateCcw,
+} from 'lucide-react';
+import { usePagination } from '@/lib/usePagination';
+import { PaginationControls } from '@/components/common/PaginationControls';
 
-import MyEquipmentPage from './my/page';
-
-export default function EquipmentPage() {
+export default function AllEquipmentPage() {
   const { user } = useAuth();
-  const searchParams = useSearchParams();
-  const tabParam = searchParams?.get('tab');
-  const requestIdParam = searchParams?.get('requestId') || searchParams?.get('request');
+  const userRole = user?.role as string | undefined;
+  const isManager = userRole === 'MEDIA_MANAGER' || userRole === 'TECHNICAL_MANAGER' || userRole === 'ADMINISTRATOR' || userRole === 'ADMIN';
 
-  const [equipment, setEquipment] = useState<any[]>([]);
-  const [archivedEquipment, setArchivedEquipment] = useState<any[]>([]);
+  const [equipmentList, setEquipmentList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showArchived, setShowArchived] = useState(false);
 
-  // Pagination Hook
-  const { currentPage, setCurrentPage, pageSize, setPageSize, paginate } = usePagination();
-
-  // Sorting State
-  const [sortBy, setSortBy] = useState<SortField | string>('createdAt');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-
-  // Filter states
+  // Filters
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
-  const [availabilityFilter, setAvailabilityFilter] = useState('ALL');
-  const [maintenanceFilter, setMaintenanceFilter] = useState('ALL');
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [conditionFilter, setConditionFilter] = useState('ALL');
+  const [locationFilter, setLocationFilter] = useState('ALL');
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
-  // Add Equipment Modal
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState({
-    name: '', category: '', brand: '', model: '', serialNumber: '',
-    condition: 'Good', notes: '', purchaseDate: '', purchasePrice: '', purchaseRef: '',
-  });
-  const [submittingAdd, setSubmittingAdd] = useState(false);
-
-  // Retire Modal
-  const [retireTargetId, setRetireTargetId] = useState<string | null>(null);
-  const [retirementReason, setRetirementReason] = useState('');
-  const [submittingRetire, setSubmittingRetire] = useState(false);
-
-  const [dashboardStats, setDashboardStats] = useState<any>(null);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [reserveTargetEqp, setReserveTargetEqp] = useState<any | null>(null);
-  const [reserveForm, setReserveForm] = useState({
-    projectId: '',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-    expectedCheckoutDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-  });
-  const [submittingReserve, setSubmittingReserve] = useState(false);
-
-  const [usersList, setUsersList] = useState<any[]>([]);
-  const [allocateTargetEqp, setAllocateTargetEqp] = useState<any | null>(null);
-  const [allocateForm, setAllocateForm] = useState({
-    employeeId: '',
-    projectId: '',
-    purpose: 'Production shoot allocation',
-    startDate: new Date().toISOString().split('T')[0],
-    expectedReturnDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-    remarks: '',
-    accessoriesIncluded: 'Standard accessories verified',
-    condition: 'Good - Operational',
-  });
-  const [submittingAllocate, setSubmittingAllocate] = useState(false);
-
-  const [equipmentRequests, setEquipmentRequests] = useState<any[]>([]);
-  const [showRequestsTab, setShowRequestsTab] = useState(true);
-  const [reviewingId, setReviewingId] = useState<string | null>(null);
-  const [reviewNotes, setReviewNotes] = useState('');
-
-  useEffect(() => {
-    if (tabParam === 'requests' || requestIdParam) {
-      setShowRequestsTab(true);
-      if (requestIdParam) {
-        setReviewingId(requestIdParam);
-      }
-      setTimeout(() => {
-        const targetEl = requestIdParam
-          ? (document.getElementById(`request-${requestIdParam}`) || document.getElementById(requestIdParam))
-          : document.getElementById('equipment-requests-queue');
-        if (targetEl) {
-          targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          if (requestIdParam) {
-            targetEl.classList.add('ring-2', 'ring-emerald-500', 'shadow-2xl');
-            setTimeout(() => targetEl.classList.remove('ring-2', 'ring-emerald-500', 'shadow-2xl'), 3500);
-          }
-        }
-      }, 400);
-    }
-  }, [tabParam, requestIdParam, equipmentRequests]);
-
-  const [inspectionTargetEqp, setInspectionTargetEqp] = useState<any | null>(null);
-  const [inspectionForm, setInspectionForm] = useState({
-    returnedByName: '',
-    condition: 'Good - Operational',
-    hasPhysicalDamage: false,
-    physicalDamageNotes: '',
-    hasMissingAccessories: false,
-    missingAccessoriesNotes: '',
-    functionalCondition: 'FULLY_FUNCTIONAL',
-    cleaningStatus: 'CLEAN',
-    remarks: '',
-  });
-  const [submittingInspection, setSubmittingInspection] = useState(false);
-
-  const [damageReports, setDamageReports] = useState<any[]>([]);
-  const [damageReportTargetEqp, setDamageReportTargetEqp] = useState<any | null>(null);
-  const [damageForm, setDamageForm] = useState({ description: '', severity: 'HIGH', repairNotes: '' });
-  const [submittingDamageReport, setSubmittingDamageReport] = useState(false);
-  const [showDamageSection, setShowDamageSection] = useState(false);
-  const [updatingRepairId, setUpdatingRepairId] = useState<string | null>(null);
-  const [repairStatusForm, setRepairStatusForm] = useState({ repairStatus: 'IN_REPAIR', repairNotes: '' });
-  const canManage = user?.role === 'MEDIA_MANAGER' || user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR';
+  // Pagination
+  const { currentPage, setCurrentPage, pageSize, setPageSize, paginate } = usePagination(15);
 
   const loadEquipment = async () => {
+    setLoading(true);
     try {
-      const [active, archived, stats, projList, userList, dmgList, reqList] = await Promise.all([
-        fetchApi('/equipment'),
-        fetchApi('/equipment/archived'),
-        fetchApi('/equipment/dashboard').catch(() => null),
-        fetchApi('/projects').catch(() => []),
-        fetchApi('/users').catch(() => []),
-        fetchApi('/equipment/damage-reports').catch(() => []),
-        fetchApi('/equipment/requests').catch(() => []),
-      ]);
-      setEquipment(Array.isArray(active) ? active : []);
-      setArchivedEquipment(Array.isArray(archived) ? archived : []);
-      if (stats) setDashboardStats(stats);
-      if (Array.isArray(projList)) setProjects(projList);
-      if (Array.isArray(userList)) {
-        setUsersList(userList);
-        if (userList.length > 0) setAllocateForm((prev) => ({ ...prev, employeeId: userList[0].id }));
+      const data = await fetchApi('/equipment');
+      if (Array.isArray(data)) {
+        setEquipmentList(data);
       }
-      if (Array.isArray(dmgList)) setDamageReports(dmgList);
-      if (Array.isArray(reqList)) setEquipmentRequests(reqList);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load equipment:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { loadEquipment(); }, []);
+  useEffect(() => {
+    loadEquipment();
+  }, []);
 
-  const handleUpdateMaintenance = async (id: string, maintenanceStatus: string) => {
-    try {
-      await fetchApi(`/equipment/${id}/maintenance`, {
-        method: 'PATCH',
-        body: JSON.stringify({ maintenanceStatus }),
-      });
-      loadEquipment();
-    } catch (err: any) {
-      alert(err.message || 'Failed to update maintenance');
+  // Filter options
+  const categories = useMemo(() => {
+    return Array.from(new Set(equipmentList.map((e) => e.category).filter(Boolean))).sort();
+  }, [equipmentList]);
+
+  const locations = useMemo(() => {
+    return Array.from(new Set(equipmentList.map((e) => e.storageLocation).filter(Boolean))).sort();
+  }, [equipmentList]);
+
+  // Filtered items
+  const filteredList = useMemo(() => {
+    return equipmentList.filter((item) => {
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesName = item.name?.toLowerCase().includes(q);
+        const matchesId = item.equipmentId?.toLowerCase().includes(q);
+        const matchesSerial = item.serialNumber?.toLowerCase().includes(q);
+        const matchesBrand = item.brand?.toLowerCase().includes(q);
+        const matchesModel = item.model?.toLowerCase().includes(q);
+        if (!matchesName && !matchesId && !matchesSerial && !matchesBrand && !matchesModel) {
+          return false;
+        }
+      }
+
+      if (statusFilter !== 'ALL') {
+        if (statusFilter === 'ASSIGNED') {
+          if (item.availability !== 'ASSIGNED_TO_PROJECT' && item.availability !== 'CHECKED_OUT' && item.availability !== 'IN_USE') {
+            return false;
+          }
+        } else if (statusFilter === 'MAINTENANCE') {
+          if (item.availability !== 'UNDER_MAINTENANCE' && item.maintenanceStatus !== 'UNDER_MAINTENANCE') {
+            return false;
+          }
+        } else if (item.availability !== statusFilter) {
+          return false;
+        }
+      }
+
+      if (categoryFilter !== 'ALL' && item.category !== categoryFilter) return false;
+      if (conditionFilter !== 'ALL' && item.condition !== conditionFilter) return false;
+      if (locationFilter !== 'ALL' && item.storageLocation !== locationFilter) return false;
+
+      return true;
+    });
+  }, [equipmentList, searchQuery, statusFilter, categoryFilter, conditionFilter, locationFilter]);
+
+  const paginatedList = useMemo(() => paginate(filteredList), [filteredList, paginate]);
+
+  const hasActiveFilters = searchQuery || statusFilter !== 'ALL' || categoryFilter !== 'ALL' || conditionFilter !== 'ALL' || locationFilter !== 'ALL';
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('ALL');
+    setCategoryFilter('ALL');
+    setConditionFilter('ALL');
+    setLocationFilter('ALL');
+    setCurrentPage(1);
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'AVAILABLE':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+            Available
+          </span>
+        );
+      case 'ASSIGNED_TO_PROJECT':
+      case 'CHECKED_OUT':
+      case 'IN_USE':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/60">
+            Assigned
+          </span>
+        );
+      case 'RENTED_OUT':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200/60">
+            Rented
+          </span>
+        );
+      case 'DAMAGED':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200/60">
+            Damaged
+          </span>
+        );
+      case 'UNDER_MAINTENANCE':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200/60">
+            Maintenance
+          </span>
+        );
+      case 'LOST':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+            Lost
+          </span>
+        );
+      case 'RETIRED':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-50 text-gray-500 border border-gray-200">
+            Retired
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-50 text-gray-600 border border-gray-200">
+            {status}
+          </span>
+        );
     }
   };
 
-  const handleUpdateStatus = async (id: string, availability: string) => {
-    try {
-      await fetchApi(`/equipment/${id}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ availability }),
-      });
-      loadEquipment();
-    } catch (err: any) {
-      alert(err.message || 'Failed to update status');
+  const getCurrentUse = (item: any) => {
+    if (item.availability === 'ASSIGNED_TO_PROJECT' || item.availability === 'CHECKED_OUT' || item.availability === 'IN_USE') {
+      if (item.assignedProject) {
+        return `${item.assignedProject.projectId || 'Project'}: ${item.assignedProject.name}`;
+      }
+      return item.currentHolder ? `Assigned to ${item.currentHolder}` : 'Assigned to Shoot';
     }
+    if (item.availability === 'RENTED_OUT') {
+      return item.rentalCustomer ? `Rented to ${item.rentalCustomer}` : 'Outside Rental';
+    }
+    if (item.availability === 'UNDER_MAINTENANCE') {
+      return 'In Maintenance';
+    }
+    if (item.availability === 'DAMAGED') {
+      return 'Quarantined (Damaged)';
+    }
+    return '—';
   };
-
-  const handleReturnEquipment = async (id: string) => {
-    try {
-      await fetchApi(`/equipment/${id}/movement`, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'RETURNED', notes: 'Returned to studio bay' }),
-      });
-      loadEquipment();
-    } catch (err: any) {
-      alert(err.message || 'Failed to log equipment return');
-    }
-  };
-
-  const handleReserveEquipment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!reserveTargetEqp || !reserveForm.projectId || !reserveForm.startDate || !reserveForm.endDate) {
-      alert('Please select a project, start date, and end date.');
-      return;
-    }
-    setSubmittingReserve(true);
-    try {
-      await fetchApi(`/equipment/${reserveTargetEqp.id}/reserve`, {
-        method: 'POST',
-        body: JSON.stringify(reserveForm),
-      });
-      alert(`Equipment "${reserveTargetEqp.name}" successfully reserved!`);
-      setReserveTargetEqp(null);
-      loadEquipment();
-    } catch (err: any) {
-      alert(err.message || 'Failed to reserve equipment');
-    } finally {
-      setSubmittingReserve(false);
-    }
-  };
-
-  const handleAllocateDirectly = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!allocateTargetEqp || !allocateForm.employeeId || !allocateForm.expectedReturnDate) {
-      alert('Please select an employee recipient and expected return date.');
-      return;
-    }
-    setSubmittingAllocate(true);
-    try {
-      await fetchApi(`/equipment/${allocateTargetEqp.id}/allocate`, {
-        method: 'POST',
-        body: JSON.stringify(allocateForm),
-      });
-      alert(`Equipment "${allocateTargetEqp.name}" directly allocated & issued successfully!`);
-      setAllocateTargetEqp(null);
-      loadEquipment();
-    } catch (err: any) {
-      alert(err.message || 'Failed to allocate equipment.');
-    } finally {
-      setSubmittingAllocate(false);
-    }
-  };
-
-  const handleReviewRequest = async (requestId: string, status: 'APPROVED' | 'REJECTED') => {
-    try {
-      await fetchApi(`/equipment/requests/${requestId}/review`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status, reviewNotes }),
-      });
-      alert(`Equipment Request ${status.toLowerCase()} successfully!`);
-      setReviewingId(null);
-      setReviewNotes('');
-      loadEquipment();
-    } catch (err: any) {
-      alert(err.message || 'Failed to review equipment request');
-    }
-  };
-
-  const handleIssueEquipment = async (requestId: string) => {
-    try {
-      const res = await fetchApi(`/equipment/requests/${requestId}/issue`, {
-        method: 'POST',
-      });
-      alert(`Equipment successfully issued! Issue record created for employee: ${res.issueRecord?.employee?.name || 'Employee'}`);
-      loadEquipment();
-    } catch (err: any) {
-      alert(err.message || 'Failed to issue equipment');
-    }
-  };
-
-
-
-  const handleReturnInspection = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inspectionTargetEqp || !inspectionForm.condition) {
-      alert('Please complete the inspection checklist.');
-      return;
-    }
-    setSubmittingInspection(true);
-    try {
-      const res = await fetchApi(`/equipment/${inspectionTargetEqp.id}/return-inspection`, {
-        method: 'POST',
-        body: JSON.stringify({
-          returnedByName: inspectionForm.returnedByName || inspectionTargetEqp.currentHolder || 'Employee',
-          condition: inspectionForm.condition,
-          hasPhysicalDamage: inspectionForm.hasPhysicalDamage,
-          physicalDamageNotes: inspectionForm.physicalDamageNotes,
-          hasMissingAccessories: inspectionForm.hasMissingAccessories,
-          missingAccessoriesNotes: inspectionForm.missingAccessoriesNotes,
-          functionalCondition: inspectionForm.functionalCondition,
-          cleaningStatus: inspectionForm.cleaningStatus,
-          remarks: inspectionForm.remarks,
-        }),
-      });
-      alert(`Return inspection recorded in history! Equipment "${inspectionTargetEqp.name}" inspected and recorded as ${res.returnRecord?.newAvailability || 'AVAILABLE'}.`);
-      setInspectionTargetEqp(null);
-      setInspectionForm({
-        returnedByName: '',
-        condition: 'Good - Operational',
-        hasPhysicalDamage: false,
-        physicalDamageNotes: '',
-        hasMissingAccessories: false,
-        missingAccessoriesNotes: '',
-        functionalCondition: 'FULLY_FUNCTIONAL',
-        cleaningStatus: 'CLEAN',
-        remarks: '',
-      });
-      loadEquipment();
-    } catch (err: any) {
-      alert(err.message || 'Failed to complete return inspection');
-    } finally {
-      setSubmittingInspection(false);
-    }
-  };
-
-  const handleCreateDamageReport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!damageReportTargetEqp || !damageForm.description || !damageForm.severity) {
-      alert('Description and Severity are required.');
-      return;
-    }
-    setSubmittingDamageReport(true);
-    try {
-      await fetchApi('/equipment/damage-reports', {
-        method: 'POST',
-        body: JSON.stringify({
-          equipmentId: damageReportTargetEqp.id,
-          description: damageForm.description,
-          severity: damageForm.severity,
-          repairNotes: damageForm.repairNotes,
-        }),
-      });
-      alert(`Damage Report created for "${damageReportTargetEqp.name}". Availability set to DAMAGED. Equipment cannot be assigned until repaired.`);
-      setDamageReportTargetEqp(null);
-      setDamageForm({ description: '', severity: 'HIGH', repairNotes: '' });
-      loadEquipment();
-    } catch (err: any) {
-      alert(err.message || 'Failed to create damage report');
-    } finally {
-      setSubmittingDamageReport(false);
-    }
-  };
-
-  const handleUpdateRepairStatus = async (reportId: string) => {
-    try {
-      await fetchApi(`/equipment/damage-reports/${reportId}/repair`, {
-        method: 'PATCH',
-        body: JSON.stringify({ ...repairStatusForm }),
-      });
-      alert('Repair status updated successfully!');
-      setUpdatingRepairId(null);
-      loadEquipment();
-    } catch (err: any) {
-      alert(err.message || 'Failed to update repair status');
-    }
-  };
-
-  // Business Rule 1 & 2: Create with company ownership + inventory record
-  const handleAddEquipment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!addForm.name || !addForm.category || !addForm.brand || !addForm.model) {
-      alert('Name, Category, Brand and Model are required.');
-      return;
-    }
-    try {
-      setSubmittingAdd(true);
-      await fetchApi('/equipment', {
-        method: 'POST',
-        body: JSON.stringify({ ...addForm }),
-      });
-      setShowAddModal(false);
-      setAddForm({ name: '', category: '', brand: '', model: '', serialNumber: '', condition: 'Good', notes: '', purchaseDate: '', purchasePrice: '', purchaseRef: '' });
-      await loadEquipment();
-    } catch (err: any) {
-      alert(err.message || 'Failed to add equipment');
-    } finally {
-      setSubmittingAdd(false);
-    }
-  };
-
-  // Business Rule 4: Retire (archive) equipment
-  const handleRetire = async () => {
-    if (!retireTargetId || !retirementReason.trim()) {
-      alert('A retirement reason is required.');
-      return;
-    }
-    try {
-      setSubmittingRetire(true);
-      await fetchApi(`/equipment/${retireTargetId}/retire`, {
-        method: 'POST',
-        body: JSON.stringify({ retirementReason }),
-      });
-      setRetireTargetId(null);
-      setRetirementReason('');
-      await loadEquipment();
-    } catch (err: any) {
-      alert(err.message || 'Failed to retire equipment');
-    } finally {
-      setSubmittingRetire(false);
-    }
-  };
-
-  const categoriesList = Array.from(new Set(equipment.map((e) => e.category).filter(Boolean)));
-
-  const filteredEquipment = equipment.filter((eqp) => {
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      if (
-        !eqp.name?.toLowerCase().includes(q) &&
-        !eqp.equipmentId?.toLowerCase().includes(q) &&
-        !eqp.brand?.toLowerCase().includes(q) &&
-        !eqp.model?.toLowerCase().includes(q) &&
-        !eqp.serialNumber?.toLowerCase().includes(q) &&
-        !eqp.currentHolder?.toLowerCase().includes(q) &&
-        !eqp.category?.toLowerCase().includes(q)
-      ) return false;
-    }
-    if (categoryFilter !== 'ALL' && eqp.category !== categoryFilter) return false;
-    if (availabilityFilter !== 'ALL' && eqp.availability !== availabilityFilter) return false;
-    if (maintenanceFilter !== 'ALL' && eqp.maintenanceStatus !== maintenanceFilter) return false;
-    return true;
-  });
-
-  if ((user?.role as string) === 'STAFF') {
-    return <MyEquipmentPage />;
-  }
 
   return (
     <RoleGuard>
-      <div className="space-y-6 text-xs">
-
-        {/* Header Banner */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 p-6 rounded-xl shadow-lg">
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-200">
           <div>
-            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              <Camera className="w-5 h-5 text-cyan-600" />
-              Technical Manager Master Equipment Inventory
-            </h1>
+            <h1 className="text-xl font-semibold text-gray-900">Equipment</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Track and manage all equipment</p>
           </div>
-
-        {/* Business Rule 1: Company ownership badge */}
-        <div className="flex items-center gap-3">
-          {(user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
+          {isManager && (
             <Link
-              href="/equipment/assignments"
-              className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-lg transition shadow-md shadow-blue-600/20 text-xs"
+              href="/equipment/create"
+              className="inline-flex items-center justify-center px-3.5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-xs"
             >
-              <Camera className="w-4 h-4" /> Projects to Assign
+              <Plus className="w-4 h-4 mr-1.5" />
+              Add Equipment
             </Link>
           )}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
-            <Building2 className="w-3.5 h-3.5 text-blue-600" />
-            <span className="text-[11px] font-bold text-blue-700">Company Assets</span>
-          </div>
-          {(user?.role === 'MEDIA_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg flex items-center gap-2 transition-colors shadow-lg shadow-cyan-600/30"
-            >
-              <Plus className="w-4 h-4" /> Add Equipment
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Equipment Dashboard Summary KPI Cards (Visible to Managers) */}
-      {(user?.role as string) !== 'STAFF' && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-        <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-1">
-          <span className="text-[10px] text-slate-500 uppercase font-bold">Total Equipment</span>
-          <div className="text-2xl font-bold text-slate-900 font-mono">
-            {dashboardStats?.total ?? equipment.length}
-          </div>
-        </div>
-        <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-1">
-          <span className="text-[10px] text-emerald-600 uppercase font-bold">Available</span>
-          <div className="text-2xl font-bold text-emerald-600 font-mono">
-            {dashboardStats?.available ?? equipment.filter((e) => e.availability === 'AVAILABLE').length}
-          </div>
-        </div>
-        <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-1">
-          <span className="text-[10px] text-purple-600 uppercase font-bold">Reserved</span>
-          <div className="text-2xl font-bold text-purple-600 font-mono">
-            {dashboardStats?.reserved ?? equipment.filter((e) => e.availability === 'RESERVED').length}
-          </div>
-        </div>
-        <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-1">
-          <span className="text-[10px] text-blue-600 uppercase font-bold">Checked Out</span>
-          <div className="text-2xl font-bold text-blue-600 font-mono">
-            {dashboardStats?.checkedOut ?? equipment.filter((e) => e.availability === 'CHECKED_OUT' || e.availability === 'IN_USE' || e.availability === 'ISSUED').length}
-          </div>
-        </div>
-        <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-1">
-          <span className="text-[10px] text-amber-600 uppercase font-bold">Under Maintenance</span>
-          <div className="text-2xl font-bold text-amber-600 font-mono">
-            {dashboardStats?.underMaintenance ?? equipment.filter((e) => e.availability === 'UNDER_MAINTENANCE' || e.maintenanceStatus !== 'OPERATIONAL').length}
-          </div>
-        </div>
-        <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-1">
-          <span className="text-[10px] text-orange-400 uppercase font-bold">Damaged</span>
-          <div className="text-2xl font-bold text-orange-400 font-mono">
-            {dashboardStats?.damaged ?? equipment.filter((e) => e.availability === 'DAMAGED').length}
-          </div>
-        </div>
-        <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-1">
-          <span className="text-[10px] text-cyan-600 uppercase font-bold">Recently Returned</span>
-          <div className="text-2xl font-bold text-cyan-600 font-mono">
-            {dashboardStats?.recentlyReturned ?? 0}
-          </div>
-        </div>
-      </div>
-      )}
-
-      {/* Filter Panel */}
-      <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-4 text-xs shadow-md">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="Search by Name, Asset ID, Brand, Model, Serial No, Holder..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 focus:border-cyan-500 focus:bg-white rounded-xl pl-9 pr-8 py-2.5 text-slate-900 font-medium focus:outline-none transition-all placeholder:text-slate-400"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-900">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setAvailabilityFilter(availabilityFilter === 'AVAILABLE' ? 'ALL' : 'AVAILABLE')}
-              className={`px-3 py-2 rounded-lg font-semibold flex items-center gap-1.5 transition-colors border ${
-                availabilityFilter === 'AVAILABLE'
-                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30'
-                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" /> Available Only
-            </button>
-            <button
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className={`px-3.5 py-2 rounded-lg font-semibold flex items-center gap-1.5 transition-colors border ${
-                showAdvancedFilters ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600" /> Advanced Filters
-            </button>
-
-            <SortSelector
-              sortBy={sortBy}
-              sortOrder={sortOrder}
-              onSortChange={(f, o) => {
-                setSortBy(f);
-                setSortOrder(o);
-              }}
-            />
-
-            {(searchQuery || categoryFilter !== 'ALL' || availabilityFilter !== 'ALL' || maintenanceFilter !== 'ALL') && (
-              <button
-                onClick={() => { setSearchQuery(''); setCategoryFilter('ALL'); setAvailabilityFilter('ALL'); setMaintenanceFilter('ALL'); }}
-                className="px-3 py-2 bg-rose-50 hover:bg-red-900/60 border border-rose-200 text-rose-700 rounded-lg font-semibold flex items-center gap-1.5 transition-colors"
-              >
-                <RotateCcw className="w-3.5 h-3.5" /> Reset
-              </button>
-            )}
-          </div>
         </div>
 
-        {/* Category tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 border-t border-slate-200">
-          <span className="text-slate-500 font-bold text-[10px] uppercase mr-1">Category:</span>
-          {['ALL', ...categoriesList].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCategoryFilter(cat)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors whitespace-nowrap ${
-                categoryFilter === cat ? 'bg-cyan-600 border-cyan-500 text-slate-800' : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-200'
-              }`}
-            >
-              {cat === 'ALL' ? 'All Categories' : cat}
-            </button>
-          ))}
-        </div>
-
-        {showAdvancedFilters && (
-          <div className="pt-3 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 space-y-2">
-              <div className="font-bold text-cyan-700 text-[11px] uppercase flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" /> Category</div>
-              <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none text-xs">
-                <option value="ALL">All Categories</option>
-                {categoriesList.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
-              </select>
+        {/* Search & Compact Filters */}
+        <div className="space-y-3">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search equipment by name, ID, brand, model, serial number..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full pl-9 pr-3.5 py-2 border border-gray-300 rounded-lg text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-            <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 space-y-2">
-              <div className="font-bold text-blue-700 text-[11px] uppercase flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> Availability</div>
-              <select value={availabilityFilter} onChange={(e) => setAvailabilityFilter(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none text-xs">
+
+            {/* Dropdown Filters */}
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              >
                 <option value="ALL">All Statuses</option>
                 <option value="AVAILABLE">Available</option>
-                <option value="RESERVED">Reserved</option>
-                <option value="CHECKED_OUT">Checked Out</option>
-                <option value="IN_USE">In Use</option>
-                <option value="UNDER_MAINTENANCE">Under Maintenance</option>
+                <option value="ASSIGNED">Assigned</option>
+                <option value="RENTED_OUT">Rented</option>
                 <option value="DAMAGED">Damaged</option>
+                <option value="MAINTENANCE">Maintenance</option>
                 <option value="LOST">Lost</option>
-                <option value="RETIRED">Retired</option>
               </select>
-            </div>
-            <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 space-y-2">
-              <div className="font-bold text-amber-800 text-[11px] uppercase flex items-center gap-1.5"><Wrench className="w-3.5 h-3.5" /> Maintenance</div>
-              <select value={maintenanceFilter} onChange={(e) => setMaintenanceFilter(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none text-xs">
-                <option value="ALL">All</option>
-                <option value="OPERATIONAL">OPERATIONAL</option>
-                <option value="NEEDS_SERVICE">NEEDS SERVICE</option>
-                <option value="UNDER_REPAIR">UNDER REPAIR</option>
+
+              <select
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              >
+                <option value="ALL">All Categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
               </select>
+
+              <select
+                value={conditionFilter}
+                onChange={(e) => {
+                  setConditionFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              >
+                <option value="ALL">All Conditions</option>
+                <option value="EXCELLENT">Excellent</option>
+                <option value="GOOD">Good</option>
+                <option value="FAIR">Fair</option>
+                <option value="POOR">Poor</option>
+                <option value="DAMAGED">Damaged</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setShowMoreFilters(!showMoreFilters)}
+                className={`inline-flex items-center px-3 py-2 border rounded-lg text-sm font-medium transition-colors ${
+                  showMoreFilters || locationFilter !== 'ALL'
+                    ? 'border-blue-300 bg-blue-50 text-blue-700'
+                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 mr-1.5" />
+                More filters
+              </button>
+
+              {hasActiveFilters && (
+                <button
+                  onClick={resetFilters}
+                  className="inline-flex items-center px-2.5 py-2 text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3 mr-1" />
+                  Reset
+                </button>
+              )}
             </div>
           </div>
-        )}
-      </div>
 
-      {/* Active Equipment Grid */}
-      {loading ? (
-        <div className="p-8 text-center text-slate-500">Loading Equipment Inventory...</div>
-      ) : filteredEquipment.length === 0 ? (
-        <div className="p-8 text-center bg-white border border-slate-200 rounded-xl text-slate-500">
-          No active equipment found matching your filters.
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {paginate(sortData(filteredEquipment, sortBy, sortOrder)).map((eqp) => (
-            <div
-              key={eqp.id}
-              onClick={() => {
-                recordRecentAccess({
-                  entityType: 'EQUIPMENT',
-                  entityId: eqp.id,
-                  title: eqp.name,
-                  code: eqp.equipmentId,
-                  url: '/equipment',
-                  metadata: { category: eqp.category, availability: eqp.availability },
-                });
-              }}
-              className="bg-white border border-slate-200 p-5 rounded-xl space-y-3 shadow-md hover:border-cyan-200 transition-all cursor-pointer"
-            >
-
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-bold text-cyan-600 px-2 py-0.5 bg-cyan-50 border border-cyan-200 rounded">
-                  {eqp.equipmentId}
-                </span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
-                  eqp.availability === 'AVAILABLE' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                  eqp.availability === 'RESERVED' ? 'bg-purple-50 text-purple-600 border-purple-200' :
-                  eqp.availability === 'CHECKED_OUT' || eqp.availability === 'ISSUED' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                  eqp.availability === 'IN_USE' ? 'bg-cyan-50 text-cyan-600 border-cyan-200' :
-                  eqp.availability === 'UNDER_MAINTENANCE' ? 'bg-amber-50 text-amber-600 border-amber-200' :
-                  eqp.availability === 'DAMAGED' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
-                  eqp.availability === 'LOST' ? 'bg-rose-50 text-rose-600 border-rose-200' :
-                  'bg-zinc-500/20 text-slate-500 border-zinc-500/30'
-                }`}>
-                  {eqp.availability?.replace('_', ' ')}
-                </span>
-              </div>
-
-              <div>
-                <h3 className="text-base font-bold text-slate-900">{eqp.name}</h3>
-                <p className="text-xs text-slate-500">{eqp.brand} {eqp.model} • SN: {eqp.serialNumber}</p>
-              </div>
-
-              {/* Business Rule 1: Company ownership tag */}
-              <div className="flex items-center gap-1 text-[10px] text-blue-600">
-                <Building2 className="w-3 h-3" />
-                <span className="font-semibold">Owned by: {eqp.ownedBy || 'COMPANY'}</span>
-              </div>
-
-              {/* Business Rule 2: Inventory record fields */}
-              {(eqp.purchaseDate || eqp.purchasePrice || eqp.purchaseRef) && (
-                <div className="p-2 bg-slate-50/60 border border-slate-200 rounded space-y-0.5">
-                  {eqp.purchaseDate && (
-                    <p className="flex items-center gap-1 text-[10px] text-slate-500">
-                      <CalendarDays className="w-3 h-3" /> Acquired: {new Date(eqp.purchaseDate).toLocaleDateString()}
-                    </p>
-                  )}
-                  {eqp.purchasePrice && (
-                    <p className="flex items-center gap-1 text-[10px] text-slate-500">
-                      <Receipt className="w-3 h-3" /> Value: PKR {Number(eqp.purchasePrice).toLocaleString()}
-                    </p>
-                  )}
-                  {eqp.purchaseRef && (
-                    <p className="text-[10px] text-slate-500">Ref: {eqp.purchaseRef}</p>
-                  )}
-                </div>
-              )}
-
-              {eqp.currentHolder && (
-                <div className="p-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 flex items-center justify-between">
-                  <span>Holder: <strong className="text-slate-900">{eqp.currentHolder}</strong></span>
-                  <button onClick={() => handleReturnEquipment(eqp.id)} className="text-[10px] px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold">
-                    Return
-                  </button>
-                </div>
-              )}
-
-              {canManage && (
-                <div className="pt-2 border-t border-slate-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Status:</span>
-                    <select
-                      value={eqp.availability}
-                      onChange={(e) => handleUpdateStatus(eqp.id, e.target.value)}
-                      className="bg-slate-50 border border-slate-200 text-slate-800 px-2 py-1 rounded text-[11px]"
-                    >
-                      <option value="AVAILABLE">AVAILABLE</option>
-                      <option value="RESERVED">RESERVED</option>
-                      <option value="CHECKED_OUT">CHECKED OUT</option>
-                      <option value="IN_USE">IN USE</option>
-                      <option value="UNDER_MAINTENANCE">UNDER MAINTENANCE</option>
-                      <option value="DAMAGED">DAMAGED</option>
-                      <option value="LOST">LOST</option>
-                      <option value="RETIRED">RETIRED</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Maintenance:</span>
-                    <select
-                      value={eqp.maintenanceStatus}
-                      onChange={(e) => handleUpdateMaintenance(eqp.id, e.target.value)}
-                      className="bg-slate-50 border border-slate-200 text-slate-800 px-2 py-1 rounded text-[11px]"
-                    >
-                      <option value="OPERATIONAL">OPERATIONAL</option>
-                      <option value="NEEDS_SERVICE">NEEDS SERVICE</option>
-                      <option value="UNDER_REPAIR">UNDER REPAIR</option>
-                    </select>
-                  </div>
-
-                  {user?.role === 'MEDIA_MANAGER' && eqp.availability === 'AVAILABLE' && (
-                    <button
-                      onClick={() => {
-                        setReserveTargetEqp(eqp);
-                        setReserveForm({
-                          projectId: projects[0]?.id || '',
-                          startDate: new Date().toISOString().split('T')[0],
-                          endDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-                          expectedCheckoutDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-                        });
-                      }}
-                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-purple-50 hover:bg-purple-600/30 border border-purple-200 text-purple-700 rounded-lg text-[11px] font-semibold transition-colors"
-                    >
-                      <CalendarDays className="w-3.5 h-3.5 text-purple-600" /> Reserve for Project
-                    </button>
-                  )}
-
-                  {/* Report Damage Action */}
-                  <button
-                    onClick={() => {
-                      setDamageReportTargetEqp(eqp);
-                      setDamageForm({ description: '', severity: 'HIGH', repairNotes: '' });
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-50 border border-rose-200 text-rose-600 hover:text-rose-700 rounded-lg text-[11px] font-semibold transition-colors"
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600" /> File Damage Report
-                  </button>
-
-                  {/* Business Rule 4: Retire action replaces delete — Technical Manager authority */}
-                  {(user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR') && (
-                    <button
-                      onClick={() => setRetireTargetId(eqp.id)}
-                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-red-900/40 border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-700 rounded-lg text-[11px] font-semibold transition-colors"
-                    >
-                      <Archive className="w-3.5 h-3.5" /> Retire &amp; Archive
-                    </button>
-                  )}
-                </div>
-              )}
-              {canManage && eqp.availability === 'AVAILABLE' && (
-                <div className="pt-2 border-t border-slate-200">
-                  <button
-                    onClick={() => {
-                      setAllocateTargetEqp(eqp);
-                      setAllocateForm({
-                        employeeId: usersList[0]?.id || '',
-                        projectId: projects[0]?.id || '',
-                        purpose: 'Production shoot allocation',
-                        startDate: new Date().toISOString().split('T')[0],
-                        expectedReturnDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-                        remarks: '',
-                        accessoriesIncluded: 'Standard accessories verified',
-                        condition: 'Good - Operational',
-                      });
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold transition-colors shadow"
-                  >
-                    <ArrowRightLeft className="w-3.5 h-3.5" /> Allocate / Issue Equipment
-                  </button>
-                </div>
-              )}
-
-              {eqp.availability === 'RESERVED' && (
-                <div className="pt-2 border-t border-slate-200">
-                  <div className="p-2 bg-purple-50 border border-purple-200 rounded-lg text-center text-[11px] text-purple-700 font-semibold flex items-center justify-center gap-1.5">
-                    <CalendarDays className="w-3.5 h-3.5 text-purple-600" />
-                    Reserved for Project {eqp.currentHolder ? `(${eqp.currentHolder})` : ''}
-                  </div>
-                </div>
-              )}
-
-              {/* Return Inspection Button for Checked Out equipment */}
-              {(eqp.availability === 'CHECKED_OUT' || eqp.availability === 'IN_USE' || eqp.availability === 'ISSUED') && (
-                <div className="pt-2 border-t border-slate-200">
-                  <button
-                    onClick={() => {
-                      setInspectionTargetEqp(eqp);
-                      setInspectionForm({
-                        returnedByName: eqp.currentHolder || '',
-                        condition: eqp.condition || 'Good - Operational',
-                        hasPhysicalDamage: false,
-                        physicalDamageNotes: '',
-                        hasMissingAccessories: false,
-                        missingAccessoriesNotes: '',
-                        functionalCondition: 'FULLY_FUNCTIONAL',
-                        cleaningStatus: 'CLEAN',
-                        remarks: '',
-                      });
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold transition-colors shadow-md shadow-emerald-600/30"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" /> Inspect &amp; Return Equipment
-                  </button>
-                </div>
-              )}
-
-              {/* Damaged equipment warning banner (Assignment restriction) */}
-              {eqp.availability === 'DAMAGED' && (
-                <div className="pt-2 border-t border-rose-200">
-                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-700 space-y-1">
-                    <div className="font-bold text-rose-600 flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600" /> Damaged Equipment
-                    </div>
-                    <p className="text-[10px] text-rose-700/80 leading-relaxed">
-                      Shall not be assigned until repaired. Update Repair Status in Damage Reports queue to re-enable assignment.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-          </div>
-
-          <PaginationControls
-            currentPage={currentPage}
-            pageSize={pageSize}
-            totalItems={filteredEquipment.length}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={setPageSize}
-          />
-        </div>
-      )}
-
-
-
-      {/* Equipment Requests Queue Section (Media & Technical Manager Review Queue) */}
-      {(user?.role === 'MEDIA_MANAGER' || user?.role === 'TECHNICAL_MANAGER' || user?.role === 'ADMINISTRATOR' || (user?.role as string) === 'ADMIN') && (
-        <div id="equipment-requests-queue" className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-md">
-          <button
-            onClick={() => setShowRequestsTab(!showRequestsTab)}
-            className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-100/40 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <ArrowRightLeft className="w-4 h-4 text-emerald-600" />
-              <span className="font-bold text-slate-900 text-sm">
-                Staff Equipment Requests Queue (Media &amp; Technical Manager Approval)
-              </span>
-              <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-bold">
-                {equipmentRequests.length} Total ({equipmentRequests.filter((r) => r.status === 'PENDING').length} Pending)
-              </span>
-            </div>
-            <ChevronRight className={`w-4 h-4 text-slate-500 transition-transform ${showRequestsTab ? 'rotate-90' : ''}`} />
-          </button>
-
-          {showRequestsTab && (
-            <div className="px-5 pb-5 border-t border-slate-200 space-y-4 pt-4 text-xs">
-              {equipmentRequests.length === 0 ? (
-                <p className="text-slate-400 text-center py-6 italic">No staff equipment requests submitted.</p>
-              ) : (
-                <div className="space-y-3">
-                  {equipmentRequests.map((req) => (
-                    <div key={req.id} id={`request-${req.id}`} className="p-4 bg-slate-50/80 border border-slate-200 rounded-xl space-y-2">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-200 pb-2">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900 text-sm">{req.equipment?.name}</span>
-                            <span className="text-xs text-cyan-600 font-mono">({req.equipment?.equipmentId})</span>
-                          </div>
-                          <p className="text-xs text-slate-500">
-                            Project: <strong className="text-purple-700">{req.project?.name}</strong> • Requested By: <strong className="text-emerald-700">{req.requestedBy?.name}</strong> ({req.requestedBy?.role})
-                          </p>
-                        </div>
-                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase border self-start md:self-auto ${
-                          req.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                          req.status === 'REJECTED' ? 'bg-rose-50 text-rose-600 border-rose-200' :
-                          req.status === 'CHECKED_OUT' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                          'bg-amber-50 text-amber-600 border-amber-200'
-                        }`}>
-                          {req.status === 'PENDING' ? 'Pending Approval' : req.status}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-slate-700 pt-1">
-                        <div><strong className="text-slate-400">Purpose:</strong> {req.purpose}</div>
-                        <div><strong className="text-slate-400">Required Date:</strong> {new Date(req.requiredDate).toLocaleDateString()}</div>
-                        <div><strong className="text-slate-400">Expected Return:</strong> {new Date(req.expectedReturnDate).toLocaleDateString()}</div>
-                      </div>
-
-                      {req.remarks && (
-                        <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded border border-slate-200">
-                          <strong>Remarks:</strong> {req.remarks}
-                        </p>
-                      )}
-
-                      {/* Approval controls for Pending Requests */}
-                      {req.status === 'PENDING' && (
-                        <div className="pt-2 border-t border-slate-200 space-y-2">
-                          {reviewingId === req.id ? (
-                            <div className="space-y-2">
-                              <input
-                                type="text"
-                                placeholder="Approval / Rejection notes..."
-                                value={reviewNotes}
-                                onChange={(e) => setReviewNotes(e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900"
-                              />
-                              <div className="flex items-center gap-2 justify-end">
-                                <button onClick={() => setReviewingId(null)} className="px-3 py-1 bg-slate-100 text-slate-700 text-xs rounded font-semibold">Cancel</button>
-                                <button onClick={() => handleReviewRequest(req.id, 'REJECTED')} className="px-3 py-1 bg-red-600 hover:bg-red-500 text-slate-900 text-xs rounded font-bold">Reject</button>
-                                <button onClick={() => handleReviewRequest(req.id, 'APPROVED')} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-slate-900 text-xs rounded font-bold">Approve Request</button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex justify-end">
-                              <button onClick={() => setReviewingId(req.id)} className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors shadow">
-                                Review &amp; Approve / Reject Request
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Issue Action after Approval */}
-                      {req.status === 'APPROVED' && (
-                        <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
-                          <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                            <BadgeCheck className="w-3.5 h-3.5" /> Approved by {req.reviewedBy?.name || 'Media / Technical Manager'}
-                          </span>
-                          <button
-                            onClick={() => handleIssueEquipment(req.id)}
-                            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow"
-                          >
-                            <ArrowRightLeft className="w-3.5 h-3.5" /> Issue Equipment to Employee
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Checked Out Status Details */}
-                      {req.status === 'CHECKED_OUT' && (
-                        <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs text-blue-700">
-                          <span className="font-semibold flex items-center gap-1.5">
-                            <ArrowRightLeft className="w-3.5 h-3.5 text-blue-600" /> Issued &amp; Handed Over to {req.requestedBy?.name || 'Staff'}
-                          </span>
-                          <span className="text-[11px] text-slate-500 font-mono">
-                            Return Due: {new Date(req.expectedReturnDate).toLocaleDateString()}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Rejected Status Details */}
-                      {req.status === 'REJECTED' && (
-                        <div className="pt-2 border-t border-slate-200 text-xs text-rose-700 space-y-1">
-                          <div className="font-bold flex items-center gap-1">
-                            <X className="w-3.5 h-3.5 text-rose-600" /> Request Rejected {req.reviewedBy ? `by ${req.reviewedBy.name}` : ''}
-                          </div>
-                          {req.reviewNotes && (
-                            <p className="italic text-[11px] text-rose-600 pl-4">&quot;{req.reviewNotes}&quot;</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
+          {/* Secondary Filter Row */}
+          {showMoreFilters && (
+            <div className="flex items-center gap-3 pt-2">
+              <div className="w-full sm:w-64">
+                <select
+                  value={locationFilter}
+                  onChange={(e) => {
+                    setLocationFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="ALL">All Storage Locations</option>
+                  {locations.map((loc) => (
+                    <option key={loc} value={loc}>
+                      {loc}
+                    </option>
                   ))}
-                </div>
-              )}
+                </select>
+              </div>
             </div>
           )}
         </div>
-      )}
 
-      {/* Damage Reports & Repair Tracking Section */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-md">
-        <button
-          onClick={() => setShowDamageSection(!showDamageSection)}
-          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-100/40 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-600" />
-            <span className="font-bold text-slate-900 text-sm">
-              Equipment Damage Reports &amp; Repair Tracking
-            </span>
-            <span className="bg-rose-50 text-rose-600 border border-rose-200 px-2 py-0.5 rounded-full text-[10px] font-bold">
-              {damageReports.filter((r) => r.repairStatus !== 'REPAIRED').length} Active Unrepaired
-            </span>
-          </div>
-          <ChevronRight className={`w-4 h-4 text-slate-500 transition-transform ${showDamageSection ? 'rotate-90' : ''}`} />
-        </button>
-
-        {showDamageSection && (
-          <div className="p-5 border-t border-slate-200 space-y-4">
-            <p className="text-xs text-slate-500">
-              * Note: Damaged equipment receives a formal Damage Report including Equipment, Reported By, Date, Description, Severity, and Repair Status. Damaged equipment cannot be assigned until repaired.
-            </p>
-
-            {damageReports.length === 0 ? (
-              <div className="text-center py-6 text-slate-400 text-xs italic bg-slate-50/50 rounded-xl border border-slate-200">
-                No equipment damage reports recorded.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {damageReports.map((report) => (
-                  <div key={report.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 shadow-md">
-                    <div className="flex items-start justify-between gap-2 border-b border-slate-200 pb-2">
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-xs">{report.equipment?.name}</h4>
-                        <p className="text-[10px] text-slate-500 font-mono">
-                          Asset ID: {report.equipment?.equipmentId} • Serial: {report.equipment?.serialNumber || 'N/A'}
-                        </p>
-                      </div>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          report.severity === 'CRITICAL'
-                            ? 'bg-red-600 text-white shadow-sm shadow-red-600/50'
-                            : report.severity === 'HIGH'
-                            ? 'bg-orange-500 text-white'
-                            : report.severity === 'MEDIUM'
-                            ? 'bg-amber-500 text-black'
-                            : 'bg-blue-600 text-white'
-                        }`}
-                      >
-                        Severity: {report.severity}
-                      </span>
-                    </div>
-
-                    <div className="space-y-1.5 text-xs">
-                      <p className="text-slate-700 font-medium">
-                        <strong className="text-slate-500">Description:</strong> {report.description}
+        {/* Master Table / Responsive Cards */}
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-xs">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-600 font-medium text-xs">
+                  <th className="px-5 py-3 font-semibold">Equipment ID</th>
+                  <th className="px-4 py-3 font-semibold">Equipment</th>
+                  <th className="px-4 py-3 font-semibold">Category</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Location</th>
+                  <th className="px-4 py-3 font-semibold">Current Use</th>
+                  <th className="px-5 py-3 font-semibold text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-12 text-center text-gray-500">
+                      Loading equipment catalog...
+                    </td>
+                  </tr>
+                ) : filteredList.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-12 text-center">
+                      <p className="text-sm font-medium text-gray-800">No equipment found</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {hasActiveFilters ? 'Try changing your search or filters.' : 'Add your first equipment item to start tracking your inventory.'}
                       </p>
-                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1">
-                        <div>Reported By: <strong className="text-slate-800">{report.reportedBy?.name || 'Manager'}</strong></div>
-                        <div>Date: <strong className="text-slate-800 font-mono">{new Date(report.date).toLocaleDateString()}</strong></div>
-                      </div>
-                      {report.repairNotes && (
-                        <p className="text-[11px] text-slate-500 italic bg-slate-50 p-2 rounded border border-slate-200">
-                          Repair Notes: {report.repairNotes}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-slate-500 uppercase font-bold">Repair Status:</span>
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            report.repairStatus === 'REPAIRED'
-                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                              : report.repairStatus === 'IN_REPAIR'
-                              ? 'bg-blue-50 text-blue-600 border border-blue-200'
-                              : 'bg-rose-50 text-rose-600 border border-rose-200'
-                          }`}
-                        >
-                          {report.repairStatus}
-                        </span>
-                      </div>
-
-                      {canManage && report.repairStatus !== 'REPAIRED' && (
+                      {hasActiveFilters ? (
                         <button
-                          onClick={() => {
-                            setUpdatingRepairId(report.id);
-                            setRepairStatusForm({ repairStatus: 'REPAIRED', repairNotes: '' });
-                          }}
-                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold transition-colors shadow-sm shadow-emerald-600/30"
+                          onClick={resetFilters}
+                          className="mt-3 inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50"
                         >
-                          Update Repair Status
+                          Clear Filters
                         </button>
+                      ) : (
+                        isManager && (
+                          <Link
+                            href="/equipment/create"
+                            className="mt-3 inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700"
+                          >
+                            <Plus className="w-3.5 h-3.5 mr-1" /> Add Equipment
+                          </Link>
+                        )
                       )}
-                    </div>
-
-                    {/* Inline Repair Update Form */}
-                    {updatingRepairId === report.id && (
-                      <div className="pt-3 border-t border-slate-200 space-y-2 bg-slate-50 p-3 rounded-lg">
-                        <label className="text-[10px] text-slate-500 font-bold uppercase block">New Repair Status</label>
-                        <select
-                          value={repairStatusForm.repairStatus}
-                          onChange={(e) => setRepairStatusForm({ ...repairStatusForm, repairStatus: e.target.value })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-900 text-xs"
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedList.map((item) => (
+                    <tr key={item.id} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="px-5 py-3.5 whitespace-nowrap font-mono text-xs font-semibold text-gray-700">
+                        {item.equipmentId}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <Link
+                          href={`/equipment/${item.id}`}
+                          className="font-medium text-gray-900 hover:text-blue-600 transition-colors"
                         >
-                          <option value="IN_REPAIR">IN_REPAIR — Currently under repair</option>
-                          <option value="REPAIRED">REPAIRED — Fixed &amp; ready for assignment</option>
-                          <option value="UNREPAIRABLE">UNREPAIRABLE — Beyond repair</option>
-                        </select>
-                        <input
-                          type="text"
-                          placeholder="Optional repair resolution notes..."
-                          value={repairStatusForm.repairNotes}
-                          onChange={(e) => setRepairStatusForm({ ...repairStatusForm, repairNotes: e.target.value })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-900 text-xs"
-                        />
-                        <div className="flex justify-end gap-2 pt-1">
-                          <button onClick={() => setUpdatingRepairId(null)} className="px-2 py-1 bg-slate-100 text-slate-500 rounded text-[10px]">Cancel</button>
-                          <button onClick={() => handleUpdateRepairStatus(report.id)} className="px-3 py-1 bg-emerald-600 text-white font-bold rounded text-[10px]">Save Status</button>
+                          {item.name}
+                        </Link>
+                        <div className="text-xs text-gray-400">
+                          {item.brand} {item.model}
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      </td>
+                      <td className="px-4 py-3.5 text-xs text-gray-600">{item.category}</td>
+                      <td className="px-4 py-3.5 whitespace-nowrap">{getStatusBadge(item.availability)}</td>
+                      <td className="px-4 py-3.5 text-xs text-gray-600">{item.storageLocation || 'Studio'}</td>
+                      <td className="px-4 py-3.5 text-xs text-gray-600 truncate max-w-xs">{getCurrentUse(item)}</td>
+                      <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                        <Link
+                          href={`/equipment/${item.id}`}
+                          className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                        >
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Card List */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {loading ? (
+              <div className="p-8 text-center text-sm text-gray-500">Loading equipment catalog...</div>
+            ) : filteredList.length === 0 ? (
+              <div className="p-8 text-center">
+                <p className="text-sm font-medium text-gray-800">No equipment found</p>
+                <p className="text-xs text-gray-500 mt-1">Try changing your search or filters.</p>
+                {hasActiveFilters && (
+                  <button
+                    onClick={resetFilters}
+                    className="mt-3 inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700"
+                  >
+                    Clear Filters
+                  </button>
+                )}
               </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Business Rule 4: Archived / Retired Inventory Section */}
-      <div className="bg-slate-50/50 border border-slate-200 rounded-xl overflow-hidden">
-        <button
-          onClick={() => setShowArchived(!showArchived)}
-          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-100/40 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <PackageX className="w-4 h-4 text-slate-500" />
-            <span className="font-bold text-slate-700 text-sm">Archived / Retired Inventory</span>
-            <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded-full text-[10px] text-slate-500 font-bold">
-              {archivedEquipment.length} records
-            </span>
-            <span className="text-[10px] text-slate-400">— permanent history, never deleted</span>
-          </div>
-          {showArchived ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-        </button>
-
-        {showArchived && (
-          <div className="px-5 pb-5 border-t border-slate-200">
-            {archivedEquipment.length === 0 ? (
-              <p className="text-slate-400 text-center py-6 italic">No retired equipment on record.</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                {archivedEquipment.map((eqp) => (
-                  <div key={eqp.id} className="bg-slate-50/80 border border-slate-200 p-4 rounded-xl space-y-2 opacity-80">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-[11px] font-bold text-slate-400 px-2 py-0.5 bg-slate-100 border border-slate-200 rounded">
-                        {eqp.equipmentId}
-                      </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100/60 text-slate-500 border border-slate-200 uppercase">
-                        ARCHIVED
-                      </span>
-                    </div>
+              paginatedList.map((item) => (
+                <div key={item.id} className="p-4 space-y-2 hover:bg-gray-50/60 transition-colors">
+                  <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="text-sm font-bold text-slate-700">{eqp.name}</h3>
-                      <p className="text-[11px] text-slate-400">{eqp.brand} {eqp.model} • SN: {eqp.serialNumber}</p>
+                      <span className="font-mono text-xs font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
+                        {item.equipmentId}
+                      </span>
+                      <h3 className="font-medium text-gray-900 text-sm mt-1">{item.name}</h3>
+                      <p className="text-xs text-gray-500">{item.category}</p>
                     </div>
-                    {eqp.retirementReason && (
-                      <p className="text-[11px] text-rose-600 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3 shrink-0" /> {eqp.retirementReason}
-                      </p>
-                    )}
-                    {eqp.archivedAt && (
-                      <p className="text-[10px] text-slate-400">Retired: {new Date(eqp.archivedAt).toLocaleDateString()}</p>
-                    )}
-                    <div className="flex items-center gap-1 text-[10px] text-zinc-600">
-                      <Building2 className="w-3 h-3" /> Owned by: {eqp.ownedBy || 'COMPANY'}
-                    </div>
+                    <div>{getStatusBadge(item.availability)}</div>
                   </div>
-                ))}
-              </div>
+                  <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-50">
+                    <span>{item.storageLocation || 'Studio'}</span>
+                    <Link
+                      href={`/equipment/${item.id}`}
+                      className="text-xs font-semibold text-blue-600 hover:underline inline-flex items-center"
+                    >
+                      View Details <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+                    </Link>
+                  </div>
+                </div>
+              ))
             )}
           </div>
+        </div>
+
+        {/* Pagination Controls */}
+        {filteredList.length > 0 && (
+          <div className="pt-2">
+            <PaginationControls
+              currentPage={currentPage}
+              totalItems={filteredList.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+          </div>
         )}
-      </div>
-
-      {/* Add Equipment Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b border-slate-200">
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Plus className="w-4 h-4 text-cyan-600" /> Register Company Equipment
-              </h2>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-500 hover:text-slate-900"><X className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleAddEquipment} className="p-5 space-y-4">
-
-              {/* Business Rule 1: Company ownership — always visible, not editable */}
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
-                <BadgeCheck className="w-4 h-4 text-blue-600 shrink-0" />
-                <p className="text-[11px] text-blue-700 font-semibold">
-                  All equipment registered here is permanent company property (ownedBy: COMPANY). Personal assets cannot be added to this system.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Equipment Name *</label>
-                  <input required value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white" placeholder="e.g. Sony FX3 Cinema Camera" />
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Category *</label>
-                  <input required value={addForm.category} onChange={(e) => setAddForm({ ...addForm, category: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white" placeholder="e.g. Camera, Lens, Lighting, Drone" />
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Brand *</label>
-                  <input required value={addForm.brand} onChange={(e) => setAddForm({ ...addForm, brand: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white" placeholder="e.g. Sony" />
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Model *</label>
-                  <input required value={addForm.model} onChange={(e) => setAddForm({ ...addForm, model: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white" placeholder="e.g. FX3" />
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Serial Number</label>
-                  <input value={addForm.serialNumber} onChange={(e) => setAddForm({ ...addForm, serialNumber: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white" placeholder="Auto-generated if blank" />
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Condition</label>
-                  <select value={addForm.condition} onChange={(e) => setAddForm({ ...addForm, condition: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white">
-                    <option>Good</option><option>Fair</option><option>Excellent</option><option>Needs Repair</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Business Rule 2: Permanent inventory record fields */}
-              <div className="border-t border-slate-200 pt-4">
-                <p className="text-[11px] text-slate-500 font-bold uppercase mb-3 flex items-center gap-1.5">
-                  <Receipt className="w-3.5 h-3.5 text-slate-400" /> Inventory Record (Acquisition Details)
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Purchase Date</label>
-                    <input type="date" value={addForm.purchaseDate} onChange={(e) => setAddForm({ ...addForm, purchaseDate: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white" />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Purchase Price (PKR)</label>
-                    <input type="number" value={addForm.purchasePrice} onChange={(e) => setAddForm({ ...addForm, purchasePrice: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white" placeholder="e.g. 450000" />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">PO / Invoice Ref</label>
-                    <input value={addForm.purchaseRef} onChange={(e) => setAddForm({ ...addForm, purchaseRef: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white" placeholder="e.g. PO-2024-0042" />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Notes</label>
-                <textarea value={addForm.notes} onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })} rows={2}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white resize-none" placeholder="Optional notes..." />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200 transition-colors">Cancel</button>
-                <button type="submit" disabled={submittingAdd} className="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
-                  {submittingAdd ? 'Registering...' : 'Register Equipment'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Retire Modal — Business Rule 4 */}
-      {retireTargetId && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-50 border border-rose-200 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b border-slate-200">
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Archive className="w-4 h-4 text-rose-600" /> Retire &amp; Archive Equipment
-              </h2>
-              <button onClick={() => { setRetireTargetId(null); setRetirementReason(''); }} className="text-slate-500 hover:text-slate-900"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-amber-800">
-                  This equipment will be permanently archived. Its inventory record and movement history will be retained as part of the permanent audit trail. This action cannot be undone.
-                </p>
-              </div>
-              <div>
-                <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Retirement Reason *</label>
-                <textarea
-                  value={retirementReason}
-                  onChange={(e) => setRetirementReason(e.target.value)}
-                  rows={3}
-                  placeholder="e.g. End of service life, irreparable damage, replaced by newer model..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-red-500 resize-none"
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => { setRetireTargetId(null); setRetirementReason(''); }} className="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200">Cancel</button>
-                <button onClick={handleRetire} disabled={submittingRetire || !retirementReason.trim()} className="px-5 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
-                  {submittingRetire ? 'Archiving...' : 'Confirm Retirement'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reserve Equipment Modal */}
-      {reserveTargetEqp && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-50 border border-purple-200 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b border-slate-200">
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <CalendarDays className="w-4 h-4 text-purple-600" /> Reserve Equipment
-              </h2>
-              <button onClick={() => setReserveTargetEqp(null)} className="text-slate-500 hover:text-slate-900"><X className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleReserveEquipment} className="p-5 space-y-4">
-              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg space-y-1">
-                <p className="text-xs font-bold text-purple-700">{reserveTargetEqp.name}</p>
-                <p className="text-[10px] text-slate-500">{reserveTargetEqp.brand} {reserveTargetEqp.model} • SN: {reserveTargetEqp.serialNumber}</p>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Project *</label>
-                <select
-                  required
-                  value={reserveForm.projectId}
-                  onChange={(e) => setReserveForm({ ...reserveForm, projectId: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-purple-500 focus:bg-white"
-                >
-                  <option value="">Select Shoot Project...</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.projectId})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Reserved Date (Start) *</label>
-                  <input
-                    type="date"
-                    required
-                    value={reserveForm.startDate}
-                    onChange={(e) => setReserveForm({ ...reserveForm, startDate: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-purple-500 focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Reserved Date (End) *</label>
-                  <input
-                    type="date"
-                    required
-                    value={reserveForm.endDate}
-                    onChange={(e) => setReserveForm({ ...reserveForm, endDate: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-purple-500 focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Expected Checkout Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={reserveForm.expectedCheckoutDate}
-                  onChange={(e) => setReserveForm({ ...reserveForm, expectedCheckoutDate: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-purple-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded border border-slate-200 flex items-center justify-between">
-                <span>Reserved By:</span>
-                <strong className="text-slate-900 font-semibold">{user?.name || 'Media Manager'}</strong>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setReserveTargetEqp(null)} className="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200">Cancel</button>
-                <button type="submit" disabled={submittingReserve} className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
-                  {submittingReserve ? 'Reserving...' : 'Confirm Reservation'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Direct Equipment Allocation Modal */}
-      {allocateTargetEqp && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 backdrop-blur-xs">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-5 border-b border-slate-200 bg-slate-50/50">
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <ArrowRightLeft className="w-5 h-5 text-emerald-600" /> Direct Equipment Allocation & Handover
-              </h2>
-              <button onClick={() => setAllocateTargetEqp(null)} className="text-slate-500 hover:text-slate-900"><X className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleAllocateDirectly} className="p-5 space-y-4 text-xs">
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
-                <p className="font-bold text-emerald-700 text-sm">{allocateTargetEqp.name}</p>
-                <p className="font-mono text-[11px] text-cyan-600">{allocateTargetEqp.equipmentId} • {allocateTargetEqp.brand} {allocateTargetEqp.model}</p>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-700 font-bold uppercase mb-1 block">Employee Recipient *</label>
-                <select
-                  required
-                  value={allocateForm.employeeId}
-                  onChange={(e) => setAllocateForm({ ...allocateForm, employeeId: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:bg-white font-medium"
-                >
-                  <option value="">Select Employee Recipient...</option>
-                  {usersList.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-700 font-bold uppercase mb-1 block">Shoot Project (Optional)</label>
-                <select
-                  value={allocateForm.projectId}
-                  onChange={(e) => setAllocateForm({ ...allocateForm, projectId: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:bg-white font-medium"
-                >
-                  <option value="">Select Shoot Project (Optional)...</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.projectId})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] text-slate-700 font-bold uppercase mb-1 block">Allocation Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={allocateForm.startDate}
-                    onChange={(e) => setAllocateForm({ ...allocateForm, startDate: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:bg-white font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-700 font-bold uppercase mb-1 block">Expected Return Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={allocateForm.expectedReturnDate}
-                    onChange={(e) => setAllocateForm({ ...allocateForm, expectedReturnDate: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:bg-white font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-700 font-bold uppercase mb-1 block">Purpose & Remarks</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Primary camera body for studio shoot"
-                  value={allocateForm.purpose}
-                  onChange={(e) => setAllocateForm({ ...allocateForm, purpose: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:bg-white font-medium"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setAllocateTargetEqp(null)} className="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-200">Cancel</button>
-                <button type="submit" disabled={submittingAllocate} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50 shadow-lg shadow-emerald-600/30">
-                  {submittingAllocate ? 'Allocating...' : 'Confirm Allocation & Handover'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-
-
-      {/* Inspect & Return Equipment Modal */}
-      {inspectionTargetEqp && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-50 border border-emerald-200 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b border-slate-200">
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <RotateCcw className="w-4 h-4 text-emerald-600" /> Equipment Return Inspection
-              </h2>
-              <button onClick={() => setInspectionTargetEqp(null)} className="text-slate-500 hover:text-slate-900"><X className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleReturnInspection} className="p-5 space-y-4 max-h-[85vh] overflow-y-auto">
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg space-y-1">
-                <p className="text-xs font-bold text-emerald-700">{inspectionTargetEqp.name}</p>
-                <p className="text-[10px] text-slate-500">
-                  Asset ID: <strong className="text-slate-800">{inspectionTargetEqp.equipmentId}</strong> • Current Holder: <strong className="text-slate-800">{inspectionTargetEqp.currentHolder || 'Employee'}</strong>
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-xs text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200 font-mono">
-                <div>Return Date: <strong className="text-slate-900 block">{new Date().toLocaleDateString()}</strong></div>
-                <div>Return Time: <strong className="text-slate-900 block">{new Date().toLocaleTimeString()}</strong></div>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Returned By *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Employee name returning equipment..."
-                  value={inspectionForm.returnedByName}
-                  onChange={(e) => setInspectionForm({ ...inspectionForm, returnedByName: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:bg-white"
-                />
-              </div>
-
-              {/* 4-Point Mandatory Inspection Checklist */}
-              <div className="space-y-3 pt-2 border-t border-slate-200">
-                <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Mandatory Inspection Checklist (Recorded in History)</p>
-
-                {/* 1. Physical Damage Inspection */}
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> 1. Physical Damage Inspection *
-                    </span>
-                    <label className="flex items-center gap-1.5 cursor-pointer text-xs">
-                      <input
-                        type="checkbox"
-                        checked={inspectionForm.hasPhysicalDamage}
-                        onChange={(e) => setInspectionForm({ ...inspectionForm, hasPhysicalDamage: e.target.checked })}
-                        className="rounded border-slate-200 bg-slate-50 text-amber-500 focus:ring-amber-500"
-                      />
-                      <span className={inspectionForm.hasPhysicalDamage ? 'text-amber-600 font-bold' : 'text-slate-500'}>Damage Observed</span>
-                    </label>
-                  </div>
-                  {inspectionForm.hasPhysicalDamage && (
-                    <input
-                      type="text"
-                      placeholder="Describe physical damage observed (cracks, dents, scratches)..."
-                      value={inspectionForm.physicalDamageNotes}
-                      onChange={(e) => setInspectionForm({ ...inspectionForm, physicalDamageNotes: e.target.value })}
-                      className="w-full bg-slate-50 border border-amber-200 rounded-lg px-3 py-1.5 text-slate-900 text-xs"
-                    />
-                  )}
-                </div>
-
-                {/* 2. Missing Accessories Inspection */}
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5 text-blue-600" /> 2. Missing Accessories Inspection *
-                    </span>
-                    <label className="flex items-center gap-1.5 cursor-pointer text-xs">
-                      <input
-                        type="checkbox"
-                        checked={inspectionForm.hasMissingAccessories}
-                        onChange={(e) => setInspectionForm({ ...inspectionForm, hasMissingAccessories: e.target.checked })}
-                        className="rounded border-slate-200 bg-slate-50 text-blue-500 focus:ring-blue-500"
-                      />
-                      <span className={inspectionForm.hasMissingAccessories ? 'text-blue-600 font-bold' : 'text-slate-500'}>Accessories Missing</span>
-                    </label>
-                  </div>
-                  {inspectionForm.hasMissingAccessories && (
-                    <input
-                      type="text"
-                      placeholder="List missing cables, caps, batteries, memory cards, chargers..."
-                      value={inspectionForm.missingAccessoriesNotes}
-                      onChange={(e) => setInspectionForm({ ...inspectionForm, missingAccessoriesNotes: e.target.value })}
-                      className="w-full bg-slate-50 border border-blue-200 rounded-lg px-3 py-1.5 text-slate-900 text-xs"
-                    />
-                  )}
-                </div>
-
-                {/* 3. Functional Condition Inspection */}
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Wrench className="w-3.5 h-3.5 text-cyan-600" /> 3. Functional Condition *
-                  </span>
-                  <select
-                    value={inspectionForm.functionalCondition}
-                    onChange={(e) => setInspectionForm({ ...inspectionForm, functionalCondition: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-900 text-xs focus:outline-none focus:border-cyan-500 focus:bg-white"
-                  >
-                    <option value="FULLY_FUNCTIONAL">Fully Functional — All features tested &amp; working</option>
-                    <option value="PARTIALLY_FUNCTIONAL">Partially Functional — Minor issue / glitch</option>
-                    <option value="NON_FUNCTIONAL">Non-Functional — Malfunctioning / Defective</option>
-                  </select>
-                </div>
-
-                {/* 4. Cleaning Status Inspection */}
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> 4. Cleaning Status *
-                  </span>
-                  <select
-                    value={inspectionForm.cleaningStatus}
-                    onChange={(e) => setInspectionForm({ ...inspectionForm, cleaningStatus: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:bg-white"
-                  >
-                    <option value="CLEAN">Clean &amp; Sanitized — Ready for next issue</option>
-                    <option value="NEEDS_CLEANING">Needs Standard Cleaning / Dusting</option>
-                    <option value="REQUIRES_DEEP_CLEAN">Requires Deep Cleaning / Lens Maintenance</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Inspected Overall Condition *</label>
-                <select
-                  required
-                  value={inspectionForm.condition}
-                  onChange={(e) => setInspectionForm({ ...inspectionForm, condition: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:bg-white"
-                >
-                  <option value="Good - Operational">Good - Operational</option>
-                  <option value="Fair - Normal Wear">Fair - Normal Wear</option>
-                  <option value="Needs Service / Maintenance">Needs Service / Maintenance</option>
-                  <option value="Damaged - Requires Repair">Damaged - Requires Repair</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Inspection Remarks</label>
-                <textarea
-                  rows={2}
-                  placeholder="Detailed inspection observations, remarks, lens cleanliness, battery levels..."
-                  value={inspectionForm.remarks}
-                  onChange={(e) => setInspectionForm({ ...inspectionForm, remarks: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:bg-white resize-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setInspectionTargetEqp(null)} className="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200">Cancel</button>
-                <button
-                  type="submit"
-                  disabled={submittingInspection}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors shadow-lg shadow-emerald-600/30 disabled:opacity-50"
-                >
-                  {submittingInspection ? 'Completing Inspection...' : 'Confirm Return & Save Inspection History'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* File Damage Report Modal */}
-      {damageReportTargetEqp && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-50 border border-rose-200 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b border-slate-200">
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-600" /> Create Equipment Damage Report
-              </h2>
-              <button onClick={() => setDamageReportTargetEqp(null)} className="text-slate-500 hover:text-slate-900"><X className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleCreateDamageReport} className="p-5 space-y-4">
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg space-y-1">
-                <p className="text-xs font-bold text-rose-700">{damageReportTargetEqp.name}</p>
-                <p className="text-[10px] text-slate-500">
-                  Asset ID: <strong className="text-slate-800">{damageReportTargetEqp.equipmentId}</strong> • Serial: <strong className="text-slate-800">{damageReportTargetEqp.serialNumber || 'N/A'}</strong>
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-xs text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200 font-mono">
-                <div>Report Date: <strong className="text-slate-900 block">{new Date().toLocaleDateString()}</strong></div>
-                <div>Reported By: <strong className="text-slate-900 block">{user?.name || 'Manager'}</strong></div>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Damage Severity *</label>
-                <select
-                  required
-                  value={damageForm.severity}
-                  onChange={(e) => setDamageForm({ ...damageForm, severity: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-red-500"
-                >
-                  <option value="CRITICAL">CRITICAL — Severe damage / Non-functional</option>
-                  <option value="HIGH">HIGH — Major component damaged</option>
-                  <option value="MEDIUM">MEDIUM — Moderate wear / Minor fracture</option>
-                  <option value="LOW">LOW — Minor superficial damage</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Damage Description *</label>
-                <textarea
-                  rows={3}
-                  required
-                  placeholder="Detailed description of equipment damage observed..."
-                  value={damageForm.description}
-                  onChange={(e) => setDamageForm({ ...damageForm, description: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-red-500 resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-500 font-bold uppercase mb-1 block">Initial Repair / Service Notes</label>
-                <input
-                  type="text"
-                  placeholder="Optional repair steps or technician recommendation..."
-                  value={damageForm.repairNotes}
-                  onChange={(e) => setDamageForm({ ...damageForm, repairNotes: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xs focus:outline-none focus:border-red-500"
-                />
-              </div>
-
-              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-[10px] text-rose-700 italic">
-                * Note: Submitting this Damage Report will set equipment status to DAMAGED. Damaged equipment cannot be assigned until repaired.
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setDamageReportTargetEqp(null)} className="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200">Cancel</button>
-                <button
-                  type="submit"
-                  disabled={submittingDamageReport}
-                  className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold transition-colors shadow-lg shadow-red-600/30 disabled:opacity-50"
-                >
-                  {submittingDamageReport ? 'Filing Report...' : 'File Damage Report'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
       </div>
     </RoleGuard>
   );

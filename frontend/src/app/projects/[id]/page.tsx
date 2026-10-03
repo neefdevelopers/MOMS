@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { fetchApi } from '@/lib/api';
-import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
 import { ProjectEquipmentTab } from '@/components/projects/ProjectEquipmentTab';
 import { VideoEditingPanel } from '@/components/projects/VideoEditingPanel';
 import { useAuth } from '@/lib/auth-context';
@@ -12,8 +11,6 @@ import ActivityCommunicationThread from '@/components/communications/ActivityCom
 import { useBreadcrumbs } from '@/lib/breadcrumbs-context';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
 import { recordRecentAccess } from '@/lib/recent-access';
-import RevisionsTab from '@/components/revisions/RevisionsTab';
-import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
 import {
   Film,
   FileUp,
@@ -59,6 +56,8 @@ import {
   Edit,
   PlusCircle,
   User,
+  LayoutDashboard,
+  Trash2,
 } from 'lucide-react';
 import {
   ProjectScript,
@@ -114,19 +113,8 @@ export default function ProjectDetailPage() {
 
   const [showManageTeamModal, setShowManageTeamModal] = useState(false);
   const [showManageEquipmentModal, setShowManageEquipmentModal] = useState(false);
-  const [showConvertTaskModal, setShowConvertTaskModal] = useState(false);
-  const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [teamFilter, setTeamFilter] = useState<'ALL' | 'ACCEPTED' | 'PENDING'>('ALL');
-  const [taskFilter, setTaskFilter] = useState<'ALL' | 'SHOOT' | 'GRAPHIC' | 'ACTIVE' | 'COMPLETED'>('ALL');
-
-  // Deliverables State
-  const [deliverableName, setDeliverableName] = useState('');
-  const [deliverableType, setDeliverableType] = useState('Video');
-  const [deliverableVideoUrl, setDeliverableVideoUrl] = useState('');
-  const [isSubmittingDeliverable, setIsSubmittingDeliverable] = useState(false);
-  const [copiedDeliverableId, setCopiedDeliverableId] = useState<string | null>(null);
-  const [linkedGraphicReqId, setLinkedGraphicReqId] = useState('');
-  const [showCreateDeliverableModal, setShowCreateDeliverableModal] = useState(false);
+  const [taskFilter, setTaskFilter] = useState<'ALL' | 'VIDEO_EDITING' | 'GRAPHIC' | 'ACTIVE' | 'COMPLETED'>('ALL');
 
   // Closure Modal State
   const [showClosureModal, setShowClosureModal] = useState(false);
@@ -145,21 +133,27 @@ export default function ProjectDetailPage() {
   const [closureReasonPreset, setClosureReasonPreset] = useState('Client cancelled remaining deliverables');
   const [customClosureReason, setCustomClosureReason] = useState('');
 
-  // Script documents — combines ProjectScript DB records and uploaded FileMetadata.
+  // Script documents — strictly SCRIPT_DOCUMENT files.
   const scriptFiles = (filesTree?.allFiles || project?.files || []).filter((f: any) =>
-    f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
-    f.folderCategory === 'Script Documents' ||
-    f.storagePath?.toLowerCase().includes('script') ||
-    (f.fileName?.toLowerCase().endsWith('.pdf') && !f.deliverableType) ||
-    f.fileName?.toLowerCase().endsWith('.doc') ||
-    f.fileName?.toLowerCase().endsWith('.docx')
+    (f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+     f.folderCategory === 'Script Documents' ||
+     f.storagePath?.includes('Script Documents')) &&
+    f.attachmentCategory !== 'REFERENCE_FILE'
   );
-  const scriptDocuments = useMemo(() => {
-    if (projectScriptsList && projectScriptsList.length > 0) return projectScriptsList;
-    if (scriptFiles && scriptFiles.length > 0) return scriptFiles;
-    if (project?.projectScripts && project.projectScripts.length > 0) return project.projectScripts;
-    return [];
-  }, [projectScriptsList, scriptFiles, project?.projectScripts]);
+
+  // Attached Reference documents & assets — strictly non-script reference files.
+  const referenceFiles = (filesTree?.allFiles || project?.files || []).filter((f: any) =>
+    f.attachmentCategory === 'REFERENCE_FILE' ||
+    f.folderCategory === 'Reference Documents' ||
+    f.folderCategory === 'Creative Assets' ||
+    f.folderCategory === 'Attachments' ||
+    (f.attachmentCategory !== 'SCRIPT_DOCUMENT' &&
+     f.folderCategory !== 'Script Documents' &&
+     !f.storagePath?.includes('Script Documents'))
+  );
+
+  const [uploadingRefDoc, setUploadingRefDoc] = useState(false);
+  const [selectedRefFile, setSelectedRefFile] = useState<File | null>(null);
 
   // Parse scripts from project notes (JSON serialized by serializeProjectScripts)
   const parsedScripts = useMemo(() => {
@@ -170,6 +164,14 @@ export default function ProjectDetailPage() {
       return [];
     }
   }, [project?.notes]);
+
+  const scriptDocuments = useMemo(() => {
+    if (projectScriptsList && projectScriptsList.length > 0) return projectScriptsList;
+    if (parsedScripts && parsedScripts.length > 0) return parsedScripts;
+    if (scriptFiles && scriptFiles.length > 0) return scriptFiles;
+    if (project?.projectScripts && project.projectScripts.length > 0) return project.projectScripts;
+    return [];
+  }, [projectScriptsList, parsedScripts, scriptFiles, project?.projectScripts]);
 
   // Clip codes may only be added or removed by staff assigned to this project.
   // Every other role (including admins) is strictly read-only - no bypass.
@@ -490,6 +492,56 @@ export default function ProjectDetailPage() {
     }
   };
 
+  const handleUploadRefDoc = async (fileToUpload?: File) => {
+    const file = fileToUpload || selectedRefFile;
+    if (!file) {
+      alert('Please select a file to upload.');
+      return;
+    }
+    setUploadingRefDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('projectId', project.id);
+      formData.append('folderCategory', 'Reference Documents');
+      formData.append('attachmentCategory', 'REFERENCE_FILE');
+
+      const token = localStorage.getItem('moms_token') || localStorage.getItem('token');
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+      const res = await fetch(`${apiBase}/files/upload`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Failed to upload attached document');
+      }
+
+      alert(`Attached Document "${file.name}" uploaded successfully!`);
+      setSelectedRefFile(null);
+      await loadProject();
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload attached document');
+    } finally {
+      setUploadingRefDoc(false);
+    }
+  };
+
+  const handleDeleteFile = async (fileId: string, fileName: string) => {
+    if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
+    try {
+      await fetchApi(`/files/${fileId}`, {
+        method: 'DELETE',
+      });
+      alert(`Deleted "${fileName}" successfully.`);
+      await loadProject();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete file');
+    }
+  };
+
   const handleToggleTeamUser = async (targetUserId: string) => {
     const currentTeamUserIds = (project.assignedTeam || []).map((t: any) => t.userId);
     const updatedTeamUserIds = currentTeamUserIds.includes(targetUserId)
@@ -542,98 +594,6 @@ export default function ProjectDetailPage() {
       loadProject();
     } catch (err: any) {
       alert(err.message || 'Failed to post comment');
-    }
-  };
-
-  const handleCreateDeliverable = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!deliverableName.trim()) return;
-
-    const isProjectUnderReview = [
-      'WAITING_FOR_TECHNICAL_REVIEW',
-      'TECHNICAL_REVIEW',
-      'WAITING_FOR_MEDIA_REVIEW',
-      'MEDIA_MANAGER_REVIEW',
-      'WAITING_FOR_MARKETING_APPROVAL',
-      'PENDING_MARKETING_APPROVAL',
-      'PENDING_CLIENT_APPROVAL',
-      'PENDING_CLIENT_REVIEW',
-      'WAITING_FOR_CLIENT_CONFIRMATION',
-      'COMPLETED',
-    ].includes(project?.status);
-
-    if (isProjectUnderReview) {
-      alert(`Project is currently under review (${project?.status}) and in read-only mode. Deliverable additions are locked during review.`);
-      return;
-    }
-
-    if (!deliverableVideoUrl.trim()) {
-      alert('Please enter a valid video link or cloud storage URL.');
-      return;
-    }
-
-    setIsSubmittingDeliverable(true);
-    try {
-      await fetchApi('/files', {
-        method: 'POST',
-        body: JSON.stringify({
-          projectId: project.id,
-          fileName: deliverableName.trim(),
-          deliverableType,
-          graphicRequirementId: linkedGraphicReqId || undefined,
-          storagePath: deliverableVideoUrl.trim(),
-        }),
-      });
-
-      setDeliverableName('');
-      setDeliverableVideoUrl('');
-      setLinkedGraphicReqId('');
-      setShowCreateDeliverableModal(false);
-      loadProject();
-    } catch (err: any) {
-      alert(err.message || 'Failed to register deliverable');
-    } finally {
-      setIsSubmittingDeliverable(false);
-    }
-  };
-
-  const getDeliverableLinkInfo = (url?: string) => {
-    if (!url) return null;
-    const lower = url.toLowerCase();
-    if (lower.includes('youtube.com') || lower.includes('youtu.be')) return { label: 'YouTube Video', color: 'bg-red-50 text-red-700 border-red-200' };
-    if (lower.includes('vimeo.com')) return { label: 'Vimeo Stream', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' };
-    if (lower.includes('drive.google.com')) return { label: 'Google Drive', color: 'bg-amber-50 text-amber-700 border-amber-200' };
-    if (lower.includes('frame.io')) return { label: 'Frame.io Review', color: 'bg-purple-50 text-purple-700 border-purple-200' };
-    if (lower.includes('dropbox.com')) return { label: 'Dropbox', color: 'bg-blue-50 text-blue-700 border-blue-200' };
-    if (lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.webm') || lower.includes('/video/')) return { label: 'Direct Video Stream', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-    if (lower.startsWith('http')) return { label: 'Cloud Deliverable Link', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
-    return { label: 'Stored File Asset', color: 'bg-slate-100 text-slate-700 border-slate-200' };
-  };
-
-  const copyDeliverableLink = (id: string, url: string) => {
-    navigator.clipboard.writeText(url);
-    setCopiedDeliverableId(id);
-    setTimeout(() => setCopiedDeliverableId(null), 2000);
-  };
-
-  const handleUploadFileMetadata = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newFileName.trim()) return;
-    try {
-      await fetchApi('/files', {
-        method: 'POST',
-        body: JSON.stringify({
-          projectId: project.id,
-          fileName: newFileName,
-          fileSize: 450000000,
-          fileType: 'video/mp4',
-          storagePath: `/projects/${project.projectId}/Final Deliverables/${newFileName}`,
-        }),
-      });
-      setNewFileName('');
-      loadProject();
-    } catch (err: any) {
-      alert(err.message || 'Failed to upload deliverable metadata');
     }
   };
 
@@ -818,16 +778,24 @@ export default function ProjectDetailPage() {
   const isIndoor = project.shootType === 'INDOOR';
   const outdoor = project.outdoorDetails;
 
-  const tabs = [
-    'Overview',
-    'Revisions',
-    'Scripts',
-    'Graphic Requirements',
-    'Tasks',
-    'Team',
-    'Equipment',
-    'Deliverables',
+  const isShootProjectPlaceholder = (t: any) =>
+    (t.taskType === 'PROJECT' && !t.graphicRequirementId && !t.scriptId) ||
+    (t.sourceType === 'SHOOT_PROJECT' && !t.scriptId && !t.graphicRequirementId && (
+      t.title?.toLowerCase() === project?.name?.toLowerCase() ||
+      t.title?.toLowerCase().includes('shoot session') ||
+      t.title?.toLowerCase().includes('project shoot')
+    ));
 
+  const realProjectTasks = (project.tasks || []).filter((t: any) => !isShootProjectPlaceholder(t));
+
+  const tabs = [
+    { name: 'Overview', icon: LayoutDashboard },
+    { name: 'Scripts', icon: FileText, count: scriptFiles.length },
+    { name: 'Attached Documents', icon: UploadCloud, count: referenceFiles.length },
+    { name: 'Graphic Requirements', icon: Palette, count: project.graphicRequirements?.length || 0 },
+    { name: 'Tasks', icon: CheckSquare, count: realProjectTasks.length },
+    { name: 'Team', icon: Users, count: project.assignedTeam?.length || 0 },
+    { name: 'Equipment', icon: Camera, count: project.equipmentReservations?.length || 0 },
   ];
 
   if (accessDeniedError || !project) {
@@ -859,45 +827,65 @@ export default function ProjectDetailPage() {
     : null;
 
   return (
-    <div className="space-y-6">
-      {/* Back button */}
-      <button
-        onClick={() => router.push('/projects')}
-        className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 font-semibold transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back to Projects List
-      </button>
+    <div className="space-y-4">
+      {/* Compact Navigation */}
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <button
+          onClick={() => router.push('/projects')}
+          className="inline-flex items-center gap-1.5 font-semibold text-slate-500 hover:text-slate-900 transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" /> Back to Projects
+        </button>
+      </div>
 
       {/* Pending Task Acceptance Alert Banner */}
       {userPendingTask && (
-        <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-300 p-4 rounded-xl space-y-2 text-xs shadow-md flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 bg-purple-100 text-purple-700 rounded-lg">
-              <Sparkles className="w-4 h-4 text-purple-600" />
-            </span>
+        <div className="bg-amber-50/90 border border-amber-200 p-3 rounded-xl text-xs flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
             <div>
-              <h4 className="text-purple-950 font-bold text-xs">
-                Task Assignment Acceptance Required
-              </h4>
-              <p className="text-slate-700 text-[11px]">
-                You are assigned to task <strong className="text-purple-950">{userPendingTask.taskId} ({userPendingTask.title})</strong> for this project. Please accept the task assignment to unlock full project work progress.
-              </p>
+              <span className="text-amber-950 font-bold">Task Assignment Acceptance Required: </span>
+              <span className="text-amber-900 text-[11px]">
+                You are assigned to task <strong>{userPendingTask.taskId} ({userPendingTask.title})</strong>. Please accept the task to begin work.
+              </span>
             </div>
           </div>
           <Link
             href={`/tasks?taskId=${userPendingTask.id}`}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg shadow-md transition-all text-xs flex items-center gap-1.5 shrink-0"
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-colors text-xs flex items-center gap-1 shrink-0"
           >
-            <Check className="w-3.5 h-3.5" /> Accept Task Assignment
+            <Check className="w-3.5 h-3.5" /> Accept Task
           </Link>
         </div>
       )}
 
-      {/* Top Header Card */}
-      <div className="bg-white border border-slate-200 p-6 rounded-xl space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
+      {/* Marketing Manager Approval Warning Banner */}
+      {['PENDING_MARKETING_APPROVAL', 'PLANNED', 'PENDING_CLIENT_APPROVAL'].includes(project.status) && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center justify-between font-medium">
+          <span className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Waiting for Marketing Manager Approval</strong> — Task assignment and production are locked until approved.
+            </span>
+          </span>
+          {user?.role === 'MARKETING_MANAGER' && (
+            <button
+              onClick={() => handleStatusChange('APPROVED')}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors shadow-xs"
+            >
+              Approve Project Now
+            </button>
+          )}
+        </div>
+      )}
+
+
+      {/* Compact Professional Project Header Card */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3.5 shadow-xs">
+        {/* Row 1: Header Badges, Title & Primary Action */}
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
               <FavoriteButton
                 entityType="PROJECT"
                 entityId={project.id}
@@ -905,67 +893,56 @@ export default function ProjectDetailPage() {
                 code={project.projectId}
                 url={`/projects/${project.id}`}
                 metadata={{ client: project.client?.name, brand: project.brand?.name, status: project.status }}
-                size="md"
+                size="sm"
               />
-              <span className="font-mono text-xs font-bold text-blue-600 px-2.5 py-0.5 bg-blue-50 border border-blue-200 rounded">
+              <span className="font-mono text-[11px] font-bold text-blue-700 px-2 py-0.5 bg-blue-50 border border-blue-200 rounded-md">
                 {project.projectId}
               </span>
-
               <span
-                className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase border ${
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase border ${
                   isIndoor
-                    ? 'bg-blue-50 text-blue-600 border-blue-200'
-                    : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                 }`}
               >
                 {project.shootType} SHOOT
               </span>
-
-              {/* Current Status Tag */}
+              {/* Compact Status Badge */}
               <span
-                className={`text-[10px] font-bold px-3 py-0.5 rounded-full uppercase border font-mono tracking-wider ${
-                  project.status === 'IN_PROGRESS'
-                    ? 'bg-blue-50 text-blue-700 border-blue-300'
+                className={`text-[10px] font-bold px-2.5 py-0.5 rounded-md uppercase border font-mono tracking-wide ${
+                  project.status === 'COMPLETED'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : project.status === 'CONVERTED_TO_VIDEO_EDITING' || (project.videoEditingConverted && project.status !== 'COMPLETED')
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                    : project.status === 'IN_PROGRESS'
+                    ? 'bg-blue-50 text-blue-700 border-blue-200'
                     : project.status === 'WAITING_FOR_TECHNICAL_REVIEW'
-                    ? 'bg-purple-50 text-purple-700 border-purple-300'
+                    ? 'bg-purple-50 text-purple-700 border-purple-200'
                     : project.status === 'WAITING_FOR_MEDIA_REVIEW'
-                    ? 'bg-cyan-50 text-cyan-700 border-cyan-300'
+                    ? 'bg-cyan-50 text-cyan-700 border-cyan-200'
                     : project.status === 'WAITING_FOR_MARKETING_APPROVAL'
-                    ? 'bg-amber-50 text-amber-700 border-amber-300'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
                     : project.status === 'WAITING_FOR_CLIENT_CONFIRMATION'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                    : project.status === 'COMPLETED'
-                    ? 'bg-emerald-100 text-emerald-800 border-emerald-400 font-extrabold'
-                    : project.status === 'REVISION_REQUESTED' || project.status === 'CLIENT_REVISION_REQUESTED'
-                    ? 'bg-rose-50 text-rose-700 border-rose-300'
-                    : 'bg-slate-100 text-slate-700 border-slate-300'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-slate-100 text-slate-700 border-slate-200'
                 }`}
               >
-                {project.status.replace(/_/g, ' ')}
+                {project.status === 'COMPLETED'
+                  ? '✓ COMPLETED · READ ONLY'
+                  : project.status === 'CONVERTED_TO_VIDEO_EDITING' || (project.videoEditingConverted && project.status !== 'COMPLETED')
+                  ? 'CONVERTED TO VIDEO EDITING'
+                  : project.status.replace(/_/g, ' ')}
               </span>
             </div>
 
-            <h1 className="text-2xl font-bold text-slate-900 leading-tight">{project.name}</h1>
-            <p className="text-xs text-slate-500">
-              Client: <span className="text-slate-800 font-semibold">{project.client?.name}</span> • Brand:{' '}
-              <span className="text-purple-600 font-semibold">{project.brand?.name}</span> • Product:{' '}
-              <span className="text-emerald-600 font-semibold">{project.product?.name || 'N/A'}</span>
-            </p>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 leading-snug tracking-tight">{project.name}</h1>
           </div>
 
-          <div className="text-right space-y-1">
-            <div className="text-xs text-slate-500">
-              Shoot Date: <span className="text-slate-900 font-bold">{new Date(project.shootDate).toLocaleDateString()}</span>
-            </div>
-            <div className="text-xs text-slate-500">
-              Location: <span className="text-slate-800 font-semibold">{project.shootLocation}</span>
-            </div>
-            {/* Complete Project — Media Manager declares the shoot done and starts the editing phase. Visible in any post-shoot status. */}
-            {user?.role === 'MEDIA_MANAGER' && !project.videoEditingConverted && !['CANCELLED', 'ARCHIVED', 'CLOSED'].includes(project.status) && (
+          {/* Right Action Buttons / Badges */}
+          <div className="flex items-center gap-2 shrink-0">
+            {user?.role === 'MEDIA_MANAGER' && !project.videoEditingConverted && !['CANCELLED', 'ARCHIVED', 'CLOSED', 'COMPLETED'].includes(project.status) && (
               <button
                 onClick={async () => {
-                  // Reset per-script selections, then pre-fill from any previously saved
-                  // Video Editor assignments so reopening the modal shows the saved values.
                   const prior: Record<string, string> = {};
                   const tasksForEditors = (project.tasks || []).filter(
                     (t: any) => t.taskType === 'VIDEO_EDITING' && t.scriptId
@@ -980,659 +957,400 @@ export default function ProjectDetailPage() {
                   }
                   setConvertStaffByScript(prior);
 
-                  // Fetch the eligible Video Editor list once when the modal opens so the
-                  // dropdown only shows users flagged as editors by their designation/skills.
                   try {
                     const [candidates, scriptDocsRes]: any = await Promise.all([
                       fetchApi(`/projects/${project.id}/video-editor-candidates`).catch(() => ({ candidates: [] })),
                       fetchApi(`/projects/${project.id}/script-documents`).catch(() => ({ scripts: [] })),
                     ]);
-                    setEligibleVideoEditors(
-                      Array.isArray(candidates?.candidates) ? candidates.candidates : []
-                    );
-                    if (scriptDocsRes && Array.isArray(scriptDocsRes.scripts)) {
+                    const candidateList =
+                      Array.isArray(candidates?.candidates) && candidates.candidates.length > 0
+                        ? candidates.candidates
+                        : Array.isArray(allUsers) && allUsers.length > 0
+                        ? allUsers.filter((u: any) => u.status === 'ACTIVE' || !u.status)
+                        : [];
+                    setEligibleVideoEditors(candidateList);
+                    if (scriptDocsRes && Array.isArray(scriptDocsRes.scripts) && scriptDocsRes.scripts.length > 0) {
                       setProjectScriptsList(scriptDocsRes.scripts);
                     }
                   } catch {
-                    setEligibleVideoEditors([]);
+                    const fallback = Array.isArray(allUsers) ? allUsers.filter((u: any) => u.status === 'ACTIVE' || !u.status) : [];
+                    setEligibleVideoEditors(fallback);
                   }
 
                   setShowConvertModal(true);
                 }}
-                className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow transition-all flex items-center gap-1.5 text-xs"
+                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-xs transition-all flex items-center gap-1.5 text-xs"
               >
-                <CheckCircle className="w-4 h-4" /> Complete Project
+                <Scissors className="w-3.5 h-3.5" /> Convert to Video Editing
               </button>
-            )}
-            {/* Read-only badge after conversion */}
-            {project.videoEditingConverted && (
-              <div className="mt-2 px-3 py-1.5 bg-slate-100 border border-slate-300 rounded-lg text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                Read-Only
-              </div>
             )}
           </div>
         </div>
 
-        {/* Marketing Manager Approval Warning Banner */}
-        {['PENDING_MARKETING_APPROVAL', 'PLANNED', 'PENDING_CLIENT_APPROVAL'].includes(project.status) && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center justify-between font-medium">
-            <span className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>
-                <strong>Waiting for Marketing Manager Approval</strong> — Task assignment and production are locked until approved.
-              </span>
+        {/* Row 2: Metadata Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2.5 border-t border-slate-100 text-xs">
+          <div className="p-2 rounded-lg bg-slate-50/80 border border-slate-100">
+            <span className="text-slate-400 block text-[10px] font-medium uppercase tracking-wider">Client</span>
+            <span className="text-slate-800 font-semibold truncate block">{project.client?.name || 'N/A'}</span>
+          </div>
+          <div className="p-2 rounded-lg bg-slate-50/80 border border-slate-100">
+            <span className="text-slate-400 block text-[10px] font-medium uppercase tracking-wider">Brand</span>
+            <span className="text-purple-700 font-semibold truncate block">{project.brand?.name || 'N/A'}</span>
+          </div>
+          <div className="p-2 rounded-lg bg-slate-50/80 border border-slate-100">
+            <span className="text-slate-400 block text-[10px] font-medium uppercase tracking-wider">Product</span>
+            <span className="text-emerald-700 font-semibold truncate block">{project.product?.name || 'General Shoot'}</span>
+          </div>
+          <div className="p-2 rounded-lg bg-slate-50/80 border border-slate-100">
+            <span className="text-slate-400 block text-[10px] font-medium uppercase tracking-wider">Shoot Date</span>
+            <span className="text-slate-900 font-semibold truncate block">{new Date(project.shootDate).toLocaleDateString()}</span>
+          </div>
+          <div className="p-2 rounded-lg bg-slate-50/80 border border-slate-100">
+            <span className="text-slate-400 block text-[10px] font-medium uppercase tracking-wider">Location</span>
+            <span className="text-slate-800 font-semibold truncate block">{project.shootLocation}</span>
+          </div>
+          <div className="p-2 rounded-lg bg-slate-50/80 border border-slate-100">
+            <span className="text-slate-400 block text-[10px] font-medium uppercase tracking-wider">Priority</span>
+            <span className={`font-bold text-[10px] uppercase px-1.5 py-0.2 rounded inline-block ${
+              project.priority === 'CRITICAL' ? 'bg-rose-100 text-rose-800' :
+              project.priority === 'HIGH' ? 'bg-amber-100 text-amber-800' :
+              project.priority === 'MEDIUM' ? 'bg-blue-100 text-blue-800' :
+              'bg-slate-100 text-slate-800'
+            }`}>{project.priority}</span>
+          </div>
+        </div>
+
+        {/* Row 3: Inline Thin Progress Bar */}
+        <div className="space-y-1 pt-2 border-t border-slate-100">
+          <div className="flex justify-between text-xs text-slate-600 font-medium">
+            <span>Production Progress: <strong className="text-slate-900">{project.progressPercentage}%</strong></span>
+            <span className="text-slate-500 font-mono text-[11px]">
+              {realProjectTasks.filter((t: any) => t.status === 'COMPLETED').length} / {realProjectTasks.length} tasks completed
             </span>
-            {user?.role === 'MARKETING_MANAGER' && (
-              <button
-                onClick={() => handleStatusChange('APPROVED')}
-                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors shadow-md shadow-emerald-950"
-              >
-                Approve Project Now
-              </button>
-            )}
           </div>
-        )}
-
-        {['APPROVED', 'READY_FOR_PRODUCTION'].includes(project.status) && (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') && (!project.tasks || project.tasks.length === 0) && (
-          <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-purple-900 text-xs flex items-center justify-between font-medium">
-            <span className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>
-                <strong>Marketing Manager Approved</strong> — Convert to Task &amp; Assign Staff now.
-              </span>
-            </span>
-            <button
-              onClick={() => setShowConvertTaskModal(true)}
-              className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs transition-colors shadow-md shadow-purple-950 flex items-center gap-1"
-            >
-              Convert to Task
-            </button>
-          </div>
-        )}
-
-        {(project.status === 'REVISION_REQUESTED' || project.status === 'CLIENT_REVISION_REQUESTED') && (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-2 shadow-lg animate-in fade-in duration-200">
-            <div className="flex items-center justify-between">
-              <span className="text-amber-800 font-extrabold flex items-center gap-2">
-                <RotateCcw className="w-4 h-4 text-amber-600 animate-spin" /> Active Workflow Status: REVISION REQUESTED
-              </span>
-              <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded font-mono font-bold text-[10px]">
-                Revision #{project.revisionCount || 1}
-              </span>
-            </div>
-            <p className="text-slate-800">
-              Reviewer requested changes. The assigned team is actively revising production deliverables.
-            </p>
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={() => setShowRevisionModal(true)}
-                className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1 shadow"
-              >
-                <RotateCcw className="w-3.5 h-3.5" /> Request Another Revision
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Progress Bar */}
-        <div className="space-y-1 pt-2">
-          <div className="flex justify-between text-xs font-semibold text-slate-700">
-            <span>Production Progress: {project.progressPercentage}%</span>
-            <span>Revisions: {project.revisionCount}</span>
-          </div>
-          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${project.progressPercentage}%` }}></div>
+          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-600 rounded-full transition-all duration-300"
+              style={{ width: `${project.progressPercentage}%` }}
+            />
           </div>
         </div>
       </div>
 
-      {/* 12 Workspace Tabs */}
-      <div className="flex border-b border-slate-200 overflow-x-auto gap-1 text-xs font-semibold">
-        {tabs.map((tab) => {
-          let countBadge: number | null = null;
-          if (tab === 'Scripts') countBadge = scriptFiles.length;
-          if (tab === 'Graphic Requirements') countBadge = project.graphicRequirements?.length || 0;
-          if (tab === 'Tasks') countBadge = project.tasks?.length || 0;
-          if (tab === 'Deliverables') countBadge = project.files?.length || 0;
-          if (tab === 'Equipment') countBadge = project.equipmentReservations?.length || 0;
-          if (tab === 'Revisions') countBadge = project.revisionCount || 0;
-
-          const isRevisionsUndergoing =
-            tab === 'Revisions' &&
-            (project.status === 'REVISION_REQUESTED' || project.status === 'CLIENT_REVISION_REQUESTED');
+      {/* Horizontal Tab Navigation */}
+      <div className="flex border-b border-slate-200 overflow-x-auto gap-1 text-xs">
+        {tabs.map((t) => {
+          const tabName = t.name;
+          const TabIcon = t.icon;
+          const countBadge = t.count;
+          const isActive = activeTab === tabName;
 
           return (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-3.5 py-2.5 rounded-t-lg transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === tab
-                  ? 'bg-white text-blue-600 border-t-2 border-blue-500 font-bold border-x border-slate-200'
-                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50/50'
+              key={tabName}
+              onClick={() => setActiveTab(tabName)}
+              className={`px-3.5 py-2 font-medium border-b-2 transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                isActive
+                  ? 'border-blue-600 text-blue-600 font-bold bg-blue-50/50 rounded-t-lg'
+                  : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300'
               }`}
             >
-              {isRevisionsUndergoing && <RotateCcw className="w-3.5 h-3.5 text-amber-600 animate-spin" />}
-              <span>{tab}</span>
-              {isRevisionsUndergoing ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
-                  Undergoing Revision (Rev #{project.revisionCount || 1})
-                </span>
-              ) : countBadge !== null && countBadge > 0 ? (
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                  activeTab === tab ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
+              <TabIcon className="w-3.5 h-3.5 shrink-0" />
+              <span>{tabName}</span>
+              {countBadge !== null && countBadge !== undefined && countBadge > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                  isActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
                 }`}>
                   {countBadge}
                 </span>
-              ) : null}
+              )}
             </button>
           );
         })}
       </div>
 
       {/* Tab Content Display */}
-      <div className="bg-white border border-slate-200 p-6 rounded-xl min-h-[400px]">
-        {/* Tab 1: Overview */}
-        {activeTab === 'Revisions' && (
-          <RevisionsTab
-            entityType="PROJECT"
-            entityId={project.id}
-            entityTitle={project.name}
-            originalAssigneeId={project.assignedTeam?.[0]?.userId}
-            originalAssigneeName={project.assignedTeam?.[0]?.user?.name}
-            userRole={user?.role}
-            userId={user?.id}
-            currentStatus={project.status}
-            onRefresh={loadProject}
-          />
-        )}
-
+      <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-xl min-h-[350px] shadow-xs">
         {activeTab === 'Overview' && (
-          <div className="space-y-6 text-xs">
-            {/* Active Revision Banner if Project is Undergoing Revision */}
-            {(project.status === 'REVISION_REQUESTED' || project.status === 'CLIENT_REVISION_REQUESTED') && (
-              <div className="p-4 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-2 border-amber-300 rounded-xl text-xs flex items-center justify-between flex-wrap gap-3 shadow-md">
-                <div className="flex items-center gap-3">
-                  <span className="p-2.5 bg-amber-500 text-white rounded-xl shadow-xs shrink-0">
-                    <RotateCcw className="w-5 h-5 animate-spin" />
-                  </span>
-                  <div>
-                    <h4 className="font-extrabold text-amber-950 text-sm flex items-center gap-2">
-                      ⚠️ Project Undergoing Revision — Active Revision Session
-                    </h4>
-                    <p className="text-amber-800 text-xs mt-0.5">
-                      This shoot project is currently in <strong>Revision #{project.revisionCount || 1}</strong>. The production team is actively revising the deliverables based on reviewer feedback.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setActiveTab('Revisions')}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-sm shrink-0"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" /> View Revision Session &rarr;
-                </button>
-              </div>
-            )}
-
-            {/* Core Shoot Project Details Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Card 1: Project Identity & Client Details */}
-              <div className="bg-slate-50/70 p-5 rounded-xl border border-slate-200 space-y-3.5">
-                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <Film className="w-4 h-4 text-blue-600" /> Project Identity & Client Info
+          <div className="space-y-4 text-xs">
+            {/* Core Project Details Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Project Identity & Client Info */}
+              <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200/80 space-y-3">
+                <h3 className="font-bold text-slate-900 text-xs flex items-center gap-1.5 uppercase tracking-wide">
+                  <Film className="w-3.5 h-3.5 text-blue-600" /> Project Identity &amp; Client Info
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-700">
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg">
                     <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Project ID</span>
-                    <span className="font-mono text-blue-600 font-bold text-xs">{project.projectId}</span>
+                    <span className="font-mono text-blue-700 font-bold text-xs">{project.projectId}</span>
                   </div>
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Project Name</span>
-                    <span className="text-slate-900 font-bold text-xs">{project.name}</span>
-                  </div>
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg">
                     <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Client</span>
-                    <span className="text-slate-800 font-semibold">{project.client?.name || 'N/A'}</span>
+                    <span className="text-slate-900 font-semibold text-xs truncate block">{project.client?.name || 'N/A'}</span>
                   </div>
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg">
                     <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Brand</span>
-                    <span className="text-purple-700 font-semibold">[{project.brand?.shortCode || 'N/A'}] {project.brand?.name}</span>
+                    <span className="text-purple-700 font-semibold text-xs truncate block">{project.brand?.name || 'N/A'}</span>
                   </div>
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Product (Optional)</span>
-                    <span className="text-emerald-700 font-semibold">{project.product?.name || 'None (General Shoot)'}</span>
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Product</span>
+                    <span className="text-emerald-700 font-semibold text-xs truncate block">{project.product?.name || 'General Shoot'}</span>
                   </div>
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Campaign (Optional)</span>
-                    <span className="text-slate-800">{project.campaign?.name || project.campaignId || 'None (General Shoot)'}</span>
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Campaign</span>
+                    <span className="text-slate-800 font-medium text-xs truncate block">{project.campaign?.name || project.campaignId || 'None'}</span>
                   </div>
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Calendar Event</span>
-                    <span className="font-mono text-slate-800 font-semibold">{project.calendarEventId || project.sourceForCalendarEvents?.[0]?.eventId || 'None (Direct Project)'}</span>
-                  </div>
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Estimated Completion Date</span>
-                    <span className="text-slate-800 font-semibold">
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Target Date</span>
+                    <span className="text-slate-800 font-medium text-xs">
                       {project.estimatedCompletionDate ? new Date(project.estimatedCompletionDate).toLocaleDateString() : 'Not Specified'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Card 2: Schedule, Status & Priority Logistics */}
-              <div className="bg-slate-50/70 p-5 rounded-xl border border-slate-200 space-y-3.5">
-                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-emerald-600" /> Schedule, Status & Location
+              {/* Schedule, Status & Logistics */}
+              <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200/80 space-y-3">
+                <h3 className="font-bold text-slate-900 text-xs flex items-center gap-1.5 uppercase tracking-wide">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-600" /> Schedule, Status &amp; Location
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-700">
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Current Status</span>
-                    <span className={`font-bold ${
-                      project.status === 'REVISION_REQUESTED' || project.status === 'CLIENT_REVISION_REQUESTED'
-                        ? 'text-rose-700 flex items-center gap-1 font-extrabold'
-                        : 'text-blue-700'
-                    }`}>
-                      {(project.status === 'REVISION_REQUESTED' || project.status === 'CLIENT_REVISION_REQUESTED') && (
-                        <RotateCcw className="w-3.5 h-3.5 text-rose-600 animate-spin" />
-                      )}
-                      {project.status === 'REVISION_REQUESTED' || project.status === 'CLIENT_REVISION_REQUESTED'
-                        ? `UNDERGOING REVISION (REV #${project.revisionCount || 1})`
-                        : project.status.replace(/_/g, ' ')}
-                    </span>
-                  </div>
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Project Priority</span>
-                    <span className={`font-bold px-2 py-0.5 rounded text-[10px] inline-block ${
-                      project.priority === 'CRITICAL' ? 'bg-rose-100 text-rose-800' :
-                      project.priority === 'HIGH' ? 'bg-amber-100 text-amber-800' :
-                      project.priority === 'MEDIUM' ? 'bg-blue-100 text-blue-800' :
-                      'bg-slate-100 text-slate-800'
-                    }`}>{project.priority}</span>
-                  </div>
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg">
                     <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Shoot Date</span>
-                    <span className="text-slate-900 font-bold">{new Date(project.shootDate).toLocaleDateString()}</span>
+                    <span className="text-slate-900 font-bold text-xs">{new Date(project.shootDate).toLocaleDateString()}</span>
                   </div>
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Shoot Location</span>
-                    <span className="text-slate-900 font-semibold">{project.shootLocation}</span>
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Location</span>
+                    <span className="text-slate-900 font-semibold text-xs truncate block">{project.shootLocation}</span>
                   </div>
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Influencer / Talent</span>
-                    <span className="text-slate-800 font-semibold">{project.influencerTalent || 'None / Not Specified'}</span>
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Timings</span>
+                    <span className="text-slate-800 font-medium text-xs">{project.reportingTime || '09:00 AM'} - {project.expectedWrapUpTime || '06:00 PM'}</span>
                   </div>
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Reporting & Wrap-up Time</span>
-                    <span className="text-slate-800">{project.reportingTime || '09:00 AM'} — {project.expectedWrapUpTime || '06:00 PM'}</span>
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg sm:col-span-2">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Address &amp; Category</span>
+                    <span className="text-slate-800 font-medium text-xs truncate block">{project.locationAddress || project.shootLocation} ({project.locationCategory || 'Studio Bay'})</span>
                   </div>
-                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg sm:col-span-2">
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Location Address & Category</span>
-                    <span className="text-slate-800">{project.locationAddress || project.shootLocation} ({project.locationCategory || 'Studio Bay'})</span>
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Talent</span>
+                    <span className="text-slate-800 font-medium text-xs truncate block">{project.influencerTalent || 'None'}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Notes Section */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
-              <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-blue-600" /> Project Notes
-              </h4>
-              <p className="text-slate-700 text-xs italic bg-white p-3 rounded-lg border border-slate-200">
-                {project.notes ? `"${project.notes}"` : 'No operational notes or special remarks recorded for this project.'}
-              </p>
-            </div>
-
-            {/* Assigned Team & Required Equipment Quick Preview Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Assigned Team Summary Card */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <h4 className="font-bold text-slate-900 text-xs flex items-center gap-2">
-                    <Users className="w-4 h-4 text-blue-600" /> Assigned Team ({project.assignedTeam?.length || 0})
-                  </h4>
-                  <button
-                    onClick={() => setActiveTab('Team')}
-                    className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
-                  >
-                    Manage Team <ArrowRight className="w-3 h-3" />
-                  </button>
-                </div>
-                {(!project.assignedTeam || project.assignedTeam.length === 0) ? (
-                  <p className="text-slate-500 text-xs py-2 italic text-center bg-white rounded-lg border border-slate-200">
-                    No team members assigned to this shoot project yet.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {project.assignedTeam.map((item: any) => (
-                      <div key={item.id || item.userId} className="p-2.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between">
-                        <div>
-                          <div className="font-bold text-slate-900 text-xs">{item.user?.name || 'Staff Member'}</div>
-                          <div className="text-[10px] text-slate-500">{item.user?.email}</div>
-                        </div>
-                        <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-blue-50 text-blue-700 border border-blue-200">
-                          {item.roleInProject || item.user?.role || 'Team Member'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Required Equipment Summary Card */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <h4 className="font-bold text-slate-900 text-xs flex items-center gap-2">
-                    <Camera className="w-4 h-4 text-purple-600" /> Required Equipment ({project.equipmentReservations?.length || 0})
-                  </h4>
-                  <button
-                    onClick={() => setActiveTab('Equipment')}
-                    className="text-[11px] text-purple-600 hover:text-purple-800 font-semibold flex items-center gap-1"
-                  >
-                    View Gear <ArrowRight className="w-3 h-3" />
-                  </button>
-                </div>
-                {(!project.equipmentReservations || project.equipmentReservations.length === 0) ? (
-                  <p className="text-slate-500 text-xs py-2 italic text-center bg-white rounded-lg border border-slate-200">
-                    No equipment reserved for this shoot project yet.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {project.equipmentReservations.map((res: any) => (
-                      <div key={res.id} className="p-2.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between">
-                        <div className="truncate">
-                          <div className="font-bold text-slate-900 text-xs truncate">{res.equipment?.name || 'Equipment Gear'}</div>
-                          <div className="text-[10px] text-slate-500 truncate font-mono">[{res.equipment?.category}] {res.equipment?.brand} {res.equipment?.model}</div>
-                        </div>
-                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded ml-1 shrink-0 ${
-                          res.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}>
-                          {res.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Project Requirements & Scope Session (Scripts & Graphic Requirements) */}
-            <div className="p-5 bg-gradient-to-br from-purple-50/70 via-indigo-50/30 to-blue-50/70 border border-purple-200 rounded-xl space-y-4 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-200/80 pb-3">
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-600" /> Project Requirements &amp; Creative Scope Session
-                  </h3>
-                  <p className="text-slate-500 text-[11px] mt-0.5">
-                    Scripts, Narration Storylines, and Graphic Requirements linked with this Shoot Project.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
+            {/* Scope Summary Row (Scripts, Reference Docs & Graphics) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-3.5 bg-slate-50/60 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-purple-600" />
+                    Attached Scripts ({scriptFiles.length})
+                  </span>
                   <button
                     onClick={() => setActiveTab('Scripts')}
-                    className="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-lg font-bold text-[11px] transition-colors flex items-center gap-1"
+                    className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-0.5"
                   >
-                    <FileText className="w-3.5 h-3.5 text-purple-600" />
-                    Script Docs ({scriptFiles.length})
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('Graphic Requirements')}
-                    className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg font-bold text-[11px] transition-colors flex items-center gap-1"
-                  >
-                    <Palette className="w-3.5 h-3.5 text-blue-600" />
-                    Graphics ({project.graphicRequirements?.length || 0})
+                    View All <ArrowRight className="w-3 h-3" />
                   </button>
                 </div>
+                {scriptFiles.length === 0 ? (
+                  <p className="text-slate-400 italic text-[11px] py-1">No script documents attached yet.</p>
+                ) : (
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {scriptFiles.slice(0, 3).map((sf: any) => (
+                      <div key={sf.id} className="p-1.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between text-[11px]">
+                        <span className="truncate font-medium text-slate-800 max-w-[200px]">{sf.fileName}</span>
+                        <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                          {sf.fileSize ? `${(sf.fileSize / 1024 / 1024).toFixed(1)}MB` : 'Doc'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Linked Script Documents Column */}
-                <div className="p-3.5 bg-white border border-purple-200/90 rounded-xl space-y-2.5">
-                  <div className="flex items-center justify-between border-b border-purple-100 pb-2">
-                    <span className="font-bold text-xs text-purple-950 flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5 text-purple-600" />
-                      Project Script Documents ({scriptFiles.length})
-                    </span>
-                    <button
-                      onClick={() => setActiveTab('Scripts')}
-                      className="text-[10px] text-purple-600 hover:text-purple-800 font-bold flex items-center gap-0.5"
-                    >
-                      View Script Docs <ArrowRight className="w-3 h-3" />
-                    </button>
-                  </div>
-
-                  {scriptFiles.length === 0 ? (
-                    <div className="py-4 text-center">
-                      <p className="text-slate-400 italic text-[11px]">No script documents attached to this shoot project.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {scriptFiles.map((sf: any) => {
-                        const isPdf = sf.fileName?.toLowerCase().endsWith('.pdf') || sf.fileType?.includes('pdf');
-                        const isDoc = sf.fileName?.toLowerCase().endsWith('.doc') || sf.fileName?.toLowerCase().endsWith('.docx');
-                        const fileUrl = sf.storagePath?.startsWith('http')
-                          ? sf.storagePath
-                          : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${sf.storagePath?.replace(/^\/?/, '')}`;
-
-                        return (
-                          <div
-                            key={sf.id}
-                            className="p-2.5 bg-slate-50/80 border border-slate-200 rounded-lg flex items-center justify-between gap-2 hover:bg-purple-50/40 transition-colors"
-                          >
-                            <div className="truncate flex items-center gap-2">
-                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase ${
-                                isPdf ? 'bg-rose-100 text-rose-800' : isDoc ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
-                              }`}>
-                                {isPdf ? 'PDF' : isDoc ? 'DOC' : 'FILE'}
-                              </span>
-                              <span className="font-bold text-slate-900 text-xs truncate">{sf.fileName}</span>
-                            </div>
-                            <a
-                              href={fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded font-bold text-[10px] shrink-0 flex items-center gap-1 transition-colors"
-                            >
-                              <Eye className="w-3 h-3" /> Open Script
-                            </a>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+              <div className="p-3.5 bg-slate-50/60 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                    <UploadCloud className="w-3.5 h-3.5 text-indigo-600" />
+                    Attached Documents ({referenceFiles.length})
+                  </span>
+                  <button
+                    onClick={() => setActiveTab('Attached Documents')}
+                    className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-0.5"
+                  >
+                    View All <ArrowRight className="w-3 h-3" />
+                  </button>
                 </div>
-
-                {/* Linked Graphic Requirements Column */}
-                <div className="p-3.5 bg-white border border-blue-200/90 rounded-xl space-y-2.5">
-                  <div className="flex items-center justify-between border-b border-blue-100 pb-2">
-                    <span className="font-bold text-xs text-blue-950 flex items-center gap-1.5">
-                      <Palette className="w-3.5 h-3.5 text-blue-600" />
-                      Graphic Requirements ({project.graphicRequirements?.length || 0})
-                    </span>
-                    <button
-                      onClick={() => setActiveTab('Graphic Requirements')}
-                      className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-0.5"
-                    >
-                      View All <ArrowRight className="w-3 h-3" />
-                    </button>
+                {referenceFiles.length === 0 ? (
+                  <p className="text-slate-400 italic text-[11px] py-1">No reference documents attached yet.</p>
+                ) : (
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {referenceFiles.slice(0, 3).map((rf: any) => (
+                      <div key={rf.id} className="p-1.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between text-[11px]">
+                        <span className="truncate font-medium text-slate-800 max-w-[200px]">{rf.fileName}</span>
+                        <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                          {rf.fileSize ? `${(rf.fileSize / 1024 / 1024).toFixed(1)}MB` : 'Doc'}
+                        </span>
+                      </div>
+                    ))}
                   </div>
+                )}
+              </div>
 
-                  {(!project.graphicRequirements || project.graphicRequirements.length === 0) ? (
-                    <div className="py-4 text-center text-slate-400 italic text-[11px]">
-                      No graphic requirements linked to this shoot project yet.
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                      {project.graphicRequirements.map((gr: any) => (
-                        <div
-                          key={gr.id}
-                          className="p-2 bg-slate-50/80 border border-slate-200 rounded-lg flex items-center justify-between gap-2 hover:bg-blue-50/40 transition-colors"
-                        >
-                          <div className="truncate">
-                            <span className="font-mono text-[10px] text-blue-700 font-bold mr-1.5">[{gr.requirementId}]</span>
-                            <span className="font-bold text-slate-900 text-xs truncate">{gr.name}</span>
-                            <div className="text-[10px] text-slate-500">{gr.requirementType || 'Graphic Item'} • {gr.priority || 'MEDIUM'}</div>
-                          </div>
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold font-mono uppercase shrink-0 border ${
-                            gr.status === 'APPROVED' || gr.status === 'COMPLETED'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                              : gr.status === 'IN_PROGRESS'
-                              ? 'bg-blue-50 text-blue-700 border-blue-300'
-                              : 'bg-amber-50 text-amber-800 border-amber-300'
-                          }`}>
-                            {gr.status}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+              <div className="p-3.5 bg-slate-50/60 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                    <Palette className="w-3.5 h-3.5 text-blue-600" />
+                    Graphic Requirements ({project.graphicRequirements?.length || 0})
+                  </span>
+                  <button
+                    onClick={() => setActiveTab('Graphic Requirements')}
+                    className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-0.5"
+                  >
+                    View All <ArrowRight className="w-3 h-3" />
+                  </button>
                 </div>
+                {(!project.graphicRequirements || project.graphicRequirements.length === 0) ? (
+                  <p className="text-slate-400 italic text-[11px] py-1">No graphic requirements linked yet.</p>
+                ) : (
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {project.graphicRequirements.slice(0, 3).map((gr: any) => (
+                      <div key={gr.id} className="p-1.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between text-[11px]">
+                        <span className="truncate font-medium text-slate-800 max-w-[200px]">[{gr.requirementId}] {gr.name}</span>
+                        <span className="text-[10px] font-bold text-slate-600 uppercase shrink-0">{gr.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Actual Completion Statistics Widget */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-              <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <ClipboardList className="w-4 h-4 text-blue-600" /> Actual Completion Statistics
+            <div className="p-3.5 bg-slate-50/60 border border-slate-200 rounded-xl space-y-2.5">
+              <div className="flex justify-between items-center">
+                <h3 className="font-bold text-slate-900 text-xs flex items-center gap-1.5 uppercase tracking-wide">
+                  <ClipboardList className="w-3.5 h-3.5 text-blue-600" /> Completion Statistics &amp; Metrics
                 </h3>
-                <span className="font-mono text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded font-bold uppercase">
-                  Status: {project.status}
-                </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                <div className="p-3 bg-slate-100/50 rounded-lg border border-slate-200">
-                  <div className="text-slate-500 font-semibold text-[11px] mb-1">Scripts</div>
-                  <div className="font-bold text-slate-900 text-sm font-mono">{project.completionStatistics?.scripts?.text || '0 / 0 Completed'}</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                  <div className="text-slate-400 font-medium text-[10px] uppercase tracking-wider mb-0.5">Scripts</div>
+                  <div className="font-bold text-slate-900 text-xs font-mono">{project.completionStatistics?.scripts?.text || `${scriptFiles.length} Attached`}</div>
                 </div>
 
-                <div className="p-3 bg-slate-100/50 rounded-lg border border-slate-200">
-                  <div className="text-slate-500 font-semibold text-[11px] mb-1">Graphics</div>
-                  <div className="font-bold text-slate-900 text-sm font-mono">{project.completionStatistics?.graphics?.text || '0 / 0 Completed'}</div>
+                <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                  <div className="text-slate-400 font-medium text-[10px] uppercase tracking-wider mb-0.5">Graphics</div>
+                  <div className="font-bold text-slate-900 text-xs font-mono">{project.completionStatistics?.graphics?.text || `${project.graphicRequirements?.length || 0} Items`}</div>
                 </div>
 
-                <div className="p-3 bg-slate-100/50 rounded-lg border border-slate-200">
-                  <div className="text-slate-500 font-semibold text-[11px] mb-1">Production Tasks</div>
-                  <div className="font-bold text-slate-900 text-sm font-mono">{project.completionStatistics?.tasks?.text || '0 / 0 Completed'}</div>
+                <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                  <div className="text-slate-400 font-medium text-[10px] uppercase tracking-wider mb-0.5">Tasks</div>
+                  <div className="font-bold text-slate-900 text-xs font-mono">{project.completionStatistics?.tasks?.text || `${project.tasks?.length || 0} Tasks`}</div>
                 </div>
 
-                <div className="p-3 bg-slate-100/50 rounded-lg border border-slate-200">
-                  <div className="text-slate-500 font-semibold text-[11px] mb-1">Deliverables</div>
-                  <div className="font-bold text-slate-900 text-sm font-mono">{project.completionStatistics?.deliverables?.text || '0 / 0 Completed'}</div>
+                <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                  <div className="text-slate-400 font-medium text-[10px] uppercase tracking-wider mb-0.5">Team &amp; Gear</div>
+                  <div className="font-bold text-slate-900 text-xs font-mono">{project.assignedTeam?.length || 0} Crew • {project.equipmentReservations?.length || 0} Gear</div>
                 </div>
               </div>
             </div>
 
-            {/* Permanent Manual Closure Record Banner */}
-            {project.closureReason && (
-              <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
-                <div className="flex items-center gap-2 font-bold text-rose-700 text-xs">
-                  <ShieldAlert className="w-4 h-4 text-rose-600" /> Permanent Project Closure Record
+            {/* Official 4-Point Criteria */}
+            <div className="p-3.5 bg-slate-50/60 border border-slate-200 rounded-xl space-y-2">
+              <div className="flex justify-between items-center">
+                <h3 className="font-bold text-slate-900 text-xs flex items-center gap-1.5 uppercase tracking-wide">
+                  <CheckSquare className="w-3.5 h-3.5 text-emerald-600" /> Completion Criteria (4 Points)
+                </h3>
+                <span className={`px-2 py-0.2 rounded-md text-[10px] font-bold uppercase border ${
+                  project.completionChecklist?.isReadyForCompletion
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                }`}>
+                  {project.completionChecklist?.isReadyForCompletion ? 'Ready for Completion' : `${project.completionChecklist?.pendingCount || 0} Pending`}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className={`p-2 rounded-lg border flex items-center justify-between text-xs ${
+                  project.completionChecklist?.allTasksCompleted ? 'bg-emerald-50/60 border-emerald-200 text-emerald-800' : 'bg-white border-slate-200 text-slate-500'
+                }`}>
+                  <div>
+                    <div className="font-bold text-[11px]">1. Tasks</div>
+                    <div className="text-[10px] opacity-70">All completed</div>
+                  </div>
+                  {project.completionChecklist?.allTasksCompleted ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <span className="text-[10px] text-amber-600 font-mono">Pending</span>}
                 </div>
-                <div className="text-slate-800 text-xs font-medium pt-0.5">
-                  Reason: <strong className="text-slate-900">"{project.closureReason}"</strong>
+
+                <div className={`p-2 rounded-lg border flex items-center justify-between text-xs ${
+                  project.completionChecklist?.techReviewApproved ? 'bg-emerald-50/60 border-emerald-200 text-emerald-800' : 'bg-white border-slate-200 text-slate-500'
+                }`}>
+                  <div>
+                    <div className="font-bold text-[11px]">2. Tech Review</div>
+                    <div className="text-[10px] opacity-70">Approved</div>
+                  </div>
+                  {project.completionChecklist?.techReviewApproved ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <span className="text-[10px] text-amber-600 font-mono">Pending</span>}
                 </div>
-                <div className="text-[10px] text-rose-600 font-mono">
-                  Manually closed by Media Manager • Permanent Audit History Recorded
+
+                <div className={`p-2 rounded-lg border flex items-center justify-between text-xs ${
+                  project.completionChecklist?.mediaReviewApproved ? 'bg-emerald-50/60 border-emerald-200 text-emerald-800' : 'bg-white border-slate-200 text-slate-500'
+                }`}>
+                  <div>
+                    <div className="font-bold text-[11px]">3. Media Review</div>
+                    <div className="text-[10px] opacity-70">Approved</div>
+                  </div>
+                  {project.completionChecklist?.mediaReviewApproved ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <span className="text-[10px] text-amber-600 font-mono">Pending</span>}
+                </div>
+
+                <div className={`p-2 rounded-lg border flex items-center justify-between text-xs ${
+                  project.completionChecklist?.clientConfirmationRecorded ? 'bg-emerald-50/60 border-emerald-200 text-emerald-800' : 'bg-white border-slate-200 text-slate-500'
+                }`}>
+                  <div>
+                    <div className="font-bold text-[11px]">4. Client Sign-off</div>
+                    <div className="text-[10px] opacity-70">Confirmed</div>
+                  </div>
+                  {project.completionChecklist?.clientConfirmationRecorded ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <span className="text-[10px] text-amber-600 font-mono">Pending</span>}
+                </div>
+              </div>
+            </div>
+
+            {/* Operational Shoot Details (Indoor / Outdoor) */}
+            {isIndoor ? (
+              <div className="bg-slate-50/60 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wide">Indoor Studio Details</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-700">
+                  <div className="p-2 bg-white rounded-lg border border-slate-200"><span className="text-slate-400 block text-[10px]">Studio Name:</span> <strong className="text-slate-800">{project.indoorDetails?.studioName || 'Main Studio'}</strong></div>
+                  <div className="p-2 bg-white rounded-lg border border-slate-200"><span className="text-slate-400 block text-[10px]">Address:</span> <strong className="text-slate-800 truncate block">{project.indoorDetails?.studioAddress || 'Floor 1'}</strong></div>
+                  <div className="p-2 bg-white rounded-lg border border-slate-200"><span className="text-slate-400 block text-[10px]">Booking Status:</span> <strong className="text-slate-800">{project.indoorDetails?.studioBookingStatus || 'Confirmed'}</strong></div>
+                  <div className="p-2 bg-white rounded-lg border border-slate-200"><span className="text-slate-400 block text-[10px]">Booking Ref:</span> <strong className="text-slate-800 font-mono">{project.indoorDetails?.studioBookingRef || 'N/A'}</strong></div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-slate-50/60 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wide">Outdoor Shoot Details</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-slate-700">
+                  <div className="p-2 bg-white rounded-lg border border-slate-200"><span className="text-slate-400 block text-[10px]">Location:</span> <strong className="text-slate-800">{outdoor?.outdoorLocation || project.shootLocation}</strong></div>
+                  <div className="p-2 bg-white rounded-lg border border-slate-200"><span className="text-slate-400 block text-[10px]">Permission:</span> <strong className="text-slate-800">{outdoor?.permissionStatus || 'Granted'}</strong></div>
+                  <div className="p-2 bg-white rounded-lg border border-slate-200"><span className="text-slate-400 block text-[10px]">Weather:</span> <strong className="text-slate-800">{outdoor?.weatherStatus || 'Clear'}</strong></div>
+                  <div className="p-2 bg-white rounded-lg border border-slate-200"><span className="text-slate-400 block text-[10px]">Driver:</span> <strong className="text-slate-800">{outdoor?.driver || 'None'}</strong></div>
+                  <div className="p-2 bg-white rounded-lg border border-slate-200"><span className="text-slate-400 block text-[10px]">Coordinator:</span> <strong className="text-slate-800">{outdoor?.logisticsCoordinator || 'N/A'}</strong></div>
+                  <div className="p-2 bg-white rounded-lg border border-slate-200"><span className="text-slate-400 block text-[10px]">Travel Notes:</span> <strong className="text-slate-800 truncate block">{outdoor?.travelNotes || 'N/A'}</strong></div>
                 </div>
               </div>
             )}
 
-            {/* Completion Criteria Status Widget */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-              <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <CheckSquare className="w-4 h-4 text-emerald-600" /> Official Project Completion Criteria (4 Points)
-                </h3>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                  project.completionChecklist?.isReadyForCompletion
-                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                    : 'bg-amber-50 text-amber-800 border-amber-200'
-                }`}>
-                  {project.completionChecklist?.isReadyForCompletion ? 'Ready for Completion' : `${project.completionChecklist?.pendingCount || 0} Pending Criteria`}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className={`p-3 rounded-lg border flex items-center justify-between ${
-                  project.completionChecklist?.allTasksCompleted ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-100/40 border-slate-200 text-slate-500'
-                }`}>
-                  <div>
-                    <div className="font-bold text-xs">1. Production Tasks</div>
-                    <div className="text-[10px] opacity-80">All tasks completed</div>
-                  </div>
-                  {project.completionChecklist?.allTasksCompleted ? (
-                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  ) : (
-                    <span className="text-[10px] text-amber-600 font-mono font-bold">Pending</span>
-                  )}
-                </div>
-
-                <div className={`p-3 rounded-lg border flex items-center justify-between ${
-                  project.completionChecklist?.techReviewApproved ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-100/40 border-slate-200 text-slate-500'
-                }`}>
-                  <div>
-                    <div className="font-bold text-xs">2. Technical Review</div>
-                    <div className="text-[10px] opacity-80">Technical approval</div>
-                  </div>
-                  {project.completionChecklist?.techReviewApproved ? (
-                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  ) : (
-                    <span className="text-[10px] text-amber-600 font-mono font-bold">Pending</span>
-                  )}
-                </div>
-
-                <div className={`p-3 rounded-lg border flex items-center justify-between ${
-                  project.completionChecklist?.mediaReviewApproved ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-100/40 border-slate-200 text-slate-500'
-                }`}>
-                  <div>
-                    <div className="font-bold text-xs">3. Media Review</div>
-                    <div className="text-[10px] opacity-80">Media Manager approval</div>
-                  </div>
-                  {project.completionChecklist?.mediaReviewApproved ? (
-                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  ) : (
-                    <span className="text-[10px] text-amber-600 font-mono font-bold">Pending</span>
-                  )}
-                </div>
-
-                <div className={`p-3 rounded-lg border flex items-center justify-between ${
-                  project.completionChecklist?.clientConfirmationRecorded ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-100/40 border-slate-200 text-slate-500'
-                }`}>
-                  <div>
-                    <div className="font-bold text-xs">4. Client Sign-off</div>
-                    <div className="text-[10px] opacity-80">Client confirmation</div>
-                  </div>
-                  {project.completionChecklist?.clientConfirmationRecorded ? (
-                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  ) : (
-                    <span className="text-[10px] text-amber-600 font-mono font-bold">Pending</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {isIndoor ? (
-              <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 space-y-3">
-                <h3 className="font-bold text-blue-700 text-sm">Indoor Studio Operational Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-700">
-                  <div><span className="text-slate-400">Studio Name:</span> {project.indoorDetails?.studioName}</div>
-                  <div><span className="text-slate-400">Address:</span> {project.indoorDetails?.studioAddress}</div>
-                  <div><span className="text-slate-400">Booking Status:</span> {project.indoorDetails?.studioBookingStatus}</div>
-                  <div><span className="text-slate-400">Booking Ref:</span> {project.indoorDetails?.studioBookingRef}</div>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 space-y-3">
-                <h3 className="font-bold text-emerald-700 text-sm">Outdoor Shoot Operational Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-700">
-                  <div><span className="text-slate-400">Location:</span> {outdoor?.outdoorLocation}</div>
-                  <div><span className="text-slate-400">Permission:</span> {outdoor?.permissionStatus}</div>
-                  <div><span className="text-slate-400">Weather Risk:</span> {outdoor?.weatherStatus}</div>
-                  <div><span className="text-slate-400">Driver Assigned:</span> {outdoor?.driver || 'None (Warning)'}</div>
-                  <div><span className="text-slate-400">Logistics Coordinator:</span> {outdoor?.logisticsCoordinator || 'N/A'}</div>
-                  <div><span className="text-slate-400">Travel Notes:</span> {outdoor?.travelNotes || 'N/A'}</div>
-                </div>
+            {/* Notes Section */}
+            {project.notes && (
+              <div className="p-3 bg-slate-50/60 border border-slate-200 rounded-xl space-y-1">
+                <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-blue-600" /> Project Remarks &amp; Notes
+                </h4>
+                <p className="text-slate-700 text-xs bg-white p-2.5 rounded-lg border border-slate-200">
+                  {project.notes}
+                </p>
               </div>
             )}
           </div>
@@ -1648,9 +1366,6 @@ export default function ProjectDetailPage() {
                 <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                   <FileText className="w-4 h-4 text-purple-600" /> Attached Script Documents &amp; Storyboard Files ({scriptFiles.length})
                 </h3>
-                <p className="text-slate-500 text-[11px] mt-0.5">
-                  View and download shooting script PDFs, DOCs, and narration briefs attached to this shoot project.
-                </p>
               </div>
             </div>
 
@@ -1723,11 +1438,6 @@ export default function ProjectDetailPage() {
                           <span className="text-[10px] font-bold text-emerald-900 uppercase tracking-wide flex items-center gap-1.5">
                             <Scissors className="w-3.5 h-3.5" /> Clip Codes ({docClips.length})
                           </span>
-                          {!canManageClipCodes && (
-                            <span className="text-[10px] text-slate-500 italic font-medium">
-                              Read-only
-                            </span>
-                          )}
                         </div>
 
                         {docClips.length === 0 ? (
@@ -1812,91 +1522,6 @@ export default function ProjectDetailPage() {
                         )}
                       </div>
 
-                      {/* Video Editor for THIS script document (Media Manager) */}
-                      <div className="p-2.5 bg-indigo-50/60 border border-indigo-200/80 rounded-lg space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-wide flex items-center gap-1.5">
-                            <Video className="w-3.5 h-3.5" /> Video Editor
-                          </span>
-                          <span className="text-[10px] text-slate-500 italic font-medium">Read-only</span>
-                        </div>
-
-                        {/* Read-only display of assigned video editor */}
-                        {docEditorUser && (
-                          <div className="flex items-center gap-1 text-[10px] text-slate-600">
-                            <User className="w-2.5 h-2.5 shrink-0" />
-                            <span className="truncate">
-                              {docEditorUser.name}
-                              {docEditor?.assignedBy?.name ? ` · by ${docEditor.assignedBy.name}` : ''}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Editing workflow state + the editor's own finish action */}
-                        {docEditor && (
-                          <div className="pt-1.5 border-t border-indigo-200/70 space-y-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <span
-                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                                  docEditor.editingStatus === 'COMPLETED'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : docEditor.editingStatus === 'IN_REVIEW'
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : docEditor.editingStatus === 'ACCEPTED'
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-slate-200 text-slate-700'
-                                }`}
-                              >
-                                {docEditor.editingStatus === 'COMPLETED'
-                                  ? 'Editing approved'
-                                  : docEditor.editingStatus === 'IN_REVIEW'
-                                  ? 'In review'
-                                  : docEditor.editingStatus === 'ACCEPTED'
-                                  ? 'Accepted · editing'
-                                  : 'Awaiting acceptance'}
-                              </span>
-                              {docEditor.taskId && (
-                                <a
-                                  href="/tasks"
-                                  className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-0.5"
-                                >
-                                  Open task <ArrowRight className="w-3 h-3" />
-                                </a>
-                              )}
-                            </div>
-
-                            {docEditor.videoEditingFinished && docEditor.editingFinishedAt && (
-                              <p className="text-[9px] text-slate-500">
-                                Marked finished {new Date(docEditor.editingFinishedAt).toLocaleDateString()}
-                              </p>
-                            )}
-
-                            {isAssignedEditorOfDoc && !docEditor.videoEditingFinished && (
-                              docEditor.taskAccepted ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleFinishVideoEditing(sf.id)}
-                                  disabled={isFinishingEditor === sf.id}
-                                  title="Mark video editing as finished and send it for technical review"
-                                  className="w-full px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-[10px] transition-colors flex items-center justify-center gap-1"
-                                >
-                                  {isFinishingEditor === sf.id ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                  ) : (
-                                    <CheckCircle className="w-3 h-3" />
-                                  )}
-                                  Finish video editing
-                                </button>
-                              ) : (
-                                <p className="text-[9px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 leading-snug">
-                                  Accept the video editing task in your Tasks list to unlock finishing this edit.
-                                </p>
-                              )
-                            )}
-                          </div>
-                        )}
-                      </div>
-
                       <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
                         <a
                           href={fileUrl}
@@ -1917,6 +1542,122 @@ export default function ProjectDetailPage() {
                         >
                           <Download className="w-3.5 h-3.5" />
                         </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Attached Documents & Reference Files */}
+        {activeTab === 'Attached Documents' && (
+          <div className="space-y-6 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <UploadCloud className="w-4 h-4 text-indigo-600" /> Attached Reference Documents &amp; Project Assets ({referenceFiles.length})
+                </h3>
+                <p className="text-slate-500 text-[11px] mt-0.5">
+                  General project briefs, brand visual guidelines, reference imagery, moodboards, and attachments.
+                </p>
+              </div>
+
+              {/* Upload Action */}
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <label className={`px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs cursor-pointer flex items-center gap-1.5 transition-all shadow-xs ${uploadingRefDoc ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{uploadingRefDoc ? 'Uploading...' : '+ Upload Document'}</span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadRefDoc(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Reference Documents List / Grid */}
+            {referenceFiles.length === 0 ? (
+              <div className="p-8 bg-slate-50/60 border border-dashed border-slate-300 rounded-2xl text-center space-y-2">
+                <UploadCloud className="w-8 h-8 text-slate-400 mx-auto" />
+                <h4 className="font-bold text-slate-700 text-sm">No Attached Documents Yet</h4>
+                <p className="text-slate-500 text-xs max-w-md mx-auto">
+                  No reference files, PDFs, images, or documents attached to this shoot project yet. Click <strong>"+ Upload Document"</strong> above to attach files.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {referenceFiles.map((rf: any) => {
+                  const ext = rf.fileName?.split('.').pop()?.toUpperCase() || 'FILE';
+                  const fileUrl = rf.storagePath?.startsWith('http')
+                    ? rf.storagePath
+                    : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${rf.storagePath?.replace(/^\/?/, '')}`;
+
+                  return (
+                    <div
+                      key={rf.id}
+                      className="p-4 bg-white border border-slate-200 hover:border-indigo-300 rounded-2xl space-y-3.5 flex flex-col justify-between shadow-xs transition-all group"
+                    >
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase flex items-center gap-1 border bg-indigo-50 text-indigo-700 border-indigo-200">
+                            <UploadCloud className="w-3 h-3" />
+                            {ext} DOCUMENT
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {rf.fileSize ? `${(rf.fileSize / 1024 / 1024).toFixed(2)} MB` : 'Doc'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-xs leading-snug break-words group-hover:text-indigo-700 transition-colors">
+                            {rf.fileName}
+                          </h4>
+                          <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-2">
+                            <span>Uploaded {rf.createdAt ? new Date(rf.createdAt).toLocaleDateString() : 'Recently'}</span>
+                            {rf.uploadedBy?.name && (
+                              <span>• By {rf.uploadedBy.name}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <a
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 py-1.5 px-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 rounded-lg font-bold text-[11px] text-center flex items-center justify-center gap-1 transition-colors"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>View File</span>
+                        </a>
+                        <a
+                          href={fileUrl}
+                          download={rf.fileName}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors"
+                          title="Download File"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </a>
+                        {user?.role !== 'STAFF' && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFile(rf.id, rf.fileName)}
+                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs transition-colors"
+                            title="Delete attached file"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -2153,14 +1894,12 @@ export default function ProjectDetailPage() {
 
         {/* Tab 4: Tasks & Production Execution Sessions */}
         {activeTab === 'Tasks' && (() => {
-          const allTasks: any[] = Array.isArray(project.tasks) ? project.tasks : [];
+          const allTasks: any[] = realProjectTasks;
 
-          const shootTasks = allTasks.filter(
-            (t: any) =>
-              t.sourceType === 'SHOOT_PROJECT' ||
-              (t.taskType === 'PROJECT' && !t.graphicRequirementId) ||
-              (!t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT')
-          );          const graphicTasks = allTasks.filter(
+          const videoEditingTasks = allTasks.filter(
+            (t: any) => t.taskType === 'VIDEO_EDITING' || t.sourceType === 'SCRIPT' || t.scriptId
+          );
+          const graphicTasks = allTasks.filter(
             (t: any) => t.graphicRequirementId || t.sourceType === 'GRAPHIC_REQUIREMENT' || t.taskType === 'GRAPHIC_REQUIREMENT'
           );
 
@@ -2168,12 +1907,8 @@ export default function ProjectDetailPage() {
           const completedTasks = allTasks.filter((t: any) => t.status === 'COMPLETED');
 
           const filteredTasks = allTasks.filter((t: any) => {
-            if (taskFilter === 'SHOOT') {
-              return (
-                t.sourceType === 'SHOOT_PROJECT' ||
-                (t.taskType === 'PROJECT' && !t.graphicRequirementId) ||
-                (!t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'SCRIPT')
-              );
+            if (taskFilter === 'VIDEO_EDITING') {
+              return t.taskType === 'VIDEO_EDITING' || t.sourceType === 'SCRIPT' || t.scriptId;
             }
             if (taskFilter === 'GRAPHIC') return t.graphicRequirementId || t.sourceType === 'GRAPHIC_REQUIREMENT' || t.taskType === 'GRAPHIC_REQUIREMENT';
             if (taskFilter === 'ACTIVE') return t.status !== 'COMPLETED' && t.status !== 'CANCELLED';
@@ -2187,11 +1922,8 @@ export default function ProjectDetailPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-5 rounded-2xl shadow-xs">
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                    <CheckSquare className="w-4 h-4 text-blue-600" /> Project Tasks &amp; Production Execution Sessions ({allTasks.length})
+                    <CheckSquare className="w-4 h-4 text-blue-600" /> Project Tasks &amp; Production Execution ({allTasks.length})
                   </h3>
-                  <p className="text-slate-500 text-[11px] mt-0.5">
-                    All shoot execution tasks, outdoor on-location sessions and graphic deliverables linked to this project.
-                  </p>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
@@ -2229,16 +1961,16 @@ export default function ProjectDetailPage() {
 
                 <button
                   type="button"
-                  onClick={() => setTaskFilter('SHOOT')}
+                  onClick={() => setTaskFilter('VIDEO_EDITING')}
                   className={`px-3 py-1.5 rounded-lg font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                    taskFilter === 'SHOOT'
+                    taskFilter === 'VIDEO_EDITING'
                       ? 'bg-purple-600 text-white shadow-sm'
                       : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200'
                   }`}
                 >
-                  <Compass className="w-3.5 h-3.5" />
-                  <span>Shoot Sessions</span>
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-200/40">{shootTasks.length}</span>
+                  <Scissors className="w-3.5 h-3.5" />
+                  <span>Video Editing</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-200/40">{videoEditingTasks.length}</span>
                 </button>
 
                 <button
@@ -2306,13 +2038,8 @@ export default function ProjectDetailPage() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {filteredTasks.map((t: any) => {
-                    const isShootTask =
-                      t.sourceType === 'SHOOT_PROJECT' ||
-                      (t.taskType === 'PROJECT' && !t.graphicRequirementId) ||
-                      (!t.graphicRequirementId && t.sourceType !== 'GRAPHIC_REQUIREMENT' && t.sourceType !== 'SCRIPT');
+                    const isVideoEditingTask = Boolean(t.taskType === 'VIDEO_EDITING' || t.scriptId || t.sourceType === 'SCRIPT');
                     const isGraphicTask = Boolean(t.graphicRequirementId || t.sourceType === 'GRAPHIC_REQUIREMENT' || t.taskType === 'GRAPHIC_REQUIREMENT');
-
-                    const isOutdoorTask = isShootTask && (t.title?.toLowerCase().includes('outdoor') || t.description?.toLowerCase().includes('outdoor') || t.project?.shootType === 'OUTDOOR');
 
                     const assignedStaff = t.assignedEmployees || [];
                     const isUserAssigned = user?.id && assignedStaff.some((a: any) => (a.userId === user.id || a.user?.id === user.id));
@@ -2325,38 +2052,34 @@ export default function ProjectDetailPage() {
                     return (
                       <div
                         key={t.id}
-                        className="bg-white border border-slate-200 hover:border-blue-300 rounded-xl p-4.5 space-y-3 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+                        className="bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-5 sm:p-6 space-y-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
                       >
-                        <div className="space-y-2.5">
+                        <div className="space-y-3.5">
                           {/* Top Badges */}
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-mono text-blue-700 font-extrabold bg-blue-50 border border-blue-200 px-2 py-0.5 rounded text-xs">
+                          <div className="flex items-center justify-between gap-2.5 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-blue-700 font-extrabold bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md text-xs">
                                 {t.taskId}
                               </span>
 
                               {/* Type Badge */}
-                              {isOutdoorTask ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300 flex items-center gap-1">
-                                  <Compass className="w-3 h-3 text-purple-600" /> Outdoor Shoot Session
-                                </span>
-                              ) : isShootTask ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1">
-                                  <Building2 className="w-3 h-3 text-blue-600" /> Shoot Task
+                              {isVideoEditingTask ? (
+                                <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-purple-100 text-purple-800 border border-purple-300 flex items-center gap-1.5">
+                                  <Scissors className="w-3.5 h-3.5 text-purple-600" /> Video Editing
                                 </span>
                               ) : isGraphicTask ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-100 text-pink-800 border border-pink-300 flex items-center gap-1">
-                                  <Palette className="w-3 h-3 text-pink-600" /> Graphic Task
+                                <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-pink-100 text-pink-800 border border-pink-300 flex items-center gap-1.5">
+                                  <Palette className="w-3.5 h-3.5 text-pink-600" /> Graphic Creative
                                 </span>
                               ) : (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                                  Production Task
+                                <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1.5">
+                                  <CheckSquare className="w-3.5 h-3.5 text-blue-600" /> Production Task
                                 </span>
                               )}
 
                               {/* Priority */}
                               <span
-                                className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase border ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
                                   t.priority === 'CRITICAL'
                                     ? 'bg-rose-50 text-rose-700 border-rose-200'
                                     : t.priority === 'HIGH'
@@ -2370,7 +2093,7 @@ export default function ProjectDetailPage() {
 
                             {/* Status */}
                             <span
-                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono border ${
+                              className={`px-3 py-1 rounded-full text-xs font-bold uppercase font-mono border ${
                                 t.status === 'COMPLETED'
                                   ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                   : t.status === 'IN_PROGRESS'
@@ -2387,44 +2110,44 @@ export default function ProjectDetailPage() {
                           </div>
 
                           {/* Task Title */}
-                          <h4 className="font-bold text-slate-900 text-sm leading-snug">{t.title}</h4>
+                          <h4 className="font-bold text-slate-900 text-base leading-snug tracking-tight">{t.title}</h4>
 
                           {/* Description */}
                           {t.description && (
-                            <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed bg-slate-50/60 p-2 rounded-lg border border-slate-100">
+                            <p className="text-slate-600 text-xs leading-relaxed bg-slate-50/80 p-3 rounded-xl border border-slate-100">
                               {t.description}
                             </p>
                           )}
 
                           {/* Due Date & Hours */}
-                          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3.5 h-3.5 text-slate-400" /> Due: <strong className="text-slate-800">{t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'Not Set'}</strong>
+                          <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                            <span className="flex items-center gap-1.5 font-medium">
+                              <Calendar className="w-4 h-4 text-slate-400" /> Due Date: <strong className="text-slate-800 ml-0.5">{t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'Not Set'}</strong>
                             </span>
-                            <span className="font-mono text-slate-700">
-                              Est: <strong>{t.estimatedHours || 2}h</strong>
+                            <span className="font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-xs font-semibold">
+                              Est: {t.estimatedHours || 2} hrs
                             </span>
                           </div>
 
                           {/* Assigned Employees */}
-                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">Assigned Crew:</span>
-                            <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2.5 flex-wrap">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Assigned Crew:</span>
+                            <div className="flex items-center gap-2 flex-wrap">
                               {assignedStaff.length === 0 ? (
-                                <span className="text-[11px] text-slate-400 italic">No staff assigned</span>
+                                <span className="text-xs text-slate-400 italic">No crew assigned</span>
                               ) : (
                                 assignedStaff.map((ae: any) => (
                                   <span
                                     key={ae.id || ae.userId}
-                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${
                                       ae.acceptanceStatus === 'ACCEPTED'
                                         ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                         : 'bg-amber-50 text-amber-800 border-amber-200'
                                     }`}
                                   >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                                    <span className="w-2 h-2 rounded-full bg-current" />
                                     <span>{ae.user?.name || 'Staff'}</span>
-                                    {ae.acceptanceStatus === 'ACCEPTED' && <Check className="w-2.5 h-2.5 text-emerald-600" />}
+                                    {ae.acceptanceStatus === 'ACCEPTED' && <Check className="w-3.5 h-3.5 text-emerald-600 ml-0.5" />}
                                   </span>
                                 ))
                               )}
@@ -2432,14 +2155,14 @@ export default function ProjectDetailPage() {
                           </div>
 
                           {/* Progress Bar */}
-                          <div className="space-y-1 pt-1">
-                            <div className="flex justify-between text-[10px] text-slate-600 font-bold">
-                              <span>Progress</span>
-                              <span>{t.completionPercentage || 0}%</span>
+                          <div className="space-y-1.5 pt-1.5">
+                            <div className="flex justify-between text-xs text-slate-600 font-bold">
+                              <span>Task Completion</span>
+                              <span className="font-mono">{t.completionPercentage || 0}%</span>
                             </div>
-                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-blue-500 rounded-full transition-all"
+                                className="h-full bg-blue-600 rounded-full transition-all duration-300"
                                 style={{ width: `${t.completionPercentage || 0}%` }}
                               />
                             </div>
@@ -2447,10 +2170,10 @@ export default function ProjectDetailPage() {
                         </div>
 
                         {/* Action Footer */}
-                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <div className="pt-3.5 border-t border-slate-100 flex items-center justify-between gap-3 text-xs">
                           <Link
                             href={`/tasks?taskId=${t.id}`}
-                            className="text-blue-600 hover:text-blue-800 font-bold text-xs flex items-center gap-1"
+                            className="text-blue-600 hover:text-blue-800 font-bold text-xs flex items-center gap-1.5 transition-colors"
                           >
                             Inspect Task Details <ArrowRight className="w-3.5 h-3.5" />
                           </Link>
@@ -2458,9 +2181,9 @@ export default function ProjectDetailPage() {
                           {isUserPendingAcceptance && (
                             <Link
                               href={`/tasks?taskId=${t.id}`}
-                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-[11px] flex items-center gap-1 shadow transition-colors"
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition-colors"
                             >
-                              <Check className="w-3 h-3" /> Accept Task
+                              <Check className="w-3.5 h-3.5" /> Accept Task
                             </Link>
                           )}
                         </div>
@@ -2535,35 +2258,31 @@ export default function ProjectDetailPage() {
           });
 
           return (
-            <div className="space-y-6 text-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 p-5 rounded-2xl shadow-xs">
+            <div className="space-y-4 text-xs">
+              {/* Compact Section Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                    <Users className="w-4 h-4 text-blue-600" /> Project Assigned Staff &amp; Acceptance Status
-                  </h3>
-                  <p className="text-slate-500 text-[11px] mt-0.5">
-                    View staff assigned to this project, including who has accepted the assignment and whose acceptance is pending.
-                  </p>
+                  <h3 className="font-bold text-slate-900 text-sm">TEAM</h3>
                 </div>
 
                 {['PENDING_MARKETING_APPROVAL', 'PLANNED', 'PENDING_CLIENT_APPROVAL'].includes(project.status) ? (
-                  <span className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 font-semibold text-xs flex items-center gap-1">
-                    Waiting for Marketing Approval — Staff assignment locked until approved.
+                  <span className="text-amber-800 text-xs font-semibold">
+                    Waiting for Marketing Approval — Staff assignment locked.
                   </span>
                 ) : (user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN') ? (
                   <button
                     onClick={() => setShowManageTeamModal(!showManageTeamModal)}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-md shadow-blue-600/20 flex items-center gap-1.5 text-xs shrink-0"
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors flex items-center gap-1.5 text-xs shrink-0"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Manage Assigned Staff
+                    <Plus className="w-3.5 h-3.5" /> Manage Staff
                   </button>
                 ) : null}
               </div>
 
               {/* Quick Manage Team Panel */}
               {showManageTeamModal && (
-                <div className="p-4 bg-slate-50 border border-blue-200 rounded-xl space-y-3">
-                  <h4 className="font-bold text-blue-700">Click staff members to assign or remove from this project:</h4>
+                <div className="p-3 bg-slate-50 border border-blue-200 rounded-xl space-y-2.5">
+                  <h4 className="font-bold text-blue-700 text-xs">Click staff members to assign or remove from this project:</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                     {allUsers.map((u) => {
                       const isAssigned = project.assignedTeam?.some((t: any) => t.userId === u.id);
@@ -2571,24 +2290,24 @@ export default function ProjectDetailPage() {
                         <button
                           key={u.id}
                           onClick={() => handleToggleTeamUser(u.id)}
-                          className={`flex items-center justify-between p-2.5 rounded-lg border text-left transition-all ${
+                          className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all ${
                             isAssigned
-                              ? 'bg-blue-50 border-blue-500 text-blue-800 font-semibold'
-                              : 'bg-white border-slate-200 text-slate-500 hover:text-slate-900'
+                              ? 'bg-blue-50 border-blue-400 text-blue-800 font-semibold'
+                              : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
                           }`}
                         >
                           <div className="flex items-center gap-2 overflow-hidden">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${
-                              isAssigned ? 'bg-blue-600' : 'bg-slate-200'
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 ${
+                              isAssigned ? 'bg-blue-600' : 'bg-slate-300'
                             }`}>
                               {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
                             </div>
                             <div className="truncate">
                               <div className="text-xs text-slate-800 truncate">{u.name}</div>
-                              <div className="text-[10px] text-slate-500 truncate">{u.employeeProfile?.designation || u.role}</div>
+                              <div className="text-[10px] text-slate-400 truncate">{u.employeeProfile?.designation || u.role}</div>
                             </div>
                           </div>
-                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
                             isAssigned ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'
                           }`}>
                             {isAssigned ? 'Assigned' : 'Add'}
@@ -2600,83 +2319,61 @@ export default function ProjectDetailPage() {
                 </div>
               )}
 
-              {/* Status Counters & Filter Pills */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Compact Metrics Strip */}
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => setTeamFilter('ALL')}
-                  className={`p-3.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                  className={`p-2.5 rounded-lg border text-left transition-all ${
                     teamFilter === 'ALL'
-                      ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-400/20'
+                      ? 'bg-blue-50/80 border-blue-400 ring-1 ring-blue-400'
                       : 'bg-white border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Assigned Staff</span>
-                    <span className="text-xl font-extrabold text-slate-900">{totalAssignedStaffCount}</span>
-                  </div>
-                  <Users className="w-5 h-5 text-blue-600" />
+                  <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider block">Assigned Staff</span>
+                  <span className="text-base font-bold text-slate-900">{totalAssignedStaffCount}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setTeamFilter('ACCEPTED')}
-                  className={`p-3.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                  className={`p-2.5 rounded-lg border text-left transition-all ${
                     teamFilter === 'ACCEPTED'
-                      ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-400/20'
+                      ? 'bg-emerald-50/80 border-emerald-400 ring-1 ring-emerald-400'
                       : 'bg-white border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  <div>
-                    <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Accepted</span>
-                    <span className="text-xl font-extrabold text-emerald-700">{acceptedStaffCount}</span>
-                  </div>
-                  <CheckCircle className="w-5 h-5 text-emerald-600" />
+                  <span className="text-[10px] font-medium text-emerald-700 uppercase tracking-wider block">Accepted</span>
+                  <span className="text-base font-bold text-emerald-700">{acceptedStaffCount}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setTeamFilter('PENDING')}
-                  className={`p-3.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                  className={`p-2.5 rounded-lg border text-left transition-all ${
                     teamFilter === 'PENDING'
-                      ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/20'
+                      ? 'bg-amber-50/80 border-amber-400 ring-1 ring-amber-400'
                       : 'bg-white border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  <div>
-                    <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">Pending Acceptance</span>
-                    <span className="text-xl font-extrabold text-amber-700">{pendingStaffCount}</span>
-                  </div>
-                  <Clock className="w-5 h-5 text-amber-600" />
+                  <span className="text-[10px] font-medium text-amber-800 uppercase tracking-wider block">Pending</span>
+                  <span className="text-base font-bold text-amber-700">{pendingStaffCount}</span>
                 </button>
               </div>
 
-              {/* Assigned Project Staff & Acceptance Cards */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <h4 className="font-bold text-slate-900 text-xs flex items-center gap-2">
-                    <Users className="w-4 h-4 text-blue-600" />
-                    Assigned Project Staff List ({filteredStaffList.length})
-                  </h4>
-                  <span className="text-[10px] text-slate-500 font-mono">
-                    Filter: {teamFilter === 'ALL' ? 'All Staff' : teamFilter === 'ACCEPTED' ? 'Accepted Only' : 'Pending Only'}
-                  </span>
-                </div>
-
+              {/* Assigned Project Staff List */}
+              <div className="space-y-2">
                 {filteredStaffList.length === 0 ? (
-                  <div className="p-8 text-center bg-slate-50/50 border border-slate-200 rounded-2xl text-slate-500 space-y-2">
-                    <Users className="w-8 h-8 text-slate-400 mx-auto" />
-                    <p className="font-bold text-slate-700 text-xs">
+                  <div className="p-6 text-center bg-slate-50/50 border border-slate-200 rounded-xl text-slate-500 space-y-1">
+                    <Users className="w-6 h-6 text-slate-400 mx-auto" />
+                    <p className="font-semibold text-slate-700 text-xs">
                       {totalAssignedStaffCount === 0
                         ? 'No staff members currently assigned to this project.'
                         : `No staff matching the "${teamFilter}" filter.`}
                     </p>
-                    {totalAssignedStaffCount === 0 && (
-                      <p className="text-[11px] text-slate-400">Click "Manage Assigned Staff" above to assign shoot staff.</p>
-                    )}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2">
                     {filteredStaffList.map((staffItem: any) => {
                       const teamUser = staffItem.user;
                       const profile = teamUser?.employeeProfile;
@@ -2685,109 +2382,56 @@ export default function ProjectDetailPage() {
                       return (
                         <div
                           key={teamUser.id}
-                          className={`p-4 bg-white border rounded-2xl space-y-3 flex flex-col justify-between shadow-xs transition-all ${
-                            isAcc ? 'border-emerald-200 hover:border-emerald-300' : 'border-amber-200 hover:border-amber-300'
+                          className={`p-3 bg-white border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+                            isAcc ? 'border-slate-200 hover:border-emerald-300' : 'border-amber-200 hover:border-amber-300'
                           }`}
                         >
-                          <div className="space-y-2.5">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2.5">
-                                <div
-                                  className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                                isAcc
+                                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                                  : 'bg-amber-50 border border-amber-200 text-amber-700'
+                              }`}
+                            >
+                              {teamUser?.name ? teamUser.name.charAt(0).toUpperCase() : 'S'}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-slate-900 text-xs truncate">{teamUser?.name}</span>
+                                <span
+                                  className={`px-2 py-0.2 rounded text-[10px] font-medium border ${
                                     isAcc
-                                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-                                      : 'bg-amber-50 border border-amber-200 text-amber-700'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      : 'bg-amber-50 text-amber-800 border-amber-200'
                                   }`}
                                 >
-                                  {teamUser?.name ? teamUser.name.charAt(0).toUpperCase() : 'S'}
-                                </div>
-                                <div className="overflow-hidden">
-                                  <h4 className="font-bold text-slate-900 text-xs truncate">{teamUser?.name}</h4>
-                                  <p className="text-slate-500 text-[10px] truncate">{teamUser?.email}</p>
-                                </div>
-                              </div>
-
-                              {/* Acceptance Status Badge */}
-                              <span
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase font-mono shrink-0 flex items-center gap-1 border ${
-                                  isAcc
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                                    : 'bg-amber-50 text-amber-800 border-amber-300'
-                                }`}
-                              >
-                                {isAcc ? (
-                                  <>
-                                    <CheckCircle className="w-3 h-3 text-emerald-600" />
-                                    <span>Accepted</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Clock className="w-3 h-3 text-amber-600" />
-                                    <span>Pending</span>
-                                  </>
-                                )}
-                              </span>
-                            </div>
-
-                            <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px] text-slate-500">
-                              <div className="flex items-center justify-between">
-                                <span>Role / Position:</span>
-                                <strong className="text-slate-800">{profile?.designation || teamUser?.role || 'Staff'}</strong>
-                              </div>
-                              {profile?.department && (
-                                <div className="flex items-center justify-between">
-                                  <span>Department:</span>
-                                  <strong className="text-slate-700">{profile.department.name}</strong>
-                                </div>
-                              )}
-                              <div className="flex items-center justify-between">
-                                <span>Acceptance State:</span>
-                                <strong className={isAcc ? 'text-emerald-700' : 'text-amber-700'}>
-                                  {isAcc
-                                    ? staffItem.acceptedAt
-                                      ? `Accepted (${new Date(staffItem.acceptedAt).toLocaleDateString()})`
-                                      : 'Accepted & Active'
-                                    : 'Pending Review & Acceptance'}
-                                </strong>
-                              </div>
-                            </div>
-
-                            {/* Assigned Tasks Summary for this Staff */}
-                            {staffItem.tasks?.length > 0 && (
-                              <div className="pt-2 border-t border-slate-100 space-y-1">
-                                <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                                  Assigned Shoot Tasks ({staffItem.tasks.length}):
+                                  {isAcc ? '✓ Accepted' : '⏳ Pending'}
                                 </span>
-                                <div className="space-y-1">
-                                  {staffItem.tasks.map((tsk: any) => (
-                                    <div key={tsk.id} className="p-1.5 bg-slate-50 rounded border border-slate-200 text-[10px] flex items-center justify-between">
-                                      <span className="font-mono text-blue-600 font-semibold truncate max-w-[140px]">
-                                        [{tsk.taskId}] {tsk.title}
-                                      </span>
-                                      <span
-                                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                                          tsk.status === 'COMPLETED'
-                                            ? 'bg-emerald-50 text-emerald-700'
-                                            : tsk.status === 'IN_PROGRESS' || tsk.status === 'ACCEPTED'
-                                            ? 'bg-blue-50 text-blue-700'
-                                            : 'bg-amber-50 text-amber-700'
-                                        }`}
-                                      >
-                                        {tsk.status}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
                               </div>
-                            )}
+                              <p className="text-[11px] text-slate-500 truncate">
+                                {profile?.designation || teamUser?.role || 'Staff Member'}
+                                {profile?.department?.name ? ` · ${profile.department.name}` : ''}
+                              </p>
+                            </div>
                           </div>
 
-                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-                            <span className="text-slate-500">
-                              {staffItem.assignedAt ? `Assigned ${new Date(staffItem.assignedAt).toLocaleDateString()}` : 'Assigned to Project'}
-                            </span>
-                            <span className={isAcc ? 'text-emerald-700 font-bold' : 'text-amber-700 font-semibold'}>
-                              {isAcc ? '✓ Access Active' : '⏳ Pending Acceptance'}
+                          <div className="flex items-center gap-3 sm:justify-end shrink-0 text-[11px] text-slate-500">
+                            {staffItem.tasks?.length > 0 && (
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {staffItem.tasks.map((tsk: any) => (
+                                  <span
+                                    key={tsk.id}
+                                    className="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-mono text-slate-700"
+                                    title={tsk.title}
+                                  >
+                                    [{tsk.taskId}]
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {staffItem.assignedAt ? new Date(staffItem.assignedAt).toLocaleDateString() : 'Assigned'}
                             </span>
                           </div>
                         </div>
@@ -2804,350 +2448,9 @@ export default function ProjectDetailPage() {
         {activeTab === 'Equipment' && (
           <ProjectEquipmentTab project={project} onRefresh={loadProject} />
         )}
+      </div>
 
-        {/* Tab 7: Deliverables */}
-        {(activeTab === 'Deliverables' || activeTab === 'Deliverables & Drive') && (
-          <div className="space-y-6 text-xs">
-            {['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project?.status) && (
-              <div className="bg-amber-50 border-2 border-amber-300 p-3.5 rounded-xl space-y-1 text-xs text-amber-950 shadow-xs flex items-start gap-3">
-                <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="font-extrabold text-amber-900 text-xs uppercase tracking-wide flex items-center gap-1.5">
-                    Project Under Review — Read-Only Mode
-                  </h4>
-                  <p className="text-[11px] text-amber-800 leading-relaxed">
-                    This project is currently undergoing formal review (Status: <strong className="font-mono font-bold text-amber-900">{project?.status}</strong>). Adding new deliverables, media assets, and file modifications are locked in read-only mode until review decision is completed.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <Film className="w-4 h-4 text-emerald-600" /> Project Deliverables &amp; Media Assets
-                </h3>
-                <p className="text-slate-500 text-[11px] mt-0.5">
-                  Each deliverable is linked to its corresponding Graphic Requirement.
-                </p>
-              </div>
-
-              {!['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(project?.status) ? (
-                <button
-                  onClick={() => setShowCreateDeliverableModal(!showCreateDeliverableModal)}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors flex items-center gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Register Deliverable
-                </button>
-              ) : (
-                <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded font-mono text-[10px] font-bold flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-600" /> Deliverables Locked (Under Review)
-                </span>
-              )}
-            </div>
-
-            {/* Create Deliverable Modal Form */}
-            {showCreateDeliverableModal && (
-              <form onSubmit={handleCreateDeliverable} className="p-5 bg-slate-50 border border-emerald-300 rounded-2xl space-y-4 shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                  <div>
-                    <h4 className="font-bold text-emerald-800 text-sm flex items-center gap-2">
-                      <Film className="w-4 h-4 text-emerald-600" /> Register New Deliverable / Video Asset
-                    </h4>
-                    <p className="text-slate-500 text-[11px] mt-0.5">
-                      Enter direct video links (YouTube, Google Drive, Vimeo, Frame.io, Dropbox, CDN streaming link).
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Deliverable Type *</label>
-                    <select
-                      value={deliverableType}
-                      onChange={(e) => setDeliverableType(e.target.value)}
-                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none"
-                    >
-                      <option value="Video">Video (Main Cut)</option>
-                      <option value="Reel">Reel / Short</option>
-                      <option value="Motion Graphic">Motion Graphic</option>
-                      <option value="Poster">Poster</option>
-                      <option value="Carousel">Carousel</option>
-                      <option value="Story">Story</option>
-                      <option value="Banner">Banner</option>
-                      <option value="Raw Footage">Raw Footage</option>
-                      <option value="Audio Track">Audio Track</option>
-                      <option value="Other">Other Deliverable</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Deliverable Title *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Hero Brand Commercial 4K Master Cut"
-                      value={deliverableName}
-                      onChange={(e) => setDeliverableName(e.target.value)}
-                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Link to Graphic Req</label>
-                    <select
-                      value={linkedGraphicReqId}
-                      onChange={(e) => setLinkedGraphicReqId(e.target.value)}
-                      className="w-full bg-slate-100 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none"
-                    >
-                      <option value="">None (Unlinked)</option>
-                      {project.graphicRequirements?.map((g: any) => (
-                        <option key={g.id} value={g.id}>
-                          [{g.requirementId}] {g.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Video URL / Cloud Storage Link Input */}
-                <div className="space-y-1.5 p-3.5 bg-white border border-slate-200 rounded-xl">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-slate-800 font-bold text-xs flex items-center gap-1.5">
-                      <Video className="w-4 h-4 text-emerald-600" /> Video URL / Cloud Storage Link *
-                    </label>
-                    {deliverableVideoUrl.trim() && getDeliverableLinkInfo(deliverableVideoUrl) && (
-                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${getDeliverableLinkInfo(deliverableVideoUrl)?.color}`}>
-                        {getDeliverableLinkInfo(deliverableVideoUrl)?.label}
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="url"
-                      required
-                      placeholder="https://youtube.com/watch?v=... or https://drive.google.com/file/... or https://vimeo.com/... or https://cdn.moms.com/video.mp4"
-                      value={deliverableVideoUrl}
-                      onChange={(e) => setDeliverableVideoUrl(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 text-slate-900 px-3.5 py-2.5 rounded-lg font-mono text-xs focus:border-emerald-500 focus:bg-white focus:outline-none pr-10"
-                    />
-                    <LinkIcon className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
-                  </div>
-                  <p className="text-[11px] text-slate-500">
-                    Paste YouTube, Vimeo, Google Drive, Frame.io, Dropbox, S3, or direct video streaming / download link.
-                  </p>
-                </div>
-
-                <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateDeliverableModal(false)}
-                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmittingDeliverable}
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg font-bold shadow-md shadow-emerald-600/30 transition-all flex items-center gap-1.5"
-                  >
-                    {isSubmittingDeliverable ? (
-                      <>
-                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-4 h-4" /> Save Deliverable
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Deliverables Grid List */}
-            {project.files?.length === 0 ? (
-              <div className="p-8 text-center bg-slate-50/50 border border-slate-200 rounded-2xl text-slate-500 space-y-2">
-                <FileVideo className="w-8 h-8 text-slate-400 mx-auto" />
-                <p className="font-semibold text-slate-700">No deliverables or video links uploaded yet for this project.</p>
-                <p className="text-xs text-slate-400">Click "Register Deliverable" above to upload a video link or media asset.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {project.files?.map((f: any) => {
-                  const linkedGraphic = project.graphicRequirements?.find((g: any) => g.id === f.graphicRequirementId);
-                  const isUrl = f.storagePath && (f.storagePath.startsWith('http://') || f.storagePath.startsWith('https://'));
-                  const linkInfo = getDeliverableLinkInfo(f.storagePath);
-                  const isVideo = f.fileType?.includes('video') || linkInfo?.label?.includes('Video') || linkInfo?.label?.includes('Stream') || linkInfo?.label?.includes('YouTube') || linkInfo?.label?.includes('Vimeo');
-
-                  return (
-                    <div key={f.id} className="p-4 bg-white border border-slate-200 hover:border-emerald-300 rounded-2xl space-y-3.5 flex flex-col justify-between shadow-xs transition-all">
-                      <div className="space-y-2.5">
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-bold uppercase">
-                              {f.fileName.startsWith('[') ? f.fileName.split(']')[0].replace('[', '') : 'DELIVERABLE'}
-                            </span>
-                            {linkInfo && (
-                              <span className={`px-2 py-0.5 text-[9px] font-bold rounded border ${linkInfo.color}`}>
-                                {linkInfo.label}
-                              </span>
-                            )}
-                          </div>
-
-                          <span className="text-[10px] text-slate-500 font-mono shrink-0">
-                            {isUrl ? 'Cloud / URL' : `${(f.fileSize / (1024 * 1024)).toFixed(1)} MB`}
-                          </span>
-                        </div>
-
-                        <h4 className="font-bold text-slate-900 text-sm leading-snug">
-                          {f.fileName.includes(']') ? f.fileName.split(']').slice(1).join(']').trim() : f.fileName}
-                        </h4>
-
-                        {/* Storage Path & Video Link Display */}
-                        {f.storagePath && (
-                          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
-                            <div className="flex items-center justify-between text-[10px]">
-                              <span className="font-bold text-slate-600 flex items-center gap-1">
-                                <LinkIcon className="w-3 h-3 text-slate-400" /> Deliverable Resource Link:
-                              </span>
-                              {isUrl && (
-                                <button
-                                  type="button"
-                                  onClick={() => copyDeliverableLink(f.id, f.storagePath)}
-                                  className="text-slate-500 hover:text-slate-800 font-semibold flex items-center gap-1 transition-colors"
-                                  title="Copy video link"
-                                >
-                                  {copiedDeliverableId === f.id ? (
-                                    <>
-                                      <Check className="w-3 h-3 text-emerald-600" />
-                                      <span className="text-emerald-600">Copied!</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Copy className="w-3 h-3" />
-                                      <span>Copy</span>
-                                    </>
-                                  )}
-                                </button>
-                              )}
-                            </div>
-
-                            <div className="font-mono text-[10px] text-slate-700 bg-white p-1.5 rounded border border-slate-200 truncate">
-                              {f.storagePath}
-                            </div>
-
-                            {/* Watch Video / Open Link Action Button */}
-                            {isUrl ? (
-                              <a
-                                href={f.storagePath}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="w-full mt-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
-                              >
-                                {isVideo ? <Play className="w-3.5 h-3.5 fill-blue-600 text-blue-600" /> : <ExternalLink className="w-3.5 h-3.5 text-blue-600" />}
-                                <span>{isVideo ? 'Watch Video / Open Stream' : 'Open Deliverable Link'}</span>
-                                <ExternalLink className="w-3 h-3 text-blue-400 ml-0.5" />
-                              </a>
-                            ) : (
-                              <a
-                                href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${f.storagePath}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="w-full mt-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
-                              >
-                                <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>View / Download File Asset</span>
-                              </a>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="space-y-1 text-[11px] pt-1">
-                          
-
-                          {linkedGraphic && (
-                            <div className="p-2 bg-indigo-50/70 border border-indigo-200 rounded-lg text-indigo-800 font-semibold flex items-center justify-between">
-                              <span>Linked Graphic Req:</span>
-                              <span className="font-mono text-slate-900">[{linkedGraphic.requirementId}] {linkedGraphic.name}</span>
-                            </div>
-                          )}
-
-                          {!linkedGraphic && (
-                            <div className="text-slate-400 italic text-[10px]">General Project Deliverable</div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="pt-2.5 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
-                        <span>Uploaded by: <strong className="text-slate-700">{f.uploadedBy?.name || 'Manager'}</strong></span>
-                        <span className="text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">Active Ver.</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Tab 12: Shoot Checklist */}
-        {(activeTab === 'Shoot Checklist' || activeTab === 'Checklist') && (
-          <div className="space-y-6 text-xs">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <CheckSquare className="w-4 h-4 text-emerald-600" /> Operational Shoot Checklist
-                </h3>
-                <p className="text-slate-500 text-[11px] mt-0.5">
-                  Standard pre-shoot verification tasks for equipment, permits, and crew readiness.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                <h4 className="font-bold text-blue-700 border-b border-slate-200 pb-2">1. Pre-Shoot Logistics & Location Readiness</h4>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-slate-800 cursor-pointer">
-                    <input type="checkbox" defaultChecked className="rounded border-slate-200 text-blue-600 focus:ring-blue-500" />
-                    <span>Location Address & Access Confirmed ({project.shootLocation})</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-slate-800 cursor-pointer">
-                    <input type="checkbox" defaultChecked className="rounded border-slate-200 text-blue-600 focus:ring-blue-500" />
-                    <span>Location Access & Site Readiness Confirmed</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-slate-800 cursor-pointer">
-                    <input type="checkbox" defaultChecked={Boolean(project.outdoorDetails?.driver)} className="rounded border-slate-200 text-blue-600 focus:ring-blue-500" />
-                    <span>Transportation Driver & Route Confirmed</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                <h4 className="font-bold text-purple-700 border-b border-slate-200 pb-2">2. Production Gear & Crew Check</h4>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-slate-800 cursor-pointer">
-                    <input type="checkbox" defaultChecked={project.equipmentReservations?.length > 0} className="rounded border-slate-200 text-purple-600 focus:ring-purple-500" />
-                    <span>Reserved Cameras & Lenses Charged ({project.equipmentReservations?.length || 0} items reserved)</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-slate-800 cursor-pointer">
-                    <input type="checkbox" defaultChecked={project.assignedTeam?.length > 0} className="rounded border-slate-200 text-purple-600 focus:ring-purple-500" />
-                    <span>Crew Members Briefed ({project.assignedTeam?.length || 0} staff assigned)</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-slate-800 cursor-pointer">
-                    <input type="checkbox" defaultChecked={Boolean(project.influencerTalent)} className="rounded border-slate-200 text-purple-600 focus:ring-purple-500" />
-                    <span>Talent & Call Time Notified ({project.reportingTime || '09:00 AM'})</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Default fallback for other tabs */}
-      {/* Mandatory Project Closure Reason Modal */}
+        {/* Mandatory Project Closure Reason Modal */}
       {showClosureModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-rose-200 rounded-xl w-full max-w-md p-5 space-y-4 text-xs shadow-2xl">
@@ -3229,11 +2532,11 @@ export default function ProjectDetailPage() {
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-blue-600" />
-                  Complete Project
+                  <Scissors className="w-5 h-5 text-blue-600" />
+                  Convert to Video Editing
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Assign a Video Editor to every Script below, then complete the Project. Existing Clip Codes are shown read-only.
+                  Assign a Video Editor to every Script below, then convert the Project to Video Editing. Existing Clip Codes are shown read-only.
                 </p>
               </div>
               <button
@@ -3381,9 +2684,10 @@ export default function ProjectDetailPage() {
                   }
                 }}
                 disabled={isCompletingProject}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow transition-all text-sm"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow transition-all text-sm flex items-center gap-1.5"
               >
-                {isCompletingProject ? 'Completing...' : 'Complete Project'}
+                <Scissors className="w-4 h-4" />
+                {isCompletingProject ? 'Converting...' : 'Convert to Video Editing'}
               </button>
             </div>
           </div>
@@ -3391,30 +2695,6 @@ export default function ProjectDetailPage() {
       )}
 
 
-      {/* Task Conversion Modal Popup */}
-      <ConvertEventToTaskModal
-        isOpen={showConvertTaskModal}
-        onClose={() => setShowConvertTaskModal(false)}
-        onSuccess={() => {
-          loadProject();
-        }}
-        eventData={
-          project
-            ? {
-                title: project.name,
-                parentType: 'PROJECT',
-                parentId: project.id,
-                parentCode: project.projectId,
-                clientId: project.clientId,
-                brandId: project.brandId,
-                productId: project.productId,
-                priority: project.priority,
-                dueDate: project.shootDate,
-                notes: project.productionNotes,
-              }
-            : null
-        }
-      />
       {/* Script & Screenplay Editor Modal */}
       {showEditScriptModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
@@ -3600,24 +2880,6 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       )}
-
-      {/* Request Revision Form Modal */}
-      {showRevisionModal && project && (
-        <RequestRevisionModal
-          isOpen={showRevisionModal}
-          onClose={() => setShowRevisionModal(false)}
-          onSuccess={() => {
-            loadProject();
-          }}
-          entityType="PROJECT"
-          entityId={project.id}
-          entityTitle={project.name}
-          originalAssigneeId={project.assignedTeam?.[0]?.userId}
-          originalAssigneeName={project.assignedTeam?.[0]?.user?.name}
-          userRole={user?.role}
-        />
-      )}
-      </div>
     </div>
   );
 }

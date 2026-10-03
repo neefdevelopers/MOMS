@@ -66,7 +66,7 @@ export default function ApprovalsPage() {
   const [queue, setQueue] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'TECH' | 'MEDIA' | 'CLIENT'>('TECH');
+  const [activeTab, setActiveTab] = useState<'TECH' | 'MEDIA' | 'MARKETING' | 'CLIENT'>('TECH');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'TASK' | 'SCRIPT' | 'GRAPHIC_REQ' | 'PROJECT'>('ALL');
@@ -103,6 +103,8 @@ export default function ApprovalsPage() {
       setActiveTab('TECH');
     } else if (user?.role === 'MEDIA_MANAGER') {
       setActiveTab('MEDIA');
+    } else if (user?.role === 'MARKETING_MANAGER') {
+      setActiveTab('MARKETING');
     }
   }, [user]);
 
@@ -157,6 +159,22 @@ export default function ApprovalsPage() {
       await loadQueue();
     } catch (err: any) {
       alert(err.message || 'Media review action failed');
+    } finally {
+      setSubmittingId(null);
+    }
+  };
+
+  const handleMarketingReview = async (projectId: string, status: 'APPROVED' | 'REJECTED') => {
+    try {
+      setSubmittingId(projectId);
+      await fetchApi('/approvals/marketing-review', {
+        method: 'POST',
+        body: JSON.stringify({ projectId, status, remarks: remarks || undefined }),
+      });
+      setRemarks('');
+      await loadQueue();
+    } catch (err: any) {
+      alert(err.message || 'Marketing review action failed');
     } finally {
       setSubmittingId(null);
     }
@@ -457,7 +475,7 @@ export default function ApprovalsPage() {
           </div>
         </div>
 
-        {/* Multi-queue tabs (only visible to non-Technical Managers, e.g. Admins / Media Managers) */}
+        {/* Multi-queue tabs (only visible to non-Technical Managers, e.g. Admins / Media Managers / Marketing Managers) */}
         {!isTechnicalManager && (
           <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
             <button
@@ -469,7 +487,7 @@ export default function ApprovalsPage() {
               }`}
             >
               <Clock className="w-4 h-4 text-cyan-600" />
-              <span>1. Technical Review Queue</span>
+              <span>1. Technical Review</span>
               <span className="px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 text-[10px] font-mono border border-cyan-200 font-bold">
                 {rawTechQueue.length}
               </span>
@@ -484,9 +502,24 @@ export default function ApprovalsPage() {
               }`}
             >
               <CheckCircle2 className="w-4 h-4 text-purple-600" />
-              <span>2. Media Review Queue</span>
+              <span>2. Media Review</span>
               <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-mono border border-purple-200 font-bold">
                 {queue?.mediaReviewQueue?.length || 0}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('MARKETING')}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+                activeTab === 'MARKETING'
+                  ? 'bg-amber-50 text-amber-800 border border-amber-300 shadow-lg shadow-amber-500/10'
+                  : 'bg-white hover:bg-slate-100 text-slate-500 border border-slate-200'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <span>3. Marketing Approval</span>
+              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-mono border border-amber-300 font-bold">
+                {queue?.marketingReviewQueue?.length || 0}
               </span>
             </button>
 
@@ -499,7 +532,7 @@ export default function ApprovalsPage() {
               }`}
             >
               <PhoneCall className="w-4 h-4 text-emerald-600" />
-              <span>3. Client Confirmation Queue</span>
+              <span>4. Client Confirmation</span>
               <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-mono border border-emerald-200 font-bold">
                 {queue?.clientConfirmationQueue?.length || 0}
               </span>
@@ -971,13 +1004,145 @@ export default function ApprovalsPage() {
           </div>
         )}
 
+        {/* Marketing Review Queue Tab (non-tech managers) */}
+        {activeTab === 'MARKETING' && !isTechnicalManager && (
+          <div className="bg-white border border-slate-200 p-6 rounded-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h2 className="font-bold text-amber-700 text-base flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-amber-600" /> 3. Marketing Approval Queue
+                </h2>
+                <p className="text-slate-500 text-xs mt-0.5">
+                  Marketing Manager confirms strategic messaging, client guidelines, and final approval for video editing tasks & deliverables.
+                </p>
+              </div>
+              <span className="font-bold text-amber-800 font-mono bg-amber-50 px-3 py-1 rounded-full border border-amber-300 text-xs">
+                {queue?.marketingReviewQueue?.length || 0} Pending Items
+              </span>
+            </div>
+
+            {queue?.marketingReviewQueue?.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 space-y-2">
+                <Sparkles className="w-10 h-10 text-amber-400 mx-auto" />
+                <p className="font-semibold text-sm text-slate-700">No items pending marketing manager approval.</p>
+                <p className="text-xs text-slate-500">Video editing tasks and deliverables will appear here after passing Media Review approval.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {queue?.marketingReviewQueue?.map((item: any) => {
+                  const deliverables = getDeliverableItems(item);
+                  const detailsUrl = getItemDetailsUrl(item);
+                  const sessionLabel = getItemSessionName(item);
+
+                  return (
+                    <div key={item.id} className="p-5 bg-gradient-to-br from-amber-50/40 via-white to-white border-2 border-amber-200/80 rounded-xl space-y-4 shadow-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono text-amber-700 font-bold text-xs">{item.taskId || item.projectId || item.id}</span>
+                            <span className="px-2 py-0.2 bg-amber-100 text-amber-900 border border-amber-300 rounded font-bold text-[9px] uppercase">
+                              Waiting Marketing Sign-off
+                            </span>
+                          </div>
+                          <h3 className="font-bold text-slate-900 text-sm mt-0.5">{item.name || item.title}</h3>
+                          <p className="text-slate-500 text-xs">{item.client?.name || 'Client'} • {item.brand?.name || 'Brand'}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setDetailModalItem(item)}
+                            className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs flex items-center gap-1"
+                            title="View Details"
+                          >
+                            <Info className="w-3.5 h-3.5 text-amber-600" />
+                          </button>
+                          <Link
+                            href={detailsUrl}
+                            className="px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold font-mono flex items-center gap-1"
+                          >
+                            <span>{sessionLabel}</span>
+                            <ArrowUpRight className="w-3 h-3" />
+                          </Link>
+                        </div>
+                      </div>
+
+                      {/* Script & Clip details if video editing */}
+                      {(item.projectScript || item.clipCode) && (
+                        <div className="p-2.5 bg-white border border-amber-200 rounded-lg flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5 text-amber-900 font-bold">
+                            <FileText className="w-3.5 h-3.5 text-amber-600" />
+                            <span>{item.projectScript?.name || 'Shooting Script'}</span>
+                          </div>
+                          {item.clipCode && (
+                            <span className="font-mono text-[10px] font-bold bg-emerald-50 text-emerald-900 border border-emerald-300 px-2 py-0.5 rounded">
+                              Clip: {item.clipCode}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Deliverables / Media links */}
+                      <div className="space-y-1.5 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        {deliverables.length === 0 ? (
+                          <div className="text-[11px] text-slate-500 italic">No output files directly uploaded. Video Editor output submitted for marketing review.</div>
+                        ) : (
+                          deliverables.map((d: any) => (
+                            <div key={d.id} className="flex items-center justify-between text-xs">
+                              <span className="text-slate-700 truncate max-w-[70%]">{d.fileName}</span>
+                              <a
+                                href={d.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-amber-700 hover:text-amber-800 text-[11px] font-bold flex items-center gap-1"
+                              >
+                                Open
+                              </a>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Marketing Decision Actions */}
+                      <div className="space-y-3 bg-slate-50 border border-slate-200 p-4 rounded-lg">
+                        <input
+                          type="text"
+                          placeholder="Marketing Review Remarks / Sign-off Notes..."
+                          onChange={(e) => setRemarks(e.target.value)}
+                          className="w-full bg-white border border-slate-200 text-slate-800 px-3 py-2 rounded text-xs focus:border-amber-500 focus:outline-none"
+                        />
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleMarketingReview(item.id, 'APPROVED')}
+                            className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center justify-center gap-1.5 text-xs shadow-md transition-all"
+                          >
+                            <Check className="w-4 h-4" /> Approve Marketing Quality
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleMarketingReview(item.id, 'REJECTED')}
+                            className="flex-1 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-bold rounded-lg flex items-center justify-center gap-1.5 text-xs transition-all"
+                          >
+                            <X className="w-4 h-4" /> Reject & Request Revision
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Client Confirmation Queue Tab (non-tech managers) */}
         {activeTab === 'CLIENT' && !isTechnicalManager && (
           <div className="bg-white border border-slate-200 p-6 rounded-xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
                 <h2 className="font-bold text-emerald-600 text-base flex items-center gap-2">
-                  <PhoneCall className="w-5 h-5" /> 3. Client Confirmation Queue
+                  <PhoneCall className="w-5 h-5" /> 4. Client Confirmation Queue
                 </h2>
                 <p className="text-slate-500 text-xs mt-0.5">
                   Record client decision manually (WhatsApp, Email, Call, Meeting). Revision requested restarts production.

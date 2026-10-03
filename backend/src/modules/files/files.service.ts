@@ -426,7 +426,11 @@ export class FilesService {
           attachmentCategory: 'SCRIPT_DOCUMENT',
         },
       });
-    } else if (data.attachmentCategory !== 'REFERENCES' && data.attachmentCategory !== 'ATTACHMENTS') {
+    } else if (
+      data.attachmentCategory !== 'REFERENCES' &&
+      data.attachmentCategory !== 'ATTACHMENTS' &&
+      data.attachmentCategory !== 'REFERENCE_FILE'
+    ) {
       if (data.graphicRequirementId) {
         oldFiles = await this.prisma.fileMetadata.findMany({
           where: {
@@ -440,6 +444,15 @@ export class FilesService {
           where: { projectId: resolvedProjectId, storagePath: { contains: folderCategory } },
         });
       }
+    } else {
+      // For reference files & attachments, only replace if exact same filename exists in this project
+      oldFiles = await this.prisma.fileMetadata.findMany({
+        where: {
+          projectId: resolvedProjectId,
+          fileName: file.originalname,
+          attachmentCategory: data.attachmentCategory || 'REFERENCE_FILE',
+        },
+      });
     }
 
     // Delete older physical files & metadata records

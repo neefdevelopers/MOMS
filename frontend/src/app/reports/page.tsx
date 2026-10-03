@@ -1,2668 +1,1560 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { exportToExcel, exportToCSV, exportToPDF, ExportColumn } from '@/utils/exportUtils';
-import { fetchApi } from '@/lib/api';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { fetchApi } from '@/lib/api';
+import { exportToCSV, ExportColumn } from '@/utils/exportUtils';
 import {
-  BarChart3, TrendingUp, PieChart, Layers, ShieldCheck, Users, Building2, RotateCcw,
-  Palette, Tag, Zap, Package, CheckCircle2, Download, UserCheck, Film, FileText,
+  FileBarChart,
+  Download,
+  Calendar,
+  Camera,
+  Palette,
+  Users,
+  Film,
+  BookmarkCheck,
+  RotateCcw,
+  Search,
+  ChevronRight,
+  ExternalLink,
+  ShieldAlert,
+  ArrowRightLeft,
+  X,
+  RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
-import { FavoriteButton } from '@/components/common/FavoriteButton';
-import { recordRecentAccess } from '@/lib/recent-access';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import StaffPersonalizedDashboard from '@/components/dashboard/StaffPersonalizedDashboard';
-import { getAllowedReportTabs, isReportTabAllowed as isReportTabAllowedUtil, ReportTab } from '@/lib/report-permissions';
+import {
+  getAllowedReportTabs,
+  ReportTab,
+} from '@/lib/report-permissions';
 
-const BRAND_COLORS = ['#a78bfa', '#34d399', '#60a5fa', '#fbbf24', '#f87171', '#38bdf8', '#fb923c'];
+type DatePreset = 'this_month' | 'today' | 'this_week' | 'custom';
 
 export default function ReportsPage() {
   const { user } = useAuth();
-  const allowedTabs = getAllowedReportTabs(user?.role);
-  const [data, setData] = useState<any>(null);
-  const [graphicAnalytics, setGraphicAnalytics] = useState<any>(null);
-  const [employeeReports, setEmployeeReports] = useState<any[]>([]);
-  const [brandReports, setBrandReports] = useState<any[]>([]);
-  const [clientReports, setClientReports] = useState<any[]>([]);
-  const [productReports, setProductReports] = useState<any[]>([]);
-  const [deptReports, setDeptReports] = useState<any[]>([]);
-  const [projectReports, setProjectReports] = useState<any[]>([]);
-  const [equipmentReports, setEquipmentReports] = useState<any[]>([]);
-  const [approvalReports, setApprovalReports] = useState<any>(null);
-  const [capacityReports, setCapacityReports] = useState<any>(null);
-  const [revisionReports, setRevisionReports] = useState<any>(null);
-  const [timelineReports, setTimelineReports] = useState<any>(null);
-  const [attendanceData, setAttendanceData] = useState<any>(null);
-  const [globalPeriod, setGlobalPeriod] = useState<'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'custom'>('this_month');
-  const [attendancePeriod, setAttendancePeriod] = useState('this_month');
-  const [attStartDateInput, setAttStartDateInput] = useState('');
-  const [attEndDateInput, setAttEndDateInput] = useState('');
-  // Local input state for smooth custom date editing (does not trigger instant filtering while editing)
-  const [startDateInput, setStartDateInput] = useState('');
-  const [endDateInput, setEndDateInput] = useState('');
-  // Actually applied custom dates for queries
-  const [appliedStartDate, setAppliedStartDate] = useState('');
-  const [appliedEndDate, setAppliedEndDate] = useState('');
+  const userRole = (user?.role || '') as string;
+  const isMarketingManager = userRole === 'MARKETING_MANAGER';
+  const isMediaManager = userRole === 'MEDIA_MANAGER' || userRole === 'ADMINISTRATOR' || userRole === 'ADMIN';
 
-  const handleApplyCustomDates = () => {
-    setAppliedStartDate(startDateInput);
-    setAppliedEndDate(endDateInput);
-  };
+  const allowedTabs = useMemo(() => getAllowedReportTabs(userRole), [userRole]);
+  const [activeTab, setActiveTab] = useState<ReportTab>('brand_reports');
 
-  const handlePeriodChange = (newPeriod: 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'custom') => {
-    setGlobalPeriod(newPeriod);
-    if (newPeriod !== 'custom') {
-      setAppliedStartDate('');
-      setAppliedEndDate('');
-    } else if (startDateInput && endDateInput) {
-      setAppliedStartDate(startDateInput);
-      setAppliedEndDate(endDateInput);
+  // Sync activeTab when allowedTabs changes or user logs in
+  useEffect(() => {
+    if (allowedTabs.length > 0 && !allowedTabs.includes(activeTab)) {
+      setActiveTab(allowedTabs[0]);
     }
-  };
-  const [clientId, setClientId] = useState('');
-  const [brandId, setBrandId] = useState('');
-  const [productId, setProductId] = useState('');
-  const [departmentId, setDepartmentId] = useState('');
-  const [employeeId, setEmployeeId] = useState('');
-  const [projectId, setProjectId] = useState('');
-  const [status, setStatus] = useState('');
+  }, [allowedTabs, activeTab]);
+
+  // ─── Filter States ──────────────────────────────────────────────────────────
+  const [datePreset, setDatePreset] = useState<DatePreset>('this_month');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  const [selectedClient, setSelectedClient] = useState('');
+  const [selectedBrand, setSelectedBrand] = useState('');
+  const [selectedProject, setSelectedProject] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Report-specific filters
+  const [selectedTaskType, setSelectedTaskType] = useState('ALL');
+  const [selectedAssignedBy, setSelectedAssignedBy] = useState('');
+  const [selectedAssignedTo, setSelectedAssignedTo] = useState('');
+  const [selectedShootType, setSelectedShootType] = useState('ALL');
+  const [shootLocation, setShootLocation] = useState('');
+  const [selectedStaffId, setSelectedStaffId] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [selectedRentalStatus, setSelectedRentalStatus] = useState('ALL');
+  const [rentalCustomer, setRentalCustomer] = useState('');
+  const [groupByBrand, setGroupByBrand] = useState(false);
+
+  // Staff Drill-down modal
+  const [selectedStaffDetail, setSelectedStaffDetail] = useState<any | null>(null);
+
+  // Master Dropdown Options
   const [clients, setClients] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [departments, setDepartments] = useState<any[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [projectsList, setProjectsList] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [equipmentCategories, setEquipmentCategories] = useState<string[]>([]);
 
+  // Report Data States
   const [loading, setLoading] = useState(true);
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
-  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<ReportTab | any>(allowedTabs[0] || 'timelines');
+  const [error, setError] = useState<string | null>(null);
+  const [reportData, setReportData] = useState<any>({ summary: {}, rows: [] });
 
-  
-  const handleExport = (format: 'csv' | 'xlsx' | 'pdf') => {
-    let exportData: any[] = [];
+  // ─── Load Dropdown Metadata ────────────────────────────────────────────────
+  useEffect(() => {
+    async function loadMetadata() {
+      try {
+        const [clientsRes, brandsRes, projectsRes, staffRes, eqRes] = await Promise.all([
+          fetchApi('/clients').catch(() => []),
+          fetchApi('/brands').catch(() => []),
+          fetchApi('/projects').catch(() => []),
+          fetchApi('/staff').catch(() => []),
+          fetchApi('/equipment').catch(() => []),
+        ]);
+
+        setClients(Array.isArray(clientsRes) ? clientsRes : []);
+        setBrands(Array.isArray(brandsRes) ? brandsRes : []);
+        setProjects(Array.isArray(projectsRes) ? projectsRes : []);
+        setUsersList(Array.isArray(staffRes) ? staffRes : []);
+
+        if (Array.isArray(eqRes)) {
+          const cats = Array.from(new Set(eqRes.map((e: any) => e.category).filter(Boolean))) as string[];
+          setEquipmentCategories(cats);
+        }
+      } catch (err) {
+        console.error('Error loading metadata:', err);
+      }
+    }
+    loadMetadata();
+  }, []);
+
+  // Filter brands based on selected client
+  const filteredBrands = useMemo(() => {
+    if (!selectedClient) return brands;
+    return brands.filter((b) => b.clientId === selectedClient);
+  }, [brands, selectedClient]);
+
+  // Filter projects based on selected client/brand
+  const filteredProjects = useMemo(() => {
+    return projects.filter((p) => {
+      if (selectedClient && p.clientId !== selectedClient) return false;
+      if (selectedBrand && p.brandId !== selectedBrand) return false;
+      return true;
+    });
+  }, [projects, selectedClient, selectedBrand]);
+
+  // ─── Fetch Active Report Data ──────────────────────────────────────────────
+  const fetchReport = useCallback(async () => {
+    if (!allowedTabs.includes(activeTab)) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const params = new URLSearchParams();
+
+      // Date filtering
+      if (datePreset !== 'custom') {
+        params.append('period', datePreset);
+      } else {
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+      }
+
+      if (selectedClient) params.append('clientId', selectedClient);
+      if (selectedBrand) params.append('brandId', selectedBrand);
+      if (selectedProject) params.append('projectId', selectedProject);
+      if (selectedStatus && selectedStatus !== 'ALL') params.append('status', selectedStatus);
+      if (searchQuery.trim()) params.append('search', searchQuery.trim());
+
+      let endpoint = '';
+      switch (activeTab) {
+        case 'brand_reports':
+          endpoint = '/reports/brand-reports';
+          break;
+        case 'task_assignments':
+          endpoint = '/reports/task-assignments';
+          if (selectedTaskType && selectedTaskType !== 'ALL') params.append('taskType', selectedTaskType);
+          if (selectedAssignedBy) params.append('assignedBy', selectedAssignedBy);
+          if (selectedAssignedTo) params.append('assignedTo', selectedAssignedTo);
+          break;
+        case 'shoot_reports':
+          endpoint = '/reports/shoot-reports';
+          if (selectedShootType && selectedShootType !== 'ALL') params.append('shootType', selectedShootType);
+          if (shootLocation.trim()) params.append('location', shootLocation.trim());
+          break;
+        case 'graphic_reports':
+          endpoint = '/reports/graphic-reports';
+          if (selectedStaffId) params.append('assignedStaffId', selectedStaffId);
+          break;
+        case 'staff_work':
+          endpoint = '/reports/staff-work-reports';
+          if (selectedStaffId) params.append('staffId', selectedStaffId);
+          if (selectedTaskType && selectedTaskType !== 'ALL') params.append('taskType', selectedTaskType);
+          break;
+        case 'equipment_rental':
+          endpoint = '/reports/equipment-rental-reports';
+          if (selectedCategory && selectedCategory !== 'ALL') params.append('category', selectedCategory);
+          if (selectedRentalStatus && selectedRentalStatus !== 'ALL') params.append('rentalStatus', selectedRentalStatus);
+          if (rentalCustomer.trim()) params.append('customer', rentalCustomer.trim());
+          break;
+        default:
+          endpoint = '/reports/brand-reports';
+      }
+
+      const queryString = params.toString();
+      const url = queryString ? `${endpoint}?${queryString}` : endpoint;
+      const res = await fetchApi(url);
+      setReportData(res || { summary: {}, rows: [] });
+    } catch (err: any) {
+      console.error('Failed to load report data:', err);
+      setError(err?.message || 'Failed to fetch report data. Please verify your permissions.');
+      setReportData({ summary: {}, rows: [] });
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    activeTab,
+    allowedTabs,
+    datePreset,
+    startDate,
+    endDate,
+    selectedClient,
+    selectedBrand,
+    selectedProject,
+    selectedStatus,
+    searchQuery,
+    selectedTaskType,
+    selectedAssignedBy,
+    selectedAssignedTo,
+    selectedShootType,
+    shootLocation,
+    selectedStaffId,
+    selectedCategory,
+    selectedRentalStatus,
+    rentalCustomer,
+  ]);
+
+  useEffect(() => {
+    fetchReport();
+  }, [fetchReport]);
+
+  // Reset filters helper
+  const handleResetFilters = () => {
+    setDatePreset('this_month');
+    setStartDate('');
+    setEndDate('');
+    setSelectedClient('');
+    setSelectedBrand('');
+    setSelectedProject('');
+    setSelectedStatus('ALL');
+    setSearchQuery('');
+    setSelectedTaskType('ALL');
+    setSelectedAssignedBy('');
+    setSelectedAssignedTo('');
+    setSelectedShootType('ALL');
+    setShootLocation('');
+    setSelectedStaffId('');
+    setSelectedCategory('ALL');
+    setSelectedRentalStatus('ALL');
+    setRentalCustomer('');
+  };
+
+  // ─── CSV Export Functionality ──────────────────────────────────────────────
+  const handleExportCSV = () => {
+    let exportRows: any[] = [];
     let columns: ExportColumn[] = [];
-    let filename = `MOMS_Report_${activeTab}_${globalPeriod}`;
-
-    const metadata = [
-      `Report: ${activeTab.toUpperCase()}`,
-      `Period: ${globalPeriod}${globalPeriod === 'custom' && (appliedStartDate || appliedEndDate) ? ` (${appliedStartDate || 'N/A'} to ${appliedEndDate || 'N/A'})` : ''}`,
-      `Generated: ${new Date().toLocaleString()}`
-    ];
-
-    if (clientId) metadata.push(`Client: ${clients.find(c => c.id === clientId)?.name || clientId}`);
-    if (brandId) metadata.push(`Brand: ${brands.find(b => b.id === brandId)?.name || brandId}`);
-    if (departmentId) metadata.push(`Department: ${departments.find(d => d.id === departmentId)?.name || departmentId}`);
+    const filename = `MOMS_${activeTab}_Report_${new Date().toISOString().split('T')[0]}`;
 
     switch (activeTab) {
-      case 'employee':
-        exportData = (employeeReports.length > 0 ? employeeReports : employees).map((emp: any) => ({
-          ...emp,
-          employeeName: emp.employeeName || emp.name || 'Staff Member',
-          designation: emp.designation || emp.role || 'Staff',
-          department: emp.department?.name || emp.department || 'Production',
-          attendance: emp.attendance || 'PRESENT',
-          assignedTasks: emp.assignedTasksCount ?? emp.assignedTasks ?? 0,
-          completedTasks: emp.completedTasksCount ?? emp.completedTasks ?? 0,
-          pendingTasks: emp.pendingTasksCount ?? emp.pendingTasks ?? 0,
-          dailyTarget: emp.dailyTarget || 10,
-          actualDailyOutput: emp.actualDailyOutput || 8,
-          achievementPercentage: emp.achievementPercentage || 80,
-          revisionCount: emp.revisionCount || 0,
-          completionRatePercentage: emp.completionRatePercentage || 100,
-          overallProductivityScore: emp.overallProductivityScore || 90,
-        }));
+      case 'brand_reports':
+        exportRows = reportData.rows || [];
         columns = [
-          { header: 'Employee Name', key: 'employeeName' },
-          { header: 'Designation', key: 'designation' },
-          { header: 'Department', key: 'department' },
-          { header: 'Attendance', key: 'attendance' },
-          { header: 'Assigned', key: 'assignedTasks' },
-          { header: 'Completed', key: 'completedTasks' },
-          { header: 'Pending', key: 'pendingTasks' },
-          { header: 'Target', key: 'dailyTarget' },
-          { header: 'Actual Output', key: 'actualDailyOutput' },
-          { header: 'Achievement %', key: 'achievementPercentage' },
-          { header: 'Revisions', key: 'revisionCount' },
-          { header: 'Completion %', key: 'completionRatePercentage' },
-          { header: 'Overall Score', key: 'overallProductivityScore' }
-        ];
-        break;
-
-      case 'attendance':
-        exportData = (attendanceData?.report || (data?.currentWorkload ? [data.currentWorkload] : employees)).map((emp: any) => ({
-          ...emp,
-          employeeName: emp.employeeName || emp.name || user?.name || 'Staff Member',
-          department: emp.department || 'Production',
-          presentDays: emp.presentDays ?? 22,
-          absentDays: emp.absentDays ?? 0,
-          halfDays: emp.halfDays ?? 0,
-          lateEntries: emp.lateEntries ?? 0,
-          totalTrackedDays: emp.totalTrackedDays ?? 22,
-          attendancePercentage: emp.attendancePercentage ?? 100,
-        }));
-        columns = [
-          { header: 'Employee Name', key: 'employeeName' },
-          { header: 'Department', key: 'department' },
-          { header: 'Present Days', key: 'presentDays' },
-          { header: 'Absent Days', key: 'absentDays' },
-          { header: 'Half Days', key: 'halfDays' },
-          { header: 'Late Entries', key: 'lateEntries' },
-          { header: 'Tracked Days', key: 'totalTrackedDays' },
-          { header: 'Attendance %', key: 'attendancePercentage' }
-        ];
-        break;
-
-      case 'projects':
-        exportData = (projectReports.length > 0 ? projectReports : projectsList).map((p: any) => ({
-          ...p,
-          projectName: p.projectName || p.name || 'Unknown Project',
-          projectCode: p.projectCode || p.projectId || p.shortCode || 'N/A',
-          clientName: p.clientName || p.client?.name || 'N/A',
-          brandName: p.brandName || p.brand?.name || 'N/A',
-          productName: p.productName || p.product?.name || 'N/A',
-          status: p.status || 'ACTIVE',
-        }));
-        columns = [
+          { header: 'Brand', key: 'brandName' },
+          { header: 'Client', key: 'clientName' },
+          { header: 'Project Code', key: 'projectCode' },
           { header: 'Project Name', key: 'projectName' },
-          { header: 'Code', key: 'projectCode' },
+          { header: 'Task Code', key: 'taskCode' },
+          { header: 'Task Name', key: 'taskName' },
+          { header: 'Task Type', key: 'taskType' },
+          { header: 'Assigned To', key: 'assignedTo' },
+          { header: 'Assigned By', key: 'assignedBy' },
           { header: 'Status', key: 'status' },
+          { header: 'Due Date', key: 'dueDate' },
+        ];
+        break;
+
+      case 'task_assignments':
+        exportRows = reportData.rows || [];
+        columns = [
+          { header: 'Task ID', key: 'taskCode' },
+          { header: 'Task Name', key: 'taskName' },
           { header: 'Client', key: 'clientName' },
           { header: 'Brand', key: 'brandName' },
-          { header: 'Product', key: 'productName' },
-        ];
-        break;
-
-      case 'departments':
-        exportData = deptReports.map((d: any) => ({
-          ...d,
-          department: d.departmentName || d.name || 'Unknown',
-          headcount: d.totalEmployees ?? d.headcount ?? 0,
-          avgProductivityPercentage: d.avgProductivityPercentage ?? 0,
-          avgAttendancePercentage: d.avgAttendancePercentage ?? 0,
-          avgCapacityUtilizationPercentage: d.avgCapacityUtilizationPercentage ?? 0,
-        }));
-        columns = [
-          { header: 'Department', key: 'department' },
-          { header: 'Headcount', key: 'headcount' },
-          { header: 'Avg Productivity %', key: 'avgProductivityPercentage' },
-          { header: 'Avg Attendance %', key: 'avgAttendancePercentage' },
-          { header: 'Avg Capacity Utilization %', key: 'avgCapacityUtilizationPercentage' }
-        ];
-        break;
-
-      case 'clients':
-        exportData = (clientReports.length > 0 ? clientReports : clients).map((c: any) => ({
-          ...c,
-          name: c.name || c.clientName || 'Unknown Client',
-          shortCode: c.shortCode || 'N/A',
-          projectCount: c.projectCount ?? 0,
-          completedCount: c.completedCount ?? 0,
-        }));
-        columns = [
-          { header: 'Client Name', key: 'name' },
-          { header: 'Code', key: 'shortCode' },
-          { header: 'Total Projects', key: 'projectCount' },
-          { header: 'Completed Projects', key: 'completedCount' },
-        ];
-        break;
-
-      case 'brands':
-        exportData = (brandReports.length > 0 ? brandReports : brands).map((b: any) => ({
-          ...b,
-          name: b.name || b.brandName || 'Unknown Brand',
-          clientName: b.clientName || b.client?.name || 'N/A',
-          shortCode: b.shortCode || 'N/A',
-          projectCount: b.projectCount ?? 0,
-        }));
-        columns = [
-          { header: 'Brand Name', key: 'name' },
-          { header: 'Client', key: 'clientName' },
-          { header: 'Code', key: 'shortCode' },
-          { header: 'Total Projects', key: 'projectCount' },
-        ];
-        break;
-
-      case 'graphics':
-        exportData = (graphicAnalytics?.employeeProductivity || []).map((g: any) => ({
-          ...g,
-          name: g.name || g.employeeName || 'Unknown',
-          role: g.role || 'N/A',
-          assignedCount: g.assignedCount ?? 0,
-          inProgressCount: g.inProgressCount ?? 0,
-          completedCount: g.completedCount ?? 0,
-          revisionCount: g.revisionCount ?? 0,
-        }));
-        columns = [
-          { header: 'Name', key: 'name' },
-          { header: 'Role', key: 'role' },
-          { header: 'Assigned', key: 'assignedCount' },
-          { header: 'In Progress', key: 'inProgressCount' },
-          { header: 'Completed', key: 'completedCount' },
-          { header: 'Revisions', key: 'revisionCount' }
-        ];
-        break;
-
-      case 'timelines':
-        exportData = (timelineReports?.projectHistory || []).map((p: any) => ({
-          projectName: p.projectName || p.name || 'Unknown',
-          projectCode: p.projectCode || p.projectId || 'N/A',
-          status: p.status || 'N/A',
-          clientName: p.clientName || 'N/A',
-          brandName: p.brandName || 'N/A',
-          creatorName: p.creatorName || 'N/A',
-          createdAt: p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'N/A',
-        }));
-        columns = [
-          { header: 'Project Name', key: 'projectName' },
-          { header: 'Code', key: 'projectCode' },
+          { header: 'Project', key: 'projectName' },
+          { header: 'Task Type', key: 'taskType' },
+          { header: 'Assigned By', key: 'assignedBy' },
+          { header: 'Assigned To', key: 'assignedTo' },
+          { header: 'Assigned Date', key: 'assignedDate' },
+          { header: 'Due Date', key: 'dueDate' },
           { header: 'Status', key: 'status' },
-          { header: 'Client', key: 'clientName' },
-          { header: 'Brand', key: 'brandName' },
-          { header: 'Creator', key: 'creatorName' },
-          { header: 'Created Date', key: 'createdAt' },
         ];
         break;
 
-      case 'revisions':
-        exportData = (revisionReports?.topRevised || graphicAnalytics?.revisionReports?.topRevised || []).map((r: any) => ({
-          id: r.id || 'N/A',
-          name: r.name || 'Unknown Item',
-          revisions: r.revisions ?? 1,
-        }));
+      case 'shoot_reports':
+        exportRows = reportData.rows || [];
         columns = [
-          { header: 'Requirement / Item ID', key: 'id' },
-          { header: 'Item Name', key: 'name' },
-          { header: 'Revision Count', key: 'revisions' },
-        ];
-        break;
-
-      case 'capacity':
-        const capObj = capacityReports || graphicAnalytics?.capacityReports || {};
-        exportData = [
-          { metric: 'Total Requirements', count: capObj.totalRequirements || 0 },
-          { metric: 'Draft', count: capObj.draftCount || 0 },
-          { metric: 'Ready', count: capObj.readyCount || 0 },
-          { metric: 'Assigned', count: capObj.assignedCount || 0 },
-          { metric: 'In Progress', count: capObj.inProgressCount || 0 },
-          { metric: 'Waiting Technical Review', count: capObj.waitingTechnicalReview || 0 },
-          { metric: 'Waiting Media Review', count: capObj.waitingMediaReview || 0 },
-          { metric: 'Waiting Client Confirmation', count: capObj.waitingClientConfirmation || 0 },
-          { metric: 'Revision Requested', count: capObj.revisionRequested || 0 },
-          { metric: 'Completed', count: capObj.completedCount || 0 },
-        ];
-        columns = [
-          { header: 'Capacity Metric', key: 'metric' },
-          { header: 'Count', key: 'count' },
-        ];
-        break;
-
-      case 'approvals':
-        const appObj = approvalReports || graphicAnalytics?.approvalReports || {};
-        exportData = [
-          { stage: 'Production Completed', total: appObj.productionCompleted || 0 },
-          { stage: 'Technical Approved', total: appObj.technicalApproved || 0 },
-          { stage: 'Media Manager Approved', total: appObj.mediaManagerApproved || 0 },
-          { stage: 'Client Confirmed', total: appObj.clientConfirmed || 0 },
-          { stage: 'Fully Approved', total: appObj.fullyApproved || 0 },
-        ];
-        columns = [
-          { header: 'Approval Stage', key: 'stage' },
-          { header: 'Total Count', key: 'total' },
-        ];
-        break;
-
-      case 'equipment':
-      case 'my_equipment':
-        exportData = (equipmentReports.length > 0 ? equipmentReports : data?.assignedEquipment || data?.equipment || []).map((e: any) => ({
-          name: e.name || 'Equipment Asset',
-          equipmentId: e.equipmentId || e.serialNumber || 'N/A',
-          category: e.category || 'Gear',
-          status: e.status || 'AVAILABLE',
-          condition: e.condition || 'GOOD',
-        }));
-        columns = [
-          { header: 'Equipment Name', key: 'name' },
-          { header: 'Equipment ID / Serial', key: 'equipmentId' },
-          { header: 'Category', key: 'category' },
-          { header: 'Status', key: 'status' },
-          { header: 'Condition', key: 'condition' },
-        ];
-        break;
-
-      case 'products':
-        exportData = (productReports.length > 0 ? productReports : products).map((p: any) => ({
-          name: p.name || p.productName || 'Unknown Product',
-          code: p.productCode || p.shortCode || 'N/A',
-          clientName: p.clientName || p.client?.name || 'N/A',
-          brandName: p.brandName || p.brand?.name || 'N/A',
-          projectCount: p.projectCount ?? 0,
-        }));
-        columns = [
-          { header: 'Product Name', key: 'name' },
-          { header: 'Code', key: 'code' },
-          { header: 'Client', key: 'clientName' },
-          { header: 'Brand', key: 'brandName' },
-          { header: 'Total Projects', key: 'projectCount' },
-        ];
-        break;
-
-      case 'my_tasks':
-        exportData = [...(data?.todaysTasks || []), ...(data?.pendingTasks || [])].map((t: any) => ({
-          taskId: t.taskId || t.id || 'N/A',
-          title: t.title || 'Task Item',
-          priority: t.priority || 'MEDIUM',
-          status: t.status || 'IN_PROGRESS',
-          completionPercentage: `${t.completionPercentage ?? 0}%`,
-          deadline: t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'N/A',
-        }));
-        columns = [
-          { header: 'Task ID', key: 'taskId' },
-          { header: 'Title', key: 'title' },
-          { header: 'Priority', key: 'priority' },
-          { header: 'Status', key: 'status' },
-          { header: 'Completion %', key: 'completionPercentage' },
-          { header: 'Deadline', key: 'deadline' },
-        ];
-        break;
-
-      case 'my_projects':
-        exportData = (data?.currentProjects || projectsList || []).map((p: any) => ({
-          name: p.name || p.projectName || 'Assigned Project',
-          code: p.projectId || p.shortCode || 'N/A',
-          status: p.status || 'ACTIVE',
-          progress: `${p.progressPercentage ?? 0}%`,
-        }));
-        columns = [
+          { header: 'Shoot Project ID', key: 'projectCode' },
           { header: 'Project Name', key: 'name' },
-          { header: 'Project ID', key: 'code' },
+          { header: 'Brand', key: 'brandName' },
+          { header: 'Client', key: 'clientName' },
+          { header: 'Shoot Type', key: 'shootType' },
+          { header: 'Shoot Date', key: 'shootDate' },
+          { header: 'Location', key: 'location' },
           { header: 'Status', key: 'status' },
-          { header: 'Progress %', key: 'progress' },
+          { header: 'Assigned Team', key: 'assignedTeam' },
         ];
         break;
 
-      case 'my_deliverables':
-        exportData = [
-          ...(data?.assignedGraphicRequirements || []).map((g: any) => ({ title: g.name, code: g.requirementId, type: 'Graphic Requirement', status: g.status })),
-        ];
+      case 'graphic_reports':
+        exportRows = reportData.rows || [];
         columns = [
-          { header: 'Deliverable Title', key: 'title' },
-          { header: 'Code', key: 'code' },
-          { header: 'Type', key: 'type' },
+          { header: 'Graphic ID', key: 'graphicCode' },
+          { header: 'Graphic Name', key: 'name' },
+          { header: 'Brand', key: 'brandName' },
+          { header: 'Client', key: 'clientName' },
+          { header: 'Project', key: 'projectName' },
+          { header: 'Assigned To', key: 'assignedTo' },
+          { header: 'Created Date', key: 'createdAt' },
+          { header: 'Deadline', key: 'deadline' },
           { header: 'Status', key: 'status' },
         ];
         break;
 
-      case 'my_attendance':
-        const wl = data?.currentWorkload;
-        exportData = [
-          {
-            workloadStatus: wl?.workloadStatus || 'Normal',
-            dailyCapacity: `${wl?.dailyCapacityHours || 8} hrs`,
-            rawHours: `${wl?.rawWorkloadHours || 0} hrs`,
-            weightedHours: `${wl?.weightedWorkloadHours || 0} hrs`,
-            capacityUtilization: `${wl?.workloadPercentage || 0}%`,
-            remainingCapacity: `${wl?.remainingCapacityHours || 0} hrs`,
-          }
-        ];
+      case 'staff_work':
+        exportRows = reportData.staffSummaries || [];
         columns = [
-          { header: 'Workload Status', key: 'workloadStatus' },
-          { header: 'Daily Capacity', key: 'dailyCapacity' },
-          { header: 'Raw Workload Hours', key: 'rawHours' },
-          { header: 'Weighted Workload', key: 'weightedHours' },
-          { header: 'Capacity Utilization', key: 'capacityUtilization' },
-          { header: 'Remaining Capacity', key: 'remainingCapacity' },
+          { header: 'Staff Name', key: 'staffName' },
+          { header: 'Email', key: 'email' },
+          { header: 'Role', key: 'role' },
+          { header: 'Assigned Tasks', key: 'assigned' },
+          { header: 'Completed', key: 'completed' },
+          { header: 'In Progress', key: 'inProgress' },
+          { header: 'Pending', key: 'pending' },
+          { header: 'Overdue', key: 'overdue' },
         ];
         break;
 
-      default:
-        exportData = (employees.length > 0 ? employees : [{ name: user?.name || 'Staff User', status: 'ACTIVE' }]);
+      case 'equipment_rental':
+        exportRows = reportData.rows || [];
         columns = [
-          { header: 'Name / Item', key: 'name' },
+          { header: 'Asset Code', key: 'assetCode' },
+          { header: 'Equipment Name', key: 'equipmentName' },
+          { header: 'Category', key: 'category' },
+          { header: 'Brand', key: 'brandName' },
+          { header: 'Rental Customer', key: 'rentalCustomer' },
+          { header: 'Rental Start Date', key: 'rentalStartDate' },
+          { header: 'Expected Return', key: 'rentalExpectedReturnDate' },
+          { header: 'Actual Return', key: 'actualReturnDate' },
+          { header: 'Condition', key: 'returnCondition' },
+          { header: 'Damage Notes', key: 'damageNotes' },
+          { header: 'Rented By', key: 'rentedBy' },
+          { header: 'Returned By', key: 'returnedBy' },
           { header: 'Status', key: 'status' },
         ];
         break;
     }
 
-    if (exportData.length === 0) {
-      alert('No data available to export for the current filters.');
+    if (exportRows.length === 0) {
+      alert('No data to export for the selected filters.');
       return;
     }
 
-    if (format === 'csv') exportToCSV({ data: exportData, columns, filename, metadata });
-    if (format === 'xlsx') exportToExcel({ data: exportData, columns, filename, metadata });
-    if (format === 'pdf') exportToPDF({ data: exportData, columns, filename, metadata });
+    exportToCSV({
+      data: exportRows,
+      columns,
+      filename,
+      metadata: [
+        `Report: ${activeTab.toUpperCase()}`,
+        `Generated By: ${user?.name || 'User'} (${userRole})`,
+        `Date Range: ${datePreset}`,
+      ],
+    });
   };
 
-  const fetchAttendance = async (period: string, sDate?: string, eDate?: string) => {
+  // ─── Format Helpers ────────────────────────────────────────────────────────
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '—';
     try {
-      let url = `/reports/attendance-analytics?period=${period}`;
-      if (period === 'custom' && sDate) {
-        url += `&startDate=${sDate}`;
-        if (eDate) url += `&endDate=${eDate}`;
-      }
-      const res = await fetchApi(url);
-      setAttendanceData(res);
-    } catch (err) {
-      console.error('Error fetching attendance analytics:', err);
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+      return dateStr;
     }
   };
 
-  useEffect(() => {
-    async function loadRefs() {
-      try {
-        const [c, b, p, d, e, pr] = await Promise.all([
-          fetchApi('/clients').catch(() => []),
-          fetchApi('/brands').catch(() => []),
-          fetchApi('/products').catch(() => []),
-          fetchApi('/users/departments').catch(() => []),
-          fetchApi('/users').catch(() => []),
-          fetchApi('/projects').catch(() => []),
-        ]);
-        setClients(c);
-        setBrands(b);
-        setProducts(p);
-        setDepartments(d);
-        setEmployees(e);
-        setProjectsList(pr);
-      } catch (err) {
-        console.error('Failed to load refs', err);
-      }
+  const getStatusBadge = (status: string) => {
+    const s = (status || '').toUpperCase();
+    if (s.includes('COMPLETED') || s.includes('APPROVED') || s === 'AVAILABLE' || s === 'CLOSED') {
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
     }
-    loadRefs();
-  }, []);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        let query = `?period=${globalPeriod}${globalPeriod === 'custom' && appliedStartDate ? `&startDate=${appliedStartDate}` : ''}${globalPeriod === 'custom' && appliedEndDate ? `&endDate=${appliedEndDate}` : ''}`;
-        if (clientId) query += `&clientId=${clientId}`;
-        if (brandId) query += `&brandId=${brandId}`;
-        if (productId) query += `&productId=${productId}`;
-        if (departmentId) query += `&departmentId=${departmentId}`;
-        if (employeeId) query += `&employeeId=${employeeId}`;
-        if (projectId) query += `&projectId=${projectId}`;
-        if (status) query += `&status=${status}`;
-        if (searchQuery) query += `&search=${encodeURIComponent(searchQuery)}`;
-
-        const userRole = user?.role;
-
-        if (userRole === 'STAFF') {
-          const resPersonal = await fetchApi(`/reports/my-dashboard${query}`).catch(() => null);
-          setData(resPersonal);
-        } else if (userRole === 'TECHNICAL_MANAGER') {
-          const [resEq, resApp, resCap, resRev, resTechDash] = await Promise.all([
-            fetchApi(`/reports/equipment${query}`).catch(() => []),
-            fetchApi(`/reports/approvals${query}`).catch(() => null),
-            fetchApi(`/reports/capacity${query}`).catch(() => null),
-            fetchApi(`/reports/revisions${query}`).catch(() => null),
-            fetchApi(`/reports/technical-dashboard`).catch(() => null),
-          ]);
-          setEquipmentReports(Array.isArray(resEq) ? resEq : []);
-          setApprovalReports(resApp);
-          setCapacityReports(resCap);
-          setRevisionReports(resRev);
-          setData(resTechDash);
-        } else {
-          const [resProd, resGraphic, resEmp, resBrand, resClient, resProduct, resDept, resProjects, resAtt, resEq, resApp, resCap, resRev, resTime] = await Promise.all([
-            fetchApi(`/reports/production${query}`).catch(() => null),
-            fetchApi(`/reports/graphic-analytics${query}`).catch(() => null),
-            fetchApi(`/reports/productivity${query}`).catch(() => []),
-            fetchApi(`/reports/brands${query}`).catch(() => []),
-            fetchApi(`/reports/clients${query}`).catch(() => []),
-            fetchApi(`/reports/products${query}`).catch(() => []),
-            fetchApi(`/reports/departments${query}`).catch(() => []),
-            fetchApi(`/reports/projects${query}`).catch(() => []),
-            fetchApi(`/reports/attendance-analytics${query}`).catch(() => null),
-            fetchApi(`/reports/equipment${query}`).catch(() => []),
-            fetchApi(`/reports/approvals${query}`).catch(() => null),
-            fetchApi(`/reports/capacity${query}`).catch(() => null),
-            fetchApi(`/reports/revisions${query}`).catch(() => null),
-            fetchApi(`/reports/timelines${query}`).catch(() => null),
-          ]);
-          setData(resProd);
-          setGraphicAnalytics(resGraphic);
-          setEmployeeReports(Array.isArray(resEmp) ? resEmp : []);
-          setBrandReports(Array.isArray(resBrand) ? resBrand : []);
-          setClientReports(Array.isArray(resClient) ? resClient : []);
-          setProductReports(Array.isArray(resProduct) ? resProduct : []);
-          setDeptReports(Array.isArray(resDept) ? resDept : []);
-          setProjectReports(Array.isArray(resProjects) ? resProjects : []);
-          setAttendanceData(resAtt);
-          setEquipmentReports(Array.isArray(resEq) ? resEq : []);
-          setApprovalReports(resApp);
-          setCapacityReports(resCap);
-          setRevisionReports(resRev);
-          setTimelineReports(resTime);
-        }
-
-        recordRecentAccess({
-          entityType: 'REPORT',
-          entityId: 'operational-reports',
-          title: 'Operational Analytics & Reports',
-          code: 'RPT-ANALYTICS',
-          url: '/reports',
-        });
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+    if (s.includes('PROGRESS') || s === 'RENTED_OUT' || s === 'INDOOR') {
+      return 'bg-blue-50 text-blue-700 border-blue-200';
     }
-    load();
-  }, [globalPeriod, appliedStartDate, appliedEndDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, searchQuery, user?.role]);
-
-  const isMediaManager = user?.role === 'MEDIA_MANAGER' || (user?.role as string) === 'ADMIN';
-  const isTechnicalManager = user?.role === 'TECHNICAL_MANAGER';
-  const isStaff = user?.role === 'STAFF';
-
-  const isReportTabAllowed = (tabId: string) => {
-    return isReportTabAllowedUtil(tabId, user?.role);
+    if (s.includes('REVISION') || s.includes('HOLD') || s === 'OUTDOOR') {
+      return 'bg-amber-50 text-amber-700 border-amber-200';
+    }
+    if (s.includes('DAMAGED') || s.includes('MAINTENANCE') || s.includes('REJECTED') || s.includes('OVERDUE')) {
+      return 'bg-rose-50 text-rose-700 border-rose-200';
+    }
+    return 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
-  useEffect(() => {
-    if (user?.role) {
-      const allowed = getAllowedReportTabs(user.role);
-      if (!allowed.includes(activeTab as any)) {
-        setActiveTab(allowed[0] || 'timelines');
-      }
-    }
-  }, [user?.role]);
-
-  if (user?.role && !isReportTabAllowed(activeTab)) {
+  // Guard: If role not allowed, render clean unauthorized message
+  if (!isMarketingManager && !isMediaManager) {
     return (
-      <div className="space-y-6 text-xs p-6">
-        <div className="bg-white border border-rose-200 p-8 rounded-xl text-center space-y-4 max-w-lg mx-auto shadow-2xl">
-          <div className="w-16 h-16 bg-rose-50 border border-rose-200 text-rose-600 rounded-full flex items-center justify-center mx-auto">
-            <ShieldCheck className="w-8 h-8" />
+      <div className="p-8 max-w-4xl mx-auto">
+        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center shadow-sm">
+          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center mx-auto mb-4 border border-amber-200">
+            <ShieldAlert className="w-6 h-6" />
           </div>
-          <h2 className="text-lg font-bold text-slate-900">403 — Report Access Restricted</h2>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Your current role (<strong className="text-rose-700">{user?.role}</strong>) does not have permission to view the requested report tab (<strong>{activeTab}</strong>). Access is strictly enforced under the MOMS Role-Based Access Control policy.
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Access Restricted</h2>
+          <p className="text-sm text-slate-600 mb-6">
+            The Reports module is strictly reserved for Marketing Managers and Media Managers.
           </p>
-          <button
-            onClick={() => setActiveTab(getAllowedReportTabs(user?.role)[0])}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-slate-900 font-bold rounded-lg text-xs transition-colors"
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition"
           >
-            Return to Allowed Reports
-          </button>
+            Return to Dashboard
+          </Link>
         </div>
       </div>
     );
   }
 
-  if (loading && !data) return <div className="p-8 text-center text-slate-500 font-mono">Loading Operational Reports...</div>;
-
-  const gr = graphicAnalytics;
-  const app = approvalReports;
-  const cap = capacityReports;
-  const rev = revisionReports;
-  const time = timelineReports;
-  const typeChartData = (gr?.typeReports || []).map((t: any, i: number) => ({
-    name: t.type,
-    total: t.totalReqs,
-    completed: t.completedCount,
-    fill: BRAND_COLORS[i % BRAND_COLORS.length],
-  }));
-
   return (
-    <div className="space-y-6 text-xs">
-      {/* Compact Controls Bar */}
-      <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2">
-        {/* Period */}
-        <select
-          className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-800 text-xs focus:border-indigo-500 focus:outline-none"
-          value={globalPeriod}
-          onChange={(e) => handlePeriodChange(e.target.value as any)}
-        >
-          <option value="today">Today</option>
-          <option value="yesterday">Yesterday</option>
-          <option value="this_week">This Week</option>
-          <option value="last_week">Last Week</option>
-          <option value="this_month">This Month</option>
-          <option value="last_month">Last Month</option>
-          <option value="custom">Custom Range</option>
-        </select>
-        {globalPeriod === 'custom' && (
-          <div className="flex items-center gap-1.5 bg-slate-50/90 border border-slate-200 px-2 py-1 rounded-lg">
-            <input
-              type="date"
-              value={startDateInput}
-              onChange={e => setStartDateInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleApplyCustomDates(); }}
-              className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-800 text-xs focus:border-indigo-500 focus:outline-none"
-              title="Start Date"
-            />
-            <span className="text-slate-400 text-xs">&rarr;</span>
-            <input
-              type="date"
-              value={endDateInput}
-              onChange={e => setEndDateInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleApplyCustomDates(); }}
-              className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-800 text-xs focus:border-indigo-500 focus:outline-none"
-              title="End Date"
-            />
-            <button
-              type="button"
-              onClick={handleApplyCustomDates}
-              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-slate-900 font-bold rounded text-xs transition-all shadow-sm flex items-center gap-1"
-            >
-              Apply
-            </button>
-            {(startDateInput || endDateInput || appliedStartDate || appliedEndDate) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setStartDateInput('');
-                  setEndDateInput('');
-                  setAppliedStartDate('');
-                  setAppliedEndDate('');
-                }}
-                className="px-1.5 py-1 text-slate-500 hover:text-slate-900 text-xs"
-                title="Clear dates"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        )}
-
-        <div className="w-px h-5 bg-slate-200 mx-1" />
-
-        {/* Filters Dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setFilterMenuOpen(o => !o)}
-            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 border rounded-lg font-medium transition-colors ${
-              (clientId || brandId || departmentId || employeeId || status || searchQuery)
-                ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
-            }`}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 010 2H4a1 1 0 01-1-1zM6 10h12M9 16h6" /></svg>
-            Filters
-            {(clientId || brandId || departmentId || employeeId || status) && (
-              <span className="ml-0.5 bg-indigo-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
-                {[clientId, brandId, departmentId, employeeId, status].filter(Boolean).length}
-              </span>
-            )}
-            <span className="text-slate-500 ml-0.5">▾</span>
-          </button>
-          {filterMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setFilterMenuOpen(false)} />
-              <div className="absolute left-0 top-full mt-1.5 z-20 bg-slate-50 border border-slate-200 rounded-xl shadow-xl p-4 min-w-[280px] space-y-3">
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Filter Reports</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <select className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 text-xs" value={clientId} onChange={e => setClientId(e.target.value)}>
-                    <option value="">All Clients</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  <select className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 text-xs" value={brandId} onChange={e => setBrandId(e.target.value)}>
-                    <option value="">All Brands</option>
-                    {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                  <select className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 text-xs" value={departmentId} onChange={e => setDepartmentId(e.target.value)}>
-                    <option value="">All Depts</option>
-                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                  <select className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 text-xs" value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
-                    <option value="">All Employees</option>
-                    {employees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                  </select>
-                  <select className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 text-xs col-span-2" value={status} onChange={e => setStatus(e.target.value)}>
-                    <option value="">All Statuses</option>
-                    <option value="ACTIVE">Active</option>
-                    <option value="COMPLETED">Completed</option>
-                    <option value="CANCELLED">Cancelled</option>
-                  </select>
-                </div>
-                {(clientId || brandId || departmentId || employeeId || status || appliedStartDate || appliedEndDate) && (
-                  <button
-                    onClick={() => {
-                      setClientId('');
-                      setBrandId('');
-                      setProductId('');
-                      setProjectId('');
-                      setDepartmentId('');
-                      setEmployeeId('');
-                      setStatus('');
-                      setSearchQuery('');
-                      setStartDateInput('');
-                      setEndDateInput('');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                    }}
-                    className="w-full text-xs text-rose-600 hover:text-rose-700 py-1 border border-rose-200 rounded-lg hover:bg-rose-50 transition-colors"
-                  >Clear All Filters</button>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Search Bar - always visible */}
-        <div className="relative flex items-center">
-          <svg className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" /></svg>
-          <input
-            type="text"
-            placeholder="Search reports..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-slate-700 placeholder-slate-400 text-xs w-44 focus:outline-none focus:border-gray-500"
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="absolute right-2 text-slate-400 hover:text-slate-700 text-xs">Clear</button>
-          )}
-        </div>
-
-        <div className="flex-1" />
-
-        {/* Export Dropdown */}
-        <div className="relative border-l border-slate-200 pl-3">
-          <button
-            onClick={() => setExportMenuOpen(o => !o)}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg text-slate-800 font-medium transition-colors"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export
-            <span className="text-slate-500 ml-0.5">▾</span>
-          </button>
-          {exportMenuOpen && (
-            <>
-              {/* Backdrop */}
-              <div className="fixed inset-0 z-10" onClick={() => setExportMenuOpen(false)} />
-              {/* Menu */}
-              <div className="absolute right-0 top-full mt-1.5 z-20 bg-slate-50 border border-slate-200 rounded-xl shadow-xl min-w-[140px] overflow-hidden">
-                <button
-                  onClick={() => { handleExport('csv'); setExportMenuOpen(false); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-                >
-                  CSV
-                </button>
-                <button
-                  onClick={() => { handleExport('xlsx'); setExportMenuOpen(false); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-emerald-600 hover:bg-slate-100 hover:text-emerald-700 transition-colors"
-                >
-                  Excel
-                </button>
-                <button
-                  onClick={() => { handleExport('pdf'); setExportMenuOpen(false); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-rose-600 hover:bg-slate-100 hover:text-rose-700 transition-colors"
-                >
-                   PDF
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Header */}
-      <div className="bg-white border border-slate-200 p-6 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* ─── Page Header & Report Switcher ────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <FavoriteButton
-              entityType="REPORT"
-              entityId="operational-reports"
-              title="MOMS Role-Based Reports"
-              code="RPT-ANALYTICS"
-              url="/reports"
-              size="md"
-            />
-            <BarChart3 className="w-5 h-5 text-blue-600" />
-            {isMediaManager && 'Organization-Wide Operational & Performance Reports'}
-            {isTechnicalManager && 'Technical Quality & Equipment Reports'}
-            {isStaff && 'My Personal Work Reports & Performance'}
-          </h1>
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-blue-50 text-blue-700 rounded-lg border border-blue-200">
+              <FileBarChart className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Reports</h1>
+              <p className="text-xs text-slate-500">
+                Role-based operational reports and factual activity summaries
+              </p>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-3 flex-wrap">
-          <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-center">
-            <div className="text-[10px] text-slate-400 uppercase font-bold">Projects Logged</div>
-            <div className="text-lg font-mono font-bold text-blue-600">{time?.totalProjectsLogged || 0}</div>
-          </div>
-          <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-center">
-            <div className="text-[10px] text-slate-400 uppercase font-bold">Status Changes</div>
-            <div className="text-lg font-mono font-bold text-purple-600">{time?.totalStatusChangesLogged || 0}</div>
-          </div>
-          <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-center">
-            <div className="text-[10px] text-slate-400 uppercase font-bold">Approvals Logged</div>
-            <div className="text-lg font-mono font-bold text-amber-600">{time?.totalApprovalsLogged || 0}</div>
-          </div>
-          <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-center">
-            <div className="text-[10px] text-slate-400 uppercase font-bold">Activities Logged</div>
-            <div className="text-lg font-mono font-bold text-emerald-600">{time?.totalActivitiesLogged || 0}</div>
-          </div>
+
+        {/* Report Selector Tabs */}
+        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          {allowedTabs.includes('brand_reports') && (
+            <button
+              onClick={() => setActiveTab('brand_reports')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'brand_reports'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <BookmarkCheck className="w-4 h-4" />
+              Brand Reports
+            </button>
+          )}
+
+          {allowedTabs.includes('task_assignments') && (
+            <button
+              onClick={() => setActiveTab('task_assignments')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'task_assignments'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              Task Assignment
+            </button>
+          )}
+
+          {allowedTabs.includes('shoot_reports') && (
+            <button
+              onClick={() => setActiveTab('shoot_reports')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'shoot_reports'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Camera className="w-4 h-4" />
+              Shoot Reports
+            </button>
+          )}
+
+          {allowedTabs.includes('graphic_reports') && (
+            <button
+              onClick={() => setActiveTab('graphic_reports')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'graphic_reports'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Palette className="w-4 h-4" />
+              Graphic Reports
+            </button>
+          )}
+
+          {allowedTabs.includes('staff_work') && (
+            <button
+              onClick={() => setActiveTab('staff_work')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'staff_work'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Staff Work
+            </button>
+          )}
+
+          {allowedTabs.includes('equipment_rental') && (
+            <button
+              onClick={() => setActiveTab('equipment_rental')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'equipment_rental'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Film className="w-4 h-4" />
+              Equipment Rental
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Report Selector */}
-      <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-1 gap-y-2">
-        {/* Group: Operations */}
-        <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Operations</span>
-        {([
-          { id: 'timelines', label: 'Timelines', color: 'blue' },
-          { id: 'revisions', label: 'Revisions', color: 'rose' },
-          { id: 'capacity', label: 'Capacity', color: 'indigo' },
-          { id: 'approvals', label: 'Approvals', color: 'amber' },
-          { id: 'attendance', label: 'Attendance', color: 'emerald' },
-          { id: 'equipment', label: 'Equipment', color: 'cyan' },
-        ] as const).filter(t => isReportTabAllowed(t.id)).map(t => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-              activeTab === t.id
-                ? `bg-${t.color}-600/20 text-${t.color}-300 border border-${t.color}-600/50`
-                : 'text-slate-400 hover:text-slate-700 border border-transparent'
-            }`}
-          >{t.label}</button>
-        ))}
-
-        {/* Group: Business (Only if allowed tabs exist for role) */}
-        {([
-          { id: 'projects', label: 'Projects', color: 'blue' },
-          { id: 'departments', label: 'Departments', color: 'indigo' },
-          { id: 'clients', label: 'Clients', color: 'emerald' },
-          { id: 'brands', label: 'Brands', color: 'cyan' },
-          { id: 'products', label: 'Products', color: 'rose' },
-        ] as const).filter(t => isReportTabAllowed(t.id)).length > 0 && (
-          <>
-            <div className="w-px h-4 bg-slate-200 mx-2" />
-            <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Business</span>
-            {([
-              { id: 'projects', label: 'Projects', color: 'blue' },
-              { id: 'departments', label: 'Departments', color: 'indigo' },
-              { id: 'clients', label: 'Clients', color: 'emerald' },
-              { id: 'brands', label: 'Brands', color: 'cyan' },
-              { id: 'products', label: 'Products', color: 'rose' },
-            ] as const).filter(t => isReportTabAllowed(t.id)).map(t => (
+      {/* ─── Common Simple Filter Bar ────────────────────────────────────────── */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+        {/* Date presets + Quick Action bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-semibold text-slate-500 mr-1 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5" /> Date:
+            </span>
+            {(['this_month', 'today', 'this_week', 'custom'] as DatePreset[]).map((preset) => (
               <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                  activeTab === t.id
-                    ? `bg-${t.color}-600/20 text-${t.color}-300 border border-${t.color}-600/50`
-                    : 'text-slate-400 hover:text-slate-700 border border-transparent'
-                }`}
-              >{t.label}</button>
-            ))}
-          </>
-        )}
-
-        {/* Group: Performance */}
-        {([
-          { id: 'employee', label: 'Employees', color: 'purple' },
-          { id: 'graphics', label: 'Graphics', color: 'amber' },
-        ] as const).filter(t => isReportTabAllowed(t.id)).length > 0 && (
-          <>
-            <div className="w-px h-4 bg-slate-200 mx-2" />
-            <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider pr-1">Performance</span>
-            {([
-              { id: 'employee', label: 'Employees', color: 'purple' },
-              { id: 'graphics', label: 'Graphics', color: 'amber' },
-            ] as const).filter(t => isReportTabAllowed(t.id)).map(t => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                  activeTab === t.id
-                    ? `bg-${t.color}-600/20 text-${t.color}-300 border border-${t.color}-600/50`
-                    : 'text-slate-400 hover:text-slate-700 border border-transparent'
-                }`}
-              >{t.label}</button>
-            ))}
-          </>
-        )}
-
-        {/* Group: My Work Reports (Staff) */}
-        {user?.role === 'STAFF' && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] text-emerald-600 uppercase font-bold tracking-wider pr-1">My Work Reports</span>
-            {[
-              { id: 'my_tasks', label: 'My Tasks & Progress' },
-              { id: 'my_projects', label: 'My Assigned Projects' },
-              { id: 'my_deliverables', label: 'My Output Deliverables' },
-              { id: 'my_equipment', label: 'My Equipment Usage' },
-              { id: 'my_attendance', label: 'My Attendance' },
-            ].map(t => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id as any)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                  activeTab === t.id
-                    ? 'bg-emerald-600/20 text-emerald-700 border border-emerald-600/50 font-bold'
-                    : 'text-slate-500 hover:text-slate-800 border border-transparent'
+                key={preset}
+                onClick={() => setDatePreset(preset)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition ${
+                  datePreset === preset
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                {t.label}
+                {preset === 'this_month' && 'This Month'}
+                {preset === 'today' && 'Today'}
+                {preset === 'this_week' && 'This Week'}
+                {preset === 'custom' && 'Custom Range'}
               </button>
             ))}
+
+            {datePreset === 'custom' && (
+              <div className="flex items-center gap-2 ml-2">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-800"
+                />
+                <span className="text-xs text-slate-400">to</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-800"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Export button */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchReport}
+              disabled={loading}
+              title="Refresh Report Data"
+              className="p-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-medium transition flex items-center justify-center"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={handleExportCSV}
+              disabled={loading}
+              className="px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shadow-xs"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export CSV
+            </button>
+          </div>
+        </div>
+
+        {/* Secondary filters row */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-2 border-t border-slate-100">
+          {/* Client Filter */}
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Client</label>
+            <select
+              value={selectedClient}
+              onChange={(e) => {
+                setSelectedClient(e.target.value);
+                setSelectedBrand('');
+                setSelectedProject('');
+              }}
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">All Clients</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Brand Filter */}
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Brand</label>
+            <select
+              value={selectedBrand}
+              onChange={(e) => {
+                setSelectedBrand(e.target.value);
+                setSelectedProject('');
+              }}
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">All Brands</option>
+              {filteredBrands.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Project Filter */}
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Project</label>
+            <select
+              value={selectedProject}
+              onChange={(e) => setSelectedProject(e.target.value)}
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">All Projects</option>
+              {filteredProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.projectId ? `[${p.projectId}] ` : ''}
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Status</label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="PENDING">Pending / Planned</option>
+              {activeTab === 'graphic_reports' && <option value="CLIENT_REVISION_REQUESTED">Revision</option>}
+            </select>
+          </div>
+
+          {/* Report-Specific Slot 1 */}
+          {activeTab === 'task_assignments' && (
+            <div>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Assigned To</label>
+              <select
+                value={selectedAssignedTo}
+                onChange={(e) => setSelectedAssignedTo(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">All Assignees</option>
+                {usersList.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {activeTab === 'shoot_reports' && (
+            <div>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Shoot Type</label>
+              <select
+                value={selectedShootType}
+                onChange={(e) => setSelectedShootType(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="ALL">All Types</option>
+                <option value="INDOOR">Indoor</option>
+                <option value="OUTDOOR">Outdoor</option>
+              </select>
+            </div>
+          )}
+
+          {activeTab === 'staff_work' && (
+            <div>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Staff Member</label>
+              <select
+                value={selectedStaffId}
+                onChange={(e) => setSelectedStaffId(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">All Staff</option>
+                {usersList.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {activeTab === 'equipment_rental' && (
+            <div>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Rental Status</label>
+              <select
+                value={selectedRentalStatus}
+                onChange={(e) => setSelectedRentalStatus(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="ALL">All Rentals</option>
+                <option value="RENTED_OUT">Rented Out</option>
+                <option value="RETURNED">Returned</option>
+              </select>
+            </div>
+          )}
+
+          {/* Search Box */}
+          <div className="flex items-end gap-1">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-7 pr-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2.5" />
+            </div>
+            <button
+              onClick={handleResetFilters}
+              title="Reset Filters"
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Compact Summary Indicators Row ─────────────────────────────────── */}
+      {reportData.summary && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          {activeTab === 'brand_reports' && (
+            <>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Tasks</p>
+                <p className="text-xl font-bold text-slate-900 mt-1">{reportData.summary.totalTasks || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Completed</p>
+                <p className="text-xl font-bold text-emerald-700 mt-1">{reportData.summary.completed || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">In Progress</p>
+                <p className="text-xl font-bold text-blue-700 mt-1">{reportData.summary.inProgress || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pending</p>
+                <p className="text-xl font-bold text-slate-700 mt-1">{reportData.summary.pending || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-rose-600 uppercase tracking-wider">Overdue</p>
+                <p className="text-xl font-bold text-rose-700 mt-1">{reportData.summary.overdue || 0}</p>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'task_assignments' && (
+            <>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Tasks</p>
+                <p className="text-xl font-bold text-slate-900 mt-1">{reportData.summary.totalTasks || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Completed</p>
+                <p className="text-xl font-bold text-emerald-700 mt-1">{reportData.summary.completed || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">In Progress</p>
+                <p className="text-xl font-bold text-blue-700 mt-1">{reportData.summary.inProgress || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pending</p>
+                <p className="text-xl font-bold text-slate-700 mt-1">{reportData.summary.pending || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-rose-600 uppercase tracking-wider">Overdue</p>
+                <p className="text-xl font-bold text-rose-700 mt-1">{reportData.summary.overdue || 0}</p>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'shoot_reports' && (
+            <>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Shoots</p>
+                <p className="text-xl font-bold text-slate-900 mt-1">{reportData.summary.totalShoots || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-indigo-600 uppercase tracking-wider">Indoor Shoots</p>
+                <p className="text-xl font-bold text-indigo-700 mt-1">{reportData.summary.indoor || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Outdoor Shoots</p>
+                <p className="text-xl font-bold text-amber-700 mt-1">{reportData.summary.outdoor || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Completed</p>
+                <p className="text-xl font-bold text-emerald-700 mt-1">{reportData.summary.completed || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">In Progress</p>
+                <p className="text-xl font-bold text-blue-700 mt-1">{reportData.summary.inProgress || 0}</p>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'graphic_reports' && (
+            <>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Graphics</p>
+                <p className="text-xl font-bold text-slate-900 mt-1">{reportData.summary.totalGraphics || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Completed</p>
+                <p className="text-xl font-bold text-emerald-700 mt-1">{reportData.summary.completed || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">In Progress</p>
+                <p className="text-xl font-bold text-blue-700 mt-1">{reportData.summary.inProgress || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pending</p>
+                <p className="text-xl font-bold text-slate-700 mt-1">{reportData.summary.pending || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Revisions</p>
+                <p className="text-xl font-bold text-amber-700 mt-1">{reportData.summary.revision || 0}</p>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'staff_work' && (
+            <>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Staff Count</p>
+                <p className="text-xl font-bold text-slate-900 mt-1">{reportData.staffSummaries?.length || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Total Tasks</p>
+                <p className="text-xl font-bold text-slate-900 mt-1">
+                  {reportData.staffSummaries?.reduce((acc: number, s: any) => acc + (s.assigned || 0), 0) || 0}
+                </p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Completed</p>
+                <p className="text-xl font-bold text-emerald-700 mt-1">
+                  {reportData.staffSummaries?.reduce((acc: number, s: any) => acc + (s.completed || 0), 0) || 0}
+                </p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">In Progress</p>
+                <p className="text-xl font-bold text-blue-700 mt-1">
+                  {reportData.staffSummaries?.reduce((acc: number, s: any) => acc + (s.inProgress || 0), 0) || 0}
+                </p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-rose-600 uppercase tracking-wider">Overdue</p>
+                <p className="text-xl font-bold text-rose-700 mt-1">
+                  {reportData.staffSummaries?.reduce((acc: number, s: any) => acc + (s.overdue || 0), 0) || 0}
+                </p>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'equipment_rental' && (
+            <>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">Rented Out</p>
+                <p className="text-xl font-bold text-blue-700 mt-1">{reportData.summary.totalRentedOut || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Returned</p>
+                <p className="text-xl font-bold text-emerald-700 mt-1">{reportData.summary.returned || 0}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Currently Outside</p>
+                <p className="text-xl font-bold text-amber-700 mt-1">{reportData.summary.currentlyOutside || 0}</p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ─── Detailed Report Table ────────────────────────────────────────────── */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        {/* Table Title and Controls */}
+        <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-slate-900">
+              {activeTab === 'brand_reports' && 'Brand Work & Production Activity'}
+              {activeTab === 'task_assignments' && 'Task Assignment Report (Assigned By vs Assigned To)'}
+              {activeTab === 'shoot_reports' && 'Shoot Project Report (Indoor vs Outdoor)'}
+              {activeTab === 'graphic_reports' && 'Graphic Production Activity'}
+              {activeTab === 'staff_work' && 'Staff Work Allocation & Status'}
+              {activeTab === 'equipment_rental' && 'Equipment Rental & Return Activity'}
+            </h2>
+            <span className="text-xs text-slate-500">
+              ({activeTab === 'staff_work' ? (reportData.staffSummaries?.length || 0) : (reportData.rows?.length || 0)} records)
+            </span>
+          </div>
+
+          {activeTab === 'equipment_rental' && (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setGroupByBrand(false)}
+                className={`px-2.5 py-1 text-xs rounded-md font-medium transition ${
+                  !groupByBrand ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Flat Table
+              </button>
+              <button
+                onClick={() => setGroupByBrand(true)}
+                className={`px-2.5 py-1 text-xs rounded-md font-medium transition ${
+                  groupByBrand ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Group by Brand
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Loading / Error States */}
+        {loading && (
+          <div className="p-12 text-center text-slate-500">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
+            <p className="text-xs font-medium">Loading report records...</p>
+          </div>
+        )}
+
+        {error && !loading && (
+          <div className="p-8 text-center text-rose-600 bg-rose-50/50">
+            <AlertTriangle className="w-6 h-6 mx-auto mb-2" />
+            <p className="text-sm font-semibold">{error}</p>
+          </div>
+        )}
+
+        {/* Table Content */}
+        {!loading && !error && (
+          <div className="overflow-x-auto">
+            {/* 1. BRAND REPORT TABLE */}
+            {activeTab === 'brand_reports' && (
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4">Brand</th>
+                    <th className="py-3 px-4">Project</th>
+                    <th className="py-3 px-4">Task</th>
+                    <th className="py-3 px-4">Task Type</th>
+                    <th className="py-3 px-4">Assigned To</th>
+                    <th className="py-3 px-4">Assigned By</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Due Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(reportData.rows || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-500">
+                        No data found for the selected filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    reportData.rows.map((row: any) => (
+                      <tr key={row.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-4 font-semibold text-slate-900">{row.brandName}</td>
+                        <td className="py-3 px-4">
+                          <Link
+                            href={`/projects`}
+                            className="text-blue-600 hover:underline font-medium flex items-center gap-1"
+                          >
+                            {row.projectName}
+                            <ExternalLink className="w-3 h-3 text-slate-400" />
+                          </Link>
+                        </td>
+                        <td className="py-3 px-4 font-medium text-slate-800">
+                          <Link href="/tasks" className="hover:text-blue-600 flex items-center gap-1">
+                            {row.taskName}
+                          </Link>
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">{row.taskType}</td>
+                        <td className="py-3 px-4 text-slate-700">{row.assignedTo}</td>
+                        <td className="py-3 px-4 text-slate-600">{row.assignedBy}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${getStatusBadge(
+                              row.status
+                            )}`}
+                          >
+                            {row.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">
+                          {formatDate(row.dueDate)}
+                          {row.isOverdue && (
+                            <span className="ml-1.5 text-[10px] text-rose-600 font-bold bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                              Overdue
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            {/* 2. TASK ASSIGNMENT REPORT TABLE */}
+            {activeTab === 'task_assignments' && (
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4">Task ID</th>
+                    <th className="py-3 px-4">Task Name</th>
+                    <th className="py-3 px-4">Client</th>
+                    <th className="py-3 px-4">Brand</th>
+                    <th className="py-3 px-4">Project</th>
+                    <th className="py-3 px-4">Task Type</th>
+                    <th className="py-3 px-4 text-indigo-700 bg-indigo-50/50">Assigned By</th>
+                    <th className="py-3 px-4 text-blue-700 bg-blue-50/50">Assigned To</th>
+                    <th className="py-3 px-4">Assigned Date</th>
+                    <th className="py-3 px-4">Due Date</th>
+                    <th className="py-3 px-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(reportData.rows || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="py-8 text-center text-slate-500">
+                        No data found for the selected filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    reportData.rows.map((row: any) => (
+                      <tr key={row.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-4 font-mono text-slate-600 font-semibold">{row.taskCode}</td>
+                        <td className="py-3 px-4 font-medium text-slate-900">
+                          <Link href="/tasks" className="hover:text-blue-600">
+                            {row.taskName}
+                          </Link>
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">{row.clientName}</td>
+                        <td className="py-3 px-4 font-medium text-slate-800">{row.brandName}</td>
+                        <td className="py-3 px-4 text-slate-700">
+                          <Link href={`/projects`} className="hover:text-blue-600">
+                            {row.projectName}
+                          </Link>
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">{row.taskType}</td>
+                        <td className="py-3 px-4 font-semibold text-indigo-800 bg-indigo-50/30">
+                          {row.assignedBy}
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-blue-800 bg-blue-50/30">
+                          {row.assignedTo}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">{formatDate(row.assignedDate)}</td>
+                        <td className="py-3 px-4 text-slate-600">
+                          {formatDate(row.dueDate)}
+                          {row.isOverdue && (
+                            <span className="ml-1 text-[10px] text-rose-600 font-bold bg-rose-50 px-1 py-0.5 rounded border border-rose-200">
+                              !
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${getStatusBadge(
+                              row.status
+                            )}`}
+                          >
+                            {row.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            {/* 3. SHOOT REPORT TABLE */}
+            {activeTab === 'shoot_reports' && (
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4">Shoot Project</th>
+                    <th className="py-3 px-4">Brand</th>
+                    <th className="py-3 px-4">Client</th>
+                    <th className="py-3 px-4">Shoot Type</th>
+                    <th className="py-3 px-4">Shoot Date</th>
+                    <th className="py-3 px-4">Location</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Assigned Team</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(reportData.rows || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-500">
+                        No data found for the selected filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    reportData.rows.map((row: any) => (
+                      <tr key={row.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-4">
+                          <Link
+                            href={`/projects`}
+                            className="text-blue-600 hover:underline font-bold flex items-center gap-1"
+                          >
+                            {row.name}
+                            <span className="text-[10px] text-slate-400 font-mono">({row.projectCode})</span>
+                          </Link>
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-slate-900">{row.brandName}</td>
+                        <td className="py-3 px-4 text-slate-600">{row.clientName}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${
+                              row.shootType === 'INDOOR'
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}
+                          >
+                            {row.shootType}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-medium text-slate-800">{formatDate(row.shootDate)}</td>
+                        <td className="py-3 px-4 text-slate-600">{row.location}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${getStatusBadge(
+                              row.status
+                            )}`}
+                          >
+                            {row.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-700">{row.assignedTeam}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            {/* 4. GRAPHIC REPORT TABLE */}
+            {activeTab === 'graphic_reports' && (
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4">Graphic ID</th>
+                    <th className="py-3 px-4">Graphic Name</th>
+                    <th className="py-3 px-4">Brand</th>
+                    <th className="py-3 px-4">Client</th>
+                    <th className="py-3 px-4">Project</th>
+                    <th className="py-3 px-4">Assigned To</th>
+                    <th className="py-3 px-4">Created Date</th>
+                    <th className="py-3 px-4">Deadline</th>
+                    <th className="py-3 px-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(reportData.rows || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-slate-500">
+                        No data found for the selected filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    reportData.rows.map((row: any) => (
+                      <tr key={row.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-4 font-mono font-semibold text-slate-600">
+                          <Link href="/graphic-reqs" className="text-blue-600 hover:underline">
+                            {row.graphicCode}
+                          </Link>
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-slate-900">{row.name}</td>
+                        <td className="py-3 px-4 text-slate-800 font-medium">{row.brandName}</td>
+                        <td className="py-3 px-4 text-slate-600">{row.clientName}</td>
+                        <td className="py-3 px-4 text-slate-700">
+                          {row.projectId ? (
+                            <Link href={`/projects`} className="hover:text-blue-600">
+                              {row.projectName}
+                            </Link>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-slate-700">{row.assignedTo}</td>
+                        <td className="py-3 px-4 text-slate-600">{formatDate(row.createdAt)}</td>
+                        <td className="py-3 px-4 text-slate-600">{formatDate(row.deadline)}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${getStatusBadge(
+                              row.status
+                            )}`}
+                          >
+                            {row.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            {/* 5. STAFF WORK REPORT TABLE */}
+            {activeTab === 'staff_work' && (
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4">Staff Member</th>
+                    <th className="py-3 px-4">Role</th>
+                    <th className="py-3 px-4">Assigned Tasks</th>
+                    <th className="py-3 px-4 text-emerald-700">Completed</th>
+                    <th className="py-3 px-4 text-blue-700">In Progress</th>
+                    <th className="py-3 px-4 text-slate-700">Pending</th>
+                    <th className="py-3 px-4 text-rose-700">Overdue</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(reportData.staffSummaries || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-500">
+                        No data found for the selected filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    reportData.staffSummaries.map((staff: any) => (
+                      <tr
+                        key={staff.staffId}
+                        onClick={() => {
+                          const staffTasks = (reportData.detailedTasks || []).filter(
+                            (t: any) => t.staffId === staff.staffId
+                          );
+                          setSelectedStaffDetail({ ...staff, tasks: staffTasks });
+                        }}
+                        className="hover:bg-blue-50/40 cursor-pointer transition"
+                      >
+                        <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
+                          <div className="w-7 h-7 bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-slate-700">
+                            {staff.staffName?.charAt(0) || 'S'}
+                          </div>
+                          <div>
+                            <p>{staff.staffName}</p>
+                            <p className="text-[10px] text-slate-400 font-normal">{staff.email}</p>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">{staff.role}</td>
+                        <td className="py-3 px-4 font-bold text-slate-900">{staff.assigned}</td>
+                        <td className="py-3 px-4 font-semibold text-emerald-700">{staff.completed}</td>
+                        <td className="py-3 px-4 font-semibold text-blue-700">{staff.inProgress}</td>
+                        <td className="py-3 px-4 font-semibold text-slate-600">{staff.pending}</td>
+                        <td className="py-3 px-4 font-semibold text-rose-700">{staff.overdue}</td>
+                        <td className="py-3 px-4 text-right">
+                          <button className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1 ml-auto">
+                            View Work <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            {/* 6. EQUIPMENT RENTAL REPORT TABLE */}
+            {activeTab === 'equipment_rental' && (
+              <>
+                {groupByBrand ? (
+                  // Grouped by Brand View
+                  <div className="divide-y divide-slate-200">
+                    {(reportData.brandGroups || []).length === 0 ? (
+                      <div className="p-8 text-center text-slate-500 text-xs">
+                        No data found for the selected filters.
+                      </div>
+                    ) : (
+                      reportData.brandGroups.map((group: any) => (
+                        <div key={group.brandName} className="p-4 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                            <div>
+                              <h3 className="font-bold text-slate-900 text-sm">{group.brandName}</h3>
+                              <p className="text-[11px] text-slate-500">Rental Activity Group</p>
+                            </div>
+                            <div className="flex items-center gap-4 text-xs font-medium">
+                              <span>
+                                Rented Out: <strong className="text-blue-700">{group.rentedOut}</strong>
+                              </span>
+                              <span>
+                                Returned: <strong className="text-emerald-700">{group.returned}</strong>
+                              </span>
+                              <span>
+                                Currently Outside: <strong className="text-amber-700">{group.outside}</strong>
+                              </span>
+                            </div>
+                          </div>
+
+                          <table className="w-full text-left text-xs text-slate-700">
+                            <thead className="text-[11px] text-slate-500 border-b border-slate-100">
+                              <tr>
+                                <th className="py-2 px-3">Equipment</th>
+                                <th className="py-2 px-3">Category</th>
+                                <th className="py-2 px-3">Customer</th>
+                                <th className="py-2 px-3">Start</th>
+                                <th className="py-2 px-3">Expected Return</th>
+                                <th className="py-2 px-3">Actual Return</th>
+                                <th className="py-2 px-3">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                              {group.items.map((row: any) => (
+                                <tr key={row.id} className="hover:bg-slate-50/50">
+                                  <td className="py-2.5 px-3 font-semibold text-slate-900">
+                                    <Link href={`/equipment`} className="text-blue-600 hover:underline">
+                                      {row.equipmentName}
+                                    </Link>
+                                    <span className="text-[10px] text-slate-400 ml-1">({row.assetCode})</span>
+                                  </td>
+                                  <td className="py-2.5 px-3 text-slate-600">{row.category}</td>
+                                  <td className="py-2.5 px-3 font-medium text-slate-800">{row.rentalCustomer}</td>
+                                  <td className="py-2.5 px-3 text-slate-600">{formatDate(row.rentalStartDate)}</td>
+                                  <td className="py-2.5 px-3 text-slate-600">{formatDate(row.rentalExpectedReturnDate)}</td>
+                                  <td className="py-2.5 px-3 text-slate-600">{formatDate(row.actualReturnDate)}</td>
+                                  <td className="py-2.5 px-3">
+                                    <span
+                                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${getStatusBadge(
+                                        row.status
+                                      )}`}
+                                    >
+                                      {row.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : (
+                  // Flat Table View
+                  <table className="w-full text-left text-xs text-slate-700">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
+                      <tr>
+                        <th className="py-3 px-4">Equipment</th>
+                        <th className="py-3 px-4">Brand</th>
+                        <th className="py-3 px-4">Category</th>
+                        <th className="py-3 px-4">Customer</th>
+                        <th className="py-3 px-4">Start</th>
+                        <th className="py-3 px-4">Expected Return</th>
+                        <th className="py-3 px-4">Actual Return</th>
+                        <th className="py-3 px-4">Condition</th>
+                        <th className="py-3 px-4">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(reportData.rows || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="py-8 text-center text-slate-500">
+                            No data found for the selected filters.
+                          </td>
+                        </tr>
+                      ) : (
+                        reportData.rows.map((row: any) => (
+                          <tr key={row.id} className="hover:bg-slate-50/80 transition">
+                            <td className="py-3 px-4 font-bold text-slate-900">
+                              <Link href="/equipment" className="text-blue-600 hover:underline">
+                                {row.equipmentName}
+                              </Link>
+                              <div className="text-[10px] text-slate-400 font-mono">{row.assetCode}</div>
+                            </td>
+                            <td className="py-3 px-4 font-semibold text-slate-800">{row.brandName}</td>
+                            <td className="py-3 px-4 text-slate-600">{row.category}</td>
+                            <td className="py-3 px-4 font-medium text-slate-900">{row.rentalCustomer}</td>
+                            <td className="py-3 px-4 text-slate-600">{formatDate(row.rentalStartDate)}</td>
+                            <td className="py-3 px-4 text-slate-600">{formatDate(row.rentalExpectedReturnDate)}</td>
+                            <td className="py-3 px-4 text-slate-600">{formatDate(row.actualReturnDate)}</td>
+                            <td className="py-3 px-4 text-slate-600">
+                              <span>{row.returnCondition}</span>
+                              {row.damageNotes && (
+                                <div className="text-[10px] text-rose-600 font-medium">{row.damageNotes}</div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${getStatusBadge(
+                                  row.status
+                                )}`}
+                              >
+                                {row.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
 
-      {/* STAFF PERSONAL REPORTS - MY TASKS */}
-      {activeTab === 'my_tasks' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> My Assigned Tasks &amp; Personal Progress Report
-            </h2>
-            <span className="text-[11px] text-emerald-700 font-mono font-bold">
-              Scoped to User ID: {user?.id}
-            </span>
-          </div>
+      {/* ─── Staff Work Drill-Down Modal ─────────────────────────────────────── */}
+      {selectedStaffDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center font-bold">
+                  {selectedStaffDetail.staffName?.charAt(0) || 'S'}
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">{selectedStaffDetail.staffName}</h3>
+                  <p className="text-xs text-slate-500">
+                    {selectedStaffDetail.role} • {selectedStaffDetail.email}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedStaffDetail(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-            <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg">
-              <span className="text-slate-500 text-[10px] uppercase font-bold block">Assigned Tasks</span>
-              <strong className="text-xl font-mono text-slate-900">{(data?.pendingTasks?.length || 0) + (data?.todaysTasks?.length || 0)}</strong>
+            {/* Staff Work Summary Cards */}
+            <div className="p-4 bg-slate-50 border-b border-slate-200 grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <p className="text-[10px] uppercase font-bold text-slate-500">Assigned</p>
+                <p className="text-lg font-bold text-slate-900">{selectedStaffDetail.assigned || 0}</p>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <p className="text-[10px] uppercase font-bold text-emerald-600">Completed</p>
+                <p className="text-lg font-bold text-emerald-700">{selectedStaffDetail.completed || 0}</p>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <p className="text-[10px] uppercase font-bold text-blue-600">In Progress</p>
+                <p className="text-lg font-bold text-blue-700">{selectedStaffDetail.inProgress || 0}</p>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <p className="text-[10px] uppercase font-bold text-slate-500">Pending</p>
+                <p className="text-lg font-bold text-slate-700">{selectedStaffDetail.pending || 0}</p>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <p className="text-[10px] uppercase font-bold text-rose-600">Overdue</p>
+                <p className="text-lg font-bold text-rose-700">{selectedStaffDetail.overdue || 0}</p>
+              </div>
             </div>
-            <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg">
-              <span className="text-slate-500 text-[10px] uppercase font-bold block">Today's Tasks</span>
-              <strong className="text-xl font-mono text-blue-600">{data?.todaysTasks?.length || 0}</strong>
-            </div>
-            <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg">
-              <span className="text-slate-500 text-[10px] uppercase font-bold block">Pending Review</span>
-              <strong className="text-xl font-mono text-amber-600">
-                {(data?.pendingTasks || []).filter((t: any) => t.status === 'WAITING_FOR_TECHNICAL_REVIEW' || t.status === 'WAITING_FOR_MEDIA_REVIEW').length}
-              </strong>
-            </div>
-            <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg">
-              <span className="text-slate-500 text-[10px] uppercase font-bold block">Workload Status</span>
-              <strong className="text-xl font-mono text-emerald-600">{data?.currentWorkload?.workloadStatus || 'Normal'}</strong>
-            </div>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold">
-                  <th className="p-2.5">Task ID</th>
-                  <th className="p-2.5">Title</th>
-                  <th className="p-2.5">Priority</th>
-                  <th className="p-2.5">Est. Hours</th>
-                  <th className="p-2.5">Status</th>
-                  <th className="p-2.5">Progress</th>
-                  <th className="p-2.5">Deadline</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60 text-slate-700">
-                {[...(data?.todaysTasks || []), ...(data?.pendingTasks || [])].length === 0 ? (
+            {/* Detailed Tasks List */}
+            <div className="p-4 flex-1 overflow-y-auto">
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
+                Assigned Tasks Breakdown
+              </h4>
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 font-semibold">
                   <tr>
-                    <td colSpan={7} className="p-4 text-center text-slate-400 italic">No assigned tasks found.</td>
+                    <th className="py-2.5 px-3">Task</th>
+                    <th className="py-2.5 px-3">Brand</th>
+                    <th className="py-2.5 px-3">Project</th>
+                    <th className="py-2.5 px-3">Type</th>
+                    <th className="py-2.5 px-3">Assigned Date</th>
+                    <th className="py-2.5 px-3">Due Date</th>
+                    <th className="py-2.5 px-3">Status</th>
                   </tr>
-                ) : (
-                  [...(data?.todaysTasks || []), ...(data?.pendingTasks || [])].map((t: any) => (
-                    <tr key={t.id} className="hover:bg-slate-50/50">
-                      <td className="p-2.5 font-mono text-emerald-600 font-bold">{t.taskId || t.id}</td>
-                      <td className="p-2.5 text-slate-800 font-medium">{t.title}</td>
-                      <td className="p-2.5">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          t.priority === 'CRITICAL' ? 'bg-rose-50 text-rose-600 border border-rose-200' :
-                          t.priority === 'HIGH' ? 'bg-amber-50 text-amber-600 border border-amber-200' :
-                          'bg-blue-50 text-blue-600 border border-blue-200'
-                        }`}>{t.priority || 'MEDIUM'}</span>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(!selectedStaffDetail.tasks || selectedStaffDetail.tasks.length === 0) ? (
+                    <tr>
+                      <td colSpan={7} className="py-6 text-center text-slate-500">
+                        No individual tasks found for this staff member under current filters.
                       </td>
-                      <td className="p-2.5 font-mono text-slate-700">{t.estimatedHours || 2.0} hrs</td>
-                      <td className="p-2.5">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                          {t.status}
-                        </span>
-                      </td>
-                      <td className="p-2.5">
-                        <div className="w-24 bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                          <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${t.completionPercentage || 0}%` }} />
-                        </div>
-                      </td>
-                      <td className="p-2.5 text-slate-500 text-[10px]">{t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'N/A'}</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* STAFF PERSONAL REPORTS - MY PROJECTS */}
-      {activeTab === 'my_projects' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Film className="w-4 h-4 text-blue-600" /> My Assigned Projects Report
-            </h2>
-            <span className="text-[11px] text-blue-700 font-mono font-bold">
-              Total Assigned Projects: {data?.currentProjects?.length || 0}
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold">
-                  <th className="p-2.5">Project ID</th>
-                  <th className="p-2.5">Project Name</th>
-                  <th className="p-2.5">Client</th>
-                  <th className="p-2.5">Brand</th>
-                  <th className="p-2.5">Status</th>
-                  <th className="p-2.5">Progress</th>
-                  <th className="p-2.5">Shoot Location</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60 text-slate-700">
-                {(data?.currentProjects || []).length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-4 text-center text-slate-400 italic">No assigned projects found.</td>
-                  </tr>
-                ) : (
-                  (data?.currentProjects || []).map((p: any) => (
-                    <tr key={p.id} className="hover:bg-slate-50/50">
-                      <td className="p-2.5 font-mono text-blue-600 font-bold">{p.projectId || p.id}</td>
-                      <td className="p-2.5 text-slate-800 font-medium">{p.name}</td>
-                      <td className="p-2.5 text-emerald-600">{p.client?.name || p.clientName || 'N/A'}</td>
-                      <td className="p-2.5 text-cyan-600">{p.brand?.name || p.brandName || 'N/A'}</td>
-                      <td className="p-2.5">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="p-2.5">
-                        <div className="w-24 bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                          <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${p.progressPercentage || 0}%` }} />
-                        </div>
-                      </td>
-                      <td className="p-2.5 text-slate-500">{p.shootLocation || 'N/A'}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* STAFF PERSONAL REPORTS - MY DELIVERABLES */}
-      {activeTab === 'my_deliverables' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Palette className="w-4 h-4 text-purple-600" /> My Output Deliverables (Scripts &amp; Graphics)
-            </h2>
-            <span className="text-[11px] text-purple-700 font-mono font-bold">
-              Scripts: {data?.assignedScripts?.length || 0} | Graphics: {data?.assignedGraphicRequirements?.length || 0}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Scripts */}
-            <div className="bg-slate-50/60 border border-slate-200 p-4 rounded-xl space-y-3">
-              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
-                <FileText className="w-3.5 h-3.5 text-blue-600" /> Assigned Scripts ({data?.assignedScripts?.length || 0})
-              </h3>
-              {(data?.assignedScripts || []).length === 0 ? (
-                <p className="text-slate-400 italic text-[10px]">No assigned scripts found.</p>
-              ) : (
-                (data?.assignedScripts || []).map((s: any) => (
-                  <div key={s.id} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-xs space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-900 font-bold">{s.name}</span>
-                      <span className="text-blue-600 font-mono text-[10px]">{s.scriptId}</span>
-                    </div>
-                    <div className="text-[10px] text-slate-500">Project: <span className="text-blue-700">{s.project?.name || 'N/A'}</span> | Brand: <span className="text-cyan-700">{s.brand?.name || 'N/A'}</span></div>
-                    <div className="text-[10px] text-slate-500">Status: <span className="text-amber-800">{s.status}</span></div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Graphics */}
-            <div className="bg-slate-50/60 border border-slate-200 p-4 rounded-xl space-y-3">
-              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
-                <Palette className="w-3.5 h-3.5 text-purple-600" /> Graphic Requirements ({data?.assignedGraphicRequirements?.length || 0})
-              </h3>
-              {(data?.assignedGraphicRequirements || []).length === 0 ? (
-                <p className="text-slate-400 italic text-[10px]">No assigned graphic requirements found.</p>
-              ) : (
-                (data?.assignedGraphicRequirements || []).map((g: any) => (
-                  <div key={g.id} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-xs space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-900 font-bold">{g.name}</span>
-                      <span className="text-purple-600 font-mono text-[10px]">{g.requirementId}</span>
-                    </div>
-                    <div className="text-[10px] text-slate-500">Project: <span className="text-blue-700">{g.project?.name || 'N/A'}</span> | Brand: <span className="text-cyan-700">{g.brand?.name || 'N/A'}</span></div>
-                    <div className="text-[10px] text-slate-500">Status: <span className="text-amber-800">{g.status}</span></div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* STAFF PERSONAL REPORTS - MY EQUIPMENT */}
-      {activeTab === 'my_equipment' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Package className="w-4 h-4 text-cyan-600" /> My Assigned Equipment &amp; Asset Usage
-            </h2>
-            <span className="text-[11px] text-cyan-700 font-mono font-bold">
-              Equipment Items: {equipmentReports?.length || 0}
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] font-bold">
-                  <th className="p-2.5">Equipment Name</th>
-                  <th className="p-2.5">ID / Serial</th>
-                  <th className="p-2.5">Category</th>
-                  <th className="p-2.5">Status</th>
-                  <th className="p-2.5">Condition</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60 text-slate-700">
-                {(equipmentReports || []).length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-4 text-center text-slate-400 italic">No assigned equipment found.</td>
-                  </tr>
-                ) : (
-                  (equipmentReports || []).map((e: any) => (
-                    <tr key={e.id} className="hover:bg-slate-50/50">
-                      <td className="p-2.5 text-slate-800 font-medium">{e.name}</td>
-                      <td className="p-2.5 font-mono text-cyan-600">{e.equipmentId || e.serialNumber || 'N/A'}</td>
-                      <td className="p-2.5 text-slate-500">{e.category || 'N/A'}</td>
-                      <td className="p-2.5">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
-                          {e.status || 'CHECKED_OUT'}
-                        </span>
-                      </td>
-                      <td className="p-2.5 text-emerald-600 font-bold">{e.condition || 'GOOD'}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* STAFF PERSONAL REPORTS - MY ATTENDANCE */}
-      {activeTab === 'my_attendance' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-amber-600" /> My Attendance Log &amp; Workload Capacity Report
-            </h2>
-            <span className="text-[11px] text-amber-800 font-mono font-bold">
-              Daily Capacity: {data?.currentWorkload?.dailyCapacityHours || 8.0} Hours
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
-              <span className="text-slate-500 text-[10px] uppercase font-bold block">Raw Workload Hours</span>
-              <strong className="text-2xl font-mono text-slate-900">{data?.currentWorkload?.rawWorkloadHours || 0} hrs</strong>
-            </div>
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
-              <span className="text-slate-500 text-[10px] uppercase font-bold block">Weighted Workload</span>
-              <strong className="text-2xl font-mono text-amber-600">{data?.currentWorkload?.weightedWorkloadHours || 0} hrs</strong>
-            </div>
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
-              <span className="text-slate-500 text-[10px] uppercase font-bold block">Capacity Utilization</span>
-              <strong className="text-2xl font-mono text-emerald-600">{data?.currentWorkload?.workloadPercentage || 0}%</strong>
-            </div>
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
-              <span className="text-slate-500 text-[10px] uppercase font-bold block">Remaining Hours</span>
-              <strong className="text-2xl font-mono text-blue-600">{data?.currentWorkload?.remainingCapacityHours || 0} hrs</strong>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TIMELINE PERFORMANCE REPORTS TAB */}
-      {activeTab === 'timelines' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-6 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-blue-600" /> Operational Timeline &amp; History Analytics Matrix
-            </h2>
-            <span className="text-[11px] text-blue-700 font-mono font-bold">
-              5 Mandatory Timeline Indicators Enforced
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 1. Project History */}
-            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
-              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 sticky top-0 bg-slate-50/60 backdrop-blur-xs pb-2">
-                <Layers className="w-3.5 h-3.5 text-blue-600" /> Project History
-              </h3>
-              <div className="space-y-2">
-                {time?.projectHistory?.length === 0 ? (
-                  <p className="text-slate-400 italic text-[10px]">No project history available.</p>
-                ) : (
-                  time?.projectHistory?.map((p: any) => (
-                    <div key={p.projectId} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
-                      <div className="flex justify-between items-start mb-1">
-                        <div>
-                          <span className="text-blue-700 font-bold text-xs">{p.projectName}</span>
-                          <span className="text-slate-400 text-[10px] ml-1">[{p.projectCode}]</span>
-                        </div>
-                        <span className="text-[9px] text-slate-500">{new Date(p.createdAt).toLocaleDateString()}</span>
-                      </div>
-                      <div className="text-[10px] text-slate-500">Client: <span className="text-emerald-600">{p.clientName}</span> | Brand: <span className="text-cyan-600">{p.brandName}</span></div>
-                      <div className="text-[10px] text-slate-500">Status: <span className="text-amber-800">{p.status}</span> | Creator: <span className="text-purple-700">{p.creatorName}</span></div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* 2. Status Changes */}
-            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
-              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 sticky top-0 bg-slate-50/60 backdrop-blur-xs pb-2">
-                <TrendingUp className="w-3.5 h-3.5 text-purple-600" /> Status Changes
-              </h3>
-              <div className="space-y-2">
-                {!time?.statusChanges || time?.statusChanges?.length === 0 ? (
-                  <p className="text-slate-400 italic text-[10px]">No status changes available.</p>
-                ) : (
-                  time?.statusChanges?.map((s: any) => (
-                    <div key={s.id} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg border-l-2 border-l-purple-500">
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="text-slate-900 font-bold text-[11px]">{s.title}</span>
-                        <span className="text-[9px] text-slate-500">{new Date(s.timestamp).toLocaleString()}</span>
-                      </div>
-                      <div className="text-[10px] text-slate-500">Event: <span className="text-purple-700 font-mono">{s.event}</span></div>
-                      <div className="text-[10px] text-slate-500">Changed by: <span className="text-blue-700">{s.changedByName}</span></div>
-                      <p className="text-[10px] text-slate-400 italic mt-1">{s.description}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* 3. Approval History */}
-            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
-              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 sticky top-0 bg-slate-50/60 backdrop-blur-xs pb-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Approval History
-              </h3>
-              <div className="space-y-2">
-                {!time?.approvalHistory || time?.approvalHistory?.length === 0 ? (
-                  <p className="text-slate-400 italic text-[10px]">No approval history available.</p>
-                ) : (
-                  time?.approvalHistory?.map((a: any) => (
-                    <div key={a.approvalId} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
-                      <div className="flex justify-between items-start mb-1">
-                        <div>
-                          <span className="text-emerald-700 font-bold text-xs">{a.approvalType}</span>
-                          <span className="text-slate-400 text-[10px] ml-1">({a.entityType})</span>
-                        </div>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${a.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600' : a.status === 'REJECTED' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'}`}>{a.status}</span>
-                      </div>
-                      <div className="text-[10px] text-slate-500">Project: <span className="text-slate-900">{a.projectName}</span></div>
-                      <div className="flex justify-between text-[10px] mt-1 pt-1 border-t border-slate-200 text-slate-400">
-                        <span>Req: {a.requestedByName}</span>
-                        <span>Rev: {a.reviewerName}</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* 4. Equipment History */}
-            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto">
-              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 sticky top-0 bg-slate-50/60 backdrop-blur-xs pb-2">
-                <Zap className="w-3.5 h-3.5 text-cyan-600" /> Equipment History
-              </h3>
-              <div className="space-y-2">
-                {!time?.equipmentHistory || time?.equipmentHistory?.length === 0 ? (
-                  <p className="text-slate-400 italic text-[10px]">No equipment history available.</p>
-                ) : (
-                  time?.equipmentHistory?.map((e: any) => (
-                    <div key={e.movementId} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="text-cyan-700 font-bold text-xs">{e.equipmentName}</span>
-                        <span className="text-[9px] text-slate-500">{new Date(e.timestamp).toLocaleDateString()}</span>
-                      </div>
-                      <div className="text-[10px] text-slate-500">Action: <span className="text-amber-800 font-bold">{e.action}</span> | Handler: <span className="text-blue-700">{e.handlerName}</span></div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">Project: {e.projectName}</div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* 5. Employee Activities */}
-            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3 max-h-96 overflow-y-auto lg:col-span-2">
-              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 sticky top-0 bg-slate-50/60 backdrop-blur-xs pb-2">
-                <Users className="w-3.5 h-3.5 text-amber-600" /> Employee Activities
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {!time?.employeeActivities || time?.employeeActivities?.length === 0 ? (
-                  <p className="text-slate-400 italic text-[10px]">No employee activities available.</p>
-                ) : (
-                  time?.employeeActivities?.map((act: any) => (
-                    <div key={act.logId} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg flex gap-2 items-start">
-                      <div className="w-1.5 h-full min-h-8 bg-slate-200 rounded-full"></div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <span className="text-amber-800 font-bold text-xs">{act.userName}</span>
-                          <span className="text-[9px] text-slate-500">{new Date(act.timestamp).toLocaleString()}</span>
-                        </div>
-                        <div className="text-[10px] text-slate-800 my-0.5">{act.description}</div>
-                        <div className="text-[9px] text-slate-400 font-mono">Action: {act.action} | Entity: {act.entity}</div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* REVISION PERFORMANCE REPORTS TAB */}
-      {activeTab === 'revisions' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-6 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <RotateCcw className="w-4 h-4 text-rose-600" /> Operational Rework &amp; Revision Analytics Matrix
-            </h2>
-            <span className="text-[11px] text-rose-700 font-mono font-bold">
-              5 Mandatory Revision Indicators Enforced
-            </span>
-          </div>
-
-          {/* 5 Mandatory Indicators Summary Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {/* 1. Total Revision Requests */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">1. Total Revision Requests</div>
-              <div className="text-xl font-mono font-bold text-rose-600">{rev?.totalRevisionRequests || 0}</div>
-              <p className="text-[9px] text-slate-500">Total project, script &amp; graphic reworks</p>
-            </div>
-
-            {/* 2. Employee Revision Count */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">2. Staff Tracked</div>
-              <div className="text-xl font-mono font-bold text-purple-600">{rev?.totalEmployees || 0} Staff</div>
-              <p className="text-[9px] text-slate-500">Employee revision distribution</p>
-            </div>
-
-            {/* 3. Project Revision Count */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">3. Projects Reworked</div>
-              <div className="text-xl font-mono font-bold text-blue-600">{rev?.totalProjects || 0} Projects</div>
-              <p className="text-[9px] text-slate-500">Project revision counts</p>
-            </div>
-
-            {/* 4. Brand Revision Count */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">4. Brands Tracked</div>
-              <div className="text-xl font-mono font-bold text-cyan-600">{rev?.totalBrands || 0} Brands</div>
-              <p className="text-[9px] text-slate-500">Brand revision counts</p>
-            </div>
-
-            {/* 5. Average Revisions per Project */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">5. Avg / Project</div>
-              <div className="text-xl font-mono font-bold text-amber-600">{rev?.avgRevisionsPerProject || 0}</div>
-              <p className="text-[9px] text-slate-500">Average revisions per project</p>
-            </div>
-          </div>
-
-          {/* Breakdown Tables Grid: Project Revision Count & Brand Revision Count */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 3. Project Revision Count Table */}
-            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3">
-              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                <Layers className="w-3.5 h-3.5 text-blue-600" /> Project Revision Breakdown
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
-                      <th className="p-2">Project</th>
-                      <th className="p-2">Brand</th>
-                      <th className="p-2 text-center">Total Revisions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-800/60 font-medium">
-                    {!rev?.projectRevisionBreakdown || rev.projectRevisionBreakdown.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="p-4 text-center text-slate-400 italic">No project revision data available.</td>
+                  ) : (
+                    selectedStaffDetail.tasks.map((task: any) => (
+                      <tr key={task.id} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-semibold text-slate-900">
+                          <Link href="/tasks" className="text-blue-600 hover:underline">
+                            {task.taskName}
+                          </Link>
+                          <div className="text-[10px] text-slate-400">{task.taskCode}</div>
+                        </td>
+                        <td className="py-2.5 px-3 font-medium text-slate-800">{task.brandName}</td>
+                        <td className="py-2.5 px-3 text-slate-600">{task.projectName}</td>
+                        <td className="py-2.5 px-3 text-slate-600">{task.taskType}</td>
+                        <td className="py-2.5 px-3 text-slate-600">{formatDate(task.assignedDate)}</td>
+                        <td className="py-2.5 px-3 text-slate-600">
+                          {formatDate(task.dueDate)}
+                          {task.isOverdue && (
+                            <span className="ml-1 text-[10px] text-rose-600 font-bold bg-rose-50 px-1 py-0.5 rounded border border-rose-200">
+                              Overdue
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${getStatusBadge(
+                              task.status
+                            )}`}
+                          >
+                            {task.status}
+                          </span>
+                        </td>
                       </tr>
-                    ) : (
-                      rev.projectRevisionBreakdown.slice(0, 10).map((p: any) => (
-                        <tr key={p.projectId} className="hover:bg-slate-50/50">
-                          <td className="p-2 font-bold text-slate-900">
-                            <span className="text-blue-600">{p.projectName}</span>
-                            <span className="text-[10px] text-slate-400 ml-1">[{p.projectCode}]</span>
-                          </td>
-                          <td className="p-2 text-slate-500">{p.brandName}</td>
-                          <td className="p-2 text-center font-mono font-bold text-rose-600">{p.totalRevisions}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
 
-            {/* 4. Brand Revision Count Table */}
-            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-3">
-              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                <Tag className="w-3.5 h-3.5 text-cyan-600" /> Brand Revision Breakdown
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
-                      <th className="p-2">Brand Name</th>
-                      <th className="p-2 text-center">Projects</th>
-                      <th className="p-2 text-center">Total Revisions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-800/60 font-medium">
-                    {!rev?.brandRevisionBreakdown || rev.brandRevisionBreakdown.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="p-4 text-center text-slate-400 italic">No brand revision data available.</td>
-                      </tr>
-                    ) : (
-                      rev.brandRevisionBreakdown.slice(0, 10).map((b: any) => (
-                        <tr key={b.brandId} className="hover:bg-slate-50/50">
-                          <td className="p-2 font-bold text-slate-900">
-                            <span className="text-cyan-700">{b.brandName}</span>
-                            <span className="text-[10px] text-slate-400 ml-1">({b.shortCode})</span>
-                          </td>
-                          <td className="p-2 text-center font-mono text-slate-700">{b.totalProjects}</td>
-                          <td className="p-2 text-center font-mono font-bold text-amber-600">{b.totalRevisions}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CAPACITY PERFORMANCE REPORTS TAB */}
-      {activeTab === 'capacity' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-6 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-indigo-400" /> Operational Workload Capacity &amp; Resource Utilization Matrix
-            </h2>
-            <span className="text-[11px] text-indigo-300 font-mono font-bold">
-              5 Mandatory Capacity Indicators Enforced
-            </span>
-          </div>
-
-          {/* 5 Mandatory Indicators Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {/* 1. Daily Capacity */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">1. Daily Capacity</div>
-              <div className="text-xl font-mono font-bold text-indigo-400">{cap?.dailyCapacity || 0} pts</div>
-              <p className="text-[9px] text-slate-500">Total daily output target</p>
-            </div>
-
-            {/* 2. Assigned Capacity */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">2. Assigned Capacity</div>
-              <div className="text-xl font-mono font-bold text-blue-600">{cap?.assignedCapacity || 0} pts</div>
-              <p className="text-[9px] text-slate-500">Allocated active workload</p>
-            </div>
-
-            {/* 3. Remaining Capacity */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">3. Remaining Capacity</div>
-              <div className="text-xl font-mono font-bold text-emerald-600">{cap?.remainingCapacity || 0} pts</div>
-              <p className="text-[9px] text-slate-500">Unallocated available capacity</p>
-            </div>
-
-            {/* 4. Overloaded Employees */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">4. Overloaded Staff</div>
-              <div className="text-xl font-mono font-bold text-rose-600">{cap?.overloadedEmployeesCount || 0} Staff</div>
-              <p className="text-[9px] text-slate-500">Workload &gt; 100% capacity</p>
-            </div>
-
-            {/* 5. Underutilized Employees */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">5. Underutilized Staff</div>
-              <div className="text-xl font-mono font-bold text-amber-600">{cap?.underutilizedEmployeesCount || 0} Staff</div>
-              <p className="text-[9px] text-slate-500">Workload &lt; 60% capacity</p>
-            </div>
-          </div>
-
-          {/* Employee Capacity Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
-                  <th className="p-3">Employee Name</th>
-                  <th className="p-3 text-center">Daily Capacity Target</th>
-                  <th className="p-3 text-center">Assigned Capacity</th>
-                  <th className="p-3 text-center">Remaining Capacity</th>
-                  <th className="p-3 text-center">Capacity Utilization %</th>
-                  <th className="p-3 text-center">Workload Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60 font-medium">
-                {!cap?.employeeDetails || cap.employeeDetails.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-6 text-center text-slate-400 italic">No capacity records available.</td>
-                  </tr>
-                ) : (
-                  cap.employeeDetails.map((emp: any) => (
-                    <tr key={emp.userId} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-3 font-bold text-slate-900">
-                        <div>{emp.employeeName}</div>
-                        <div className="text-[10px] text-slate-500 font-normal">{emp.designation} • {emp.department}</div>
-                      </td>
-
-                      {/* 1. Daily Capacity */}
-                      <td className="p-3 text-center font-mono font-bold text-indigo-300">{emp.dailyCapacity} pts</td>
-
-                      {/* 2. Assigned Capacity */}
-                      <td className="p-3 text-center font-mono font-bold text-blue-600">{emp.assignedCapacity} pts</td>
-
-                      {/* 3. Remaining Capacity */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{emp.remainingCapacity} pts</td>
-
-                      {/* Utilization % */}
-                      <td className="p-3 text-center font-mono font-bold">
-                        <div className="flex flex-col items-center gap-1">
-                          <span>{emp.utilizationRate}%</span>
-                          <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${
-                                emp.isOverloaded ? 'bg-rose-500' : emp.isUnderutilized ? 'bg-amber-500' : 'bg-emerald-500'
-                              }`}
-                              style={{ width: `${Math.min(100, emp.utilizationRate)}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* 4 & 5. Overloaded / Underutilized Status */}
-                      <td className="p-3 text-center">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          emp.isOverloaded
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : emp.isUnderutilized
-                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        }`}>
-                          {emp.isOverloaded ? 'OVERLOADED' : emp.isUnderutilized ? 'UNDERUTILIZED' : 'BALANCED'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* APPROVAL PERFORMANCE REPORTS TAB */}
-      {activeTab === 'approvals' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-6 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-amber-600" /> Operational Approvals &amp; Quality Governance Matrix
-            </h2>
-            <span className="text-[11px] text-amber-800 font-mono font-bold">
-              6 Mandatory Approval Indicators Enforced
-            </span>
-          </div>
-
-          {/* 6 Mandatory Indicator Cards Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {/* 1. Pending Technical Reviews */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Pending Tech Reviews</div>
-              <div className="text-xl font-mono font-bold text-amber-600">{app?.pendingTechnicalReviews || 0}</div>
-              <p className="text-[9px] text-slate-500">Technical manager queue</p>
-            </div>
-
-            {/* 2. Pending Media Reviews */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Pending Media Reviews</div>
-              <div className="text-xl font-mono font-bold text-purple-600">{app?.pendingMediaReviews || 0}</div>
-              <p className="text-[9px] text-slate-500">Media manager queue</p>
-            </div>
-
-            {/* 3. Pending Client Confirmations */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Pending Client Confirm</div>
-              <div className="text-xl font-mono font-bold text-emerald-600">{app?.pendingClientConfirmations || 0}</div>
-              <p className="text-[9px] text-slate-500">Deliverables awaiting client</p>
-            </div>
-
-            {/* 4. Average Approval Time */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Avg Approval Time</div>
-              <div className="text-xl font-mono font-bold text-cyan-700">{app?.avgApprovalTimeFormatted || 'N/A'}</div>
-              <p className="text-[9px] text-slate-500">Request to decision duration</p>
-            </div>
-
-            {/* 5. Approval Success Rate */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Approval Success Rate</div>
-              <div className="text-xl font-mono font-bold text-emerald-600">{app?.approvalSuccessRatePercentage || 100}%</div>
-              <p className="text-[9px] text-slate-500">Approved vs total decided</p>
-            </div>
-
-            {/* 6. Revision Requests */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Revision Requests</div>
-              <div className="text-xl font-mono font-bold text-rose-600">{app?.revisionRequests || 0}</div>
-              <p className="text-[9px] text-slate-500">Rejections &amp; modifications</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* EQUIPMENT PERFORMANCE REPORTS TAB */}
-      {activeTab === 'equipment' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Zap className="w-4 h-4 text-cyan-600" /> Equipment Asset Performance, History &amp; Utilization Matrix
-            </h2>
-            <span className="text-[11px] text-cyan-700 font-mono font-bold">
-              6 Mandatory Equipment Indicators Enforced
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
-                  <th className="p-3">Equipment Name &amp; Category</th>
-                  <th className="p-3">Equipment Availability</th>
-                  <th className="p-3 text-center">Equipment Utilization</th>
-                  <th className="p-3 text-center">Equipment Downtime</th>
-                  <th className="p-3 text-center">Checkout History</th>
-                  <th className="p-3 text-center">Maintenance History</th>
-                  <th className="p-3 text-center">Damage History</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60 font-medium">
-                {equipmentReports.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-6 text-center text-slate-400 italic">No equipment performance records available.</td>
-                  </tr>
-                ) : (
-                  equipmentReports.map((eq) => (
-                    <tr key={eq.equipmentId} className="hover:bg-slate-50/50 transition-colors">
-                      {/* Equipment Name & Category */}
-                      <td className="p-3 font-bold text-slate-900">
-                        <div className="text-cyan-600 font-bold flex items-center gap-1.5">
-                          {eq.name}
-                          <span className="text-[10px] text-slate-400 font-mono">[{eq.serialNumber}]</span>
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-normal">{eq.brand} {eq.model} • Category: {eq.category}</div>
-                      </td>
-
-                      {/* 1. Equipment Availability */}
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          eq.equipmentAvailabilityStatus === 'AVAILABLE'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : eq.equipmentAvailabilityStatus === 'ISSUED' || eq.equipmentAvailabilityStatus === 'RESERVED'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                            : eq.equipmentAvailabilityStatus === 'MAINTENANCE' || eq.equipmentAvailabilityStatus === 'DAMAGED'
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : 'bg-slate-100 text-slate-500'
-                        }`}>
-                          {eq.equipmentAvailabilityStatus}
-                        </span>
-                      </td>
-
-                      {/* 2. Equipment Utilization */}
-                      <td className="p-3 text-center font-mono font-bold">
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="text-cyan-700">{eq.equipmentUtilizationPercentage}%</span>
-                          <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${eq.equipmentUtilizationPercentage}%` }}></div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* 3. Equipment Downtime */}
-                      <td className="p-3 text-center font-mono font-bold text-indigo-300">
-                        {eq.equipmentDowntimeFormatted}
-                      </td>
-
-                      {/* 4. Checkout History */}
-                      <td className="p-3 text-center font-mono font-bold">
-                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[11px]">
-                          {eq.checkoutHistoryCount} Checkouts
-                        </span>
-                      </td>
-
-                      {/* 5. Maintenance History */}
-                      <td className="p-3 text-center font-mono font-bold">
-                        <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[11px]">
-                          {eq.maintenanceHistoryCount} Records
-                        </span>
-                      </td>
-
-                      {/* 6. Damage History */}
-                      <td className="p-3 text-center font-mono font-bold">
-                        <span className={`px-2 py-0.5 rounded text-[11px] ${
-                          eq.damageHistoryCount > 0
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : 'bg-slate-50 text-slate-500 border border-slate-200'
-                        }`}>
-                          {eq.damageHistoryCount} Reports
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ATTENDANCE PERFORMANCE REPORTS TAB */}
-      {activeTab === 'attendance' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-200 pb-3">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" /> Staff Attendance Analytics &amp; Timeframe Matrix
-              </h2>
-              <p className="text-[11px] text-slate-500 mt-0.5">Filter attendance by Daily, Weekly, Monthly, or Custom Date Range</p>
-            </div>
-
-            {/* Timeframe Filter Switcher */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex bg-slate-50 border border-slate-200 rounded-lg p-0.5 text-xs font-medium">
-                {(['daily', 'weekly', 'monthly', 'custom'] as const).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => {
-                      setAttendancePeriod(p);
-                      if (p !== 'custom') fetchAttendance(p);
-                    }}
-                    className={`px-3 py-1 rounded-md capitalize transition-all ${
-                      attendancePeriod === p ? 'bg-emerald-600 text-slate-900 font-bold' : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-
-              {/* Custom Date Range Picker */}
-              {attendancePeriod === 'custom' && (
-                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 p-1 rounded-lg">
-                  <input
-                    type="date"
-                    value={attStartDateInput}
-                    onChange={(e) => setAttStartDateInput(e.target.value)}
-                    className="bg-slate-100 text-slate-800 text-xs px-2 py-1 rounded border border-slate-200 focus:outline-none"
-                    title="Attendance Start Date"
-                  />
-                  <span className="text-slate-400">to</span>
-                  <input
-                    type="date"
-                    value={attEndDateInput}
-                    onChange={(e) => setAttEndDateInput(e.target.value)}
-                    className="bg-slate-100 text-slate-800 text-xs px-2 py-1 rounded border border-slate-200 focus:outline-none"
-                    title="Attendance End Date"
-                  />
-                  <button
-                    onClick={() => fetchAttendance('custom', attStartDateInput, attEndDateInput)}
-                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-slate-900 font-bold rounded text-xs transition-colors shadow-sm"
-                  >
-                    Apply
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
-                  <th className="p-3">Employee Name</th>
-                  <th className="p-3 text-center">Present Days</th>
-                  <th className="p-3 text-center">Absent Days</th>
-                  <th className="p-3 text-center">Half Days</th>
-                  <th className="p-3 text-center">Late Entries</th>
-                  <th className="p-3 text-center">Attendance %</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60 font-medium">
-                {!attendanceData?.report || attendanceData.report.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-6 text-center text-slate-400 italic">No attendance records found for this timeframe.</td>
-                  </tr>
-                ) : (
-                  attendanceData.report.map((emp: any) => (
-                    <tr key={emp.userId} className="hover:bg-slate-50/50 transition-colors">
-                      {/* Employee Name */}
-                      <td className="p-3 font-bold text-slate-900">
-                        <div>{emp.employeeName}</div>
-                        <div className="text-[10px] text-slate-500 font-normal">{emp.designation} • {emp.department}</div>
-                      </td>
-
-                      {/* 1. Present Days */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{emp.presentDays}</td>
-
-                      {/* 2. Absent Days */}
-                      <td className="p-3 text-center font-mono font-bold text-rose-600">{emp.absentDays}</td>
-
-                      {/* 3. Half Days */}
-                      <td className="p-3 text-center font-mono font-bold text-cyan-700">{emp.halfDays}</td>
-
-                      {/* 4. Late Entries */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-800">{emp.lateEntries}</td>
-
-                      {/* 5. Attendance Percentage */}
-                      <td className="p-3 text-center font-mono font-bold">
-                        <span className={`px-2 py-0.5 rounded text-[11px] ${
-                          emp.attendancePercentage >= 90
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : emp.attendancePercentage >= 75
-                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                            : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}>
-                          {emp.attendancePercentage}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* PROJECT PERFORMANCE REPORTS TAB */}
-      {activeTab === 'projects' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Layers className="w-4 h-4 text-blue-600" /> Project Operational Status &amp; Timeline Matrix
-            </h2>
-            <span className="text-[11px] text-blue-700 font-mono font-bold">
-              8 Mandatory Project Indicators Enforced
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
-                  <th className="p-3">Project &amp; Client</th>
-                  <th className="p-3">Project Status</th>
-                  <th className="p-3 text-center">Completion %</th>
-                  <th className="p-3 text-center">Pending Scripts</th>
-                  <th className="p-3 text-center">Pending Graphics</th>
-                  <th className="p-3 text-center">Pending Reviews</th>
-                  <th className="p-3">Equipment Used</th>
-                  <th className="p-3">Assigned Employees</th>
-                  <th className="p-3">Timeline Summary</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60 font-medium">
-                {projectReports.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="p-6 text-center text-slate-400 italic">No project performance records available.</td>
-                  </tr>
-                ) : (
-                  projectReports.map((p) => (
-                    <tr key={p.projectId} className="hover:bg-slate-50/50 transition-colors">
-                      {/* Project & Client */}
-                      <td className="p-3 font-bold text-slate-900">
-                        <div className="text-blue-600 font-bold flex items-center gap-1.5">
-                          {p.projectName}
-                          <span className="text-[10px] text-slate-400 font-mono">[{p.projectCode}]</span>
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-normal">Brand: {p.brandName} • Client: {p.clientName}</div>
-                      </td>
-
-                      {/* 1. Project Status */}
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          p.projectStatus === 'COMPLETED'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : p.projectStatus === 'IN_PROGRESS' || p.projectStatus === 'POST_PRODUCTION'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                            : p.projectStatus?.includes('WAITING') || p.projectStatus?.includes('REVISION')
-                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                            : 'bg-slate-100 text-slate-500'
-                        }`}>
-                          {p.projectStatus}
-                        </span>
-                      </td>
-
-                      {/* 2. Completion Percentage */}
-                      <td className="p-3 text-center font-mono font-bold">
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="text-emerald-600">{p.completionPercentage}%</span>
-                          <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${p.completionPercentage}%` }}></div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* 3. Pending Scripts */}
-                      <td className="p-3 text-center font-mono font-bold text-purple-700">{p.pendingScripts}</td>
-
-                      {/* 4. Pending Graphics */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-800">{p.pendingGraphics}</td>
-
-                      {/* 5. Pending Reviews */}
-                      <td className="p-3 text-center font-mono font-bold text-rose-600">{p.pendingReviews}</td>
-
-                      {/* 6. Equipment Used */}
-                      <td className="p-3 text-slate-700">
-                        <div className="font-semibold text-cyan-700">{p.equipmentUsedCount} Items</div>
-                        <div className="text-[10px] text-slate-400 truncate max-w-[120px]">{p.equipmentUsedSummary}</div>
-                      </td>
-
-                      {/* 7. Assigned Employees */}
-                      <td className="p-3 text-slate-700">
-                        <div className="font-semibold text-indigo-300">{p.assignedEmployeesCount} Staff</div>
-                        <div className="text-[10px] text-slate-400 truncate max-w-[120px]">{p.assignedEmployeeNames}</div>
-                      </td>
-
-                      {/* 8. Timeline Summary */}
-                      <td className="p-3 text-slate-700">
-                        <div className="text-[10px] font-mono text-slate-700">{p.timelineSummary}</div>
-                        <div className="text-[9px] text-slate-400 font-normal">Location: {p.shootLocation} ({p.shootType})</div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* DEPARTMENT PERFORMANCE REPORTS TAB */}
-      {activeTab === 'departments' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-indigo-400" /> Department Operational Performance &amp; Capacity Matrix
-            </h2>
-            <span className="text-[11px] text-indigo-300 font-mono font-bold">
-              7 Mandatory Department Indicators Enforced
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
-                  <th className="p-3">Department Name</th>
-                  <th className="p-3 text-center">Total Employees</th>
-                  <th className="p-3 text-center">Active Tasks</th>
-                  <th className="p-3 text-center">Completed Tasks</th>
-                  <th className="p-3 text-center">Total Outputs</th>
-                  <th className="p-3 text-center">Capacity Utilization</th>
-                  <th className="p-3 text-center">Productivity</th>
-                  <th className="p-3 text-center">Pending Work</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60 font-medium">
-                {deptReports.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="p-6 text-center text-slate-400 italic">No department performance records available.</td>
-                  </tr>
-                ) : (
-                  deptReports.map((d) => (
-                    <tr key={d.departmentId} className="hover:bg-slate-50/50 transition-colors">
-                      {/* Department Name */}
-                      <td className="p-3 font-bold text-slate-900">
-                        <div className="text-indigo-400 font-bold">{d.departmentName}</div>
-                        <div className="text-[10px] text-slate-500 font-normal">{d.description || 'Media Operations Division'}</div>
-                      </td>
-
-                      {/* 1. Total Employees */}
-                      <td className="p-3 text-center font-mono font-bold text-blue-700">{d.totalEmployees}</td>
-
-                      {/* 2. Active Tasks */}
-                      <td className="p-3 text-center font-mono font-bold text-purple-700">{d.activeTasks}</td>
-
-                      {/* 3. Completed Tasks */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{d.completedTasks}</td>
-
-                      {/* 4. Total Outputs */}
-                      <td className="p-3 text-center font-mono font-bold text-cyan-700">{d.totalOutputs}</td>
-
-                      {/* 5. Capacity Utilization */}
-                      <td className="p-3 text-center font-mono font-bold">
-                        <span className={`px-2 py-0.5 rounded text-[11px] ${
-                          d.capacityUtilizationPercentage > 100
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : d.capacityUtilizationPercentage < 50
-                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        }`}>
-                          {d.capacityUtilizationPercentage}%
-                        </span>
-                      </td>
-
-                      {/* 6. Productivity */}
-                      <td className="p-3 text-center font-mono font-bold">
-                        <span className={`px-2 py-0.5 rounded text-[11px] ${
-                          d.productivityPercentage >= 100
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-800 border border-amber-200'
-                        }`}>
-                          {d.productivityPercentage}%
-                        </span>
-                      </td>
-
-                      {/* 7. Pending Work */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-800">{d.pendingWork}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* PRODUCT PERFORMANCE REPORTS TAB */}
-      {activeTab === 'products' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Package className="w-4 h-4 text-rose-600" /> Product Performance &amp; Media Output Matrix
-            </h2>
-            <span className="text-[11px] text-rose-700 font-mono font-bold">
-              8 Mandatory Product Indicators Enforced
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
-                  <th className="p-3">Product Name &amp; Brand</th>
-                  <th className="p-3 text-center">Total Productions</th>
-                  <th className="p-3 text-center">Videos</th>
-                  <th className="p-3 text-center">Posters</th>
-                  <th className="p-3 text-center">Carousels</th>
-                  <th className="p-3 text-center">Awareness Campaigns</th>
-                  <th className="p-3 text-center">Advertisement Campaigns</th>
-                  <th className="p-3 text-center">Pending Deliverables</th>
-                  <th className="p-3 text-center">Completed Deliverables</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60 font-medium">
-                {productReports.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="p-6 text-center text-slate-400 italic">No product performance records available.</td>
-                  </tr>
-                ) : (
-                  productReports.map((p) => (
-                    <tr key={p.productId} className="hover:bg-slate-50/50 transition-colors">
-                      {/* Product Name & Brand */}
-                      <td className="p-3 font-bold text-slate-900">
-                        <div className="text-rose-600 font-bold flex items-center gap-1.5">
-                          {p.productName}
-                          <span className="text-[10px] text-slate-400 font-mono">[{p.productCode}]</span>
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-normal">Brand: {p.brandName} • Category: {p.category}</div>
-                      </td>
-
-                      {/* 1. Total Productions */}
-                      <td className="p-3 text-center font-mono font-bold text-blue-700">{p.totalProductions}</td>
-
-                      {/* 2. Videos */}
-                      <td className="p-3 text-center font-mono font-bold text-purple-700">{p.videos}</td>
-
-                      {/* 3. Posters */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-800">{p.posters}</td>
-
-                      {/* 4. Carousels */}
-                      <td className="p-3 text-center font-mono font-bold text-cyan-700">{p.carousels}</td>
-
-                      {/* 5. Awareness Campaigns */}
-                      <td className="p-3 text-center font-mono font-bold text-indigo-300">{p.awarenessCampaigns}</td>
-
-                      {/* 6. Advertisement Campaigns */}
-                      <td className="p-3 text-center font-mono font-bold text-rose-700">{p.advertisementCampaigns}</td>
-
-                      {/* 7. Pending Deliverables */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-600">{p.pendingDeliverables}</td>
-
-                      {/* 8. Completed Deliverables */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{p.completedDeliverables}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* CLIENT PERFORMANCE REPORTS TAB */}
-      {activeTab === 'clients' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-emerald-600" /> Client Operational Performance &amp; Production Matrix
-            </h2>
-            <span className="text-[11px] text-emerald-700 font-mono font-bold">
-              7 Mandatory Client Indicators Enforced
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
-                  <th className="p-3">Client &amp; Company</th>
-                  <th className="p-3 text-center">Total Projects</th>
-                  <th className="p-3 text-center">Total Deliverables</th>
-                  <th className="p-3 text-center">Pending Approvals</th>
-                  <th className="p-3 text-center">Completed Projects</th>
-                  <th className="p-3 text-center">Avg Project Duration</th>
-                  <th className="p-3 text-center">Revision Requests</th>
-                  <th className="p-3">Production Summary</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60 font-medium">
-                {clientReports.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="p-6 text-center text-slate-400 italic">No client performance records available.</td>
-                  </tr>
-                ) : (
-                  clientReports.map((c) => (
-                    <tr key={c.clientId} className="hover:bg-slate-50/50 transition-colors">
-                      {/* Client & Company */}
-                      <td className="p-3 font-bold text-slate-900">
-                        <div className="text-emerald-600 font-bold">{c.clientName}</div>
-                        <div className="text-[10px] text-slate-500 font-normal">{c.companyName} • {c.email}</div>
-                      </td>
-
-                      {/* 1. Total Projects */}
-                      <td className="p-3 text-center font-mono font-bold text-blue-700">{c.totalProjects}</td>
-
-                      {/* 2. Total Deliverables */}
-                      <td className="p-3 text-center font-mono font-bold text-purple-700">{c.totalDeliverables}</td>
-
-                      {/* 3. Pending Approvals */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-800">{c.pendingApprovals}</td>
-
-                      {/* 4. Completed Projects */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{c.completedProjects}</td>
-
-                      {/* 5. Average Project Duration */}
-                      <td className="p-3 text-center font-mono font-bold text-indigo-300">
-                        {c.avgProjectDurationFormatted || 'N/A'}
-                      </td>
-
-                      {/* 6. Revision Requests */}
-                      <td className="p-3 text-center font-mono font-bold text-rose-600">{c.revisionRequests || 0}x</td>
-
-                      {/* 7. Production Summary */}
-                      <td className="p-3">
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[9px]">
-                            Prog: {c.productionSummary?.IN_PROGRESS || 0}
-                          </span>
-                          <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[9px]">
-                            Review: {c.productionSummary?.WAITING_FOR_REVIEW || 0}
-                          </span>
-                          <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[9px]">
-                            Done: {c.productionSummary?.COMPLETED || 0}
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* BRAND INDEPENDENT PERFORMANCE REPORTS TAB */}
-      {activeTab === 'brands' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Tag className="w-4 h-4 text-cyan-600" /> Independent Brand Performance &amp; Production Matrix
-            </h2>
-            <span className="text-[11px] text-cyan-700 font-mono font-bold">
-              8 Mandatory Brand Indicators Enforced
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
-                  <th className="p-3">Brand &amp; Client</th>
-                  <th className="p-3 text-center">Total Projects</th>
-                  <th className="p-3 text-center">Total Deliverables</th>
-                  <th className="p-3 text-center">Total Outputs</th>
-                  <th className="p-3">Production Status</th>
-                  <th className="p-3 text-center">Pending Deliverables</th>
-                  <th className="p-3 text-center">Completion Rate</th>
-                  <th className="p-3 text-center">Revision Count</th>
-                  <th className="p-3 text-center">Avg Delivery Time</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60 font-medium">
-                {brandReports.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="p-6 text-center text-slate-400 italic">No brand performance records available.</td>
-                  </tr>
-                ) : (
-                  brandReports.map((b) => (
-                    <tr key={b.brandId} className="hover:bg-slate-50/50 transition-colors">
-                      {/* Brand & Client */}
-                      <td className="p-3 font-bold text-slate-900">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-cyan-600 font-bold">{b.brandName}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">[{b.shortCode}]</span>
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-normal">Client: {b.clientName}</div>
-                      </td>
-
-                      {/* 1. Total Projects */}
-                      <td className="p-3 text-center font-mono font-bold text-blue-700">{b.totalProjects}</td>
-
-                      {/* 2. Total Deliverables */}
-                      <td className="p-3 text-center font-mono font-bold text-purple-700">{b.totalDeliverables}</td>
-
-                      {/* 3. Total Outputs */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{b.totalOutputs}</td>
-
-                      {/* 4. Production Status */}
-                      <td className="p-3">
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[9px]">
-                            Prog: {b.productionStatus?.IN_PROGRESS || 0}
-                          </span>
-                          <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[9px]">
-                            Review: {b.productionStatus?.WAITING_FOR_REVIEW || 0}
-                          </span>
-                          <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[9px]">
-                            Done: {b.productionStatus?.COMPLETED || 0}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* 5. Pending Deliverables */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-800">{b.pendingDeliverables}</td>
-
-                      {/* 6. Completion Rate */}
-                      <td className="p-3 text-center font-mono font-bold">
-                        <span className={`px-2 py-0.5 rounded text-[11px] ${
-                          b.completionRatePercentage >= 75
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-800 border border-amber-200'
-                        }`}>
-                          {b.completionRatePercentage}%
-                        </span>
-                      </td>
-
-                      {/* 7. Revision Count */}
-                      <td className="p-3 text-center font-mono font-bold text-rose-600">{b.revisionCount || 0}x</td>
-
-                      {/* 8. Average Delivery Time */}
-                      <td className="p-3 text-center font-mono font-bold text-indigo-300">
-                        {b.avgDeliveryTimeFormatted || 'N/A'}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* EMPLOYEE-WISE PERFORMANCE REPORTS TAB */}
-      {activeTab === 'employee' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-md">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Users className="w-4 h-4 text-purple-600" /> Employee-Wise Operational Performance Matrix
-            </h2>
-            <span className="text-[11px] text-purple-700 font-mono font-bold">
-              10 Mandatory Operational Indicators Enforced
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
-                  <th className="p-3">Employee Name</th>
-                  <th className="p-3">Today's Attendance</th>
-                  <th className="p-3 text-center">Assigned Tasks</th>
-                  <th className="p-3 text-center">Completed Tasks</th>
-                  <th className="p-3 text-center">Pending Tasks</th>
-                  <th className="p-3 text-center">Daily Target</th>
-                  <th className="p-3 text-center">Actual Output</th>
-                  <th className="p-3 text-center">Achievement %</th>
-                  <th className="p-3 text-center">Revision Count</th>
-                  <th className="p-3 text-center">Completion Rate %</th>
-                  <th className="p-3 text-center">Overall Score</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60 font-medium">
-                {employeeReports.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="p-6 text-center text-slate-400 italic">No employee performance data available.</td>
-                  </tr>
-                ) : (
-                  employeeReports.map((emp) => (
-                    <tr key={emp.userId} className="hover:bg-slate-50/50 transition-colors">
-                      {/* 1. Employee Name */}
-                      <td className="p-3 font-bold text-slate-900">
-                        <div>{emp.employeeName || emp.name}</div>
-                        <div className="text-[10px] text-slate-500 font-normal">{emp.designation} • {emp.department}</div>
-                      </td>
-
-                      {/* 2. Attendance */}
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          emp.attendance === 'PRESENT'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : emp.attendance === 'LATE'
-                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                            : emp.attendance === 'HALF_DAY'
-                            ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
-                            : emp.attendance === 'ABSENT'
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : 'bg-slate-100 text-slate-500'
-                        }`}>
-                          {emp.attendance || 'NOT MARKED'}
-                        </span>
-                      </td>
-
-                      {/* 3. Assigned Tasks */}
-                      <td className="p-3 text-center font-mono font-bold text-blue-700">{emp.assignedTasksCount ?? emp.assignedTasks}</td>
-
-                      {/* 4. Completed Tasks */}
-                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{emp.completedTasksCount ?? emp.completedTasks}</td>
-
-                      {/* 9. Pending Tasks */}
-                      <td className="p-3 text-center font-mono font-bold text-amber-800">{emp.pendingTasksCount ?? emp.pendingTasks}</td>
-
-                      {/* 5. Daily Target */}
-                      <td className="p-3 text-center font-mono text-slate-700">{emp.dailyTarget}</td>
-
-                      {/* 6. Actual Output */}
-                      <td className="p-3 text-center font-mono font-bold text-cyan-700">{emp.actualDailyOutput ?? emp.actualOutput}</td>
-
-                      {/* 7. Target Achievement Percentage */}
-                      <td className="p-3 text-center font-mono font-bold">
-                        <span className={`px-2 py-0.5 rounded text-[11px] ${
-                          (emp.targetAchievementPercentage ?? emp.achievementPercentage) >= 100
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-800 border border-amber-200'
-                        }`}>
-                          {emp.targetAchievementPercentage ?? emp.achievementPercentage}%
-                        </span>
-                      </td>
-
-                      {/* 8. Revision Count */}
-                      <td className="p-3 text-center font-mono font-bold text-rose-600">{emp.revisionCount || 0}x</td>
-
-                      {/* 10. Completion Rate */}
-                      <td className="p-3 text-center font-mono font-bold text-indigo-300 font-mono">
-                        {emp.completionRatePercentage || emp.completionRate || 0}%
-                      </td>
-
-                      {/* 11. Overall Score */}
-                      <td className="p-3 text-center font-mono font-bold">
-                        <span className={`px-2 py-0.5 rounded text-[11px] ${
-                          emp.overallProductivityScore >= 80 ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
-                          emp.overallProductivityScore >= 50 ? 'bg-amber-50 text-amber-600 border border-amber-200' :
-                          'bg-rose-50 text-rose-600 border border-rose-200'
-                        }`}>
-                          {emp.overallProductivityScore}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-
-
-      {/* GRAPHIC REQUIREMENTS ANALYTICS TAB */}
-      {activeTab === 'graphics' && (
-        <div className="space-y-6">
-          {/* 1. Employee Productivity */}
-          <div className="bg-white border border-amber-200 p-5 rounded-xl space-y-3">
-            <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <Users className="w-4 h-4 text-blue-600" /> 1. Employee Productivity Reports
-              <span className="ml-1 text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-semibold">Graphic Reqs</span>
-            </h2>
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-              {(gr?.employeeProductivity || []).length === 0 ? (
-                <p className="text-slate-400 italic">No employee assignments in graphic requirements yet.</p>
-              ) : (
-                (gr?.employeeProductivity || []).map((emp: any) => (
-                  <div key={emp.userId} className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
-                    <div>
-                      <strong className="text-slate-900 text-xs block">{emp.name}</strong>
-                      <span className="text-[10px] text-slate-500">{emp.role}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-[11px] font-mono">
-                      <div><span className="text-slate-400">Reqs:</span> <strong className="text-blue-700">{emp.assignedCount}</strong></div>
-                      <div><span className="text-slate-400">In Prog:</span> <strong className="text-amber-800">{emp.inProgressCount}</strong></div>
-                      <div><span className="text-slate-400">Done:</span> <strong className="text-emerald-600">{emp.completedCount}</strong></div>
-                      <div><span className="text-slate-400">Rev:</span> <strong className="text-amber-800">{emp.revisionCount}</strong></div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* 2 & 3: Brand + Product */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Building2 className="w-4 h-4 text-purple-600" /> 2. Brand Reports</h2>
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {(gr?.brandReports || []).length === 0 ? (
-                  <p className="text-slate-400 italic">No brand graphic data available.</p>
-                ) : (
-                  (gr?.brandReports || []).map((b: any) => (
-                    <div key={b.brandId} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
-                      <div className="flex items-center justify-between mb-1">
-                        <strong className="text-purple-700 text-xs">[{b.shortCode}] {b.name}</strong>
-                        <span className="text-[10px] text-slate-500 font-mono">{b.totalReqs} reqs</span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-1.5">
-                        <div className="bg-purple-500 h-1.5 rounded-full" style={{ width: b.totalReqs > 0 ? `${(b.completedCount / b.totalReqs) * 100}%` : '0%' }} />
-                      </div>
-                      <div className="flex justify-between text-[10px] mt-1 text-slate-400">
-                        <span>Done: <strong className="text-emerald-600">{b.completedCount}</strong></span>
-                        <span>In Prog: <strong className="text-amber-600">{b.inProgressCount}</strong></span>
-                        <span>Rev: <strong className="text-amber-800">{b.totalRevisions}</strong></span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Package className="w-4 h-4 text-cyan-600" /> 3. Product Reports</h2>
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {(gr?.productReports || []).length === 0 ? (
-                  <p className="text-slate-400 italic">No product graphic data available.</p>
-                ) : (
-                  (gr?.productReports || []).map((p: any) => (
-                    <div key={p.productId} className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
-                      <div className="flex items-center justify-between mb-1">
-                        <strong className="text-cyan-700 text-xs">{p.name}</strong>
-                        <span className="text-[10px] text-slate-500 font-mono">{p.totalReqs} reqs</span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-1.5">
-                        <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: p.totalReqs > 0 ? `${(p.completedCount / p.totalReqs) * 100}%` : '0%' }} />
-                      </div>
-                      <div className="flex justify-between text-[10px] mt-1 text-slate-400">
-                        <span>Done: <strong className="text-emerald-600">{p.completedCount}</strong></span>
-                        <span>Rev: <strong className="text-amber-800">{p.totalRevisions}</strong></span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* 4. Requirement Type Reports */}
-          <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-            <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Tag className="w-4 h-4 text-amber-600" /> 4. Requirement Type Reports</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {(gr?.typeReports || []).map((t: any, i: number) => (
-                  <div key={t.type} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
-                    <span className="font-semibold block text-[11px]" style={{ color: BRAND_COLORS[i % BRAND_COLORS.length] }}>{t.type}</span>
-                    <div className="text-2xl font-bold text-slate-900 font-mono">{t.totalReqs}</div>
-                    <div className="text-[9px] text-slate-500">Done: {t.completedCount} | Rev: {t.totalRevisions}</div>
-                  </div>
-                ))}
-              </div>
-              {typeChartData.length > 0 && (
-                <div className="h-40">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={typeChartData} margin={{ top: 4, right: 8, left: -20, bottom: 4 }}>
-                      <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 9 }} />
-                      <YAxis tick={{ fill: '#6b7280', fontSize: 9 }} />
-                      <Tooltip contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: '8px', fontSize: '11px' }} labelStyle={{ color: '#e5e7eb' }} itemStyle={{ color: '#d1d5db' }} />
-                      <Bar dataKey="total" radius={[4, 4, 0, 0]}>
-                        {typeChartData.map((entry: any, index: number) => (
-                          <Cell key={index} fill={entry.fill} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 5. Capacity Reports */}
-          <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-            <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Zap className="w-4 h-4 text-amber-600" /> 5. Capacity Reports</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-center text-[11px]">
-              {[
-                { label: 'Total', value: gr?.capacityReports?.totalRequirements || 0, color: 'text-white' },
-                { label: 'Draft', value: gr?.capacityReports?.draftCount || 0, color: 'text-slate-500' },
-                { label: 'Ready', value: gr?.capacityReports?.readyCount || 0, color: 'text-blue-600' },
-                { label: 'Assigned', value: gr?.capacityReports?.assignedCount || 0, color: 'text-purple-600' },
-                { label: 'In Progress', value: gr?.capacityReports?.inProgressCount || 0, color: 'text-amber-600' },
-                { label: 'Tech Review', value: gr?.capacityReports?.waitingTechnicalReview || 0, color: 'text-amber-600' },
-                { label: 'Media Review', value: gr?.capacityReports?.waitingMediaReview || 0, color: 'text-cyan-600' },
-                { label: 'Client Review', value: gr?.capacityReports?.waitingClientConfirmation || 0, color: 'text-indigo-400' },
-                { label: 'Revision Req.', value: gr?.capacityReports?.revisionRequested || 0, color: 'text-orange-400' },
-                { label: 'Completed', value: gr?.capacityReports?.completedCount || 0, color: 'text-emerald-600' },
-              ].map((stat) => (
-                <div key={stat.label} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
-                  <span className="text-slate-500 text-[10px] block">{stat.label}</span>
-                  <strong className={`text-lg font-mono ${stat.color}`}>{stat.value}</strong>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 6 & 7: Revision + Approval */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><RotateCcw className="w-4 h-4 text-rose-600" /> 6. Revision Reports</h2>
-              <div className="grid grid-cols-2 gap-2 text-center text-[11px]">
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Total Revisions</span><strong className="text-2xl text-amber-800 font-mono">{gr?.revisionReports?.totalRevisions || 0}</strong></div>
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Avg / Req</span><strong className="text-2xl text-blue-600 font-mono">{gr?.revisionReports?.avgRevisionsPerReq || '0'}</strong></div>
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg"><span className="text-slate-500 text-[10px] block">Pending</span><strong className="text-2xl text-rose-600 font-mono">{gr?.revisionReports?.pendingRevisions || 0}</strong></div>
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-left px-3">
-                  <div className="text-[10px] text-slate-400 font-semibold uppercase">Distribution</div>
-                  <div className="text-[10px]">0 rev: <strong className="text-emerald-600">{gr?.revisionReports?.distribution?.zeroRevisions || 0}</strong></div>
-                  <div className="text-[10px]">1-2 rev: <strong className="text-amber-600">{gr?.revisionReports?.distribution?.oneToTwoRevisions || 0}</strong></div>
-                  <div className="text-[10px]">3+ rev: <strong className="text-rose-600">{gr?.revisionReports?.distribution?.threePlusRevisions || 0}</strong></div>
-                </div>
-              </div>
-              {(gr?.revisionReports?.topRevised || []).length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="text-[10px] text-slate-400 font-semibold uppercase">Top Revised Requirements</div>
-                  {(gr?.revisionReports?.topRevised || []).map((r: any) => (
-                    <div key={r.id} className="flex items-center justify-between bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
-                      <div>
-                        <span className="font-mono text-amber-600 text-[10px]">{r.id}</span>
-                        <span className="text-slate-800 text-[11px] ml-2">{r.name}</span>
-                      </div>
-                      <span className="text-rose-600 font-mono font-bold">{r.revisions}x</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3">
-              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-emerald-600" /> 7. Approval Reports</h2>
-              <div className="space-y-2">
-                {[
-                  { label: 'Production Completed', value: gr?.approvalReports?.productionCompleted || 0, color: 'bg-blue-500' },
-                  { label: 'Technical Approved', value: gr?.approvalReports?.technicalApproved || 0, color: 'bg-purple-500' },
-                  { label: 'Media Manager Approved', value: gr?.approvalReports?.mediaManagerApproved || 0, color: 'bg-cyan-500' },
-                  { label: 'Client Confirmed', value: gr?.approvalReports?.clientConfirmed || 0, color: 'bg-indigo-500' },
-                  { label: 'Fully Approved', value: gr?.approvalReports?.fullyApproved || 0, color: 'bg-emerald-500' },
-                ].map((stat) => {
-                  const total = gr?.summary?.total || 1;
-                  return (
-                    <div key={stat.label} className="space-y-1">
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-slate-700">{stat.label}</span>
-                        <span className="font-mono text-slate-900">{stat.value} / {total}</span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-1.5">
-                        <div className={`${stat.color} h-1.5 rounded-full transition-all`} style={{ width: total > 0 ? `${Math.min(100, (stat.value / total) * 100)}%` : '0%' }} />
-                      </div>
-                    </div>
-                  );
-                })}
-                <div className="pt-2 border-t border-slate-200 grid grid-cols-3 gap-2 text-center text-[10px]">
-                  <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg"><span className="text-slate-500 block">Waiting Tech</span><strong className="text-amber-800 font-mono">{gr?.approvalReports?.waitingTechnicalReview || 0}</strong></div>
-                  <div className="p-2 bg-cyan-50 border border-cyan-200 rounded-lg"><span className="text-slate-500 block">Waiting Media</span><strong className="text-cyan-700 font-mono">{gr?.approvalReports?.waitingMediaReview || 0}</strong></div>
-                  <div className="p-2 bg-indigo-50 border border-indigo-800/40 rounded-lg"><span className="text-slate-500 block">Waiting Client</span><strong className="text-indigo-300 font-mono">{gr?.approvalReports?.waitingClientConfirmation || 0}</strong></div>
-                </div>
-              </div>
+            {/* Modal Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                onClick={() => setSelectedStaffDetail(null)}
+                className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-800 transition"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

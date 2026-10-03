@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame, Clock, ArrowUpDown, ExternalLink, FileText, Eye, Check, ShieldCheck, Copy, MessageSquare, Send, Lock, Sparkles, Film, Link as LinkIcon, Camera, Layers, MapPin, Compass, CloudSun, Users, Image as ImageIcon, Palette } from 'lucide-react';
+import { CheckSquare, AlertTriangle, Plus, ArrowRight, RefreshCw, CheckCircle2, Search, SlidersHorizontal, RotateCcw, X, Building2, Tag, User, Calendar, Flame, Clock, ArrowUpDown, ExternalLink, FileText, Eye, Check, ShieldCheck, Copy, MessageSquare, Send, Lock, Sparkles, Film, Link as LinkIcon, Camera, Layers, MapPin, Compass, CloudSun, Users, Image as ImageIcon, Palette, UploadCloud, Upload, Scissors } from 'lucide-react';
 import { TableSortHeader, SortSelector } from '@/components/common/TableSortHeader';
 import { PaginationControls } from '@/components/common/PaginationControls';
 import { FavoriteButton } from '@/components/common/FavoriteButton';
@@ -90,7 +90,15 @@ const TaskWorkflowTimeline = ({ task }: { task: any }) => {
 
   const isRevision = isTaskRevision(task);
   const isDirect = task.sourceType === 'DIRECT_TASK';
+  const isShootTask = task.sourceType === 'SHOOT_PROJECT' || task.taskType === 'PROJECT' || Boolean((task.project || task.projectId) && !task.script && !task.scriptId && !task.graphicRequirement && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER' && task.taskType !== 'VIDEO_EDITING');
   const isScriptTask = false;
+
+  const shootStages = [
+    { key: 'ASSIGNED', label: 'Assigned' },
+    { key: 'ACCEPTED', label: 'Accepted' },
+    { key: 'IN_PROGRESS', label: 'In Progress' },
+    { key: 'COMPLETED', label: 'Completed' },
+  ];
 
   const scriptStages = [
     { key: 'CREATED', label: '1. Created' },
@@ -134,7 +142,10 @@ const TaskWorkflowTimeline = ({ task }: { task: any }) => {
   let stages = directStages;
   let currentIdx = -1;
 
-  if (isScriptTask) {
+  if (isShootTask) {
+    stages = shootStages;
+    currentIdx = stages.findIndex((s) => s.key === task.status);
+  } else if (isScriptTask) {
     stages = scriptStages;
     if (task.status === 'COMPLETED') currentIdx = 6;
     else if (task.status === 'APPROVED') currentIdx = 5;
@@ -512,7 +523,8 @@ export default function TasksPage() {
 
   // Create Task Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [parentEntityType, setParentEntityType] = useState<'PROJECT' | 'GRAPHIC_REQ'>('PROJECT');
+  const [parentEntityType, setParentEntityType] = useState<'PROJECT' | 'GRAPHIC_REQ' | 'VIDEO_EDITING'>('PROJECT');
+  const [taskClipCode, setTaskClipCode] = useState('');
   const [selectedParentId, setSelectedParentId] = useState('');
   const [selectedParentProjectId, setSelectedParentProjectId] = useState('');
   const [taskClientId, setTaskClientId] = useState('');
@@ -565,6 +577,7 @@ export default function TasksPage() {
   const [creating, setCreating] = useState(false);
   const [scriptCreationDetails, setScriptCreationDetails] = useState<any | null>(null);
   const [taskScriptDocFile, setTaskScriptDocFile] = useState<File | null>(null);
+  const [taskAssetFiles, setTaskAssetFiles] = useState<File[]>([]);
   const [uploadingTaskScript, setUploadingTaskScript] = useState(false);
   const [deletingScriptDocId, setDeletingScriptDocId] = useState<string | null>(null);
   const [inspectedProjectFiles, setInspectedProjectFiles] = useState<any[]>([]);
@@ -662,15 +675,15 @@ export default function TasksPage() {
   const loadReferenceData = async () => {
     try {
       const [resCap, resProj, resGraphic, resUsers, resClients, resBrands, resProducts, resEquip] = await Promise.all([
-        fetchApi('/tasks/capacity/overview'),
+        fetchApi('/tasks/capacity/overview').catch(() => null),
         // all=true bypasses per-user visibility filtering so the parent-project dropdowns
         // list every project, not just the ones this user is assigned to.
-        fetchApi('/projects?all=true'),
-        fetchApi('/graphic-reqs'),
-        fetchApi('/users'),
-        fetchApi('/clients'),
-        fetchApi('/brands'),
-        fetchApi('/products'),
+        fetchApi('/projects?all=true').catch(() => []),
+        fetchApi('/graphic-reqs').catch(() => []),
+        fetchApi('/users').catch(() => []),
+        fetchApi('/clients').catch(() => []),
+        fetchApi('/brands').catch(() => []),
+        fetchApi('/products').catch(() => []),
         fetchApi('/equipment').catch(() => []),
       ]);
       
@@ -794,6 +807,7 @@ export default function TasksPage() {
     e.preventDefault();
     setCreating(true);
     try {
+      const isVideoEditing = parentEntityType === 'VIDEO_EDITING';
       const isGraphic = parentEntityType === 'GRAPHIC_REQ';
       const isShoot = parentEntityType === 'PROJECT';
 
@@ -804,8 +818,9 @@ export default function TasksPage() {
         dueDate: taskDueDate || new Date(Date.now() + 86400000).toISOString(),
         estimatedHours: parseFloat(taskEstimatedHours) || 2.0,
         parentEntityType: parentEntityType,
-        taskType: isShoot ? 'PROJECT' : 'GRAPHIC_REQUIREMENT',
-        sourceType: isShoot ? 'SHOOT_PROJECT' : 'GRAPHIC_REQUIREMENT',
+        taskType: isVideoEditing ? 'VIDEO_EDITING' : (isShoot ? 'PROJECT' : 'GRAPHIC_REQUIREMENT'),
+        sourceType: isVideoEditing ? 'SCRIPT' : (isShoot ? 'SHOOT_PROJECT' : 'GRAPHIC_REQUIREMENT'),
+        clipCode: isVideoEditing ? (taskClipCode.trim() || undefined) : undefined,
         clientId: taskClientId || undefined,
         brandId: taskBrandId || undefined,
         productId: taskProductId || undefined,
@@ -838,7 +853,7 @@ export default function TasksPage() {
         equipmentIds: taskEquipmentIds.length > 0 ? taskEquipmentIds : undefined,
       };
 
-      if (parentEntityType === 'PROJECT') {
+      if (parentEntityType === 'PROJECT' || parentEntityType === 'VIDEO_EDITING') {
         payload.projectId = selectedParentId || selectedParentProjectId || undefined;
       } else if (parentEntityType === 'GRAPHIC_REQ') {
         if (selectedParentId) payload.graphicRequirementId = selectedParentId;
@@ -850,7 +865,7 @@ export default function TasksPage() {
         body: JSON.stringify(payload),
       });
 
-      if (taskScriptDocFile && createdTask) {
+      if (taskScriptDocFile && createdTask && parentEntityType !== 'GRAPHIC_REQ') {
         const uploadFd = new FormData();
         uploadFd.append('file', taskScriptDocFile);
         if (createdTask.projectId || payload.projectId) {
@@ -871,7 +886,34 @@ export default function TasksPage() {
         }
       }
 
+      if (taskAssetFiles.length > 0 && createdTask) {
+        await Promise.all(
+          taskAssetFiles.map((file) => {
+            const uploadFd = new FormData();
+            uploadFd.append('file', file);
+            if (createdTask.projectId || payload.projectId) {
+              uploadFd.append('projectId', createdTask.projectId || payload.projectId);
+            }
+            if (createdTask.id) {
+              uploadFd.append('taskId', createdTask.id);
+            }
+            if (createdTask.graphicRequirementId || payload.graphicRequirementId) {
+              uploadFd.append('graphicRequirementId', createdTask.graphicRequirementId || payload.graphicRequirementId);
+            }
+            uploadFd.append('folderCategory', 'Creative Assets');
+            uploadFd.append('attachmentCategory', 'REFERENCE_FILE');
+            return fetchApi('/files/upload', {
+              method: 'POST',
+              body: uploadFd,
+            }).catch((uploadErr) => {
+              console.warn('Task asset file upload error:', uploadErr);
+            });
+          })
+        );
+      }
+
       setTaskScriptDocFile(null);
+      setTaskAssetFiles([]);
       setShowCreateModal(false);
       setTaskTitle('');
       setTaskDescription('');
@@ -886,6 +928,7 @@ export default function TasksPage() {
       setTaskRemarks('');
       setTaskCreativeAssetName('');
       setTaskCreativePreviewUrl('');
+      setTaskClipCode('');
       setTaskInfluencerTalent('');
       setTaskExactLocationAddress('');
       setTaskLocationAccessDetails('');
@@ -1112,7 +1155,7 @@ export default function TasksPage() {
       setUploadTask(null);
       setUploadFileUrl('');
       setUploadFileName('');
-      alert('Deliverable output uploaded successfully! When ready, click "Request Technical Review" to submit for Technical Approval.');
+      alert('Deliverable output uploaded successfully!');
       loadData();
     } catch (err: any) {
       alert(err.message || 'Failed to upload deliverable');
@@ -1135,16 +1178,36 @@ export default function TasksPage() {
     }
 
     try {
-      await fetchApi(`/tasks/${taskId}/request-technical-review`, {
-        method: 'POST',
-      });
-      alert('Formal request for Technical Review & Approval sent to Technical Managers! Task status updated to WAITING FOR TECHNICAL REVIEW.');
+      const isVideoEditing = taskObj?.taskType === 'VIDEO_EDITING' || taskObj?.sourceType === 'VIDEO_EDITING';
+      const targetProjectId = taskObj?.projectId || taskObj?.project?.id || inspectedTask?.project?.id || inspectedTask?.projectId;
+
+      if (isVideoEditing && targetProjectId) {
+        await fetchApi(`/projects/${targetProjectId}/video-editing-task/${taskObj.id}/submit-technical-review`, {
+          method: 'POST',
+          body: JSON.stringify({
+            deliverableUrl: taskObj.activeDeliverableUrl || `/uploads/${targetProjectId}/video-editing/${taskObj.taskId}.mp4`,
+            deliverableFileName: taskObj.activeDeliverableFileName || `${taskObj.title || 'edited-cut'}.mp4`,
+          }),
+        });
+        alert('Video Editing Task submitted for Technical Review!');
+      } else {
+        await fetchApi(`/tasks/${taskId}/request-technical-review`, {
+          method: 'POST',
+        });
+        alert('Task submitted for Technical Review!');
+      }
+
       loadData();
       if (inspectedTask && inspectedTask.id === taskId) {
-        setInspectedTask((prev: any) => ({
-          ...prev,
-          status: 'WAITING_FOR_TECHNICAL_REVIEW',
-        }));
+        const updated = await fetchApi(`/tasks/${taskId}`).catch(() => null);
+        if (updated) {
+          setInspectedTask(updated);
+        } else {
+          setInspectedTask((prev: any) => ({
+            ...prev,
+            status: 'WAITING_FOR_TECHNICAL_REVIEW',
+          }));
+        }
       }
     } catch (err: any) {
       alert(err.message || 'Failed to request Technical Review');
@@ -1718,7 +1781,27 @@ export default function TasksPage() {
 
                       {/* Parent Entity */}
                       <td className="px-3 py-3 text-xs min-w-0">
-                        {task.script ? (
+                        {task.taskType === 'VIDEO_EDITING' || task.sourceType === 'VIDEO_EDITING' ? (
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="px-2 py-0.5 bg-amber-50 text-amber-900 border border-amber-300 rounded font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
+                                <FileText className="w-3 h-3 text-amber-600" />
+                                {task.projectScript?.name || task.script?.name || task.title?.replace(/^Video Editing\s*-\s*/, '') || 'Script'}
+                              </span>
+                              {(task.projectScript?.clipCode || task.clipCode) && (
+                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-900 border border-emerald-300 rounded font-mono font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
+                                  <Film className="w-3 h-3 text-emerald-600" />
+                                  Clip: {task.projectScript?.clipCode || task.clipCode}
+                                </span>
+                              )}
+                            </div>
+                            {task.project && (
+                              <div className="text-slate-500 font-medium text-[10px] truncate">
+                                Project: {task.project.name || task.project.projectId}
+                              </div>
+                            )}
+                          </div>
+                        ) : task.script ? (
                           <Link
                             href={`/scripts?inspect=${task.script.id}`}
                             className="space-y-0.5 min-w-0 block group"
@@ -1875,37 +1958,22 @@ export default function TasksPage() {
                                       </button>
                                     )}
 
-                                    {/* Request Technical Review Action */}
-                                    {!['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'PENDING_MARKETING_APPROVAL', 'APPROVED', 'COMPLETED'].includes(task.status) && (
+                                    {/* Request Technical Review Action — strictly for VIDEO_EDITING */}
+                                    {task.taskType === 'VIDEO_EDITING' && !['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'PENDING_MARKETING_APPROVAL', 'APPROVED', 'COMPLETED'].includes(task.status) && (
                                       <button
                                         onClick={() => {
-                                          if (task.taskType === 'VIDEO_EDITING') {
-                                            // Video Editing tasks submit directly to Technical Review
-                                            const comment = prompt('Optional comment for Technical Review submission:') || '';
-                                            fetchApi(`/projects/${task.projectId}/video-editing-task/${task.id}/submit-technical-review`, {
-                                              method: 'POST',
-                                              body: JSON.stringify({
-                                                deliverableUrl: `/uploads/${task.projectId}/video-editing/${task.taskId}.mp4`,
-                                                deliverableFileName: 'edited-cut.mp4',
-                                                comment,
-                                              }),
+                                          fetchApi(`/projects/${task.projectId}/video-editing-task/${task.id}/submit-technical-review`, {
+                                             method: 'POST',
+                                             body: JSON.stringify({
+                                               deliverableUrl: `/uploads/${task.projectId}/video-editing/${task.taskId}.mp4`,
+                                               deliverableFileName: 'edited-cut.mp4',
+                                             }),
+                                           })
+                                            .then(() => {
+                                              alert('Video Editing Task submitted for Technical Review!');
+                                              loadData();
                                             })
-                                              .then(() => {
-                                                alert('Video Editing Task submitted for Technical Review!');
-                                                loadData();
-                                              })
-                                              .catch((err) => alert(err.message || 'Failed to submit for Technical Review'));
-                                          } else if (task.scriptId || task.script?.id) {
-                                            const targetScriptId = task.scriptId || task.script?.id;
-                                            fetchApi(`/scripts/${targetScriptId}/submit-technical`, { method: 'POST' })
-                                              .then(() => {
-                                                alert('Script successfully submitted for Technical Review!');
-                                                loadData();
-                                              })
-                                              .catch((err) => alert(err.message || 'Failed to submit script for technical review'));
-                                          } else {
-                                            handleRequestTechnicalReview(task.id);
-                                          }
+                                            .catch((err) => alert(err.message || 'Failed to submit for Technical Review'));
                                         }}
                                         className="px-1.5 py-0.5 bg-purple-900/40 hover:bg-purple-800/60 text-purple-700 border border-purple-300 rounded text-[10px] font-bold transition-all shadow"
                                         title="Submit for Technical Review & Approval"
@@ -2026,7 +2094,7 @@ export default function TasksPage() {
                 <label className="block text-slate-600 font-bold mb-2 text-xs uppercase tracking-wider">
                   Task Type / Workflow Origin *
                 </label>
-                <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-xl border border-slate-200">
+                <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-100 rounded-xl border border-slate-200">
 
                   <button
                     type="button"
@@ -2058,6 +2126,22 @@ export default function TasksPage() {
                   >
                     <Layers className="w-4 h-4 shrink-0" />
                     <span>Graphic Req</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setParentEntityType('VIDEO_EDITING');
+                      setSelectedParentId('');
+                    }}
+                    className={`py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                      parentEntityType === 'VIDEO_EDITING'
+                        ? 'bg-purple-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <Scissors className="w-4 h-4 shrink-0" />
+                    <span>Video Editing</span>
                   </button>
                 </div>
               </div>
@@ -2730,49 +2814,396 @@ export default function TasksPage() {
                 </div>
               )}
 
-              {/* SCRIPT DOCUMENT UPLOAD (OPTIONAL) */}
-              <div className="space-y-3 bg-purple-50/50 p-5 rounded-xl border border-purple-200 text-xs">
-                <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
-                  <span className="text-xs font-black text-purple-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <FileText className="w-4 h-4 text-purple-600" /> Script Document (Optional)
+              {/* ASSET & REFERENCE FILE UPLOAD (OPTIONAL) */}
+              <div className="space-y-3 bg-blue-50/50 p-5 rounded-xl border border-blue-200 text-xs">
+                <div className="flex items-center justify-between border-b border-blue-200/80 pb-2">
+                  <span className="text-xs font-black text-blue-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <UploadCloud className="w-4 h-4 text-blue-600" /> Upload Task Assets &amp; Reference Files (Optional)
                   </span>
-                  <span className="text-[10px] text-purple-800 font-mono bg-purple-100 px-2 py-0.5 rounded border border-purple-200 font-bold">
-                    PDF / DOC / DOCX / TXT
+                  <span className="text-[10px] text-blue-800 font-mono bg-blue-100 px-2 py-0.5 rounded border border-blue-200 font-bold">
+                    Images / PSD / AI / PDF / Video / Zip
                   </span>
                 </div>
                 <div>
                   <label className="text-slate-800 font-bold block mb-1.5 text-xs">
-                    Upload Script File (Optional)
+                    Upload Asset Files
                   </label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="file"
-                      id="taskScriptDocInput"
-                      accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                      onChange={(e) => setTaskScriptDocFile(e.target.files?.[0] || null)}
-                      className="text-xs text-slate-700 file:mr-3 file:py-2 file:px-3.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200 cursor-pointer"
-                    />
-                    {taskScriptDocFile && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTaskScriptDocFile(null);
-                          const input = document.getElementById('taskScriptDocInput') as HTMLInputElement;
-                          if (input) input.value = '';
-                        }}
-                        className="text-xs text-rose-600 hover:text-rose-800 font-bold"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
+                  <input
+                    type="file"
+                    id="taskAssetFileInput"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length > 0) {
+                        setTaskAssetFiles((prev) => [...prev, ...files]);
+                        if (!taskCreativeAssetName) {
+                          setTaskCreativeAssetName(files[0].name);
+                        }
+                      }
+                    }}
+                    className="text-xs text-slate-700 file:mr-3 file:py-2 file:px-3.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer w-full"
+                  />
+                  {taskAssetFiles.length > 0 && (
+                    <div className="mt-2.5 space-y-1.5">
+                      {taskAssetFiles.map((f, idx) => (
+                        <div key={`${f.name}-${idx}`} className="flex items-center justify-between p-2.5 bg-white border border-blue-200 rounded-lg text-xs">
+                          <div className="flex items-center gap-2 truncate">
+                            <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span className="font-semibold text-slate-800 truncate">{f.name}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">({(f.size / 1024 / 1024).toFixed(2)} MB)</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setTaskAssetFiles((prev) => prev.filter((_, i) => i !== idx))}
+                            className="text-rose-500 hover:text-rose-700 font-bold text-xs"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <p className="text-[11px] text-slate-500 mt-1.5">
-                    Attach an optional script document (PDF, Word, Text) for this task. Marketing Managers can review and update scripts as needed.
+                    Attach creative assets, briefs, branding guides, or reference images directly to this task.
                   </p>
+                </div>
+
+                {/* Optional Asset Name */}
+                <div className="pt-2 border-t border-blue-200/80">
+                  <label className="text-slate-800 font-bold block mb-1 text-xs">Asset Name (Optional)</label>
+                  <input
+                    type="text"
+                    value={taskCreativeAssetName}
+                    onChange={(e) => setTaskCreativeAssetName(e.target.value)}
+                    placeholder="e.g. Master_Banner_PSD_v1"
+                    className="w-full bg-white border border-slate-200 rounded p-2 text-slate-800 font-medium text-xs"
+                  />
                 </div>
               </div>
 
+              {/* SCRIPT DOCUMENT UPLOAD (OPTIONAL) */}
+              {parentEntityType !== 'GRAPHIC_REQ' && (
+                <div className="space-y-3 bg-purple-50/50 p-5 rounded-xl border border-purple-200 text-xs">
+                  <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
+                    <span className="text-xs font-black text-purple-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-purple-600" /> Script Document (Optional)
+                    </span>
+                    <span className="text-[10px] text-purple-800 font-mono bg-purple-100 px-2 py-0.5 rounded border border-purple-200 font-bold">
+                      PDF / DOC / DOCX / TXT
+                    </span>
+                  </div>
+                  <div>
+                    <label className="text-slate-800 font-bold block mb-1.5 text-xs">
+                      Upload Script File (Optional)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="file"
+                        id="taskScriptDocInput"
+                        accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                        onChange={(e) => setTaskScriptDocFile(e.target.files?.[0] || null)}
+                        className="text-xs text-slate-700 file:mr-3 file:py-2 file:px-3.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200 cursor-pointer"
+                      />
+                      {taskScriptDocFile && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTaskScriptDocFile(null);
+                            const input = document.getElementById('taskScriptDocInput') as HTMLInputElement;
+                            if (input) input.value = '';
+                          }}
+                          className="text-xs text-rose-600 hover:text-rose-800 font-bold"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1.5">
+                      Attach an optional script document (PDF, Word, Text) for this task. Marketing Managers can review and update scripts as needed.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* ══════════════════════════════════════════════════════════════════════════ */}
+
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {/* FORM TYPE 3: VIDEO EDITING TASK CREATION                                   */}
+              {/* ══════════════════════════════════════════════════════════════════════════ */}
+              {parentEntityType === 'VIDEO_EDITING' && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  {/* Section 1: Video Editing Task Information */}
+                  <div className="space-y-4 bg-purple-50/40 p-5 sm:p-6 rounded-xl border border-purple-200">
+                    <span className="text-xs font-bold text-purple-700 uppercase tracking-wider block flex items-center gap-1.5">
+                      <Scissors className="w-4 h-4 text-purple-600" />
+                      Section 1 • Video Editing Task Details *
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="col-span-1 sm:col-span-2">
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Task Title / Cut Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={taskTitle}
+                          onChange={(e) => setTaskTitle(e.target.value)}
+                          placeholder="e.g. Video Editing - Reel 1 or Main Promotional Cut"
+                          className="w-full bg-white border border-slate-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-lg p-2.5 text-slate-800 font-medium text-sm transition-colors"
+                        />
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2">
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Linked Shoot Project (Optional)</label>
+                        <select
+                          value={selectedParentId}
+                          onChange={(e) => {
+                            const pId = e.target.value;
+                            setSelectedParentId(pId);
+                            setSelectedParentProjectId(pId);
+                            if (pId) {
+                              const proj = projectsList.find((p) => p.id === pId);
+                              if (proj) {
+                                if (proj.clientId) setTaskClientId(proj.clientId);
+                                if (proj.brandId) setTaskBrandId(proj.brandId);
+                                if (proj.productId) setTaskProductId(proj.productId);
+                                if (proj.campaign) setTaskCampaign(proj.campaign);
+                              }
+                            }
+                          }}
+                          className="w-full bg-white border border-slate-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 text-sm font-semibold transition-colors"
+                        >
+                          <option value="">-- Standalone / Independent Video Editing Task --</option>
+                          {projectsList.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              [{p.projectId}] {p.name || 'Shoot Project'} ({new Date(p.shootDate).toLocaleDateString()})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Client *</label>
+                        <select
+                          required
+                          value={taskClientId}
+                          onChange={(e) => {
+                            setTaskClientId(e.target.value);
+                            setTaskBrandId('');
+                            setTaskProductId('');
+                          }}
+                          className="w-full bg-white border border-slate-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        >
+                          <option value="">Select Active Client</option>
+                          {clientsList.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Brand *</label>
+                        <select
+                          required
+                          value={taskBrandId}
+                          onChange={(e) => {
+                            setTaskBrandId(e.target.value);
+                            setTaskProductId('');
+                          }}
+                          className="w-full bg-white border border-slate-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        >
+                          <option value="">Select Active Brand</option>
+                          {brandsList
+                            .filter((b) => !taskClientId || b.clientId === taskClientId)
+                            .map((b) => (
+                              <option key={b.id} value={b.id}>[{b.shortCode}] {b.name}</option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Product (Optional)</label>
+                        <select
+                          value={taskProductId}
+                          onChange={(e) => setTaskProductId(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 text-sm transition-colors"
+                        >
+                          <option value="">None / General Video</option>
+                          {productsList
+                            .filter((p) => !taskBrandId || p.brandId === taskBrandId)
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>{p.name} ({p.productCode})</option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Campaign (Optional)</label>
+                        <input
+                          type="text"
+                          value={taskCampaign}
+                          onChange={(e) => setTaskCampaign(e.target.value)}
+                          placeholder="e.g. Autumn Festival Reel"
+                          className="w-full bg-white border border-slate-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 text-sm transition-colors"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 2: Editor Assignment & Schedule */}
+                  <div className="space-y-4 bg-slate-50/70 p-5 sm:p-6 rounded-xl border border-slate-200">
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+                      Section 2 • Video Editor Assignment &amp; Schedule *
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Priority</label>
+                        <select
+                          value={taskPriority}
+                          onChange={(e) => setTaskPriority(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        >
+                          <option value="LOW">Low</option>
+                          <option value="MEDIUM">Medium</option>
+                          <option value="HIGH">High</option>
+                          <option value="CRITICAL">Critical</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Due Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={taskDueDate}
+                          onChange={(e) => setTaskDueDate(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Est. Hours</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0.5"
+                          value={taskEstimatedHours}
+                          onChange={(e) => setTaskEstimatedHours(e.target.value)}
+                          className="w-full bg-white border border-slate-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 text-sm transition-colors"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Assign Video Editor(s) *</label>
+                      <div className="flex gap-2">
+                        <select
+                          value={staffPickerValue}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val && !assignedStaffIds.includes(val)) {
+                              setAssignedStaffIds((prev) => [...prev, val]);
+                            }
+                            setStaffPickerValue('');
+                          }}
+                          className="w-full bg-white border border-slate-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 font-semibold text-sm transition-colors"
+                        >
+                          <option value="">-- Add Video Editor from Crew --</option>
+                          {staffUsersList
+                            .filter((u) => !assignedStaffIds.includes(u.id))
+                            .map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name} ({u.designation || u.role})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
+                      {/* Selected Assignees Chips */}
+                      <div className="flex flex-wrap gap-2 mt-2.5">
+                        {assignedStaffIds.map((sId) => {
+                          const userObj = staffUsersList.find((u) => u.id === sId);
+                          return (
+                            <span
+                              key={sId}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-100 border border-purple-300 text-purple-900 rounded-lg text-xs font-bold shadow-2xs"
+                            >
+                              <User className="w-3.5 h-3.5 text-purple-700" />
+                              {userObj?.name || 'Editor'}
+                              <button
+                                type="button"
+                                onClick={() => setAssignedStaffIds((prev) => prev.filter((id) => id !== sId))}
+                                className="text-purple-600 hover:text-rose-600 ml-1 font-extrabold"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Optional Script & Footage Clip Details */}
+                  <div className="space-y-4 bg-amber-50/40 p-5 sm:p-6 rounded-xl border border-amber-200">
+                    <span className="text-xs font-bold text-amber-800 uppercase tracking-wider block flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-amber-600" />
+                      Section 3 • Script &amp; Clip Footage Details (Optional)
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Script Clip Code (Optional)</label>
+                        <input
+                          type="text"
+                          value={taskClipCode}
+                          onChange={(e) => setTaskClipCode(e.target.value)}
+                          placeholder="e.g. CLP-001 or REEL-A"
+                          className="w-full bg-white border border-slate-200 focus:border-amber-500 rounded-lg p-2.5 text-slate-800 font-mono text-sm transition-colors uppercase"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">Footage clip identifier that the editor will use in storage.</p>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Upload Script Document (Optional)</label>
+                        <div className="p-2.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between gap-2">
+                          <input
+                            type="file"
+                            id="taskVideoScriptDocInput"
+                            accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                            onChange={(e) => setTaskScriptDocFile(e.target.files?.[0] || null)}
+                            className="text-xs text-slate-700 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-100 file:text-amber-800 hover:file:bg-amber-200 cursor-pointer"
+                          />
+                          {taskScriptDocFile && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTaskScriptDocFile(null);
+                                const input = document.getElementById('taskVideoScriptDocInput') as HTMLInputElement;
+                                if (input) input.value = '';
+                              }}
+                              className="text-xs text-rose-600 hover:text-rose-800 font-bold"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2">
+                        <label className="text-slate-700 block mb-1.5 font-semibold text-xs">Editing Instructions / Production Notes (Optional)</label>
+                        <textarea
+                          rows={2}
+                          value={taskDescription}
+                          onChange={(e) => setTaskDescription(e.target.value)}
+                          placeholder="Special editing instructions, color grading style, sound effects, cut requirements..."
+                          className="w-full bg-white border border-slate-200 focus:border-purple-500 rounded-lg p-2.5 text-slate-800 text-sm transition-colors resize-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="sticky bottom-0 bg-slate-50/95 -mx-6 sm:-mx-8 -mb-6 sm:-mb-8 p-4 sm:p-5 border-t border-slate-200 flex items-center justify-between gap-4 z-20 backdrop-blur-xs">
                 <span className="text-xs text-slate-500 font-mono">
@@ -3028,13 +3459,77 @@ export default function TasksPage() {
             (() => {
                 /* VIDEO_EDITING_STAFF_VIEW_START */
                 if (inspectedTask.taskType === 'VIDEO_EDITING' || inspectedTask.sourceType === 'VIDEO_EDITING') {
-                  const scriptName = inspectedTask.projectScript?.name || inspectedTask.script?.name || inspectedTask.title || 'Video Editing Script';
-                  const clipCode = inspectedTask.projectScript?.clipCode || inspectedTask.clipCode || inspectedTask.script?.clipCode || 'N/A';
+                  const rawNotes = inspectedTask.project?.notes;
+                  let parsedFromNotes: any = null;
+                  if (rawNotes) {
+                    try {
+                      const parsed = extractEventScripts({ notes: rawNotes }, 'Script');
+                      parsedFromNotes = parsed.find(
+                        (s: any) =>
+                          s.id === inspectedTask.scriptId ||
+                          s.id === inspectedTask.projectScriptId ||
+                          s.title === inspectedTask.projectScript?.name ||
+                          s.title === inspectedTask.title?.replace(/^Video Editing\s*-\s*/, '')
+                      );
+                    } catch {
+                      // ignore parse errors
+                    }
+                  }
+
+                  const scriptName =
+                    inspectedTask.projectScript?.name ||
+                    parsedFromNotes?.title ||
+                    inspectedTask.script?.name ||
+                    inspectedTask.title?.replace(/^Video Editing\s*-\s*/, '') ||
+                    'Shooting Script';
+
+                  const clipCode =
+                    inspectedTask.projectScript?.clipCode ||
+                    parsedFromNotes?.clipCodes?.map((c: any) => (typeof c === 'string' ? c : c.code)).join(', ') ||
+                    inspectedTask.clipCode ||
+                    inspectedTask.script?.clipCode ||
+                    'N/A';
+
+                  const scriptText =
+                    inspectedTask.projectScript?.description ||
+                    parsedFromNotes?.scriptText ||
+                    parsedFromNotes?.text ||
+                    '';
+
+                  const scriptHook = parsedFromNotes?.hook || null;
+                  const scriptDuration = parsedFromNotes?.duration || null;
+                  const sceneNumber = parsedFromNotes?.sceneNumber || null;
+                  const targetPlatform = parsedFromNotes?.targetPlatform || null;
+                  const contentType = parsedFromNotes?.contentType || null;
+                  const scriptNotes = parsedFromNotes?.notes || null;
+
+                  const allScriptDocs = (inspectedTask.project?.files || []).filter(
+                    (f: any) =>
+                      (f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+                       f.folderCategory === 'Script Documents' ||
+                       f.storagePath?.includes('Script Documents')) &&
+                      f.attachmentCategory !== 'REFERENCE_FILE'
+                  );
+
+                  const specificScriptFiles = allScriptDocs.filter((f: any) => {
+                    const normScriptName = (scriptName || '').toLowerCase().trim();
+                    const normFileName = (f.fileName || f.name || f.title || '').toLowerCase().trim();
+                    if (inspectedTask.scriptId && (f.id === inspectedTask.scriptId || f.scriptId === inspectedTask.scriptId)) return true;
+                    if (inspectedTask.projectScriptId && (f.id === inspectedTask.projectScriptId || f.scriptId === inspectedTask.projectScriptId)) return true;
+                    if (normFileName && normScriptName && (normFileName === normScriptName || normFileName.includes(normScriptName) || normScriptName.includes(normFileName))) return true;
+                    return false;
+                  });
+
+                  const scriptFiles = specificScriptFiles.length > 0 ? specificScriptFiles : (allScriptDocs.length === 1 ? allScriptDocs : []);
+
                   const scriptClips = inspectedTask.projectScript?.clips || inspectedTask.clips || [];
-                  const assignedStaffName = inspectedTask.assignedTo?.name || inspectedTask.assignedEmployees?.[0]?.user?.name || inspectedTask.assignedEmployees?.[0]?.name || 'Assigned Staff';
+                  const assignedStaffName =
+                    inspectedTask.assignedTo?.name ||
+                    inspectedTask.assignedEmployees?.[0]?.user?.name ||
+                    inspectedTask.assignedEmployees?.[0]?.name ||
+                    'Assigned Staff';
                   const priority = inspectedTask.priority || inspectedTask.project?.priority || 'MEDIUM';
                   const dueDate = inspectedTask.dueDate ? new Date(inspectedTask.dueDate).toLocaleDateString() : 'N/A';
-                  const description = inspectedTask.description || inspectedTask.projectScript?.description || 'Video editing assignment for selected script.';
                   const revisionReason = inspectedTask.mediaRevisionReason || (inspectedTask.revisions && inspectedTask.revisions[0]?.reason);
 
                   return (
@@ -3048,8 +3543,16 @@ export default function TasksPage() {
                               <Film className="w-3 h-3" />
                               VIDEO EDITING TASK
                             </span>
+                            {inspectedTask.project && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                Project: {inspectedTask.project.projectId} ({inspectedTask.project.name || 'Shoot Project'})
+                              </span>
+                            )}
                           </div>
-                          <h3 className="text-lg font-bold text-slate-900 mt-1">{scriptName}</h3>
+                          <h3 className="text-lg font-bold text-slate-900 mt-1 flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-amber-600" />
+                            {scriptName}
+                          </h3>
                         </div>
                         <button
                           onClick={() => setInspectedTask(null)}
@@ -3115,18 +3618,8 @@ export default function TasksPage() {
                         </div>
                       )}
 
-                      {/* Core Task Attributes Card */}
+                      {/* Core Task Attributes Bar */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Script</span>
-                          <strong className="text-slate-900 block truncate">{scriptName}</strong>
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Clip Code</span>
-                          <span className="font-mono text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded text-[11px] inline-block mt-0.5">
-                            {clipCode}
-                          </span>
-                        </div>
                         <div>
                           <span className="text-[10px] font-bold text-slate-400 uppercase block">Project Priority</span>
                           <span className={"inline-block mt-0.5 px-2 py-0.5 rounded font-extrabold uppercase text-[10px] " + (
@@ -3141,14 +3634,14 @@ export default function TasksPage() {
                           <span className="text-[10px] font-bold text-slate-400 uppercase block">Due Date</span>
                           <strong className="text-amber-800 block mt-0.5">{dueDate}</strong>
                         </div>
-                        <div className="col-span-2">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Assigned To</span>
-                          <div className="flex items-center gap-1.5 mt-0.5">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Assigned Editor</span>
+                          <div className="flex items-center gap-1.5 mt-0.5 truncate">
                             <User className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                            <strong className="text-slate-800">{assignedStaffName}</strong>
+                            <strong className="text-slate-800 truncate">{assignedStaffName}</strong>
                           </div>
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <span className="text-[10px] font-bold text-slate-400 uppercase block">Task Status</span>
                           <span className="font-mono text-purple-800 font-bold bg-purple-50 px-2 py-0.5 rounded border border-purple-200 text-[11px] inline-block mt-0.5">
                             {inspectedTask.status?.replace(/_/g, ' ')}
@@ -3156,61 +3649,153 @@ export default function TasksPage() {
                         </div>
                       </div>
 
-                      {/* Attached Clips Section */}
-                      <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3 text-xs">
-                        <div className="flex items-center justify-between border-b border-purple-200 pb-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
-                            <Film className="w-4 h-4 text-purple-700" /> Attached Clips ({scriptClips.length})
-                          </span>
-                          <span className="font-mono text-[10px] text-purple-700 font-semibold">Clip Code: {clipCode}</span>
+                      {/* ============================================================ */}
+                      {/* 1. SEPARATE DEDICATED SCRIPT VIEWER CARD                      */}
+                      {/* ============================================================ */}
+                      <div className="p-4 bg-gradient-to-br from-amber-50/60 via-orange-50/30 to-white border-2 border-amber-200/80 rounded-2xl space-y-3 text-xs shadow-xs">
+                        <div className="flex items-center justify-between border-b border-amber-200/60 pb-2.5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-700 flex items-center justify-center font-bold">
+                              <FileText className="w-4 h-4 text-amber-600" />
+                            </div>
+                            <div>
+                              <span className="text-[11px] font-black uppercase tracking-wider text-amber-900 block">
+                                Assigned Script
+                              </span>
+                              <span className="text-[10px] text-amber-700 font-medium">
+                                Screenplay document for this video cut
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {sceneNumber && (
+                              <span className="px-2 py-0.5 rounded-md bg-amber-100/80 text-amber-800 font-mono text-[10px] font-bold">
+                                Scene #{sceneNumber}
+                              </span>
+                            )}
+                            {scriptDuration && (
+                              <span className="px-2 py-0.5 rounded-md bg-amber-100/80 text-amber-800 font-mono text-[10px] font-bold">
+                                Duration: {scriptDuration}
+                              </span>
+                            )}
+                            {targetPlatform && (
+                              <span className="px-2 py-0.5 rounded-md bg-amber-100/80 text-amber-800 font-mono text-[10px] font-bold">
+                                {targetPlatform}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        {scriptClips.length === 0 ? (
-                          <div className="p-3 bg-white/80 border border-purple-100 rounded-lg text-slate-500 text-center">
-                            No clips attached to this script yet.
+
+                        {/* Hook Banner if present */}
+                        {scriptHook && (
+                          <div className="p-2.5 bg-amber-100/60 border border-amber-200 rounded-xl space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-600" /> Script Hook / Opening Reel
+                            </span>
+                            <p className="text-amber-950 font-semibold text-xs italic">
+                              "{scriptHook}"
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Additional Script Notes if present */}
+                        {scriptNotes && (
+                          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-0.5 text-slate-700">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                              Production / Director Notes
+                            </span>
+                            <p className="text-xs">{scriptNotes}</p>
+                          </div>
+                        )}
+
+                        {/* Attached Specific Script Document File */}
+                        {scriptFiles.length > 0 ? (
+                          <div className="pt-2 border-t border-amber-200/60 space-y-1.5">
+                            <span className="text-[10px] font-bold text-amber-900 uppercase tracking-wider block">
+                              Script Document
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {scriptFiles.map((sf: any, sfIdx: number) => {
+                                const sfUrl = sf.storagePath?.startsWith('http')
+                                  ? sf.storagePath
+                                  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000') + '/' + (sf.storagePath ? sf.storagePath.replace(/^\/?/, '') : '');
+                                return (
+                                  <a
+                                    key={sf.id || sfIdx}
+                                    href={sfUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-3 py-2 bg-white border border-amber-300 hover:border-amber-500 rounded-lg text-amber-900 hover:text-slate-900 font-semibold text-xs flex items-center gap-2 shadow-2xs transition-all"
+                                  >
+                                    <FileText className="w-4 h-4 text-amber-600" />
+                                    <span className="truncate max-w-[260px]">{sf.fileName || sf.title || scriptName}</span>
+                                    <Eye className="w-3.5 h-3.5 text-amber-700 ml-auto" />
+                                  </a>
+                                );
+                              })}
+                            </div>
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {scriptClips.map((clip, cIdx) => {
-                              const clipUrl = clip.storagePath?.startsWith('http')
-                                ? clip.storagePath
-                                : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000') + '/' + (clip.storagePath ? clip.storagePath.replace(/^\/?/, '') : '');
-                              return (
-                                <div
-                                  key={clip.id || cIdx}
-                                  className="p-3 bg-white border border-purple-200 rounded-lg flex items-center justify-between gap-3 shadow-xs"
-                                >
-                                  <div className="flex items-center gap-2.5 overflow-hidden">
-                                    <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
-                                      <Film className="w-4 h-4" />
-                                    </div>
-                                    <div className="truncate">
-                                      <span className="font-bold text-slate-900 block truncate text-xs">{clip.name || ("Clip " + (cIdx + 1))}</span>
-                                      {clip.durationSec && (
-                                        <span className="text-[10px] text-slate-500 font-mono">{clip.durationSec}s duration</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {clip.storagePath && (
-                                    <a
-                                      href={clipUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all shrink-0"
-                                    >
-                                      <Eye className="w-3.5 h-3.5" /> View
-                                    </a>
-                                  )}
-                                </div>
-                              );
-                            })}
+                          <div className="pt-2 border-t border-amber-200/60">
+                            <span className="text-[10px] font-bold text-amber-900 uppercase tracking-wider block mb-1">
+                              Script
+                            </span>
+                            <div className="p-2.5 bg-white border border-amber-200 rounded-lg text-xs font-semibold text-slate-800 flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span>{scriptName}</span>
+                            </div>
                           </div>
                         )}
                       </div>
 
-                      {/* Task Description */}
-                      <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1.5">
-                        <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Description</span>
-                        <p className="text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">{description}</p>
+                      {/* ============================================================ */}
+                      {/* 2. SEPARATE DEDICATED CLIP CODE CARD                         */}
+                      {/* ============================================================ */}
+                      <div className="p-4 bg-gradient-to-br from-emerald-50/50 via-purple-50/40 to-white border-2 border-emerald-200/80 rounded-2xl space-y-3 text-xs shadow-xs">
+                        <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2.5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-700 flex items-center justify-center font-bold">
+                              <Film className="w-4 h-4 text-emerald-600" />
+                            </div>
+                            <div>
+                              <span className="text-[11px] font-black uppercase tracking-wider text-emerald-950 block">
+                                Clip Code &amp; Footage Isolation
+                              </span>
+                              <span className="text-[10px] text-emerald-700 font-medium">
+                                Exact clip code strictly isolated to this script
+                              </span>
+                            </div>
+                          </div>
+                          {clipCode && clipCode !== 'N/A' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(clipCode);
+                                alert(`Clip Code "${clipCode}" copied to clipboard!`);
+                              }}
+                              className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 px-2 py-0.5 rounded hover:bg-emerald-100 transition-colors"
+                            >
+                              <Copy className="w-3 h-3" /> Copy Clip Code
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Prominent Clip Code Display */}
+                        <div className="p-3 bg-white border border-emerald-200 rounded-xl flex items-center justify-between gap-3 shadow-2xs">
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                              Assigned Script Clip Code
+                            </span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="inline-flex items-center px-3 py-1 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-950 font-mono font-black text-sm tracking-wider shadow-xs">
+                                {clipCode}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-slate-500 italic max-w-xs text-right">
+                            Use this code to locate all captured footage for {scriptName}.
+                          </span>
+                        </div>
                       </div>
 
                       {/* Operational Remarks & Work Logs */}
@@ -3292,7 +3877,7 @@ export default function TasksPage() {
                     </div>
                   );
                 }
-/* VIDEO_EDITING_STAFF_VIEW_END */
+
 
                 const activeGraphicReq = fullGraphicReq || inspectedTask.graphicRequirement;
                 const graphicReqId = activeGraphicReq?.reqId || activeGraphicReq?.id || inspectedTask.graphicRequirementId;
@@ -4180,90 +4765,181 @@ export default function TasksPage() {
                       )}
 
                       {/* SCRIPT DOCUMENTS REVIEW & UPLOAD CARD */}
-                      <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3 text-xs">
-                        <div className="flex items-center justify-between border-b border-purple-200 pb-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
-                            <FileText className="w-4 h-4 text-purple-700" /> Attached Script Documents
-                          </span>
-                          {/* Script creation from the task inspector is restricted to
-                              non-Staff roles. Staff inspecting a task to accept it are
-                              read-only here: they can view attached scripts, but cannot add
-                              new ones. The upload handler and endpoint stay in place for the
-                              other roles that still use this control. */}
-                          {user?.role !== 'STAFF' && (
-                            <div className="flex items-center gap-2">
-                              <label className={`px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-all shadow-xs ${uploadingTaskScript ? 'opacity-50 pointer-events-none' : ''}`}>
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>{uploadingTaskScript ? 'Uploading...' : '+ Add New Script'}</span>
-                                <input
-                                  type="file"
-                                  accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) handleUploadScriptDocForTask(file);
-                                    e.target.value = '';
-                                  }}
-                                />
-                              </label>
+                      {!isGraphicReqTask && (
+                        <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3 text-xs">
+                          <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                              <FileText className="w-4 h-4 text-purple-700" /> Attached Script Documents
+                            </span>
+                            {/* Script creation from the task inspector is restricted to
+                                non-Staff roles. Staff inspecting a task to accept it are
+                                read-only here: they can view attached scripts, but cannot add
+                                new ones. The upload handler and endpoint stay in place for the
+                                other roles that still use this control. */}
+                            {user?.role !== 'STAFF' && (
+                              <div className="flex items-center gap-2">
+                                <label className={`px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-all shadow-xs ${uploadingTaskScript ? 'opacity-50 pointer-events-none' : ''}`}>
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>{uploadingTaskScript ? 'Uploading...' : '+ Add New Script'}</span>
+                                  <input
+                                    type="file"
+                                    accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleUploadScriptDocForTask(file);
+                                      e.target.value = '';
+                                    }}
+                                  />
+                                </label>
+                              </div>
+                            )}
+                          </div>
+
+                          {inspectedFilesError && (
+                            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900 flex items-start gap-2">
+                              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                              <span>
+                                {inspectedFilesError} Adding a new script needs access to this project’s
+                                documents - ask the Media Manager to add you to the project team.
+                              </span>
                             </div>
                           )}
+
+                          {loadingInspectedFiles ? (
+                            <div className="text-slate-500 py-2 text-center text-xs">Loading script files...</div>
+                          ) : (() => {
+                            const scriptFiles = (inspectedProjectFiles || []).filter(
+                              (f: any) =>
+                                (f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+                                 f.folderCategory === 'Script Documents' ||
+                                 f.storagePath?.includes('Script Documents')) &&
+                                f.attachmentCategory !== 'REFERENCE_FILE'
+                            );
+
+                            if (scriptFiles.length === 0) {
+                              return (
+                                <div className="p-3 bg-white/80 border border-purple-100 rounded-lg text-slate-500 flex items-center justify-between">
+                                  <span>No script documents attached to this task/project yet.</span>
+                                  <span className="text-[10px] text-purple-700 font-semibold">Marketing Manager can review or attach scripts at any time</span>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="space-y-2">
+                                {scriptFiles.map((sf: any) => {
+                                  const fileUrl = sf.storagePath?.startsWith('http')
+                                    ? sf.storagePath
+                                    : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${sf.storagePath?.replace(/^\/?/, '')}`;
+
+                                  return (
+                                    <div
+                                      key={sf.id || sf.fileName}
+                                      className="p-3 bg-white border border-purple-200 rounded-lg flex items-center justify-between gap-3 shadow-xs"
+                                    >
+                                      <div className="flex items-center gap-2.5 overflow-hidden">
+                                        <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                                          <FileText className="w-4 h-4" />
+                                        </div>
+                                        <div className="truncate">
+                                          <span className="font-bold text-slate-900 block truncate">{sf.fileName}</span>
+                                          <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                                            {sf.fileSize && <span>{(sf.fileSize / 1024).toFixed(1)} KB</span>}
+                                            {sf.uploadedBy && <span>• Uploaded by {sf.uploadedBy.name || sf.uploadedBy.role}</span>}
+                                            {sf.createdAt && <span>• {new Date(sf.createdAt).toLocaleDateString()}</span>}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <a
+                                          href={fileUrl}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all"
+                                        >
+                                          <Eye className="w-3.5 h-3.5" /> View Script
+                                        </a>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteScriptDocForTask(sf)}
+                                          disabled={deletingScriptDocId === sf.id}
+                                          title={`Delete ${sf.fileName}`}
+                                          className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 hover:border-rose-300 rounded-lg font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-50"
+                                        >
+                                          {deletingScriptDocId === sf.id ? (
+                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                          ) : (
+                                            <X className="w-3.5 h-3.5" />
+                                          )}
+                                          Delete
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                      {/* ATTACHED REFERENCE DOCUMENTS & PROJECT ASSETS CARD */}
+                      <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-3 text-xs">
+                        <div className="flex items-center justify-between border-b border-indigo-200 pb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+                            <UploadCloud className="w-4 h-4 text-indigo-700" /> Attached Reference Documents &amp; Project Assets
+                          </span>
+                          <span className="text-[10px] font-mono text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 font-bold">
+                            Briefs / Moodboards / Assets
+                          </span>
                         </div>
 
-                        {inspectedFilesError && (
-                          <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900 flex items-start gap-2">
-                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                            <span>
-                              {inspectedFilesError} Adding a new script needs access to this project’s
-                              documents - ask the Media Manager to add you to the project team.
-                            </span>
-                          </div>
-                        )}
-
                         {loadingInspectedFiles ? (
-                          <div className="text-slate-500 py-2 text-center text-xs">Loading script files...</div>
+                          <div className="text-slate-500 py-2 text-center text-xs">Loading reference documents...</div>
                         ) : (() => {
-                          const scriptFiles = (inspectedProjectFiles || []).filter(
+                          const referenceFiles = (inspectedProjectFiles || []).filter(
                             (f: any) =>
-                              f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
-                              f.folderCategory === 'Script Documents' ||
-                              f.storagePath?.includes('Script Documents') ||
-                              f.fileName?.toLowerCase().endsWith('.pdf') ||
-                              f.fileName?.toLowerCase().endsWith('.doc') ||
-                              f.fileName?.toLowerCase().endsWith('.docx')
+                              f.attachmentCategory === 'REFERENCE_FILE' ||
+                              f.folderCategory === 'Reference Documents' ||
+                              f.folderCategory === 'Creative Assets' ||
+                              f.folderCategory === 'Attachments' ||
+                              (f.attachmentCategory !== 'SCRIPT_DOCUMENT' &&
+                               f.folderCategory !== 'Script Documents' &&
+                               !f.storagePath?.includes('Script Documents'))
                           );
 
-                          if (scriptFiles.length === 0) {
+                          if (referenceFiles.length === 0) {
                             return (
-                              <div className="p-3 bg-white/80 border border-purple-100 rounded-lg text-slate-500 flex items-center justify-between">
-                                <span>No script documents attached to this task/project yet.</span>
-                                <span className="text-[10px] text-purple-700 font-semibold">Marketing Manager can review or attach scripts at any time</span>
+                              <div className="p-3 bg-white/80 border border-indigo-100 rounded-lg text-slate-500 flex items-center justify-between">
+                                <span>No reference documents attached to this task/project.</span>
                               </div>
                             );
                           }
 
                           return (
                             <div className="space-y-2">
-                              {scriptFiles.map((sf: any) => {
-                                const fileUrl = sf.storagePath?.startsWith('http')
-                                  ? sf.storagePath
-                                  : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${sf.storagePath?.replace(/^\/?/, '')}`;
+                              {referenceFiles.map((rf: any) => {
+                                const ext = rf.fileName?.split('.').pop()?.toUpperCase() || 'FILE';
+                                const fileUrl = rf.storagePath?.startsWith('http')
+                                  ? rf.storagePath
+                                  : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/${rf.storagePath?.replace(/^\/?/, '')}`;
 
                                 return (
                                   <div
-                                    key={sf.id || sf.fileName}
-                                    className="p-3 bg-white border border-purple-200 rounded-lg flex items-center justify-between gap-3 shadow-xs"
+                                    key={rf.id || rf.fileName}
+                                    className="p-3 bg-white border border-indigo-200 rounded-lg flex items-center justify-between gap-3 shadow-xs"
                                   >
                                     <div className="flex items-center gap-2.5 overflow-hidden">
-                                      <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
-                                        <FileText className="w-4 h-4" />
-                                      </div>
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-indigo-100 text-indigo-900 border border-indigo-200 shrink-0">
+                                        {ext}
+                                      </span>
                                       <div className="truncate">
-                                        <span className="font-bold text-slate-900 block truncate">{sf.fileName}</span>
-                                        <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                                          {sf.fileSize && <span>{(sf.fileSize / 1024).toFixed(1)} KB</span>}
-                                          {sf.uploadedBy && <span>• Uploaded by {sf.uploadedBy.name || sf.uploadedBy.role}</span>}
-                                          {sf.createdAt && <span>• {new Date(sf.createdAt).toLocaleDateString()}</span>}
+                                        <span className="font-bold text-slate-900 block truncate">{rf.fileName}</span>
+                                        <div className="text-[10px] text-slate-500 flex items-center gap-2 font-mono">
+                                          {rf.fileSize && <span>{(rf.fileSize / 1024).toFixed(1)} KB</span>}
+                                          {rf.uploadedBy && <span>• Uploaded by {rf.uploadedBy.name || rf.uploadedBy.role}</span>}
+                                          {rf.createdAt && <span>• {new Date(rf.createdAt).toLocaleDateString()}</span>}
                                         </div>
                                       </div>
                                     </div>
@@ -4272,24 +4948,10 @@ export default function TasksPage() {
                                         href={fileUrl}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all"
+                                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all"
                                       >
-                                        <Eye className="w-3.5 h-3.5" /> View Script
+                                        <Eye className="w-3.5 h-3.5" /> View File
                                       </a>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteScriptDocForTask(sf)}
-                                        disabled={deletingScriptDocId === sf.id}
-                                        title={`Delete ${sf.fileName}`}
-                                        className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 hover:border-rose-300 rounded-lg font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-50"
-                                      >
-                                        {deletingScriptDocId === sf.id ? (
-                                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                        ) : (
-                                          <X className="w-3.5 h-3.5" />
-                                        )}
-                                        Delete
-                                      </button>
                                     </div>
                                   </div>
                                 );
@@ -4433,8 +5095,8 @@ export default function TasksPage() {
                         );
                       })()}
 
-                      {/* Technical Review Submission Action */}
-                      {!['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'PENDING_MARKETING_APPROVAL', 'APPROVED', 'COMPLETED'].includes(inspectedTask.status) && !isPendingAcceptance && (
+                      {/* Technical Review Submission Action — strictly for VIDEO_EDITING */}
+                      {inspectedTask.taskType === 'VIDEO_EDITING' && !['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_MARKETING_APPROVAL', 'APPROVED', 'COMPLETED'].includes(inspectedTask.status) && !isPendingAcceptance && (
                         <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-2.5 shadow-lg">
                           <div className="flex items-center justify-between">
                             <span className="font-bold text-purple-700 text-xs flex items-center gap-1.5">
@@ -4487,6 +5149,98 @@ export default function TasksPage() {
 
       {/* Request Revision Form Modal */}
       
+
+      {/* Update Task Status & Progress Modal */}
+      {updatingTask && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 w-full max-w-md space-y-4 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-mono text-xs font-bold">
+                  {updatingTask.taskId}
+                </span>
+                <h3 className="font-bold text-slate-900 text-base">Update Task Progress</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUpdatingTask(null)}
+                className="text-slate-500 hover:text-slate-900"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTaskUpdate} className="space-y-4 text-xs">
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Task</span>
+                <p className="font-bold text-slate-900 text-sm">{updatingTask.title}</p>
+                <p className="text-[11px] text-slate-500 font-medium">Type: {getTaskTypeInfo(updatingTask).label}</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-800 block text-xs">Status</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 font-semibold text-xs focus:outline-none focus:border-amber-500 focus:bg-white"
+                >
+                  <option value="PENDING">Pending</option>
+                  <option value="ASSIGNED">Assigned</option>
+                  <option value="ACCEPTED">Accepted</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="ON_HOLD">On Hold</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                  <span>Completion Percentage</span>
+                  <span className="font-mono text-amber-600">{editProgress}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={editProgress}
+                  onChange={(e) => setEditProgress(Number(e.target.value))}
+                  className="w-full accent-amber-600 cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-800 block text-xs">Remarks / Work Note (Optional)</label>
+                <textarea
+                  value={editRemark}
+                  onChange={(e) => setEditRemark(e.target.value)}
+                  placeholder="Add remarks or work update note..."
+                  rows={3}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-xs focus:outline-none focus:border-amber-500 focus:bg-white resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setUpdatingTask(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingTaskUpdate}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-extrabold text-xs shadow-md disabled:opacity-50 transition-all"
+                >
+                  {savingTaskUpdate ? 'Saving...' : 'Save Updates'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Dedicated Upload Work Deliverable Output Modal */}
       {uploadTask && (

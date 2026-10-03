@@ -55,6 +55,7 @@ model User {
   handoverToEmployee    EquipmentHandoverAuthorization[] @relation("HandoverToEmployee")
   handoverIssuedBy      EquipmentHandoverAuthorization[] @relation("HandoverIssuedBy")
   maintenanceClearedBy  EquipmentMaintenanceRecord[]     @relation("MaintenanceClearedBy")
+  assignedEquipmentItems Equipment[]                     @relation("ActiveEquipmentAssignedUser")
 
   revisionsRequested Revision[] @relation("RevisionRequestedBy")
   revisionsOriginal  Revision[] @relation("RevisionOriginalAssignee")
@@ -323,6 +324,7 @@ model ShootProject {
   scriptEditorAssignments ScriptEditorAssignment[]
   sourceForCalendarEvents MediaCalendarEvent[]     @relation("CalendarEventSourceShoot")
   scripts                ProjectScript[]
+  assignedEquipmentList  Equipment[]              @relation("ActiveEquipmentShootProject")
 }
 
 model IndoorShootDetails {
@@ -678,6 +680,21 @@ model Equipment {
   lastKnownLocation         String?
   lastKnownDate             DateTime?
   lostNotes                 String?
+  // ─── Operational Assignment & Outside Rental Fields ──────────────────────
+  assignedProjectId         String?
+  assignedProject           ShootProject?         @relation("ActiveEquipmentShootProject", fields: [assignedProjectId], references: [id], onDelete: SetNull)
+  assignedUserId            String?
+  assignedUser              User?                 @relation("ActiveEquipmentAssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  assignedDate              DateTime?
+  expectedReturnDate        DateTime?
+  assignmentNotes           String?
+
+  rentalCustomer            String?
+  rentalContact             String?
+  rentalStartDate           DateTime?
+  rentalExpectedReturnDate  DateTime?
+  rentalNotes               String?
+  rentalFee                 Float?
 
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
@@ -766,6 +783,9 @@ model EquipmentMovement {
   functionalCondition String?
   cleaningStatus     String?
   notes              String?
+  rentalCustomer     String?
+  rentalContact      String?
+  rentalFee          Float?
   timestamp          DateTime               @default(now())
 
   equipment   Equipment              @relation(fields: [equipmentId], references: [id], onDelete: Restrict) // Business Rule 3: movement log preserved

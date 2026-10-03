@@ -2463,4 +2463,812 @@ export class ReportsService {
       totalActivitiesLogged: employeeActivities.length,
     };
   }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ─── DEDICATED ROLE-BASED REPORT METHODS ────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // ─── 1. Brand Report ─────────────────────────────────────────────────────────
+  async getBrandReport(filters: {
+    period?: string;
+    startDate?: string;
+    endDate?: string;
+    clientId?: string;
+    brandId?: string;
+    projectId?: string;
+    status?: string;
+    search?: string;
+  }) {
+    const { start, end } = this.getDateRangeHelper(filters.period, filters.startDate, filters.endDate);
+
+    const where: any = {};
+    if (filters.clientId) where.clientId = filters.clientId;
+    if (filters.brandId) where.id = filters.brandId;
+
+    const brands = await this.prisma.brand.findMany({
+      where,
+      include: {
+        client: { select: { id: true, name: true } },
+        projects: {
+          include: {
+            tasks: {
+              include: {
+                assignedEmployees: { include: { user: { select: { id: true, name: true } } } },
+                timeline: {
+                  where: { event: { in: ['TASK_ASSIGNED', 'TASK_CREATED'] } },
+                  include: { user: { select: { id: true, name: true } } },
+                  orderBy: { createdAt: 'desc' },
+                  take: 1,
+                },
+              },
+            },
+            graphicRequirements: true,
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const now = new Date();
+    const rows: any[] = [];
+    let totalTasks = 0;
+    let completed = 0;
+    let inProgress = 0;
+    let pending = 0;
+    let overdue = 0;
+
+    for (const brand of brands) {
+      for (const project of brand.projects) {
+        if (filters.projectId && project.id !== filters.projectId) continue;
+
+        for (const task of project.tasks) {
+          // Date filter based on task creation or due date
+          const taskDate = task.dueDate ? new Date(task.dueDate) : new Date(task.createdAt);
+          if (filters.period && (taskDate < start || taskDate > end)) continue;
+
+          if (filters.status && filters.status !== 'ALL' && task.status !== filters.status) continue;
+
+          if (filters.search) {
+            const q = filters.search.toLowerCase();
+            const match =
+              task.title.toLowerCase().includes(q) ||
+              task.taskId.toLowerCase().includes(q) ||
+              brand.name.toLowerCase().includes(q) ||
+              project.name.toLowerCase().includes(q);
+            if (!match) continue;
+          }
+
+          totalTasks++;
+          if (task.status === 'COMPLETED' || task.status === 'MEDIA_MANAGER_APPROVED' || task.status === 'APPROVED') {
+            completed++;
+          } else if (task.status === 'IN_PROGRESS' || task.status === 'ACCEPTED') {
+            inProgress++;
+          } else {
+            pending++;
+          }
+
+          const isOverdue = task.status !== 'COMPLETED' && task.dueDate && new Date(task.dueDate) < now;
+          if (isOverdue) overdue++;
+
+          const assignedTo = task.assignedEmployees.map((a) => a.user.name).join(', ') || 'Unassigned';
+          const assignedBy = task.timeline[0]?.user?.name || 'Media Manager';
+
+          rows.push({
+            id: task.id,
+            brandId: brand.id,
+            brandName: brand.name,
+            clientId: brand.client?.id,
+            clientName: brand.client?.name || '—',
+            projectId: project.id,
+            projectName: project.name,
+            projectCode: project.projectId,
+            taskId: task.id,
+            taskName: task.title,
+            taskCode: task.taskId,
+            taskType: task.taskType || 'PRODUCTION_TASK',
+            assignedTo,
+            assignedBy,
+            status: task.status,
+            dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+            isOverdue,
+          });
+        }
+      }
+    }
+
+    return {
+      summary: {
+        totalTasks,
+        completed,
+        inProgress,
+        pending,
+        overdue,
+      },
+      rows,
+    };
+  }
+
+  // ─── 2. Task Assignment Report (Marketing Manager & Media Manager) ─────────
+  async getTaskAssignmentReport(filters: {
+    period?: string;
+    startDate?: string;
+    endDate?: string;
+    clientId?: string;
+    brandId?: string;
+    projectId?: string;
+    taskType?: string;
+    assignedById?: string;
+    assignedToId?: string;
+    status?: string;
+    search?: string;
+  }) {
+    const { start, end } = this.getDateRangeHelper(filters.period, filters.startDate, filters.endDate);
+
+    const where: any = {};
+    if (filters.clientId) {
+      where.OR = [
+        { clientId: filters.clientId },
+        { project: { clientId: filters.clientId } },
+      ];
+    }
+    if (filters.brandId) {
+      where.OR = [
+        { brandId: filters.brandId },
+        { project: { brandId: filters.brandId } },
+      ];
+    }
+    if (filters.projectId) where.projectId = filters.projectId;
+    if (filters.taskType && filters.taskType !== 'ALL') where.taskType = filters.taskType;
+    if (filters.status && filters.status !== 'ALL') where.status = filters.status;
+    if (filters.assignedToId) {
+      where.assignedEmployees = { some: { userId: filters.assignedToId } };
+    }
+
+    const tasks = await this.prisma.task.findMany({
+      where,
+      include: {
+        client: { select: { id: true, name: true } },
+        brand: { select: { id: true, name: true } },
+        project: {
+          select: {
+            id: true,
+            projectId: true,
+            name: true,
+            client: { select: { id: true, name: true } },
+            brand: { select: { id: true, name: true } },
+            createdBy: { select: { id: true, name: true } },
+          },
+        },
+        assignedEmployees: {
+          include: { user: { select: { id: true, name: true, email: true } } },
+        },
+        timeline: {
+          where: { event: { in: ['TASK_ASSIGNED', 'TASK_CREATED'] } },
+          include: { user: { select: { id: true, name: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const now = new Date();
+    const rows: any[] = [];
+    let totalTasks = 0;
+    let completed = 0;
+    let inProgress = 0;
+    let pending = 0;
+    let overdue = 0;
+
+    for (const task of tasks) {
+      const assignedDate = task.assignedEmployees[0]?.assignedAt || task.createdAt;
+      if (filters.period && (new Date(assignedDate) < start || new Date(assignedDate) > end)) {
+        continue;
+      }
+
+      const assignerUser = task.timeline[0]?.user;
+      if (filters.assignedById && assignerUser?.id !== filters.assignedById) {
+        continue;
+      }
+
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const match =
+          task.title.toLowerCase().includes(q) ||
+          task.taskId.toLowerCase().includes(q) ||
+          (task.brand?.name || task.project?.brand?.name || '').toLowerCase().includes(q) ||
+          (task.client?.name || task.project?.client?.name || '').toLowerCase().includes(q);
+        if (!match) continue;
+      }
+
+      totalTasks++;
+      if (task.status === 'COMPLETED' || task.status === 'MEDIA_MANAGER_APPROVED' || task.status === 'APPROVED') {
+        completed++;
+      } else if (task.status === 'IN_PROGRESS' || task.status === 'ACCEPTED') {
+        inProgress++;
+      } else {
+        pending++;
+      }
+
+      const isOverdue = task.status !== 'COMPLETED' && task.dueDate && new Date(task.dueDate) < now;
+      if (isOverdue) overdue++;
+
+      rows.push({
+        id: task.id,
+        taskId: task.id,
+        taskCode: task.taskId,
+        taskName: task.title,
+        clientName: task.client?.name || task.project?.client?.name || '—',
+        brandName: task.brand?.name || task.project?.brand?.name || '—',
+        projectId: task.project?.id,
+        projectCode: task.project?.projectId || '—',
+        projectName: task.project?.name || '—',
+        taskType: task.taskType || 'PRODUCTION_TASK',
+        assignedBy: assignerUser?.name || task.project?.createdBy?.name || 'Media Manager',
+        assignedById: assignerUser?.id || null,
+        assignedTo: task.assignedEmployees.map((a) => a.user.name).join(', ') || 'Unassigned',
+        assignedDate: assignedDate.toISOString(),
+        dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+        status: task.status,
+        isOverdue,
+      });
+    }
+
+    return {
+      summary: {
+        totalTasks,
+        completed,
+        inProgress,
+        pending,
+        overdue,
+      },
+      rows,
+    };
+  }
+
+  // ─── 3. Shoot Report (Media Manager) ───────────────────────────────────────
+  async getShootReport(filters: {
+    period?: string;
+    startDate?: string;
+    endDate?: string;
+    clientId?: string;
+    brandId?: string;
+    projectId?: string;
+    shootType?: string;
+    status?: string;
+    location?: string;
+    search?: string;
+  }) {
+    const { start, end } = this.getDateRangeHelper(filters.period, filters.startDate, filters.endDate);
+
+    const where: any = {};
+    if (filters.clientId) where.clientId = filters.clientId;
+    if (filters.brandId) where.brandId = filters.brandId;
+    if (filters.projectId) where.id = filters.projectId;
+    if (filters.shootType && filters.shootType !== 'ALL') where.shootType = filters.shootType;
+    if (filters.status && filters.status !== 'ALL') where.status = filters.status;
+    if (filters.location && filters.location !== 'ALL') {
+      where.shootLocation = { contains: filters.location };
+    }
+
+    const shoots = await this.prisma.shootProject.findMany({
+      where,
+      include: {
+        client: { select: { id: true, name: true } },
+        brand: { select: { id: true, name: true } },
+        assignedTeam: {
+          include: { user: { select: { id: true, name: true, role: true } } },
+        },
+      },
+      orderBy: { shootDate: 'desc' },
+    });
+
+    const rows: any[] = [];
+    let totalShoots = 0;
+    let indoor = 0;
+    let outdoor = 0;
+    let completed = 0;
+    let inProgress = 0;
+    let pending = 0;
+
+    for (const shoot of shoots) {
+      if (filters.period && (new Date(shoot.shootDate) < start || new Date(shoot.shootDate) > end)) {
+        continue;
+      }
+
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const match =
+          shoot.name.toLowerCase().includes(q) ||
+          shoot.projectId.toLowerCase().includes(q) ||
+          (shoot.brand?.name || '').toLowerCase().includes(q) ||
+          (shoot.client?.name || '').toLowerCase().includes(q) ||
+          (shoot.shootLocation || '').toLowerCase().includes(q);
+        if (!match) continue;
+      }
+
+      totalShoots++;
+      if (shoot.shootType === 'INDOOR') indoor++;
+      if (shoot.shootType === 'OUTDOOR') outdoor++;
+
+      if (shoot.status === 'COMPLETED' || shoot.status === 'CLOSED') {
+        completed++;
+      } else if (shoot.status === 'IN_PROGRESS' || shoot.status === 'VIDEO_EDITING_IN_PROGRESS') {
+        inProgress++;
+      } else {
+        pending++;
+      }
+
+      const assignedTeam = shoot.assignedTeam.map((t) => t.user.name).join(', ') || 'Production Team';
+
+      rows.push({
+        id: shoot.id,
+        projectId: shoot.id,
+        projectCode: shoot.projectId,
+        name: shoot.name,
+        brandName: shoot.brand?.name || '—',
+        clientName: shoot.client?.name || '—',
+        shootType: shoot.shootType, // INDOOR or OUTDOOR
+        shootDate: shoot.shootDate ? shoot.shootDate.toISOString() : null,
+        location: shoot.shootLocation || 'Studio',
+        status: shoot.status,
+        assignedTeam,
+      });
+    }
+
+    return {
+      summary: {
+        totalShoots,
+        indoor,
+        outdoor,
+        completed,
+        inProgress,
+        pending,
+      },
+      rows,
+    };
+  }
+
+  // ─── 4. Graphic Report (Media Manager) ──────────────────────────────────────
+  async getGraphicReport(filters: {
+    period?: string;
+    startDate?: string;
+    endDate?: string;
+    clientId?: string;
+    brandId?: string;
+    projectId?: string;
+    assignedStaffId?: string;
+    status?: string;
+    search?: string;
+  }) {
+    const { start, end } = this.getDateRangeHelper(filters.period, filters.startDate, filters.endDate);
+
+    const where: any = {};
+    if (filters.clientId) where.clientId = filters.clientId;
+    if (filters.brandId) where.brandId = filters.brandId;
+    if (filters.projectId) where.projectId = filters.projectId;
+    if (filters.status && filters.status !== 'ALL') where.status = filters.status;
+
+    const graphics = await this.prisma.graphicRequirement.findMany({
+      where,
+      include: {
+        client: { select: { id: true, name: true } },
+        brand: { select: { id: true, name: true } },
+        project: { select: { id: true, projectId: true, name: true } },
+        tasks: {
+          include: {
+            assignedEmployees: { include: { user: { select: { id: true, name: true } } } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const rows: any[] = [];
+    let totalGraphics = 0;
+    let completed = 0;
+    let inProgress = 0;
+    let pending = 0;
+    let revision = 0;
+
+    for (const g of graphics) {
+      if (filters.period && (new Date(g.createdAt) < start || new Date(g.createdAt) > end)) {
+        continue;
+      }
+
+      const assignedUsers = Array.from(
+        new Set(g.tasks.flatMap((t) => t.assignedEmployees.map((a) => a.user.name)))
+      );
+      const assignedUserIds = Array.from(
+        new Set(g.tasks.flatMap((t) => t.assignedEmployees.map((a) => a.user.id)))
+      );
+
+      if (filters.assignedStaffId && !assignedUserIds.includes(filters.assignedStaffId)) {
+        continue;
+      }
+
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const match =
+          g.name.toLowerCase().includes(q) ||
+          g.requirementId.toLowerCase().includes(q) ||
+          (g.brand?.name || '').toLowerCase().includes(q) ||
+          (g.client?.name || '').toLowerCase().includes(q);
+        if (!match) continue;
+      }
+
+      totalGraphics++;
+      if (g.status === 'COMPLETED' || g.status === 'APPROVED') {
+        completed++;
+      } else if (g.status === 'IN_PROGRESS' || g.status === 'TASK_ASSIGNED') {
+        inProgress++;
+      } else if (g.status === 'CLIENT_REVISION_REQUESTED' || g.status === 'REVISION_REQUESTED') {
+        revision++;
+      } else {
+        pending++;
+      }
+
+      rows.push({
+        id: g.id,
+        graphicCode: g.requirementId,
+        name: g.name,
+        brandName: g.brand?.name || '—',
+        clientName: g.client?.name || '—',
+        projectId: g.project?.id || null,
+        projectCode: g.project?.projectId || '—',
+        projectName: g.project?.name || '—',
+        assignedTo: assignedUsers.join(', ') || 'Design Team',
+        createdAt: g.createdAt.toISOString(),
+        deadline: g.estimatedCompletion ? g.estimatedCompletion.toISOString() : null,
+        status: g.status,
+      });
+    }
+
+    return {
+      summary: {
+        totalGraphics,
+        completed,
+        inProgress,
+        pending,
+        revision,
+      },
+      rows,
+    };
+  }
+
+  // ─── 5. Staff Work Report (Media Manager) ──────────────────────────────────
+  async getStaffWorkReport(filters: {
+    period?: string;
+    startDate?: string;
+    endDate?: string;
+    staffId?: string;
+    clientId?: string;
+    brandId?: string;
+    projectId?: string;
+    taskType?: string;
+    status?: string;
+    search?: string;
+  }) {
+    const { start, end } = this.getDateRangeHelper(filters.period, filters.startDate, filters.endDate);
+
+    const userWhere: any = {
+      isArchived: false,
+    };
+    if (filters.staffId) {
+      userWhere.id = filters.staffId;
+    }
+
+    const staffUsers = await this.prisma.user.findMany({
+      where: userWhere,
+      include: {
+        tasks: {
+          include: {
+            task: {
+              include: {
+                client: { select: { id: true, name: true } },
+                brand: { select: { id: true, name: true } },
+                project: { select: { id: true, projectId: true, name: true, client: { select: { name: true } }, brand: { select: { name: true } } } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const now = new Date();
+    const staffSummaries: any[] = [];
+    const detailedTasks: any[] = [];
+
+    for (const staff of staffUsers) {
+      let assigned = 0;
+      let completed = 0;
+      let inProgress = 0;
+      let pending = 0;
+      let overdue = 0;
+
+      for (const assignment of staff.tasks) {
+        const task = assignment.task;
+        if (!task) continue;
+
+        if (filters.clientId && task.clientId !== filters.clientId && task.project?.client?.name !== filters.clientId) continue;
+        if (filters.brandId && task.brandId !== filters.brandId && task.project?.brand?.name !== filters.brandId) continue;
+        if (filters.projectId && task.projectId !== filters.projectId) continue;
+        if (filters.taskType && filters.taskType !== 'ALL' && task.taskType !== filters.taskType) continue;
+        if (filters.status && filters.status !== 'ALL' && task.status !== filters.status) continue;
+
+        const assignedDate = assignment.assignedAt || task.createdAt;
+        if (filters.period && (new Date(assignedDate) < start || new Date(assignedDate) > end)) {
+          continue;
+        }
+
+        if (filters.search) {
+          const q = filters.search.toLowerCase();
+          const match =
+            task.title.toLowerCase().includes(q) ||
+            task.taskId.toLowerCase().includes(q) ||
+            staff.name.toLowerCase().includes(q);
+          if (!match) continue;
+        }
+
+        assigned++;
+        if (task.status === 'COMPLETED' || task.status === 'MEDIA_MANAGER_APPROVED' || task.status === 'APPROVED') {
+          completed++;
+        } else if (task.status === 'IN_PROGRESS' || task.status === 'ACCEPTED') {
+          inProgress++;
+        } else {
+          pending++;
+        }
+
+        const isOverdue = task.status !== 'COMPLETED' && task.dueDate && new Date(task.dueDate) < now;
+        if (isOverdue) overdue++;
+
+        detailedTasks.push({
+          id: task.id,
+          taskId: task.id,
+          taskCode: task.taskId,
+          taskName: task.title,
+          staffId: staff.id,
+          staffName: staff.name,
+          brandName: task.brand?.name || task.project?.brand?.name || '—',
+          clientName: task.client?.name || task.project?.client?.name || '—',
+          projectName: task.project?.name || '—',
+          taskType: task.taskType || 'PRODUCTION_TASK',
+          assignedDate: assignedDate.toISOString(),
+          dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+          status: task.status,
+          isOverdue,
+        });
+      }
+
+      if (assigned > 0 || filters.staffId) {
+        staffSummaries.push({
+          staffId: staff.id,
+          staffName: staff.name,
+          email: staff.email,
+          role: staff.role,
+          assigned,
+          completed,
+          inProgress,
+          pending,
+          overdue,
+        });
+      }
+    }
+
+    return {
+      staffSummaries,
+      detailedTasks,
+    };
+  }
+
+  // ─── 6. Equipment Rental Report (Media Manager) ────────────────────────────
+  async getEquipmentRentalReport(filters: {
+    period?: string;
+    startDate?: string;
+    endDate?: string;
+    clientId?: string;
+    brandId?: string;
+    projectId?: string;
+    category?: string;
+    equipmentId?: string;
+    rentalStatus?: string; // ALL, RENTED_OUT, RETURNED
+    customer?: string;
+    search?: string;
+  }) {
+    const { start, end } = this.getDateRangeHelper(filters.period, filters.startDate, filters.endDate);
+
+    const where: any = {};
+    if (filters.category && filters.category !== 'ALL') where.category = filters.category;
+    if (filters.equipmentId) where.id = filters.equipmentId;
+
+    const equipments = await this.prisma.equipment.findMany({
+      where,
+      include: {
+        assignedProject: {
+          include: {
+            brand: { select: { id: true, name: true } },
+            client: { select: { id: true, name: true } },
+          },
+        },
+        assignedUser: { select: { id: true, name: true } },
+        movements: {
+          include: {
+            user: { select: { id: true, name: true } },
+            employee: { select: { id: true, name: true } },
+            approvedBy: { select: { id: true, name: true } },
+            returnedBy: { select: { id: true, name: true } },
+            project: { select: { id: true, name: true, brand: { select: { id: true, name: true } }, client: { select: { id: true, name: true } } } },
+          },
+          orderBy: { timestamp: 'desc' },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const rows: any[] = [];
+    let totalRentedOut = 0;
+    let returned = 0;
+    let currentlyOutside = 0;
+
+    for (const eq of equipments) {
+      // 1. Check currently active rental or outside issuance
+      const hasActiveRental = eq.availability === 'RENTED_OUT' || !!eq.rentalCustomer;
+      if (hasActiveRental) {
+        const brandName = eq.assignedProject?.brand?.name || 'General Inventory';
+        const brandId = eq.assignedProject?.brand?.id;
+        const clientName = eq.assignedProject?.client?.name || '—';
+        const clientId = eq.assignedProject?.client?.id;
+        const projectName = eq.assignedProject?.name || '—';
+        const projectId = eq.assignedProject?.id;
+
+        if (filters.clientId && clientId !== filters.clientId) continue;
+        if (filters.brandId && brandId !== filters.brandId) continue;
+        if (filters.projectId && projectId !== filters.projectId) continue;
+        if (filters.customer && !eq.rentalCustomer?.toLowerCase().includes(filters.customer.toLowerCase())) continue;
+
+        const isCurrentlyRented = eq.availability === 'RENTED_OUT';
+        const displayStatus = isCurrentlyRented
+          ? 'RENTED_OUT'
+          : eq.availability === 'DAMAGED'
+          ? 'DAMAGED'
+          : eq.availability === 'MAINTENANCE'
+          ? 'UNDER_MAINTENANCE'
+          : 'RETURNED';
+
+        if (filters.rentalStatus && filters.rentalStatus !== 'ALL') {
+          if (filters.rentalStatus === 'RENTED_OUT' && displayStatus !== 'RENTED_OUT') continue;
+          if (filters.rentalStatus === 'RETURNED' && displayStatus === 'RENTED_OUT') continue;
+        }
+
+        const effectiveDate = eq.rentalStartDate ? new Date(eq.rentalStartDate) : new Date(eq.updatedAt);
+        if (filters.period && (effectiveDate < start || effectiveDate > end)) {
+          // Check if within date filter
+          continue;
+        }
+
+        if (isCurrentlyRented) {
+          totalRentedOut++;
+          currentlyOutside++;
+        } else {
+          returned++;
+        }
+
+        const latestRentMovement = eq.movements.find((m) => m.action === 'RENT_OUT' || m.action === 'ISSUED');
+        const latestReturnMovement = eq.movements.find((m) => m.action === 'RETURN_RENTAL' || m.action === 'RETURNED');
+
+        rows.push({
+          id: `${eq.id}-current`,
+          equipmentId: eq.id,
+          assetCode: eq.equipmentId,
+          equipmentName: eq.name,
+          category: eq.category,
+          brandId: brandId || null,
+          brandName,
+          clientId: clientId || null,
+          clientName,
+          projectId: projectId || null,
+          projectName,
+          rentalCustomer: eq.rentalCustomer || 'Outside Client',
+          rentalContact: eq.rentalContact || '—',
+          rentalStartDate: eq.rentalStartDate ? eq.rentalStartDate.toISOString() : null,
+          rentalExpectedReturnDate: eq.rentalExpectedReturnDate ? eq.rentalExpectedReturnDate.toISOString() : null,
+          actualReturnDate: isCurrentlyRented ? null : eq.updatedAt.toISOString(),
+          returnCondition: eq.condition || 'Good',
+          damageNotes: eq.internalNotes || latestReturnMovement?.physicalDamageNotes || null,
+          rentedBy: latestRentMovement?.user?.name || eq.assignedUser?.name || 'Technical Manager',
+          returnedBy: latestReturnMovement?.returnedByName || latestReturnMovement?.returnedBy?.name || (!isCurrentlyRented ? 'Technical Manager' : '—'),
+          status: displayStatus,
+          rentalFee: eq.rentalFee,
+          rentalNotes: eq.rentalNotes,
+        });
+      }
+
+      // 2. Also inspect rental movements history for returned records
+      for (const m of eq.movements) {
+        if (m.action === 'RETURN_RENTAL' || (m.action === 'RETURNED' && m.rentalCustomer)) {
+          if (filters.rentalStatus && filters.rentalStatus === 'RENTED_OUT') continue;
+
+          const brandName = m.project?.brand?.name || eq.assignedProject?.brand?.name || 'General Inventory';
+          const brandId = m.project?.brand?.id || eq.assignedProject?.brand?.id;
+          const clientName = m.project?.client?.name || eq.assignedProject?.client?.name || '—';
+          const clientId = m.project?.client?.id || eq.assignedProject?.client?.id;
+          const projectName = m.project?.name || eq.assignedProject?.name || '—';
+          const projectId = m.project?.id || eq.assignedProject?.id;
+
+          if (filters.clientId && clientId !== filters.clientId) continue;
+          if (filters.brandId && brandId !== filters.brandId) continue;
+          if (filters.projectId && projectId !== filters.projectId) continue;
+          if (filters.customer && !m.rentalCustomer?.toLowerCase().includes(filters.customer.toLowerCase())) continue;
+
+          const movementDate = new Date(m.timestamp);
+          if (filters.period && (movementDate < start || movementDate > end)) {
+            continue;
+          }
+
+          // Avoid duplicate entry if matching current updated record
+          if (rows.some((r) => r.equipmentId === eq.id && r.status === 'RETURNED')) {
+            continue;
+          }
+
+          returned++;
+          rows.push({
+            id: m.id,
+            equipmentId: eq.id,
+            assetCode: eq.equipmentId,
+            equipmentName: eq.name,
+            category: eq.category,
+            brandId: brandId || null,
+            brandName,
+            clientId: clientId || null,
+            clientName,
+            projectId: projectId || null,
+            projectName,
+            rentalCustomer: m.rentalCustomer || eq.rentalCustomer || 'Outside Client',
+            rentalContact: m.rentalContact || eq.rentalContact || '—',
+            rentalStartDate: null,
+            rentalExpectedReturnDate: m.expectedReturnDate ? m.expectedReturnDate.toISOString() : null,
+            actualReturnDate: m.timestamp.toISOString(),
+            returnCondition: m.condition || 'Good',
+            damageNotes: m.physicalDamageNotes || (m.hasPhysicalDamage ? 'Reported damage' : null),
+            rentedBy: m.approvedBy?.name || m.user?.name || 'Technical Manager',
+            returnedBy: m.returnedByName || m.returnedBy?.name || 'Technical Manager',
+            status: m.hasPhysicalDamage ? 'DAMAGED' : 'RETURNED',
+            rentalFee: m.rentalFee,
+            rentalNotes: m.notes,
+          });
+        }
+      }
+    }
+
+    // Compute Brand groupings
+    const brandMap = new Map<string, { brandName: string; rentedOut: number; returned: number; outside: number; items: any[] }>();
+    for (const row of rows) {
+      const bKey = row.brandName || 'General Inventory';
+      if (!brandMap.has(bKey)) {
+        brandMap.set(bKey, { brandName: bKey, rentedOut: 0, returned: 0, outside: 0, items: [] });
+      }
+      const group = brandMap.get(bKey)!;
+      group.items.push(row);
+      if (row.status === 'RENTED_OUT') {
+        group.rentedOut++;
+        group.outside++;
+      } else {
+        group.returned++;
+      }
+    }
+
+    const brandGroups = Array.from(brandMap.values());
+
+    return {
+      summary: {
+        totalRentedOut,
+        returned,
+        currentlyOutside,
+      },
+      brandGroups,
+      rows,
+    };
+  }
 }
+

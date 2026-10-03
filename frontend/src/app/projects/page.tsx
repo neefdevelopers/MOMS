@@ -130,11 +130,11 @@ export default function ProjectsPage() {
   const loadReferenceData = async () => {
     try {
       const [resClients, resBrands, resProducts, resUsers, resEqp] = await Promise.all([
-        fetchApi('/clients'),
-        fetchApi('/brands'),
-        fetchApi('/products'),
-        fetchApi('/users'),
-        fetchApi('/equipment'),
+        fetchApi('/clients').catch(() => []),
+        fetchApi('/brands').catch(() => []),
+        fetchApi('/products').catch(() => []),
+        fetchApi('/users').catch(() => []),
+        fetchApi('/equipment').catch(() => []),
       ]);
       setClients(Array.isArray(resClients) ? resClients : []);
       setBrands(Array.isArray(resBrands) ? resBrands : []);
@@ -851,7 +851,9 @@ export default function ProjectsPage() {
                     />
                     <span
                       className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${
-                        proj.status === 'COMPLETED' || proj.status === 'APPROVED'
+                        proj.status === 'CONVERTED_TO_VIDEO_EDITING' || (proj.videoEditingConverted && proj.status !== 'COMPLETED')
+                          ? 'bg-indigo-50 text-indigo-700 border border-indigo-300 font-extrabold flex items-center gap-1'
+                          : proj.status === 'COMPLETED' || proj.status === 'APPROVED'
                           ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
                           : proj.status === 'REVISION_REQUESTED' || proj.status === 'CLIENT_REVISION_REQUESTED'
                           ? 'bg-rose-50 text-rose-700 border border-rose-300 font-extrabold flex items-center gap-1'
@@ -860,7 +862,9 @@ export default function ProjectsPage() {
                           : 'bg-blue-50 text-blue-600 border border-blue-200'
                       }`}
                     >
-                      {proj.status === 'REVISION_REQUESTED' || proj.status === 'CLIENT_REVISION_REQUESTED'
+                      {proj.status === 'CONVERTED_TO_VIDEO_EDITING' || (proj.videoEditingConverted && proj.status !== 'COMPLETED')
+                        ? 'CONVERTED TO VIDEO EDITING'
+                        : proj.status === 'REVISION_REQUESTED' || proj.status === 'CLIENT_REVISION_REQUESTED'
                         ? `UNDERGOING REVISION (REV #${proj.revisionCount || 1})`
                         : proj.status === 'PLANNED' || proj.status === 'PENDING_CLIENT_APPROVAL' || proj.status === 'PENDING_MARKETING_APPROVAL' || proj.status === 'PENDING'
                         ? 'PENDING MARKETING MANAGER APPROVAL'
@@ -951,8 +955,10 @@ export default function ProjectsPage() {
 
               {/* Card Footer */}
               <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
-                <div className="text-[11px] text-slate-500">
-                  Revision Count: <strong className="text-amber-600">{proj.revisionCount || 0}</strong>
+                <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                  <span>Tasks: <strong className="text-slate-700">{proj.tasks?.length || 0}</strong></span>
+                  <span>•</span>
+                  <span>Progress: <strong className="text-blue-600">{proj.progressPercentage || 0}%</strong></span>
                 </div>
 
                 <div className="flex items-center gap-2">

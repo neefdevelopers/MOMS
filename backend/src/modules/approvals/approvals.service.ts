@@ -129,6 +129,41 @@ export class ApprovalsService {
       },
     });
 
+    const taskMarketingQueue = await this.prisma.task.findMany({
+      where: {
+        OR: [
+          {
+            status: {
+              in: [
+                'WAITING_FOR_MARKETING_APPROVAL',
+                'WAITING_FOR_MARKETING_MANAGER_REVIEW',
+                'PENDING_MARKETING_APPROVAL',
+              ],
+            },
+          },
+          {
+            taskType: 'VIDEO_EDITING',
+            mediaManagerApproved: true,
+            marketingManagerApproved: false,
+            status: { notIn: ['CANCELLED'] },
+          },
+        ],
+      },
+      include: {
+        client: true,
+        brand: true,
+        project: true,
+        graphicRequirement: true,
+        projectScript: {
+          include: {
+            clips: { orderBy: { order: 'asc' } },
+          },
+        },
+        assignedEmployees: { include: { user: { select: { id: true, name: true, role: true } } } },
+        deliverableHistory: { include: { user: { select: { id: true, name: true, role: true } } }, orderBy: { version: 'desc' as const } },
+      },
+    });
+
     const clientQueue = await this.prisma.shootProject.findMany({
       where: { status: ProjectStatus.WAITING_FOR_CLIENT_CONFIRMATION },
       include: { client: true, brand: true, files: true, tasks: taskIncludes },
@@ -223,10 +258,36 @@ export class ApprovalsService {
       isStandaloneTask: true,
     }));
 
+    const mappedTaskMarketing = taskMarketingQueue.map((t: any) => ({
+      id: t.id,
+      projectId: t.taskId,
+      taskId: t.taskId,
+      name: t.title,
+      taskType: t.taskType,
+      client: t.client,
+      brand: t.brand,
+      status: t.status,
+      priority: t.priority,
+      dueDate: t.dueDate,
+      scriptId: t.scriptId,
+      projectScriptId: t.projectScriptId,
+      projectScript: t.projectScript,
+      clipCode: t.clipCode || t.projectScript?.clipCode,
+      clips: t.projectScript?.clips || [],
+      assignedEmployees: t.assignedEmployees,
+      tasks: [t],
+      activeDeliverableUrl: t.activeDeliverableUrl,
+      activeDeliverableFileName: t.activeDeliverableFileName,
+      activeDeliverableVersion: t.activeDeliverableVersion,
+      deliverableHistory: t.deliverableHistory,
+      isStandaloneTask: true,
+    }));
+
     return {
       technicalReviewQueue: [...techQueue, ...mappedGrTech, ...mappedTaskTech],
       mediaReviewQueue: [...mediaQueue, ...mappedGrMedia, ...mappedTaskMedia],
-      clientConfirmationQueue: clientQueue,
+      marketingReviewQueue: [...mappedTaskMarketing],
+      clientConfirmationQueue: [...clientQueue, ...mappedTaskMarketing],
       revisionQueue: revisionQueue,
     };
   }
@@ -521,6 +582,22 @@ export class ApprovalsService {
         where: { id: project.id },
         data: { status: newProjectStatus },
       });
+
+      if (data.status === 'APPROVED') {
+        await this.prisma.task.updateMany({
+          where: {
+            projectId: project.id,
+            taskType: 'VIDEO_EDITING',
+            status: { notIn: ['CANCELLED'] },
+            marketingManagerApproved: false,
+          },
+          data: {
+            status: 'WAITING_FOR_MARKETING_APPROVAL',
+            mediaManagerApproved: true,
+            completionPercentage: 75,
+          },
+        }).catch(() => null);
+      }
     }
 
     if (gReq) {
@@ -535,15 +612,29 @@ export class ApprovalsService {
     }
 
     if (task) {
-      const newTaskStatus = data.status === 'APPROVED' ? 'COMPLETED' : 'IN_PROGRESS';
+      const isVideoEditing = task.taskType === 'VIDEO_EDITING' || task.sourceType === 'VIDEO_EDITING';
+      const newTaskStatus = data.status === 'APPROVED' 
+        ? (isVideoEditing ? 'WAITING_FOR_MARKETING_APPROVAL' : 'COMPLETED') 
+        : 'REVISION_REQUESTED';
       await this.prisma.task.update({
         where: { id: task.id },
         data: {
           status: newTaskStatus,
           mediaManagerApproved: data.status === 'APPROVED',
-          completionPercentage: data.status === 'APPROVED' ? 100 : task.completionPercentage,
+          completionPercentage: data.status === 'APPROVED' ? (isVideoEditing ? 75 : 100) : 50,
+          mediaRevisionReason: data.status === 'REJECTED' ? (data.remarks || 'Creative revisions required.').trim() : null,
         },
       });
+
+      if (data.status === 'REJECTED' && data.remarks) {
+        await this.prisma.taskRemark.create({
+          data: {
+            taskId: task.id,
+            userId: reviewerId,
+            message: `Media Review Rejection: ${data.remarks}`,
+          },
+        }).catch(() => null);
+      }
     }
 
     // Log timeline event to all affected tasks
@@ -570,7 +661,7 @@ export class ApprovalsService {
           data: {
             taskId: tId,
             userId: reviewerId,
-            event: data.status === 'APPROVED' ? (task?.id === tId ? 'COMPLETED' : 'STATUS_CHANGED') : 'REVISION_REQUESTED',
+            event: data.status === 'APPROVED' ? 'STATUS_CHANGED' : 'REVISION_REQUESTED',
             description: desc,
           },
         }).catch(() => null);
@@ -580,7 +671,7 @@ export class ApprovalsService {
     }
 
     if (data.status === 'APPROVED') {
-      // Notify Marketing Managers that item passed Media Review and is ready for confirmation/marketing signoff
+      // Notify Marketing Managers that item passed Media Review and is ready for Marketing Manager Approval
       const marketingManagers = await this.prisma.user.findMany({
         where: { role: { in: ['MARKETING_MANAGER', 'ADMINISTRATOR', 'ADMIN'] }, status: 'ACTIVE' },
         select: { id: true },
@@ -591,7 +682,7 @@ export class ApprovalsService {
           data: marketingManagers.map((mm) => ({
             userId: mm.id,
             title: 'Marketing Manager Approval Requested 📢',
-            message: `${entityLabel} was approved by Media Manager and is ready for Marketing Manager Approval / Confirmation.`,
+            message: `${entityLabel} was approved by Media Manager and is ready for Marketing Manager Approval.`,
             type: 'ALERT',
             category: 'APPROVAL',
             priority: 'HIGH',
@@ -599,11 +690,128 @@ export class ApprovalsService {
             eventType: 'MARKETING_REVIEW_REQUESTED',
             entityType: task ? 'TASK' : project ? 'PROJECT' : 'GRAPHIC_REQ',
             entityId: (task?.id || project?.id || gReq?.id) as string,
+            entityCode: task?.taskId || project?.projectId || gReq?.requirementId || undefined,
             taskId: task?.id || undefined,
             projectId: project?.id || task?.projectId || undefined,
+            graphicRequirementId: gReq?.id || undefined,
           })),
         }).catch(() => null);
       }
+    }
+
+    return approval;
+  }
+
+  async submitMarketingReview(data: { projectId: string; status: 'APPROVED' | 'REJECTED'; remarks?: string }, reviewerId: string) {
+    let project = await this.prisma.shootProject.findUnique({ where: { id: data.projectId } });
+    let gReq = null;
+    let task = null;
+
+    if (!project) {
+      gReq = await this.prisma.graphicRequirement.findUnique({ where: { id: data.projectId } });
+    }
+    if (!project && !gReq) {
+      task = await this.prisma.task.findUnique({ where: { id: data.projectId } });
+    }
+
+    if (!project && !gReq && !task) throw new NotFoundException('Project, Graphic Requirement, or Task not found');
+
+    const approval = await this.prisma.approval.create({
+      data: {
+        projectId: project ? project.id : task?.projectId || null,
+        approvalType: 'MARKETING_APPROVAL',
+        reviewerId,
+        status: data.status === 'APPROVED' ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
+        remarks: data.remarks || (data.status === 'APPROVED' ? 'Marketing quality & client alignment approved.' : 'Marketing approval rejected.'),
+      },
+    });
+
+    if (task) {
+      const newTaskStatus = data.status === 'APPROVED' ? 'COMPLETED' : 'REVISION_REQUESTED';
+      await this.prisma.task.update({
+        where: { id: task.id },
+        data: {
+          status: newTaskStatus,
+          marketingManagerApproved: data.status === 'APPROVED',
+          completionPercentage: data.status === 'APPROVED' ? 100 : 50,
+          marketingRevisionReason: data.status === 'REJECTED' ? (data.remarks || 'Marketing revisions requested.').trim() : null,
+        },
+      });
+
+      if (data.status === 'REJECTED' && data.remarks) {
+        await this.prisma.taskRemark.create({
+          data: {
+            taskId: task.id,
+            userId: reviewerId,
+            message: `Marketing Review Rejection: ${data.remarks}`,
+          },
+        }).catch(() => null);
+      }
+
+      // Check if project should auto-complete if all video editing tasks are completed
+      if (task.projectId && data.status === 'APPROVED') {
+        const remainingIncomplete = await this.prisma.task.count({
+          where: {
+            projectId: task.projectId,
+            id: { not: task.id },
+            taskType: 'VIDEO_EDITING',
+            OR: [
+              { marketingManagerApproved: false },
+              { status: { notIn: ['COMPLETED', 'APPROVED', 'MARKETING_MANAGER_APPROVED'] } },
+            ],
+          },
+        });
+        if (remainingIncomplete === 0) {
+          await this.prisma.shootProject.update({
+            where: { id: task.projectId },
+            data: { status: ProjectStatus.COMPLETED, progressPercentage: 100 },
+          }).catch(() => null);
+        }
+      }
+    }
+
+    if (project) {
+      const newProjectStatus: ProjectStatus = data.status === 'APPROVED' 
+        ? ProjectStatus.COMPLETED 
+        : ProjectStatus.IN_PROGRESS;
+
+      await this.prisma.shootProject.update({
+        where: { id: project.id },
+        data: { status: newProjectStatus, progressPercentage: data.status === 'APPROVED' ? 100 : project.progressPercentage },
+      });
+    }
+
+    if (gReq) {
+      const newGrStatus = data.status === 'APPROVED' ? 'COMPLETED' : 'IN_PROGRESS';
+      await this.prisma.graphicRequirement.update({
+        where: { id: gReq.id },
+        data: {
+          status: newGrStatus,
+          clientConfirmed: data.status === 'APPROVED',
+        },
+      });
+    }
+
+    // Log timeline
+    try {
+      const reviewerUser = await this.prisma.user.findUnique({ where: { id: reviewerId }, select: { name: true } });
+      const reviewerName = reviewerUser?.name || 'Marketing Manager';
+      const desc = data.status === 'APPROVED'
+        ? `Marketing Review APPROVED by ${reviewerName}.${data.remarks ? ' Remarks: ' + data.remarks : ''}`
+        : `Marketing Review REJECTED by ${reviewerName}. Reason: ${data.remarks || 'Marketing revisions requested'}`;
+
+      if (task) {
+        await this.prisma.taskTimeline.create({
+          data: {
+            taskId: task.id,
+            userId: reviewerId,
+            event: data.status === 'APPROVED' ? 'COMPLETED' : 'REVISION_REQUESTED',
+            description: desc,
+          },
+        }).catch(() => null);
+      }
+    } catch (e) {
+      console.error('Failed to log marketing review timeline:', e);
     }
 
     return approval;

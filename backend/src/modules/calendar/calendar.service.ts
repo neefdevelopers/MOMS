@@ -1675,9 +1675,82 @@ export class CalendarService {
         },
       });
 
-      // Note: ShootProject status is managed by its own workflow (reviewMarketing, confirmClient, etc.)
-      // and must NOT be overwritten here. The calendar event approval only affects the MediaCalendarEvent
-      // and its linked GraphicRequirement.
+      // Synchronize linked ShootProject status and approval flags
+      const shootWhere = event.shootId
+        ? { OR: [{ id: event.shootId }, { calendarEventId: event.id }] }
+        : { calendarEventId: event.id };
+
+      if (action === 'APPROVE') {
+        await tx.shootProject.updateMany({
+          where: {
+            ...shootWhere,
+            status: { in: ['PENDING_MARKETING_APPROVAL', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'DRAFT'] },
+          },
+          data: {
+            status: 'PLANNED',
+          },
+        });
+
+        // Also update any pending calendarEditRequest for this event
+        await (tx as any).calendarEditRequest.updateMany({
+          where: {
+            calendarEventId: event.id,
+            status: { in: ['PENDING_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING'] },
+          },
+          data: {
+            status: 'APPROVED',
+            reviewedById: user?.id,
+            reviewedAt: new Date(),
+            reviewComment: comment?.trim() || 'Approved with calendar event approval by Marketing Manager.',
+          },
+        });
+      } else if (action === 'REQUEST_CHANGES') {
+        await tx.shootProject.updateMany({
+          where: {
+            ...shootWhere,
+            status: { in: ['PENDING_MARKETING_APPROVAL', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW'] },
+          },
+          data: {
+            status: 'CLIENT_REVISION_REQUESTED',
+          },
+        });
+
+        await (tx as any).calendarEditRequest.updateMany({
+          where: {
+            calendarEventId: event.id,
+            status: { in: ['PENDING_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING'] },
+          },
+          data: {
+            status: 'CHANGES_REQUESTED',
+            reviewedById: user?.id,
+            reviewedAt: new Date(),
+            reviewComment: comment?.trim() || 'Changes requested by Marketing Manager.',
+          },
+        });
+      } else if (action === 'REJECT') {
+        await tx.shootProject.updateMany({
+          where: {
+            ...shootWhere,
+            status: { in: ['PENDING_MARKETING_APPROVAL', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW'] },
+          },
+          data: {
+            status: 'CANCELLED',
+          },
+        });
+
+        await (tx as any).calendarEditRequest.updateMany({
+          where: {
+            calendarEventId: event.id,
+            status: { in: ['PENDING_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING'] },
+          },
+          data: {
+            status: 'REJECTED',
+            reviewedById: user?.id,
+            reviewedAt: new Date(),
+            reviewComment: comment?.trim() || 'Rejected with calendar event rejection by Marketing Manager.',
+          },
+        });
+      }
 
       // Get current active revision
       const currentRevision = event.revisions.find((r) => r.version === event.version);

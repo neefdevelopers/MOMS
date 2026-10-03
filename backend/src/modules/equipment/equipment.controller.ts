@@ -22,10 +22,24 @@ export class EquipmentController {
   findAll(
     @CurrentUser() user: any,
     @Query('category') category?: string,
-    @Query('availability') availability?: EquipmentAvailability,
+    @Query('availability') availability?: string,
     @Query('includeArchived') includeArchived?: string,
+    @Query('search') search?: string,
+    @Query('condition') condition?: string,
+    @Query('location') location?: string,
   ) {
-    return this.equipmentService.findAll(category, availability, includeArchived === 'true', user?.id, user?.role);
+    return this.equipmentService.findAll(category, availability, includeArchived === 'true', user?.id, user?.role, search, condition, location);
+  }
+
+  // ─── Consolidated History ──────────────────────────────────────────────────
+  @Get('history')
+  getGlobalHistory(@Query('equipmentId') equipmentId?: string) {
+    return this.equipmentService.getConsolidatedHistory(equipmentId);
+  }
+
+  @Get(':id/history')
+  getItemHistory(@Param('id') id: string) {
+    return this.equipmentService.getConsolidatedHistory(id);
   }
 
   // ─── Equipment Monitoring ──────────────────────────────────────────────────
@@ -49,15 +63,15 @@ export class EquipmentController {
     return this.equipmentService.findArchived();
   }
 
-  // ─── Create Equipment Master Record — Media Manager & Administrator Only ───
-  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  // ─── Create Equipment Master Record — Media Manager, Technical Manager & Admin ───
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Post()
   create(@Body() data: any) {
     return this.equipmentService.create(data);
   }
 
-  // ─── Update Equipment Master Record — Media Manager & Administrator Only ───
-  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  // ─── Update Equipment Master Record — Media Manager, Technical Manager & Admin ───
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -66,8 +80,85 @@ export class EquipmentController {
     return this.equipmentService.update(id, data);
   }
 
-  // ─── Retire (Archive) Equipment — Media Manager & Administrator Only ───────
-  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  // ─── Assign to Shoot Project ────────────────────────────────────────────────
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/assign-shoot')
+  assignToShoot(
+    @Param('id') id: string,
+    @Body() data: { projectId: string; assignedUserId?: string; assignedDate?: string; expectedReturnDate: string; notes?: string },
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.equipmentService.assignToShootProject(id, data, userId);
+  }
+
+  // ─── Return from Shoot Project ──────────────────────────────────────────────
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/return-shoot')
+  returnFromShoot(
+    @Param('id') id: string,
+    @Body() data: { returnDate?: string; condition: string; missingAccessoriesNotes?: string; physicalDamageNotes?: string; notes?: string },
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.equipmentService.returnFromShootProject(id, data, userId);
+  }
+
+  // ─── Outside Rental ─────────────────────────────────────────────────────────
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/rent-out')
+  rentOut(
+    @Param('id') id: string,
+    @Body() data: { customer: string; contact?: string; rentalStartDate?: string; expectedReturnDate: string; rentalNotes?: string; rentalFee?: number },
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.equipmentService.rentOut(id, data, userId);
+  }
+
+  // ─── Return from Rental ─────────────────────────────────────────────────────
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/return-rental')
+  returnRental(
+    @Param('id') id: string,
+    @Body() data: { returnDate?: string; condition: string; damageNotes?: string; missingItemsNotes?: string; notes?: string },
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.equipmentService.returnRental(id, data, userId);
+  }
+
+  // ─── Report Damage ──────────────────────────────────────────────────────────
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/report-damage')
+  reportDamage(
+    @Param('id') id: string,
+    @Body() data: { damageDate?: string; damageType?: string; description: string; severity?: string; projectId?: string; notes?: string },
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.equipmentService.reportDamage(id, data, userId);
+  }
+
+  // ─── Send to Maintenance ───────────────────────────────────────────────────
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/send-maintenance')
+  sendToMaintenance(
+    @Param('id') id: string,
+    @Body() data: { maintenanceType?: string; performedBy: string; problem?: string; notes?: string; scheduledDate?: string; cost?: number },
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.equipmentService.sendToMaintenance(id, data, userId);
+  }
+
+  // ─── Mark Ready ─────────────────────────────────────────────────────────────
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Post(':id/mark-ready')
+  markReady(
+    @Param('id') id: string,
+    @Body() data: { notes?: string; condition?: string },
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.equipmentService.markReady(id, data, userId);
+  }
+
+  // ─── Retire (Archive) Equipment — Media Manager, Technical Manager & Admin ──
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Post(':id/retire')
   retire(
     @Param('id') id: string,
@@ -264,6 +355,12 @@ export class EquipmentController {
   @Get('maintenance-records')
   getMaintenanceRecords(@Query('equipmentId') equipmentId?: string) {
     return this.equipmentService.getMaintenanceRecords(equipmentId);
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
+  @Get('damage-reports')
+  getDamageReports(@Query('equipmentId') equipmentId?: string) {
+    return this.equipmentService.getDamageReports(equipmentId);
   }
 
   // ─── Equipment Reports ─────────────────────────────────────────────────────

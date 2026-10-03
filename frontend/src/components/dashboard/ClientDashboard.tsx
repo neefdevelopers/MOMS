@@ -20,22 +20,27 @@ import {
   ShieldCheck,
   ChevronRight,
   ExternalLink,
+  Video,
 } from 'lucide-react';
 
 export default function ClientDashboard() {
   const [events, setEvents] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [videoTasks, setVideoTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadClientDashboardData = async () => {
     try {
-      const [resEvents, resClients] = await Promise.all([
+      const [resEvents, resClients, resQueue] = await Promise.all([
         fetchApi('/calendar').catch(() => []),
         fetchApi('/clients').catch(() => []),
+        fetchApi('/approvals/queue').catch(() => ({ marketingReviewQueue: [] })),
       ]);
       const rawEvents = Array.isArray(resEvents) ? resEvents : (resEvents?.data || resEvents?.events || resEvents?.items || []);
+      const rawVideo = resQueue?.marketingReviewQueue || [];
       setEvents(rawEvents);
       setClients(Array.isArray(resClients) ? resClients : []);
+      setVideoTasks(rawVideo);
     } catch (err) {
       console.error('Error loading client dashboard data:', err);
     } finally {
@@ -131,7 +136,7 @@ export default function ClientDashboard() {
       )}
 
       {/* KPI Stat Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2 shadow-xs">
           <div className="flex items-center justify-between text-amber-600">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Pending Review</span>
@@ -143,6 +148,20 @@ export default function ClientDashboard() {
           </div>
         </div>
 
+        <Link
+          href="/client-review?tab=VIDEO_EDITING"
+          className="p-4 rounded-xl bg-purple-50 hover:bg-purple-100/70 border border-purple-200 space-y-2 shadow-xs transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between text-purple-700">
+            <span className="text-xs font-bold uppercase tracking-wider text-purple-800">Video Approvals</span>
+            <Video className="w-5 h-5 group-hover:scale-110 transition-transform" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black text-purple-950">{videoTasks.length}</span>
+            <span className="text-xs text-purple-700 font-medium">Awaiting Sign-off</span>
+          </div>
+        </Link>
+
         <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2 shadow-xs">
           <div className="flex items-center justify-between text-emerald-600">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Approved Content</span>
@@ -150,7 +169,7 @@ export default function ClientDashboard() {
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-black text-slate-900">{approvedEvents.length}</span>
-            <span className="text-xs text-emerald-700 font-medium">Ready for Publishing</span>
+            <span className="text-xs text-emerald-700 font-medium">Ready to Publish</span>
           </div>
         </div>
 
@@ -176,6 +195,56 @@ export default function ClientDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Video Editing Deliverables Awaiting Marketing Approval */}
+      {videoTasks.length > 0 && (
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-300 shadow-sm space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="p-2 bg-purple-100 text-purple-700 rounded-xl border border-purple-200">
+                <Video className="w-5 h-5" />
+              </span>
+              <div>
+                <h3 className="font-extrabold text-purple-950 text-base">
+                  Video Editing Deliverables Awaiting Marketing Quality Approval ({videoTasks.length})
+                </h3>
+                <p className="text-xs text-purple-800">
+                  Media Manager has completed review on these video tasks and forwarded them for your final sign-off.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/client-review?tab=VIDEO_EDITING"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/20"
+            >
+              <CheckCircle2 className="w-4 h-4" /> Open Video Approval Session ({videoTasks.length})
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+            {videoTasks.slice(0, 3).map((t: any) => (
+              <div key={t.id} className="p-3 bg-white/90 border border-purple-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-bold text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                    {t.taskId || t.id}
+                  </span>
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                    Needs Sign-off
+                  </span>
+                </div>
+                <h4 className="font-bold text-slate-900 text-xs truncate">{t.name || t.title}</h4>
+                <p className="text-[11px] text-slate-500">Client: <strong>{t.client?.name || 'N/A'}</strong></p>
+                <Link
+                  href="/client-review?tab=VIDEO_EDITING"
+                  className="block text-center py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold rounded-lg text-xs transition-colors"
+                >
+                  Review &amp; Authorize
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Main Content Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

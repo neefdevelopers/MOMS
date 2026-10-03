@@ -138,6 +138,11 @@ export class TasksService {
         client: { select: { id: true, name: true, companyName: true, contactPerson: true } },
         brand: { select: { id: true, name: true, shortCode: true } },
         product: { select: { id: true, name: true, productCode: true } },
+        projectScript: {
+          include: {
+            clips: { orderBy: { order: 'asc' } },
+          },
+        },
         assignedEmployees: { include: { user: { include: { employeeProfile: true } } } },
         remarksHistory: { include: { user: { select: { id: true, name: true, role: true, avatarUrl: true } } }, orderBy: { createdAt: 'desc' } },
         deliverableHistory: { include: { user: { select: { id: true, name: true, role: true } } }, orderBy: { version: 'desc' } },
@@ -243,6 +248,27 @@ export class TasksService {
           data: { completionPercentage: 25 },
         }).catch(() => null);
         t.completionPercentage = 25;
+      }
+
+      // Video Editing Task Rule: Must have Marketing Manager Approval before reaching COMPLETED
+      const isVideoEditingTask = t.taskType === 'VIDEO_EDITING' || t.sourceType === 'VIDEO_EDITING' || computed === 'VIDEO_EDITING';
+      if (isVideoEditingTask) {
+        if (!t.marketingManagerApproved && (t.status === TaskStatus.COMPLETED || (t.status as any) === 'APPROVED')) {
+          const correctStatus = t.mediaManagerApproved 
+            ? 'WAITING_FOR_MARKETING_APPROVAL'
+            : t.technicalReviewApproved 
+            ? 'WAITING_FOR_MEDIA_REVIEW' 
+            : 'WAITING_FOR_TECHNICAL_REVIEW';
+          const correctProgress = t.mediaManagerApproved ? 75 : t.technicalReviewApproved ? 50 : 25;
+          await this.prisma.task.update({
+            where: { id: t.id },
+            data: { status: correctStatus, completionPercentage: correctProgress },
+          }).catch(() => null);
+          t.status = correctStatus;
+          t.completionPercentage = correctProgress;
+        } else if (t.status === 'WAITING_FOR_MARKETING_MANAGER_REVIEW') {
+          t.status = 'WAITING_FOR_MARKETING_APPROVAL';
+        }
       }
 
       if (computed !== t.sourceType) {
@@ -1143,6 +1169,9 @@ export class TasksService {
         status: initialTaskStatus,
         sourceType: isOtherType ? 'DIRECT_TASK' : sourceType,
         taskType: isOtherType ? 'OTHER' : (data.taskType || (sourceType === 'SHOOT_PROJECT' ? 'PROJECT' : 'PRODUCTION_TASK')),
+        clipCode: data.clipCode || null,
+        scriptId: data.scriptId || null,
+        projectScriptId: data.projectScriptId || null,
         remarks: data.remarks || null,
       },
     });
@@ -1426,6 +1455,15 @@ export class TasksService {
         throw new ForbiddenException("Staff cannot update tasks assigned to other employees.");
       }
 
+      const isVideoEditing = task.taskType === 'VIDEO_EDITING' || task.sourceType === 'VIDEO_EDITING';
+      const isShootTask = !isVideoEditing && (
+        task.sourceType === 'SHOOT_PROJECT' ||
+        task.taskType === 'PROJECT' ||
+        Boolean(task.projectId && !task.scriptId && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER')
+      );
+      const isRevision = task.taskType === 'REVISION' || task.sourceType === 'REVISION';
+      const isOther = task.taskType === 'OTHER' || task.sourceType === 'DIRECT_TASK' || task.sourceType === 'OTHER';
+
       const reviewStatuses = [
         TaskStatus.WAITING_FOR_TECHNICAL_REVIEW,
         TaskStatus.WAITING_FOR_MEDIA_REVIEW,
@@ -1433,7 +1471,7 @@ export class TasksService {
         TaskStatus.PENDING_MARKETING_APPROVAL,
         TaskStatus.COMPLETED,
       ];
-      if (reviewStatuses.includes(task.status as any)) {
+      if (!isShootTask && reviewStatuses.includes(task.status as any)) {
         throw new ForbiddenException("Task is currently undergoing review and in read-only mode. Updates are locked during review.");
       }
     }
@@ -1445,11 +1483,25 @@ export class TasksService {
     }
 
     if (data.status === TaskStatus.COMPLETED) {
-      if (user.role === Role.STAFF && task.taskType !== 'REVISION' && task.sourceType !== 'REVISION') {
-        throw new ForbiddenException('Staff members cannot directly mark tasks as Completed. Tasks must undergo Technical and Media Manager review.');
+      const isVideoEditing = task.taskType === 'VIDEO_EDITING' || task.sourceType === 'VIDEO_EDITING';
+      const isShootTask = !isVideoEditing && (
+        task.sourceType === 'SHOOT_PROJECT' ||
+        task.taskType === 'PROJECT' ||
+        Boolean(task.projectId && !task.scriptId && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER')
+      );
+      const isRevision = task.taskType === 'REVISION' || task.sourceType === 'REVISION';
+      const isOther = task.taskType === 'OTHER' || task.sourceType === 'DIRECT_TASK' || task.sourceType === 'OTHER';
+
+      if (!isShootTask && !isRevision && !isOther) {
+        if (user.role === Role.STAFF) {
+          throw new ForbiddenException('Staff members cannot directly mark tasks as Completed. Tasks must undergo Technical and Media Manager review.');
+        }
+        if (!task.mediaManagerApproved && user.role !== Role.MEDIA_MANAGER && user.role !== Role.ADMINISTRATOR) {
+          throw new BadRequestException('Task must pass Media Manager review before being marked as Completed.');
+        }
       }
-      if (task.taskType !== 'REVISION' && task.sourceType !== 'REVISION' && !task.mediaManagerApproved && user.role !== Role.MEDIA_MANAGER && user.role !== Role.ADMINISTRATOR) {
-        throw new BadRequestException('Task must pass Media Manager review before being marked as Completed.');
+      if (task.taskType === 'VIDEO_EDITING' && !task.marketingManagerApproved && user.role !== Role.MARKETING_MANAGER && user.role !== Role.ADMINISTRATOR) {
+        throw new BadRequestException('Video Editing tasks must receive Marketing Manager Approval before being marked as Completed.');
       }
     }
 
@@ -1957,6 +2009,16 @@ export class TasksService {
       if (!isAssigned) {
         throw new ForbiddenException("Staff cannot request technical review for tasks assigned to others.");
       }
+    }
+
+    const isVideoEditing = task.taskType === 'VIDEO_EDITING' || task.sourceType === 'VIDEO_EDITING';
+    const isShootTask = !isVideoEditing && (
+      task.sourceType === 'SHOOT_PROJECT' ||
+      task.taskType === 'PROJECT' ||
+      Boolean(task.projectId && !task.scriptId && !task.graphicRequirementId && task.sourceType !== 'SCRIPT' && task.sourceType !== 'GRAPHIC_REQUIREMENT' && task.sourceType !== 'DIRECT_TASK' && task.taskType !== 'OTHER')
+    );
+    if (isShootTask) {
+      throw new BadRequestException('Shoot project tasks do not require technical review or approvals.');
     }
 
     if (task.taskType !== 'VIDEO_EDITING' && !task.activeDeliverableUrl) {

@@ -341,4 +341,177 @@ export class ReportsController {
   ) {
     return this.reportsService.getTimelinePerformanceReports(period, startDate, endDate, clientId, brandId, productId, departmentId, employeeId, projectId, status, search);
   }
+
+  // ==========================================
+  // NEW ROLE-BASED REPORTS (CLEAN & FACTUAL)
+  // ==========================================
+
+  @Roles(Role.MARKETING_MANAGER, Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Get('brand-reports')
+  getBrandReport(
+    @Query('period') period?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('clientId') clientId?: string,
+    @Query('brandId') brandId?: string,
+    @Query('projectId') projectId?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string
+  ) {
+    return this.reportsService.getBrandReport({
+      period,
+      startDate,
+      endDate,
+      clientId,
+      brandId,
+      projectId,
+      status,
+      search,
+    });
+  }
+
+  @Roles(Role.MARKETING_MANAGER, Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Get('task-assignments')
+  getTaskAssignmentReport(
+    @Query('period') period?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('clientId') clientId?: string,
+    @Query('brandId') brandId?: string,
+    @Query('projectId') projectId?: string,
+    @Query('taskType') taskType?: string,
+    @Query('assignedById') assignedById?: string,
+    @Query('assignedToId') assignedToId?: string,
+    @Query('assignedBy') assignedBy?: string,
+    @Query('assignedTo') assignedTo?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string
+  ) {
+    return this.reportsService.getTaskAssignmentReport({
+      period,
+      startDate,
+      endDate,
+      clientId,
+      brandId,
+      projectId,
+      taskType,
+      assignedById: assignedById || assignedBy,
+      assignedToId: assignedToId || assignedTo,
+      status,
+      search,
+    });
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Get('shoot-reports')
+  getShootReport(
+    @Query('period') period?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('clientId') clientId?: string,
+    @Query('brandId') brandId?: string,
+    @Query('projectId') projectId?: string,
+    @Query('shootType') shootType?: string,
+    @Query('location') location?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string
+  ) {
+    return this.reportsService.getShootReport({
+      period,
+      startDate,
+      endDate,
+      clientId,
+      brandId,
+      projectId,
+      shootType,
+      location,
+      status,
+      search,
+    });
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Get('graphic-reports')
+  getGraphicReport(
+    @Query('period') period?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('clientId') clientId?: string,
+    @Query('brandId') brandId?: string,
+    @Query('projectId') projectId?: string,
+    @Query('assignedStaffId') assignedStaffId?: string,
+    @Query('assignedStaff') assignedStaff?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string
+  ) {
+    return this.reportsService.getGraphicReport({
+      period,
+      startDate,
+      endDate,
+      clientId,
+      brandId,
+      projectId,
+      assignedStaffId: assignedStaffId || assignedStaff,
+      status,
+      search,
+    });
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Get('staff-work-reports')
+  getStaffWorkReport(
+    @Query('period') period?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('staffId') staffId?: string,
+    @Query('clientId') clientId?: string,
+    @Query('brandId') brandId?: string,
+    @Query('projectId') projectId?: string,
+    @Query('taskType') taskType?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string
+  ) {
+    return this.reportsService.getStaffWorkReport({
+      period,
+      startDate,
+      endDate,
+      staffId,
+      clientId,
+      brandId,
+      projectId,
+      taskType,
+      status,
+      search,
+    });
+  }
+
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
+  @Get('equipment-rental-reports')
+  getEquipmentRentalReport(
+    @Query('period') period?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('clientId') clientId?: string,
+    @Query('brandId') brandId?: string,
+    @Query('projectId') projectId?: string,
+    @Query('category') category?: string,
+    @Query('equipmentId') equipmentId?: string,
+    @Query('rentalStatus') rentalStatus?: string,
+    @Query('customer') customer?: string,
+    @Query('search') search?: string
+  ) {
+    return this.reportsService.getEquipmentRentalReport({
+      period,
+      startDate,
+      endDate,
+      clientId,
+      brandId,
+      projectId,
+      category,
+      equipmentId,
+      rentalStatus,
+      customer,
+      search,
+    });
+  }
 }

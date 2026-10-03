@@ -1,39 +1,32 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { fetchApi } from '@/lib/api';
 import { RoleGuard } from '@/components/common/RoleGuard';
+import { useAuth } from '@/lib/auth-context';
 import {
-  Activity,
   Search,
-  Filter,
-  Camera,
   CheckCircle2,
-  Clock,
-  Wrench,
   AlertTriangle,
-  PackageX,
-  Archive,
-  ArrowRightLeft,
-  RefreshCw,
+  Wrench,
   Building2,
-  User,
-  SlidersHorizontal,
+  Film,
+  Calendar,
+  ChevronRight,
+  RefreshCw,
+  X,
 } from 'lucide-react';
 
 export default function EquipmentMonitoringPage() {
+  const { user } = useAuth();
+  const userRole = user?.role as string | undefined;
+  const isManager = userRole === 'ADMIN' || userRole === 'ADMINISTRATOR' || userRole === 'MEDIA_MANAGER' || userRole === 'TECHNICAL_MANAGER';
+
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Filter States
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [categoryFilter, setCategoryFilter] = useState('ALL');
-  const [brandFilter, setBrandFilter] = useState('ALL');
-  const [locationFilter, setLocationFilter] = useState('ALL');
-  const [maintenanceFilter, setMaintenanceFilter] = useState('ALL');
-  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
 
   const loadMonitoring = async () => {
     setLoading(true);
@@ -43,7 +36,7 @@ export default function EquipmentMonitoringPage() {
         setItems(data);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load monitoring data:', err);
     } finally {
       setLoading(false);
     }
@@ -53,419 +46,317 @@ export default function EquipmentMonitoringPage() {
     loadMonitoring();
   }, []);
 
-  // Filter Logic
-  const categories = Array.from(new Set(items.map((i) => i.category).filter(Boolean)));
-  const brands = Array.from(new Set(items.map((i) => i.brand).filter(Boolean)));
-  const locations = Array.from(new Set(items.map((i) => i.storageLocation).filter(Boolean)));
+  // Summary counts
+  const counts = useMemo(() => {
+    return {
+      available: items.filter((i) => i.currentStatus === 'AVAILABLE').length,
+      assigned: items.filter((i) => i.currentStatus === 'ASSIGNED_TO_PROJECT' || i.currentStatus === 'CHECKED_OUT' || i.currentStatus === 'IN_USE').length,
+      rented: items.filter((i) => i.currentStatus === 'RENTED_OUT').length,
+      maintenance: items.filter((i) => i.currentStatus === 'UNDER_MAINTENANCE' || i.maintenanceStatus === 'UNDER_MAINTENANCE').length,
+      damaged: items.filter((i) => i.currentStatus === 'DAMAGED').length,
+    };
+  }, [items]);
 
-  const filteredItems = items.filter((item) => {
-    if (search.trim()) {
-      const q = search.toLowerCase().trim();
-      const match =
-        item.name.toLowerCase().includes(q) ||
-        item.equipmentId.toLowerCase().includes(q) ||
-        item.serialNumber.toLowerCase().includes(q) ||
-        item.currentEmployee.toLowerCase().includes(q) ||
-        item.assignedProject.toLowerCase().includes(q) ||
-        item.brand.toLowerCase().includes(q) ||
-        item.model.toLowerCase().includes(q);
-      if (!match) return false;
-    }
+  // Items needing attention: Damaged, In Maintenance, Lost, Overdue, or Due within 48h
+  const attentionItems = useMemo(() => {
+    const now = new Date();
+    const in48h = new Date(now.getTime() + 48 * 3600 * 1000);
 
-    if (statusFilter !== 'ALL' && item.currentStatus !== statusFilter) return false;
-    if (categoryFilter !== 'ALL' && item.category !== categoryFilter) return false;
-    if (brandFilter !== 'ALL' && item.brand !== brandFilter) return false;
-    if (locationFilter !== 'ALL' && item.storageLocation !== locationFilter) return false;
-    if (maintenanceFilter !== 'ALL' && item.maintenanceStatus !== maintenanceFilter) return false;
+    return items
+      .filter((item) => {
+        if (item.currentStatus === 'DAMAGED') return true;
+        if (item.currentStatus === 'UNDER_MAINTENANCE') return true;
+        if (item.currentStatus === 'LOST') return true;
 
-    if (showOverdueOnly) {
-      if (!item.expectedReturnDate) return false;
-      const isOverdue =
-        (item.currentStatus === 'CHECKED_OUT' || item.currentStatus === 'IN_USE') &&
-        new Date(item.expectedReturnDate) < new Date();
-      if (!isOverdue) return false;
-    }
+        if (item.expectedReturnDate) {
+          const retDate = new Date(item.expectedReturnDate);
+          if (retDate < now) return true; // Overdue
+          if (retDate <= in48h && (item.currentStatus === 'ASSIGNED_TO_PROJECT' || item.currentStatus === 'RENTED_OUT')) return true;
+        }
 
-    return true;
-  });
+        return false;
+      })
+      .map((item) => {
+        let reason = 'Active issue';
+        if (item.currentStatus === 'DAMAGED') {
+          reason = item.condition === 'DAMAGED' ? 'Damage reported — needs repair' : 'Quarantined for inspection';
+        } else if (item.currentStatus === 'UNDER_MAINTENANCE') {
+          reason = 'Repair/service in progress';
+        } else if (item.currentStatus === 'LOST') {
+          reason = 'Reported lost / missing';
+        } else if (item.expectedReturnDate) {
+          const retDate = new Date(item.expectedReturnDate);
+          if (retDate < now) {
+            reason = `Overdue since ${retDate.toLocaleDateString()}`;
+          } else {
+            reason = `Return due on ${retDate.toLocaleDateString()}`;
+          }
+        }
+
+        return {
+          ...item,
+          attentionReason: reason,
+        };
+      });
+  }, [items]);
+
+  // Filtered active list
+  const filteredActiveItems = useMemo(() => {
+    return items.filter((item) => {
+      if (search.trim()) {
+        const q = search.toLowerCase().trim();
+        const matchesName = item.name?.toLowerCase().includes(q);
+        const matchesId = item.equipmentId?.toLowerCase().includes(q);
+        const matchesHolder = item.currentHolder?.toLowerCase().includes(q);
+        const matchesProject = item.assignedProject?.toLowerCase().includes(q);
+        if (!matchesName && !matchesId && !matchesHolder && !matchesProject) {
+          return false;
+        }
+      }
+
+      if (statusFilter !== 'ALL') {
+        if (statusFilter === 'ASSIGNED') {
+          if (item.currentStatus !== 'ASSIGNED_TO_PROJECT' && item.currentStatus !== 'CHECKED_OUT' && item.currentStatus !== 'IN_USE') {
+            return false;
+          }
+        } else if (item.currentStatus !== statusFilter) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [items, search, statusFilter]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'AVAILABLE':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'RESERVED':
-        return 'bg-purple-50 text-purple-700 border-purple-200';
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+            Available
+          </span>
+        );
+      case 'ASSIGNED_TO_PROJECT':
       case 'CHECKED_OUT':
       case 'IN_USE':
-        return 'bg-amber-50 text-amber-800 border-amber-200';
-      case 'UNDER_MAINTENANCE':
-        return 'bg-cyan-50 text-cyan-700 border-cyan-200';
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/60">
+            Assigned
+          </span>
+        );
+      case 'RENTED_OUT':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200/60">
+            Rented
+          </span>
+        );
       case 'DAMAGED':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200/60">
+            Damaged
+          </span>
+        );
+      case 'UNDER_MAINTENANCE':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200/60">
+            Maintenance
+          </span>
+        );
       case 'LOST':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
-      case 'RETIRED':
-        return 'bg-gray-500/15 text-slate-500 border-gray-500/30';
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+            Lost
+          </span>
+        );
       default:
-        return 'bg-blue-50 text-blue-700 border-blue-200';
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200">
+            {status}
+          </span>
+        );
     }
   };
 
-  // Density State
-  const [rowDensity, setRowDensity] = useState<'spacious' | 'comfortable' | 'compact'>('spacious');
-
   return (
     <RoleGuard>
-      <div className="p-6 md:p-8 space-y-6 max-w-[1800px] mx-auto">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-5">
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-200">
           <div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-              <span className="p-2.5 bg-cyan-50 border border-cyan-200 rounded-2xl">
-                <Activity className="w-7 h-7 text-cyan-600" />
-              </span>
-              Live Equipment Monitoring Matrix
-            </h1>
+            <h1 className="text-xl font-semibold text-gray-900">Equipment Monitoring</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Current operational status</p>
           </div>
+          <button
+            onClick={loadMonitoring}
+            className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={loadMonitoring}
-              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-200 flex items-center gap-2 transition-all shadow-sm"
-            >
-              <RefreshCw className="w-4 h-4 text-cyan-600" />
-              Refresh Data
-            </button>
-            <Link
-              href="/equipment/create"
-              className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2 transition-all"
-            >
-              + Add Equipment
-            </Link>
+        {/* Status Summary Blocks (Small, clean, simple) */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="p-3 bg-white border border-gray-200 rounded-lg">
+            <div className="text-xs text-gray-500">Available</div>
+            <div className="text-xl font-semibold text-emerald-700 mt-0.5">{counts.available}</div>
+          </div>
+          <div className="p-3 bg-white border border-gray-200 rounded-lg">
+            <div className="text-xs text-gray-500">Assigned</div>
+            <div className="text-xl font-semibold text-blue-700 mt-0.5">{counts.assigned}</div>
+          </div>
+          <div className="p-3 bg-white border border-gray-200 rounded-lg">
+            <div className="text-xs text-gray-500">Rented</div>
+            <div className="text-xl font-semibold text-purple-700 mt-0.5">{counts.rented}</div>
+          </div>
+          <div className="p-3 bg-white border border-gray-200 rounded-lg">
+            <div className="text-xs text-gray-500">Maintenance</div>
+            <div className="text-xl font-semibold text-amber-700 mt-0.5">{counts.maintenance}</div>
+          </div>
+          <div className="p-3 bg-white border border-gray-200 rounded-lg">
+            <div className="text-xs text-gray-500">Damaged</div>
+            <div className="text-xl font-semibold text-rose-700 mt-0.5">{counts.damaged}</div>
           </div>
         </div>
 
-        {/* Filters Workspace */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex flex-col lg:flex-row items-center gap-3">
-            {/* Search */}
-            <div className="relative flex-1 w-full">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
-              <input
-                type="text"
-                placeholder="Search by ID, Name, Serial #, Employee, Project, Brand..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs md:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-cyan-500 focus:bg-white transition-colors"
-              />
-            </div>
-
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full lg:w-48 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs md:text-sm font-semibold text-slate-900 focus:outline-none focus:border-cyan-500 focus:bg-white transition-colors"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="AVAILABLE">AVAILABLE</option>
-              <option value="RESERVED">RESERVED</option>
-              <option value="CHECKED_OUT">CHECKED OUT</option>
-              <option value="IN_USE">IN USE</option>
-              <option value="UNDER_MAINTENANCE">UNDER MAINTENANCE</option>
-              <option value="DAMAGED">DAMAGED</option>
-              <option value="LOST">LOST</option>
-              <option value="RETIRED">RETIRED</option>
-            </select>
-
-            {/* Category Filter */}
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full lg:w-48 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs md:text-sm font-semibold text-slate-900 focus:outline-none focus:border-cyan-500 focus:bg-white transition-colors"
-            >
-              <option value="ALL">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-
-            {/* Overdue Toggle */}
-            <button
-              onClick={() => setShowOverdueOnly(!showOverdueOnly)}
-              className={`w-full lg:w-auto px-4 py-2.5 rounded-xl border text-xs md:text-sm font-bold transition-all flex items-center justify-center gap-2 whitespace-nowrap ${
-                showOverdueOnly
-                  ? 'bg-amber-50 text-amber-800 border-amber-300 shadow-sm'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Clock className="w-4 h-4 text-amber-600" />
-              Overdue Returns Only
-            </button>
+        {/* Section: Needs Attention */}
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-xs">
+          <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center">
+              <AlertTriangle className="w-4 h-4 mr-2 text-amber-600" />
+              Needs Attention
+            </h2>
+            <span className="text-xs text-gray-400 font-medium">{attentionItems.length} items</span>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs text-slate-500">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-600" />
-                Quick Filters:
-              </span>
-
-              <select
-                value={brandFilter}
-                onChange={(e) => setBrandFilter(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 font-medium"
-              >
-                <option value="ALL">Filter Brand</option>
-                {brands.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={locationFilter}
-                onChange={(e) => setLocationFilter(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 font-medium"
-              >
-                <option value="ALL">Filter Storage Location</option>
-                {locations.map((loc) => (
-                  <option key={loc} value={loc}>
-                    {loc}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={maintenanceFilter}
-                onChange={(e) => setMaintenanceFilter(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 font-medium"
-              >
-                <option value="ALL">Filter Maintenance</option>
-                <option value="OPERATIONAL">OPERATIONAL</option>
-                <option value="NEEDS_SERVICE">NEEDS_SERVICE</option>
-                <option value="UNDER_REPAIR">UNDER_REPAIR</option>
-                <option value="DECOMMISSIONED">DECOMMISSIONED</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-4">
-              {/* Row Density Switcher */}
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
-                <span className="text-[11px] font-semibold text-slate-500 px-2">Spacing:</span>
-                <button
-                  type="button"
-                  onClick={() => setRowDensity('spacious')}
-                  className={`px-2.5 py-1 text-xs rounded-lg font-bold transition-all ${
-                    rowDensity === 'spacious'
-                      ? 'bg-white text-cyan-700 shadow-sm border border-slate-200/80'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Spacious
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRowDensity('comfortable')}
-                  className={`px-2.5 py-1 text-xs rounded-lg font-bold transition-all ${
-                    rowDensity === 'comfortable'
-                      ? 'bg-white text-cyan-700 shadow-sm border border-slate-200/80'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Comfortable
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRowDensity('compact')}
-                  className={`px-2.5 py-1 text-xs rounded-lg font-bold transition-all ${
-                    rowDensity === 'compact'
-                      ? 'bg-white text-cyan-700 shadow-sm border border-slate-200/80'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Compact
-                </button>
-              </div>
-
-              <span className="font-mono text-xs text-slate-500">
-                Showing <strong>{filteredItems.length}</strong> of <strong>{items.length}</strong> items
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Monitoring Matrix Table */}
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-          {loading ? (
-            <div className="p-16 text-center text-slate-500 text-sm font-medium">
-              <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-3 text-cyan-600" />
-              Loading live equipment monitoring matrix data...
-            </div>
-          ) : filteredItems.length === 0 ? (
-            <div className="p-16 text-center text-slate-500 text-sm">
-              <PackageX className="w-8 h-8 mx-auto mb-3 text-slate-400" />
-              No equipment items match your filter criteria.
+          {attentionItems.length === 0 ? (
+            <div className="p-6 text-center text-xs text-gray-500">
+              <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto mb-1.5" />
+              All equipment is operational with no overdue items or active issues.
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[1450px]">
+              <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-50/90 border-b border-slate-200 text-slate-600 uppercase tracking-wider text-[11px] font-bold">
-                    <th className="px-6 py-4">Equipment ID</th>
-                    <th className="px-6 py-4">Name & Model</th>
-                    <th className="px-5 py-4">Category</th>
-                    <th className="px-5 py-4">Serial #</th>
-                    <th className="px-5 py-4">Current Status</th>
-                    <th className="px-5 py-4">Storage Location</th>
-                    <th className="px-5 py-4">Current Employee</th>
-                    <th className="px-5 py-4">Assigned Project</th>
-                    <th className="px-5 py-4">Return Schedule</th>
-                    <th className="px-5 py-4">Condition</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
+                  <tr className="bg-gray-50/80 border-b border-gray-100 text-gray-500 font-medium">
+                    <th className="px-5 py-2.5">Equipment</th>
+                    <th className="px-4 py-2.5">Status</th>
+                    <th className="px-4 py-2.5">Reason / Issue</th>
+                    <th className="px-5 py-2.5 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredItems.map((item) => {
-                    const isOverdue =
-                      (item.currentStatus === 'CHECKED_OUT' || item.currentStatus === 'IN_USE') &&
-                      item.expectedReturnDate &&
-                      new Date(item.expectedReturnDate) < new Date();
-
-                    const cellPadding =
-                      rowDensity === 'spacious'
-                        ? 'px-5 py-5'
-                        : rowDensity === 'comfortable'
-                        ? 'px-5 py-3.5'
-                        : 'px-4 py-2.5';
-
-                    const sidePadding =
-                      rowDensity === 'spacious'
-                        ? 'px-6 py-5'
-                        : rowDensity === 'comfortable'
-                        ? 'px-6 py-3.5'
-                        : 'px-5 py-2.5';
-
-                    return (
-                      <tr
-                        key={item.id}
-                        className="hover:bg-cyan-50/30 transition-colors group"
-                      >
-                        {/* Equipment ID */}
-                        <td className={`${sidePadding} align-middle`}>
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-cyan-50 border border-cyan-200 font-mono font-bold text-xs text-cyan-800 group-hover:border-cyan-300">
-                            {item.equipmentId}
-                          </span>
-                        </td>
-
-                        {/* Name & Model */}
-                        <td className={`${sidePadding} align-middle max-w-[260px]`}>
-                          <div className="font-bold text-slate-900 text-sm leading-snug">
-                            {item.name}
-                          </div>
-                          <div className="text-xs text-slate-500 mt-0.5">
-                            {item.brand} {item.model}
-                          </div>
-                        </td>
-
-                        {/* Category */}
-                        <td className={`${cellPadding} align-middle`}>
-                          <span className="text-xs font-semibold text-slate-700 bg-slate-100/80 px-2.5 py-1 rounded-md">
-                            {item.category}
-                          </span>
-                        </td>
-
-                        {/* Serial Number */}
-                        <td className={`${cellPadding} align-middle font-mono text-xs text-slate-600`}>
-                          {item.serialNumber || '—'}
-                        </td>
-
-                        {/* Current Status */}
-                        <td className={`${cellPadding} align-middle`}>
-                          <span
-                            className={`inline-flex items-center px-3 py-1 rounded-lg text-[11px] font-extrabold uppercase border tracking-wide ${getStatusBadge(
-                              item.currentStatus
-                            )}`}
-                          >
-                            {item.currentStatus?.replace(/_/g, ' ')}
-                          </span>
-                        </td>
-
-                        {/* Storage Location */}
-                        <td className={`${cellPadding} align-middle text-slate-700`}>
-                          <div className="flex items-center gap-2 text-xs">
-                            <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
-                            <span className="font-medium">{item.storageLocation || '—'}</span>
-                          </div>
-                        </td>
-
-                        {/* Current Employee */}
-                        <td className={`${cellPadding} align-middle`}>
-                          <div className="flex items-center gap-2 text-xs text-slate-800">
-                            <User className="w-4 h-4 text-blue-600 shrink-0" />
-                            <span className="font-semibold">{item.currentEmployee || 'Unassigned'}</span>
-                          </div>
-                        </td>
-
-                        {/* Assigned Project */}
-                        <td className={`${cellPadding} align-middle`}>
-                          {item.assignedProject && item.assignedProject !== 'N/A' ? (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-purple-50 border border-purple-200 text-xs font-semibold text-purple-800">
-                              {item.assignedProject}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-400">Unassigned</span>
-                          )}
-                        </td>
-
-                        {/* Return Date */}
-                        <td className={`${cellPadding} align-middle`}>
-                          {item.expectedReturnDate ? (
-                            <div className="space-y-1">
-                              <div className={`font-mono text-xs ${isOverdue ? 'text-rose-700 font-bold' : 'text-slate-700 font-medium'}`}>
-                                {new Date(item.expectedReturnDate).toLocaleDateString(undefined, {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric',
-                                })}
-                              </div>
-                              {isOverdue && (
-                                <span className="inline-flex items-center gap-1 text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded font-extrabold uppercase">
-                                  <AlertTriangle className="w-3 h-3" />
-                                  Overdue
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-400">—</span>
-                          )}
-                        </td>
-
-                        {/* Condition */}
-                        <td className={`${cellPadding} align-middle`}>
-                          <span className="inline-flex items-center text-xs font-semibold text-slate-700">
-                            {item.condition || 'Good'}
-                          </span>
-                        </td>
-
-                        {/* Actions */}
-                        <td className={`${sidePadding} align-middle text-right`}>
-                          <Link
-                            href={`/equipment/${item.id}`}
-                            className="inline-flex items-center px-3.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition-all shadow-sm"
-                          >
-                            View Details
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                <tbody className="divide-y divide-gray-100">
+                  {attentionItems.map((item) => (
+                    <tr key={item.id} className="hover:bg-gray-50/60">
+                      <td className="px-5 py-3">
+                        <Link href={`/equipment/${item.id}`} className="font-medium text-gray-900 hover:text-blue-600">
+                          {item.name}
+                        </Link>
+                        <div className="font-mono text-gray-400 text-[11px]">{item.equipmentId}</div>
+                      </td>
+                      <td className="px-4 py-3">{getStatusBadge(item.currentStatus)}</td>
+                      <td className="px-4 py-3 text-gray-600 font-medium">{item.attentionReason}</td>
+                      <td className="px-5 py-3 text-right">
+                        <Link
+                          href={`/equipment/${item.id}`}
+                          className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                        >
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
           )}
+        </div>
+
+        {/* Section: All Equipment Status */}
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-xs space-y-3 p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900">All Equipment</h2>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Filter by name or ID..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white text-gray-700"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="AVAILABLE">Available</option>
+                <option value="ASSIGNED">Assigned</option>
+                <option value="RENTED_OUT">Rented</option>
+                <option value="UNDER_MAINTENANCE">Maintenance</option>
+                <option value="DAMAGED">Damaged</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-gray-50/80 border-b border-gray-100 text-gray-500 font-medium">
+                  <th className="px-4 py-2.5">ID & Name</th>
+                  <th className="px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5">Location</th>
+                  <th className="px-4 py-2.5">Responsible / Holder</th>
+                  <th className="px-4 py-2.5">Expected Return</th>
+                  <th className="px-4 py-2.5 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                      Loading equipment...
+                    </td>
+                  </tr>
+                ) : filteredActiveItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                      No equipment matching search criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredActiveItems.map((item) => (
+                    <tr key={item.id} className="hover:bg-gray-50/60">
+                      <td className="px-4 py-2.5">
+                        <Link href={`/equipment/${item.id}`} className="font-medium text-gray-900 hover:text-blue-600">
+                          {item.name}
+                        </Link>
+                        <div className="font-mono text-gray-400 text-[11px]">{item.equipmentId}</div>
+                      </td>
+                      <td className="px-4 py-2.5">{getStatusBadge(item.currentStatus)}</td>
+                      <td className="px-4 py-2.5 text-gray-600">{item.storageLocation || 'Studio'}</td>
+                      <td className="px-4 py-2.5 text-gray-600">{item.currentHolder || '—'}</td>
+                      <td className="px-4 py-2.5 text-gray-600">
+                        {item.expectedReturnDate ? new Date(item.expectedReturnDate).toLocaleDateString() : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <Link
+                          href={`/equipment/${item.id}`}
+                          className="text-blue-600 hover:underline font-medium"
+                        >
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </RoleGuard>

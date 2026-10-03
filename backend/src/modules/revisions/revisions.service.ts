@@ -710,9 +710,19 @@ export class RevisionsService {
             data: { status: nextStatus },
           });
         } else if (revision.entityType === 'TASK') {
+          const revTask = await this.prisma.task.findUnique({ where: { id: revision.entityId }, select: { taskType: true } });
+          const isVideo = revTask?.taskType === 'VIDEO_EDITING';
+          const isMediaApproved = user.role === 'MEDIA_MANAGER' || user.role === 'ADMIN' || user.role === 'ADMINISTRATOR';
+          const taskNextStatus = (isVideo && nextStatus === 'COMPLETED') ? 'WAITING_FOR_MARKETING_APPROVAL' : nextStatus;
+          const taskProgress = (isVideo && nextStatus === 'COMPLETED') ? 75 : (nextStatus === 'COMPLETED' ? 100 : 50);
+
           await this.prisma.task.update({
             where: { id: revision.entityId },
-            data: { status: nextStatus },
+            data: {
+              status: taskNextStatus,
+              completionPercentage: taskProgress,
+              mediaManagerApproved: isMediaApproved ? true : undefined,
+            },
           });
         }
       } catch (e) {}
