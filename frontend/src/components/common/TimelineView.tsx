@@ -45,12 +45,53 @@ export function TimelineView({
   emptyMessage = 'No timeline history recorded yet.',
   className = '',
 }: TimelineViewProps) {
+  // Deduplicate entries that have identical action, user, and close timestamp
+  const deduplicatedEntries = (entries || []).filter((entry, idx, self) => {
+    if (!entry) return false;
+    const time = new Date(entry.createdAt).getTime();
+    const action = (entry.action || '').trim().toUpperCase();
+    const desc = (entry.description || entry.remarks || '').trim();
+    const userId = entry.user?.id || entry.user?.name || entry.user?.role || '';
+
+    // Check if an earlier identical entry exists within a 3-minute window
+    return (
+      idx ===
+      self.findIndex((e) => {
+        if (!e) return false;
+        if (e.id && entry.id && e.id === entry.id) return true;
+        const eTime = new Date(e.createdAt).getTime();
+        const eAction = (e.action || '').trim().toUpperCase();
+        const eDesc = (e.description || e.remarks || '').trim();
+        const eUserId = e.user?.id || e.user?.name || e.user?.role || '';
+        return (
+          eAction === action &&
+          eUserId === userId &&
+          (eDesc === desc || action.includes('APPROV')) &&
+          Math.abs(eTime - time) < 180000 // 3 minutes
+        );
+      })
+    );
+  });
+
   // Enforce explicit chronological ordering
-  const sortedEntries = [...(entries || [])].sort((a, b) => {
+  const sortedEntries = [...deduplicatedEntries].sort((a, b) => {
     const timeA = new Date(a.createdAt).getTime();
     const timeB = new Date(b.createdAt).getTime();
     return order === 'asc' ? timeA - timeB : timeB - timeA;
   });
+
+  const formatActionName = (action: string): string => {
+    const act = (action || '').toUpperCase();
+    if (act === 'APPROVE') return 'MARKETING APPROVAL';
+    if (act === 'CLIENT_APPROVED') return 'CLIENT APPROVAL';
+    if (act === 'INTERNAL_APPROVED') return 'INTERNAL APPROVAL';
+    if (act === 'EDIT_APPROVED_AND_APPLIED') return 'EDIT APPROVED & APPLIED';
+    if (act === 'EDIT_REQUEST_SUBMITTED') return 'EDIT REQUEST SUBMITTED';
+    if (act === 'EDIT_REJECTED') return 'EDIT REQUEST REJECTED';
+    if (act === 'RESUBMITTED_MARKETING_APPROVAL') return 'RE-SUBMITTED FOR APPROVAL';
+    if (act === 'SUBMITTED_FOR_APPROVAL') return 'SUBMITTED FOR APPROVAL';
+    return action ? action.replace(/_/g, ' ') : 'ACTIVITY UPDATE';
+  };
 
   const getActionBadgeStyle = (action: string) => {
     const act = (action || '').toUpperCase();
@@ -66,7 +107,7 @@ export function TimelineView({
         dot: 'bg-rose-500',
       };
     }
-    if (act.includes('APPROVED') || act.includes('ACCEPTED') || act.includes('COMPLETED')) {
+    if (act.includes('APPROV') || act.includes('ACCEPTED') || act.includes('COMPLETED')) {
       return {
         bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
         dot: 'bg-emerald-500',
@@ -139,7 +180,7 @@ export function TimelineView({
 
             const userName = entry.user?.name || 'System / Management';
             const userRole = entry.user?.role ? entry.user.role.replace(/_/g, ' ') : '';
-            const actionText = entry.action ? entry.action.replace(/_/g, ' ') : 'ACTIVITY UPDATE';
+            const actionText = formatActionName(entry.action);
             const style = getActionBadgeStyle(entry.action);
             const textContent = entry.description || entry.remarks;
 

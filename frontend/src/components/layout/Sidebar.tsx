@@ -71,8 +71,8 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         roles: ['MEDIA_MANAGER', 'TECHNICAL_MANAGER', 'STAFF', 'SOCIAL_MEDIA_MANAGER', 'MARKETING_MANAGER'],
       },
       {
-        name: 'Marketing Approval Session',
-        clientName: 'Marketing Approval Session',
+        name: 'Event Approval Session',
+        clientName: 'Event Approval Session',
         href: '/client-review',
         icon: CheckCircle2,
         roles: ['MARKETING_MANAGER'],

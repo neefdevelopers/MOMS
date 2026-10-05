@@ -41,16 +41,13 @@ import {
   parseProjectScripts,
 } from '@/lib/project-scripts';
 import { useBrand } from '@/lib/brand-context';
+import { useReferenceData } from '@/lib/useReferenceData';
 
 export default function ProjectsPage() {
   const { user } = useAuth();
   const { activeBrandId, activeBrand, setActiveBrandId } = useBrand();
+  const { clients, brands, products, users: usersList, equipment: equipmentList } = useReferenceData();
   const [projects, setProjects] = useState<any[]>([]);
-  const [clients, setClients] = useState<any[]>([]);
-  const [brands, setBrands] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [usersList, setUsersList] = useState<any[]>([]);
-  const [equipmentList, setEquipmentList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Pagination Hook
@@ -63,6 +60,7 @@ export default function ProjectsPage() {
   // Filters (11 Parameters)
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('');
   const [selectedProduct, setSelectedProduct] = useState('');
@@ -74,6 +72,14 @@ export default function ProjectsPage() {
   const [selectedTechManager, setSelectedTechManager] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
+
+  // Debounce search input (250ms) to avoid request flooding
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // Modal
   const [showModal, setShowModal] = useState(false);
@@ -129,30 +135,13 @@ export default function ProjectsPage() {
   const [travelNotes, setTravelNotes] = useState('');
   const [droneRequirement, setDroneRequirement] = useState(false);
 
-  const loadReferenceData = async () => {
-    try {
-      const [resClients, resBrands, resProducts, resUsers, resEqp] = await Promise.all([
-        fetchApi('/clients').catch(() => []),
-        fetchApi('/brands').catch(() => []),
-        fetchApi('/products').catch(() => []),
-        fetchApi('/users').catch(() => []),
-        fetchApi('/equipment').catch(() => []),
-      ]);
-      setClients(Array.isArray(resClients) ? resClients : []);
-      setBrands(Array.isArray(resBrands) ? resBrands : []);
-      setProducts(Array.isArray(resProducts) ? resProducts : []);
-      setUsersList(Array.isArray(resUsers) ? resUsers : []);
-      setEquipmentList(Array.isArray(resEqp) ? resEqp : []);
-    } catch (err) {
-      console.error('Failed to load reference metadata:', err);
+  const loadProjects = async (forceLoading = false) => {
+    if (forceLoading || projects.length === 0) {
+      setLoading(true);
     }
-  };
-
-  const loadProjects = async () => {
-    setLoading(true);
     try {
       let query = '?';
-      if (search) query += `search=${encodeURIComponent(search)}&`;
+      if (debouncedSearch) query += `search=${encodeURIComponent(debouncedSearch)}&`;
       if (selectedClient) query += `clientId=${selectedClient}&`;
       const effectiveBrand = selectedBrand || (activeBrandId && activeBrandId !== 'ALL' ? activeBrandId : '');
       if (effectiveBrand) query += `brandId=${effectiveBrand}&`;
@@ -176,13 +165,9 @@ export default function ProjectsPage() {
   };
 
   useEffect(() => {
-    loadReferenceData();
-  }, []);
-
-  useEffect(() => {
     loadProjects();
   }, [
-    search,
+    debouncedSearch,
     selectedClient,
     selectedBrand,
     activeBrandId,
@@ -790,6 +775,35 @@ export default function ProjectsPage() {
               Boolean(proj.technicalReviewApproved) ||
               Boolean(hasPendingTechApproval);
             if (!isAllowedForTech) return false;
+          }
+
+          // Employee / Creator Filter check (e.g. My Project Shoots)
+          if (selectedEmployee) {
+            if (user?.role === 'SOCIAL_MEDIA_MANAGER' && selectedEmployee === user.id) {
+              // For Social Media Manager viewing "My Project Shoots", strictly only show projects created by that social media manager
+              const isCreatedBySmm = Boolean(
+                proj.createdById === user.id ||
+                proj.calendarEvent?.createdById === user.id ||
+                proj.createdBy?.id === user.id
+              );
+              if (!isCreatedBySmm) return false;
+            } else {
+              const isAssignedOrCreated = Boolean(
+                proj.createdById === selectedEmployee ||
+                proj.calendarEvent?.createdById === selectedEmployee ||
+                proj.createdBy?.id === selectedEmployee ||
+                (Array.isArray(proj.assignedTeam) && proj.assignedTeam.some((t: any) => t.userId === selectedEmployee || t.user?.id === selectedEmployee)) ||
+                (Array.isArray(proj.tasks) && proj.tasks.some((t: any) =>
+                  t.assignedToId === selectedEmployee ||
+                  (Array.isArray(t.assignedEmployees) && t.assignedEmployees.some((e: any) => e.userId === selectedEmployee || e.user?.id === selectedEmployee))
+                ))
+              );
+              if (!isAssignedOrCreated) return false;
+            }
+          }
+
+          if (selectedStatus && proj.status !== selectedStatus) {
+            return false;
           }
 
           // Creator check

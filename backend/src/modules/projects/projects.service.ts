@@ -100,12 +100,24 @@ export class ProjectsService {
     }
 
     if (params.assignedUserId) {
-      andConditions.push({
-        OR: [
-          { assignedTeam: { some: { userId: params.assignedUserId } } },
-          { tasks: { some: { assignedEmployees: { some: { userId: params.assignedUserId } } } } },
-        ],
-      });
+      if (params.role === 'SOCIAL_MEDIA_MANAGER' && params.assignedUserId === params.userId) {
+        // For Social Media Manager viewing "My Projects", strictly only show projects created by that social media manager
+        andConditions.push({
+          OR: [
+            { createdById: params.userId },
+            { calendarEvent: { createdById: params.userId } },
+          ],
+        });
+      } else {
+        andConditions.push({
+          OR: [
+            { createdById: params.assignedUserId },
+            { calendarEvent: { createdById: params.assignedUserId } },
+            { assignedTeam: { some: { userId: params.assignedUserId } } },
+            { tasks: { some: { assignedEmployees: { some: { userId: params.assignedUserId } } } } },
+          ],
+        });
+      }
     }
 
     if (params.location?.trim()) {
@@ -946,7 +958,7 @@ export class ProjectsService {
 
     if (isProjectUnderReview && isContentEdit && !data.bypassReviewLock) {
       throw new ForbiddenException(
-        'Shoot Project is currently under review and in read-only mode. Operational schedule updates are locked during review.',
+        'Shoot Project is currently under review. Operational schedule updates are locked during review.',
       );
     }
 
@@ -2768,8 +2780,8 @@ export class ProjectsService {
         });
       },
       {
-        maxWait: 10000,
-        timeout: 30000,
+        maxWait: 20000,
+        timeout: 60000,
       },
     );
 

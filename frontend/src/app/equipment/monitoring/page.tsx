@@ -184,7 +184,6 @@ export default function EquipmentMonitoringPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-200">
           <div>
             <h1 className="text-xl font-semibold text-gray-900">Equipment Monitoring</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Current operational status</p>
           </div>
           <button
             onClick={loadMonitoring}

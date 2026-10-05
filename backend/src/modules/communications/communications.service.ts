@@ -732,14 +732,17 @@ export class CommunicationsService {
     });
 
     const senderName = createdComm.sender?.name || 'A staff member';
+    const notifiedUserIds = new Set<string>();
+    notifiedUserIds.add(senderId); // Never notify the sender themselves
 
-    // TRIGGER 1: Announcement Published (Role Broadcast to All Employees)
+    // TRIGGER 1: Announcement Published (Broadcast to All Employees)
     try {
       if (isAnnouncement) {
         const users = await this.prisma.user.findMany({ select: { id: true } });
         if (users.length > 0) {
-          const isHigh = priority === 'HIGH_PRIORITY';
+          const isHigh = priority === 'HIGH_PRIORITY' || priority === 'CRITICAL';
           for (const u of users) {
+            if (u.id === senderId) continue;
             await this.prisma.notification.create({
               data: {
                 userId: u.id,
@@ -750,7 +753,9 @@ export class CommunicationsService {
                   ? `URGENT: ${data.content.substring(0, 150)}`
                   : `New company-wide announcement published by ${senderName}`,
                 type: isHigh ? 'WARNING' : 'INFO',
-                linkUrl: '/dashboard',
+                category: 'ANNOUNCEMENT',
+                priority: isHigh ? 'HIGH' : 'MEDIUM',
+                linkUrl: `/communication?id=${createdComm.id}`,
                 eventType: 'COMMUNICATION_ANNOUNCEMENT_PUBLISHED',
                 entityType: 'COMMUNICATION',
                 entityId: createdComm.id,
@@ -758,6 +763,7 @@ export class CommunicationsService {
                 projectId: resolvedProjectId || null,
               },
             });
+            notifiedUserIds.add(u.id);
           }
         }
       }
@@ -765,7 +771,51 @@ export class CommunicationsService {
       console.error('Failed to trigger announcement notifications:', err);
     }
 
-    // TRIGGER 2: Employee Mentioned (@Name Tag)
+    // TRIGGER 2: Direct Recipients & Target Audience Delivery
+    try {
+      if (!isAnnouncement && !isRemark && createdComm.recipients && createdComm.recipients !== 'N/A (Operational Remark)') {
+        const recipientUserIds = await this.resolveRecipientUserIds(
+          createdComm.recipients,
+          data.entityType,
+          data.entityId,
+          resolvedProjectId,
+          senderId,
+        );
+
+        for (const recipientId of recipientUserIds) {
+          if (!notifiedUserIds.has(recipientId)) {
+            const isCriticalOrHigh = data.priority === 'HIGH' || data.priority === 'HIGH_PRIORITY' || data.priority === 'CRITICAL' || isBlocker;
+            await this.prisma.notification.create({
+              data: {
+                userId: recipientId,
+                title: isBlocker
+                  ? `⚠️ Operational Blocker: ${createdComm.subject}`
+                  : isCriticalOrHigh
+                  ? `🚨 Important Communication: ${createdComm.subject}`
+                  : `💬 New Communication: ${createdComm.subject}`,
+                message: `${senderName}: "${data.content.substring(0, 130)}${
+                  data.content.length > 130 ? '...' : ''
+                }"`,
+                type: isBlocker ? 'WARNING' : isCriticalOrHigh ? 'ALERT' : 'INFO',
+                category: isBlocker ? 'WARNING' : 'INFORMATION',
+                priority: isBlocker ? 'HIGH' : isCriticalOrHigh ? 'HIGH' : 'MEDIUM',
+                linkUrl: `/communication?id=${createdComm.id}`,
+                eventType: isBlocker ? 'COMMUNICATION_BLOCKER_RAISED' : 'COMMUNICATION_MESSAGE_RECEIVED',
+                entityType: 'COMMUNICATION',
+                entityId: createdComm.id,
+                communicationId: createdComm.id,
+                projectId: resolvedProjectId || null,
+              },
+            });
+            notifiedUserIds.add(recipientId);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to trigger direct recipient notifications:', err);
+    }
+
+    // TRIGGER 3: Employee Mentioned (@Name Tag)
     try {
       const mentionMatches = data.content.match(/@([A-Za-z0-9_.-]+)/g);
       if (mentionMatches && mentionMatches.length > 0) {
@@ -782,7 +832,7 @@ export class CommunicationsService {
                 handle.toLowerCase().includes(u.name.toLowerCase().split(' ')[0]))
           );
 
-          if (matchedUser) {
+          if (matchedUser && !notifiedUserIds.has(matchedUser.id)) {
             await this.prisma.notification.create({
               data: {
                 userId: matchedUser.id,
@@ -790,8 +840,10 @@ export class CommunicationsService {
                 message: `${senderName} mentioned you: "${data.content.substring(0, 100)}${
                   data.content.length > 100 ? '...' : ''
                 }"`,
-                type: 'MENTION',
-                linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
+                type: 'INFO',
+                category: 'INFORMATION',
+                priority: 'HIGH',
+                linkUrl: `/communication?id=${createdComm.id}`,
                 eventType: 'COMMUNICATION_MESSAGE_RECEIVED',
                 entityType: 'COMMUNICATION',
                 entityId: createdComm.id,
@@ -799,6 +851,7 @@ export class CommunicationsService {
                 projectId: resolvedProjectId || null,
               },
             });
+            notifiedUserIds.add(matchedUser.id);
           }
         }
       }
@@ -806,7 +859,7 @@ export class CommunicationsService {
       console.error('Failed to trigger mention notifications:', err);
     }
 
-    // TRIGGER 3: Approval Requested (Role-Based Routing to Target Managers)
+    // TRIGGER 4: Approval Requested (Role-Based Routing to Target Managers)
     try {
       const isApprovalType = data.type === 'APPROVAL_REQUEST' || Boolean(data.targetRole);
       if (isApprovalType) {
@@ -832,68 +885,111 @@ export class CommunicationsService {
         });
 
         for (const mgr of managers) {
-          await this.prisma.notification.create({
-            data: {
-              userId: mgr.id,
-              title: `Pending ${targetRole === 'MEDIA_MANAGER' ? 'Media Manager' : 'Technical Manager'} Approval Request`,
-              message: `${senderName} submitted an approval request: "${data.subject || data.content.substring(0, 80)}"`,
-              type: 'APPROVAL_REQUEST',
-              linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
-              eventType: 'APPROVAL_REQUESTED',
-              entityType: 'APPROVAL',
-              entityId: approvalRecord.id,
-              approvalId: approvalRecord.id,
-              projectId: resolvedProjectId || null,
-            },
-          });
+          if (!notifiedUserIds.has(mgr.id)) {
+            await this.prisma.notification.create({
+              data: {
+                userId: mgr.id,
+                title: `Pending ${targetRole === 'MEDIA_MANAGER' ? 'Media Manager' : 'Technical Manager'} Approval Request`,
+                message: `${senderName} submitted an approval request: "${data.subject || data.content.substring(0, 80)}"`,
+                type: 'INFO',
+                category: 'APPROVAL_REQUEST',
+                priority: 'HIGH',
+                linkUrl: `/approvals?approvalId=${approvalRecord.id}`,
+                eventType: 'APPROVAL_REQUESTED',
+                entityType: 'APPROVAL',
+                entityId: approvalRecord.id,
+                approvalId: approvalRecord.id,
+                projectId: resolvedProjectId || null,
+              },
+            });
+            notifiedUserIds.add(mgr.id);
+          }
         }
       }
     } catch (err) {
       console.error('Failed to create pending approval item:', err);
     }
 
-    // TRIGGER 4: Comment Received (Reply to Parent Communication Author)
+    // TRIGGER 5: Comment / Thread Reply Received
     try {
       if (data.parentId) {
         const parentComm = await (this.prisma.communication as any).findUnique({
           where: { id: data.parentId },
-          select: { senderId: true, subject: true },
+          select: { senderId: true, subject: true, recipients: true },
         });
 
-        if (parentComm && parentComm.senderId && parentComm.senderId !== senderId) {
-          await this.prisma.notification.create({
-            data: {
-              userId: parentComm.senderId,
-              title: `New Comment on "${parentComm.subject || 'Operational Note'}"`,
-              message: `${senderName} commented: "${data.content.substring(0, 100)}${
-                data.content.length > 100 ? '...' : ''
-              }"`,
-              type: 'INFO',
-              linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
-              eventType: 'COMMUNICATION_MESSAGE_RECEIVED',
-              entityType: 'COMMUNICATION',
-              entityId: createdComm.id,
-              communicationId: createdComm.id,
-              projectId: resolvedProjectId || null,
-            },
-          });
+        if (parentComm) {
+          // Notify parent author
+          if (parentComm.senderId && !notifiedUserIds.has(parentComm.senderId)) {
+            await this.prisma.notification.create({
+              data: {
+                userId: parentComm.senderId,
+                title: `New Reply on "${parentComm.subject || 'Operational Note'}"`,
+                message: `${senderName} replied: "${data.content.substring(0, 100)}${
+                  data.content.length > 100 ? '...' : ''
+                }"`,
+                type: 'INFO',
+                category: 'INFORMATION',
+                priority: 'MEDIUM',
+                linkUrl: `/communication?id=${createdComm.id}`,
+                eventType: 'COMMUNICATION_MESSAGE_RECEIVED',
+                entityType: 'COMMUNICATION',
+                entityId: createdComm.id,
+                communicationId: createdComm.id,
+                projectId: resolvedProjectId || null,
+              },
+            });
+            notifiedUserIds.add(parentComm.senderId);
+          }
+
+          // Notify thread participants
+          const otherReplies = await (this.prisma.communication as any).findMany({
+            where: { parentId: data.parentId },
+            select: { senderId: true },
+          }).catch(() => []);
+
+          for (const rep of otherReplies) {
+            if (rep.senderId && !notifiedUserIds.has(rep.senderId)) {
+              await this.prisma.notification.create({
+                data: {
+                  userId: rep.senderId,
+                  title: `New Reply on thread "${parentComm.subject || 'Operational Note'}"`,
+                  message: `${senderName} replied: "${data.content.substring(0, 100)}${
+                    data.content.length > 100 ? '...' : ''
+                  }"`,
+                  type: 'INFO',
+                  category: 'INFORMATION',
+                  priority: 'MEDIUM',
+                  linkUrl: `/communication?id=${createdComm.id}`,
+                  eventType: 'COMMUNICATION_MESSAGE_RECEIVED',
+                  entityType: 'COMMUNICATION',
+                  entityId: createdComm.id,
+                  communicationId: createdComm.id,
+                  projectId: resolvedProjectId || null,
+                },
+              });
+              notifiedUserIds.add(rep.senderId);
+            }
+          }
         }
       }
     } catch (err) {
       console.error('Failed to trigger comment notifications:', err);
     }
 
-    // TRIGGER 5: Blocker Assigned (Assigned User & Manager Role Alerts)
+    // TRIGGER 6: Blocker Assigned (Assigned User & Manager Role Alerts)
     try {
       if (isBlocker) {
-        if (data.assignedToId && data.assignedToId !== senderId) {
+        if (data.assignedToId && !notifiedUserIds.has(data.assignedToId)) {
           await this.prisma.notification.create({
             data: {
               userId: data.assignedToId,
               title: `⚠️ Operational Blocker Assigned`,
               message: `${senderName} assigned an operational blocker to you (${blockerReason?.replace(/_/g, ' ')}): "${createdComm.subject}"`,
               type: 'WARNING',
-              linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
+              category: 'WARNING',
+              priority: 'CRITICAL',
+              linkUrl: `/communication?id=${createdComm.id}`,
               eventType: 'COMMUNICATION_BLOCKER_RAISED',
               entityType: 'COMMUNICATION',
               entityId: createdComm.id,
@@ -901,6 +997,7 @@ export class CommunicationsService {
               projectId: resolvedProjectId || null,
             },
           });
+          notifiedUserIds.add(data.assignedToId);
         }
 
         // Also notify Technical and Media Managers of unresolved blocker
@@ -913,14 +1010,16 @@ export class CommunicationsService {
         });
 
         for (const mgr of managers) {
-          if (mgr.id !== data.assignedToId) {
+          if (!notifiedUserIds.has(mgr.id)) {
             await this.prisma.notification.create({
               data: {
                 userId: mgr.id,
                 title: `🚨 Operational Blocker Reported`,
                 message: `${senderName} reported a blocker (${blockerReason?.replace(/_/g, ' ')}): "${createdComm.subject}"`,
                 type: 'WARNING',
-                linkUrl: resolvedProjectId ? `/projects/${resolvedProjectId}` : '/communication',
+                category: 'WARNING',
+                priority: 'HIGH',
+                linkUrl: `/communication?id=${createdComm.id}`,
                 eventType: 'COMMUNICATION_BLOCKER_RAISED',
                 entityType: 'COMMUNICATION',
                 entityId: createdComm.id,
@@ -928,6 +1027,7 @@ export class CommunicationsService {
                 projectId: resolvedProjectId || null,
               },
             });
+            notifiedUserIds.add(mgr.id);
           }
         }
       }
@@ -1167,6 +1267,142 @@ export class CommunicationsService {
 
     timeline.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     return timeline;
+  }
+
+  /**
+   * Helper to resolve individual user IDs from recipient strings, presets, and entity assignments
+   */
+  private async resolveRecipientUserIds(
+    recipientsStr: string | undefined,
+    entityType: string,
+    entityId: string,
+    projectId?: string | null,
+    senderId?: string,
+  ): Promise<string[]> {
+    if (!recipientsStr || !recipientsStr.trim()) return [];
+    const raw = recipientsStr.trim();
+    const lower = raw.toLowerCase();
+    const recipientIds = new Set<string>();
+
+    // 1. "All Assigned Team Members" / "All Assigned Team" / "Entire Team"
+    if (
+      lower.includes('all assigned team') ||
+      lower.includes('all assigned team members') ||
+      lower.includes('entire team') ||
+      lower.includes('assigned team')
+    ) {
+      if (projectId) {
+        const project = await this.prisma.shootProject.findUnique({
+          where: { id: projectId },
+          select: {
+            createdById: true,
+            assignedTeam: { select: { userId: true } },
+            tasks: { select: { assignedEmployees: { select: { userId: true } } } },
+          },
+        }).catch(() => null);
+
+        if (project) {
+          if (project.createdById) recipientIds.add(project.createdById);
+          project.assignedTeam?.forEach((a) => {
+            if (a.userId) recipientIds.add(a.userId);
+          });
+          project.tasks?.forEach((t) => {
+            t.assignedEmployees?.forEach((ae) => {
+              if (ae.userId) recipientIds.add(ae.userId);
+            });
+          });
+        }
+      }
+
+      if (entityType === 'TASK' && entityId) {
+        const task = await this.prisma.task.findFirst({
+          where: { OR: [{ id: entityId }, { taskId: entityId }] },
+          select: {
+            assignedEmployees: { select: { userId: true } },
+          },
+        }).catch(() => null);
+        if (task) {
+          task.assignedEmployees?.forEach((ae) => {
+            if (ae.userId) recipientIds.add(ae.userId);
+          });
+        }
+      }
+
+      if (entityType === 'GRAPHIC_REQ' && entityId) {
+        const req = await this.prisma.graphicRequirement.findFirst({
+          where: { OR: [{ id: entityId }, { requirementId: entityId }] },
+          select: {
+            createdById: true,
+            deliverables: { select: { assignedStaffId: true } },
+          },
+        }).catch(() => null);
+        if (req) {
+          if (req.createdById) recipientIds.add(req.createdById);
+          req.deliverables?.forEach((d) => {
+            if (d.assignedStaffId) recipientIds.add(d.assignedStaffId);
+          });
+        }
+      }
+
+      if (entityType === 'EQUIPMENT' && entityId) {
+        const eq = await this.prisma.equipment.findFirst({
+          where: { OR: [{ id: entityId }, { equipmentId: entityId }] },
+          select: { assignedUserId: true },
+        }).catch(() => null);
+        if (eq?.assignedUserId) recipientIds.add(eq.assignedUserId);
+      }
+    }
+
+    // 2. Role-based group presets
+    if (lower.includes('media manager') || lower.includes('media_manager')) {
+      const mmUsers = await this.prisma.user.findMany({
+        where: { role: 'MEDIA_MANAGER' },
+        select: { id: true },
+      }).catch(() => []);
+      mmUsers.forEach((u) => recipientIds.add(u.id));
+    }
+
+    if (lower.includes('technical manager') || lower.includes('technical_manager')) {
+      const tmUsers = await this.prisma.user.findMany({
+        where: { role: 'TECHNICAL_MANAGER' },
+        select: { id: true },
+      }).catch(() => []);
+      tmUsers.forEach((u) => recipientIds.add(u.id));
+    }
+
+    // 3. Match individual users by name, email, or role
+    const allUsers = await this.prisma.user.findMany({
+      select: { id: true, name: true, email: true, role: true },
+    }).catch(() => []);
+
+    const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
+    for (const part of parts) {
+      const cleanPart = part.replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
+      if (!cleanPart) continue;
+
+      for (const u of allUsers) {
+        const uName = (u.name || '').toLowerCase();
+        const uEmail = (u.email || '').toLowerCase();
+        const uRole = (u.role || '').toLowerCase();
+        const uFirstName = uName.split(' ')[0];
+
+        if (
+          uName === cleanPart ||
+          (cleanPart.length > 2 && uName.includes(cleanPart)) ||
+          (cleanPart.length > 2 && cleanPart.includes(uName)) ||
+          (uEmail && uEmail === cleanPart) ||
+          (uFirstName && cleanPart === uFirstName)
+        ) {
+          recipientIds.add(u.id);
+        }
+      }
+    }
+
+    if (senderId) {
+      recipientIds.delete(senderId);
+    }
+
+    return Array.from(recipientIds);
   }
 }
 

@@ -110,7 +110,7 @@ export default function FavouritesPage() {
       {/* Page Header */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5 mb-1">
+          <div className="flex items-center gap-2.5">
             <div className="p-2 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl">
               <Star className="w-5 h-5 fill-amber-400 text-amber-500" />
             </div>
@@ -123,9 +123,6 @@ export default function FavouritesPage() {
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500">
-            Quick 1-click access to your bookmarked projects, scripts, tasks, graphic requirements, calendar events, and client records.
-          </p>
         </div>
       </div>
 

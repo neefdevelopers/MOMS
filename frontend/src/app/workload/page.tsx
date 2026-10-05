@@ -99,12 +99,32 @@ export default function WorkloadCapacityPage() {
 
   const openWorkDetailsModal = async (emp: any) => {
     setSelectedWorkDetailsEmp(emp);
+    if (emp.tasks && Array.isArray(emp.tasks) && emp.tasks.length > 0) {
+      setEmpAssignedWorkTasks(emp.tasks);
+    } else if (emp.activeTasks && Array.isArray(emp.activeTasks) && emp.activeTasks.length > 0) {
+      setEmpAssignedWorkTasks(emp.activeTasks);
+    } else {
+      setEmpAssignedWorkTasks([]);
+    }
+
     setLoadingEmpWorkDetails(true);
     try {
       const data = await fetchApi(`/tasks/assigned-work/${emp.userId}`);
-      setEmpAssignedWorkTasks(data?.tasks || []);
+      if (data?.tasks && Array.isArray(data.tasks)) {
+        setEmpAssignedWorkTasks(data.tasks);
+      } else if (Array.isArray(data)) {
+        setEmpAssignedWorkTasks(data);
+      } else {
+        const fallback = await fetchApi(`/tasks?employeeId=${emp.userId}`);
+        setEmpAssignedWorkTasks(Array.isArray(fallback) ? fallback : emp.tasks || []);
+      }
     } catch {
-      setEmpAssignedWorkTasks([]);
+      try {
+        const fallback = await fetchApi(`/tasks?employeeId=${emp.userId}`);
+        setEmpAssignedWorkTasks(Array.isArray(fallback) ? fallback : emp.tasks || []);
+      } catch {
+        setEmpAssignedWorkTasks(emp.tasks || emp.activeTasks || []);
+      }
     } finally {
       setLoadingEmpWorkDetails(false);
     }

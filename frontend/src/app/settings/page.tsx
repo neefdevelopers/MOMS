@@ -201,7 +201,6 @@ function SettingsContent() {
           </div>
           <div>
             <h1 className="text-base sm:text-lg font-bold text-slate-900">Platform Settings &amp; Configuration</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Manage system policies, default preferences, and operational rules</p>
           </div>
         </div>
 

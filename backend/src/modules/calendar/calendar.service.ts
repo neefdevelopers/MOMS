@@ -697,8 +697,20 @@ export class CalendarService {
         }
       }
 
-      return event;
-    }, { timeout: 30000 });
+      return tx.mediaCalendarEvent.findUnique({
+        where: { id: event.id },
+        include: {
+          client: true,
+          brand: true,
+          product: true,
+          shoot: true,
+          shootProjects: true,
+          graphicRequirement: true,
+          graphicReqs: true,
+          assignedStaff: true,
+        },
+      });
+    }, { timeout: 60000, maxWait: 20000 });
 
     // ── Secondary Records & Audit Logging (Safe post-transaction execution) ──
     try {
@@ -832,7 +844,7 @@ export class CalendarService {
 
     if (isEventUnderReview && !isMarketingManager && !data.resubmitForApproval && existing.status !== 'REJECTED') {
       throw new ForbiddenException(
-        'Calendar event is currently under review and in read-only mode. Content updates and modifications are locked until the review decision is complete.',
+        'Calendar event is currently under review. Content updates and modifications are locked until the review decision is complete.',
       );
     }
 
@@ -1293,7 +1305,7 @@ export class CalendarService {
       });
 
       return ev;
-    }, { timeout: 30000 });
+    }, { timeout: 60000, maxWait: 20000 });
 
     await this.sendNotification(
       [editReq.requestedById],
@@ -1584,7 +1596,7 @@ export class CalendarService {
     const isOverride = user.role === 'MEDIA_MANAGER' && user.id !== event.createdById;
 
     // Atomic Transaction Execution (extended timeout)
-    return this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       const eventUpdates: any = {
         status: newStatus,
         approvalStatus: action === 'APPROVE' ? 'APPROVED' : action === 'REQUEST_CHANGES' ? 'CHANGES_REQUESTED' : 'REJECTED',
@@ -1754,20 +1766,33 @@ export class CalendarService {
       // Get current active revision
       const currentRevision = event.revisions.find((r) => r.version === event.version);
 
-      // Log Approval History entry
-      await tx.calendarApprovalHistory.create({
-        data: {
+      // Check if identical approval entry was already logged recently to prevent duplicate rows
+      const existingRecentApproval = await tx.calendarApprovalHistory.findFirst({
+        where: {
           calendarEventId: event.id,
-          revisionId: currentRevision?.id || null,
-          version: event.version,
           userId: user.id,
-          role: user.role,
           action: isOverride ? `OVERRIDE_${action}` : action,
-          previousStatus,
           newStatus,
-          comment: comment?.trim() || (action === 'APPROVE' ? 'Approved by client representative.' : null),
+          timestamp: { gte: new Date(Date.now() - 5 * 60 * 1000) },
         },
       });
+
+      // Log Approval History entry if not duplicate
+      if (!existingRecentApproval) {
+        await tx.calendarApprovalHistory.create({
+          data: {
+            calendarEventId: event.id,
+            revisionId: currentRevision?.id || null,
+            version: event.version,
+            userId: user.id,
+            role: user.role,
+            action: isOverride ? `OVERRIDE_${action}` : action,
+            previousStatus,
+            newStatus,
+            comment: comment?.trim() || (action === 'APPROVE' ? 'Approved by Marketing Manager (Client Representative).' : null),
+          },
+        });
+      }
 
       // Audit Log Entry
       await tx.activityLog.create({
@@ -1787,7 +1812,11 @@ export class CalendarService {
         },
       });
 
-      // Send Notification to Event Creator
+      return updated;
+    }, { timeout: 60000, maxWait: 20000 });
+
+    // ── Non-blocking Post-decision Notifications (Executed safely outside interactive transaction) ──
+    try {
       if (event.createdById) {
         let notifTitle = 'Calendar Event Client Decision';
         let notifMessage = `Event '${event.title}' status updated to ${newStatus}.`;
@@ -1803,7 +1832,7 @@ export class CalendarService {
           notifMessage = `Client rejected '${event.title}': "${comment}"`;
         }
 
-        await tx.notification.create({
+        this.prisma.notification.create({
           data: {
             userId: event.createdById,
             title: notifTitle,
@@ -1815,16 +1844,16 @@ export class CalendarService {
             entityId: event.id,
             linkUrl: `/calendar`,
           },
-        });
+        }).catch((err) => console.warn('Non-blocking: could not create creator notification:', err.message));
       }
 
-      return updated;
-    });
-
-    if (action === 'APPROVE') {
-      this.notifyTechnicalManagersForEquipmentAssignment(event.id).catch((err) => {
-        console.error('Error notifying technical managers for equipment assignment on review approval:', err);
-      });
+      if (action === 'APPROVE') {
+        this.notifyTechnicalManagersForEquipmentAssignment(event.id).catch((err) => {
+          console.warn('Non-blocking: could not notify technical managers for equipment assignment:', err.message);
+        });
+      }
+    } catch (postErr: any) {
+      console.warn('Non-blocking post-review notification error:', postErr.message);
     }
 
     return this.findOne(id, user);

@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, resolveFileUrl } from '@/lib/api';
 import { exportToCSV, ExportColumn } from '@/utils/exportUtils';
 import {
   FileBarChart,
@@ -23,6 +23,7 @@ import {
   X,
   RefreshCw,
   AlertTriangle,
+  Eye,
 } from 'lucide-react';
 import {
   getAllowedReportTabs,
@@ -340,6 +341,7 @@ export default function ReportsPage() {
           { header: 'In Progress', key: 'inProgress' },
           { header: 'Pending', key: 'pending' },
           { header: 'Overdue', key: 'overdue' },
+          { header: 'Outputs Produced', key: 'totalOutputs' },
         ];
         break;
 
@@ -467,9 +469,6 @@ export default function ReportsPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-900 tracking-tight">Reports</h1>
-              <p className="text-xs text-slate-500">
-                Role-based operational reports and factual activity summaries
-              </p>
             </div>
           </div>
         </div>
@@ -961,6 +960,12 @@ export default function ReportsPage() {
                   {reportData.staffSummaries?.reduce((acc: number, s: any) => acc + (s.overdue || 0), 0) || 0}
                 </p>
               </div>
+              <div className="bg-white border border-purple-200 rounded-xl p-3.5 shadow-xs">
+                <p className="text-[11px] font-semibold text-purple-600 uppercase tracking-wider">Outputs Produced</p>
+                <p className="text-xl font-bold text-purple-700 mt-1">
+                  {reportData.staffSummaries?.reduce((acc: number, s: any) => acc + (s.totalOutputs || 0), 0) || 0}
+                </p>
+              </div>
             </>
           )}
 
@@ -1321,13 +1326,14 @@ export default function ReportsPage() {
                     <th className="py-3 px-4 text-blue-700">In Progress</th>
                     <th className="py-3 px-4 text-slate-700">Pending</th>
                     <th className="py-3 px-4 text-rose-700">Overdue</th>
+                    <th className="py-3 px-4 text-purple-700">Outputs</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {(reportData.staffSummaries || []).length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-500">
+                      <td colSpan={9} className="py-8 text-center text-slate-500">
                         No data found for the selected filters.
                       </td>
                     </tr>
@@ -1358,6 +1364,11 @@ export default function ReportsPage() {
                         <td className="py-3 px-4 font-semibold text-blue-700">{staff.inProgress}</td>
                         <td className="py-3 px-4 font-semibold text-slate-600">{staff.pending}</td>
                         <td className="py-3 px-4 font-semibold text-rose-700">{staff.overdue}</td>
+                        <td className="py-3 px-4 font-bold text-purple-700">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                            {staff.totalOutputs || 0}
+                          </span>
+                        </td>
                         <td className="py-3 px-4 text-right">
                           <button className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1 ml-auto">
                             View Work <ChevronRight className="w-3.5 h-3.5" />
@@ -1535,7 +1546,7 @@ export default function ReportsPage() {
             </div>
 
             {/* Staff Work Summary Cards */}
-            <div className="p-4 bg-slate-50 border-b border-slate-200 grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="p-4 bg-slate-50 border-b border-slate-200 grid grid-cols-2 sm:grid-cols-6 gap-3">
               <div className="bg-white p-3 rounded-lg border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-500">Assigned</p>
                 <p className="text-lg font-bold text-slate-900">{selectedStaffDetail.assigned || 0}</p>
@@ -1556,6 +1567,10 @@ export default function ReportsPage() {
                 <p className="text-[10px] uppercase font-bold text-rose-600">Overdue</p>
                 <p className="text-lg font-bold text-rose-700">{selectedStaffDetail.overdue || 0}</p>
               </div>
+              <div className="bg-white p-3 rounded-lg border border-purple-200">
+                <p className="text-[10px] uppercase font-bold text-purple-600">Outputs</p>
+                <p className="text-lg font-bold text-purple-700">{selectedStaffDetail.totalOutputs || 0}</p>
+              </div>
             </div>
 
             {/* Detailed Tasks List */}
@@ -1573,12 +1588,13 @@ export default function ReportsPage() {
                     <th className="py-2.5 px-3">Assigned Date</th>
                     <th className="py-2.5 px-3">Due Date</th>
                     <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3 text-purple-700">Output Asset</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {(!selectedStaffDetail.tasks || selectedStaffDetail.tasks.length === 0) ? (
                     <tr>
-                      <td colSpan={7} className="py-6 text-center text-slate-500">
+                      <td colSpan={8} className="py-6 text-center text-slate-500">
                         No individual tasks found for this staff member under current filters.
                       </td>
                     </tr>
@@ -1611,6 +1627,30 @@ export default function ReportsPage() {
                           >
                             {task.status}
                           </span>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {task.primaryOutputUrl ? (
+                            <div className="flex flex-col gap-1 items-start">
+                              <a
+                                href={resolveFileUrl(task.primaryOutputUrl)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 rounded-md font-semibold text-[11px] border border-purple-200 transition shadow-xs"
+                                title={task.primaryOutputFileName || 'View output'}
+                              >
+                                <Eye className="w-3.5 h-3.5 text-purple-600" />
+                                <span>View Output</span>
+                                <ExternalLink className="w-3 h-3 opacity-70" />
+                              </a>
+                              {task.outputCount > 1 && (
+                                <span className="text-[10px] text-slate-500 font-medium ml-0.5">
+                                  +{task.outputCount - 1} more file{task.outputCount > 2 ? 's' : ''}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic text-[11px]">No output</span>
+                          )}
                         </td>
                       </tr>
                     ))

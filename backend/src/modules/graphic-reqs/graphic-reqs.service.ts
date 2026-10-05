@@ -124,9 +124,42 @@ export class GraphicReqsService {
     }
 
     if (p.employeeId) {
-      where.tasks = {
-        some: { assignedEmployees: { some: { userId: p.employeeId } } },
-      };
+      if (p.role === 'SOCIAL_MEDIA_MANAGER' && p.employeeId === p.userId) {
+        // For Social Media Manager viewing "My Requirements", strictly only show requirements created by that social media manager
+        const smmCondition = {
+          OR: [
+            { createdById: p.userId },
+            { calendarEvent: { createdById: p.userId } },
+            { project: { createdById: p.userId } },
+          ],
+        };
+        if (where.OR) {
+          where.AND = where.AND || [];
+          where.AND.push({ OR: where.OR }, smmCondition);
+          delete where.OR;
+        } else if (where.AND) {
+          where.AND.push(smmCondition);
+        } else {
+          where.OR = smmCondition.OR;
+        }
+      } else {
+        const empCondition = {
+          OR: [
+            { createdById: p.employeeId },
+            { calendarEvent: { createdById: p.employeeId } },
+            { tasks: { some: { assignedEmployees: { some: { userId: p.employeeId } } } } },
+          ],
+        };
+        if (where.OR) {
+          where.AND = where.AND || [];
+          where.AND.push({ OR: where.OR }, empCondition);
+          delete where.OR;
+        } else if (where.AND) {
+          where.AND.push(empCondition);
+        } else {
+          where.OR = empCondition.OR;
+        }
+      }
     }
 
     if (p.date) {
@@ -609,7 +642,7 @@ export class GraphicReqsService {
 
     if (isGReqUnderReview && isDirectContentEdit && !data.bypassReviewLock && !isRevision) {
       throw new ForbiddenException(
-        'Graphic Requirement is currently under review and in read-only mode. Content updates and modifications are locked during review.',
+        'Graphic Requirement is currently under review. Content updates and modifications are locked during review.',
       );
     }
 

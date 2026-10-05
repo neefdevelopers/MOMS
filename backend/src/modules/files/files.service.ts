@@ -18,6 +18,71 @@ export class FilesService {
   constructor(private prisma: PrismaService) {}
 
   async getProjectFiles(projectId: string) {
+    // 1. Check if projectId is a graphicRequirementId or requirementId (e.g. GR-000001)
+    const gr = await this.prisma.graphicRequirement.findFirst({
+      where: {
+        OR: [
+          { id: projectId },
+          { requirementId: projectId },
+        ],
+      },
+      include: {
+        files: {
+          include: {
+            uploadedBy: { select: { id: true, name: true, role: true } },
+            scriptEditorAssignments: { include: { user: true, assignedBy: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (gr) {
+      const combinedFiles = gr.files || [];
+      const folders = [
+        'Raw Videos',
+        'Raw Photos',
+        'Graphic Requirements',
+        'Documents',
+        'Final Deliverables',
+        'Archive',
+      ];
+      const tree = folders.map((folderName) => {
+        const folderFiles = combinedFiles.filter((f) => {
+          if (folderName === 'Raw Videos') return f.fileType?.startsWith('video/') && !f.storagePath?.includes('Final');
+          if (folderName === 'Raw Photos') return f.fileType?.startsWith('image/') && !f.storagePath?.includes('Final');
+          if (folderName === 'Graphic Requirements') return f.graphicRequirementId !== null;
+          if (folderName === 'Final Deliverables') return f.storagePath?.includes('Final') || f.activeVersion;
+          if (folderName === 'Archive') return !f.activeVersion;
+          return true;
+        });
+        return { folderName, files: folderFiles };
+      });
+
+      return {
+        projectId: gr.requirementId || gr.id,
+        projectName: gr.name,
+        tree,
+        allFiles: combinedFiles,
+      };
+    }
+
+    // 2. Check if projectId is a calendarEventId
+    const calEvt = await this.prisma.mediaCalendarEvent.findUnique({
+      where: { id: projectId },
+      include: { shoot: true, shootProjects: true, graphicRequirement: true },
+    });
+    if (calEvt) {
+      if (calEvt.graphicRequirementId || calEvt.graphicRequirement || calEvt.eventSource === 'GRAPHIC_REQUIREMENT') {
+        const grId = calEvt.graphicRequirementId || calEvt.graphicRequirement?.id;
+        if (grId) {
+          return this.getProjectFiles(grId);
+        }
+      }
+      if (calEvt.shootId) return this.getProjectFiles(calEvt.shootId);
+      if (calEvt.shootProjects && calEvt.shootProjects.length > 0) return this.getProjectFiles(calEvt.shootProjects[0].id);
+    }
+
     let project = await this.prisma.shootProject.findUnique({
       where: { id: projectId },
       include: {
@@ -53,23 +118,6 @@ export class FilesService {
       });
     }
 
-    if (!project) {
-      // Check if projectId is a calendarEventId
-      const calEvt = await this.prisma.mediaCalendarEvent.findUnique({
-        where: { id: projectId },
-        include: { shoot: true, shootProjects: true, graphicRequirement: true },
-      });
-      if (calEvt?.shootId) return this.getProjectFiles(calEvt.shootId);
-      if (calEvt?.shootProjects && calEvt.shootProjects.length > 0) return this.getProjectFiles(calEvt.shootProjects[0].id);
-      if (calEvt?.graphicRequirement?.projectId) return this.getProjectFiles(calEvt.graphicRequirement.projectId);
-
-      // Check if projectId is a graphicRequirementId
-      const gr = await this.prisma.graphicRequirement.findUnique({
-        where: { id: projectId },
-      });
-      if (gr?.projectId) return this.getProjectFiles(gr.projectId);
-    }
-
     if (!project) throw new NotFoundException('Project not found');
 
     // The script document cards read from this endpoint, so the editing state has to be
@@ -90,12 +138,16 @@ export class FilesService {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Filter out files that belong to specific Graphic Requirements so they do not leak into general shoot files
+    const nonGrProjectFiles = (project.files || []).filter((f: any) => !f.graphicRequirementId);
+    const nonGrExtraFiles = extraFiles.filter((f: any) => !f.graphicRequirementId);
+
     // A task is accepted once it leaves the pre-acceptance states; the finish action stays
     // locked until then, so expose that explicitly to the UI.
     const PRE_ACCEPT = new Set(['PENDING', 'ASSIGNED', 'PENDING_MARKETING_APPROVAL', 'APPROVED']);
     const taskIds = Array.from(
       new Set(
-        [...(project.files || []), ...extraFiles]
+        [...nonGrProjectFiles, ...nonGrExtraFiles]
           .flatMap((f: any) => f.scriptEditorAssignments || [])
           .map((a: any) => a.taskId)
           .filter(Boolean),
@@ -115,8 +167,8 @@ export class FilesService {
     });
 
     const fileMap = new Map<string, any>();
-    project.files.forEach((f) => fileMap.set(f.id, withAcceptance(f)));
-    extraFiles.forEach((f) => fileMap.set(f.id, withAcceptance(f)));
+    nonGrProjectFiles.forEach((f: any) => fileMap.set(f.id, withAcceptance(f)));
+    nonGrExtraFiles.forEach((f: any) => fileMap.set(f.id, withAcceptance(f)));
     const combinedFiles = Array.from(fileMap.values());
 
     // Virtual Folder Tree Generation
@@ -206,6 +258,26 @@ export class FilesService {
     const isScriptDoc = data.attachmentCategory === 'SCRIPT_DOCUMENT' || data.folderCategory === 'Script Documents';
 
     let resolvedProjectId = data.projectId;
+
+    // Automatically resolve graphicRequirementId if not explicitly provided
+    if (!data.graphicRequirementId && data.calendarEventId) {
+      const calEvt = await this.prisma.mediaCalendarEvent.findUnique({
+        where: { id: data.calendarEventId },
+        select: { graphicRequirementId: true, eventSource: true },
+      });
+      if (calEvt?.graphicRequirementId) {
+        data.graphicRequirementId = calEvt.graphicRequirementId;
+      }
+    }
+    if (!data.graphicRequirementId && data.taskId) {
+      const tsk = await this.prisma.task.findUnique({
+        where: { id: data.taskId },
+        select: { graphicRequirementId: true },
+      });
+      if (tsk?.graphicRequirementId) {
+        data.graphicRequirementId = tsk.graphicRequirementId;
+      }
+    }
 
     if (!resolvedProjectId && data.graphicRequirementId) {
       const gReq = await this.prisma.graphicRequirement.findUnique({
@@ -345,7 +417,7 @@ export class FilesService {
 
         if (isGReqReviewLocked && !isPrivilegedRole && !isScriptDoc) {
           throw new ForbiddenException(
-            'Graphic Requirement is currently under review and in read-only mode. Deliverable uploads are locked during review.',
+            'Graphic Requirement is currently under review. Deliverable uploads are locked during review.',
           );
         }
 
@@ -365,6 +437,33 @@ export class FilesService {
               'Only the assigned team/staff member to whom this Graphic Requirement is assigned can upload deliverable files.',
             );
           }
+        }
+      }
+    }
+
+    if (!resolvedProjectId) {
+      const fallbackProj = await this.prisma.shootProject.findFirst({ orderBy: { createdAt: 'asc' } });
+      if (fallbackProj) {
+        resolvedProjectId = fallbackProj.id;
+      } else {
+        const anyClient = await this.prisma.client.findFirst();
+        const anyBrand = await this.prisma.brand.findFirst();
+        if (anyClient && anyBrand) {
+          const newProj = await this.prisma.shootProject.create({
+            data: {
+              projectId: 'SP-000001',
+              name: 'General Media Vault',
+              clientId: anyClient.id,
+              brandId: anyBrand.id,
+              shootType: 'INDOOR',
+              shootDate: new Date(),
+              shootLocation: 'Media Ops Studio Bay',
+              priority: 'MEDIUM',
+              status: 'PLANNED',
+              createdById: uploadedById || 'SYSTEM',
+            },
+          }).catch(() => null);
+          if (newProj) resolvedProjectId = newProj.id;
         }
       }
     }
@@ -393,7 +492,7 @@ export class FilesService {
 
     if (isProjectReviewLocked && !isPrivilegedRole && !isScriptDoc) {
       throw new ForbiddenException(
-        'Project is currently under review and in read-only mode. File uploads and deliverable additions are locked during review.',
+        'Project is currently under review. File uploads and deliverable additions are locked during review.',
       );
     }
 
@@ -445,11 +544,12 @@ export class FilesService {
         });
       }
     } else {
-      // For reference files & attachments, only replace if exact same filename exists in this project
+      // For reference files & attachments, only replace if exact same filename exists for this specific requirement/project
       oldFiles = await this.prisma.fileMetadata.findMany({
         where: {
           projectId: resolvedProjectId,
           fileName: file.originalname,
+          graphicRequirementId: data.graphicRequirementId || null,
           attachmentCategory: data.attachmentCategory || 'REFERENCE_FILE',
         },
       });
@@ -565,7 +665,7 @@ export class FilesService {
 
     if (isProjectReviewLocked && userRole !== 'ADMIN' && userRole !== 'ADMINISTRATOR') {
       throw new ForbiddenException(
-        'Project is currently under review and in read-only mode. Adding deliverables is locked during review.',
+        'Project is currently under review. Adding deliverables is locked during review.',
       );
     }
 
@@ -692,7 +792,7 @@ export class FilesService {
     });
     if (!assignment) {
       throw new ForbiddenException(
-        'Only staff assigned to this project may add or remove clip codes on a script document. You have read-only access.',
+        'Only staff assigned to this project may add or remove clip codes on a script document.',
       );
     }
 

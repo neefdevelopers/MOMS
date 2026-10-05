@@ -262,6 +262,14 @@ model MediaCalendarEvent {
 
   editRequests           CalendarEditRequest[]
   editHistories          CalendarEditHistory[]
+
+  @@index([brandId])
+  @@index([clientId])
+  @@index([status])
+  @@index([shootDate])
+  @@index([approvalStatus])
+  @@index([graphicRequirementId])
+  @@index([shootId])
 }
 
 model ShootProject {
@@ -325,6 +333,12 @@ model ShootProject {
   sourceForCalendarEvents MediaCalendarEvent[]     @relation("CalendarEventSourceShoot")
   scripts                ProjectScript[]
   assignedEquipmentList  Equipment[]              @relation("ActiveEquipmentShootProject")
+
+  @@index([brandId])
+  @@index([clientId])
+  @@index([status])
+  @@index([shootDate])
+  @@index([calendarEventId])
 }
 
 model IndoorShootDetails {
@@ -496,6 +510,12 @@ model GraphicRequirement {
   deliverables       GraphicRequirementDeliverable[]
   sourceForCalendarEvents MediaCalendarEvent[]     @relation("CalendarEventSourceGraphicReq")
   approvals          Approval[]       @relation("GraphicReqApprovals")
+
+  @@index([brandId])
+  @@index([clientId])
+  @@index([status])
+  @@index([calendarEventId])
+  @@index([projectId])
 }
 
 model GraphicRequirementDeliverable {
@@ -596,6 +616,13 @@ model Task {
 
   @@unique([projectId, scriptId])
   @@index([scriptId])
+  @@index([brandId])
+  @@index([clientId])
+  @@index([status])
+  @@index([taskType])
+  @@index([projectId])
+  @@index([graphicRequirementId])
+  @@index([dueDate])
 }
 
 model TaskTimeline {
@@ -872,6 +899,8 @@ model Attendance {
   recordedBy   User?     @relation("AttendanceRecordedBy", fields: [recordedById], references: [id])
 
   @@unique([userId, date])
+  @@index([date])
+  @@index([userId])
 }
 
 model Approval {
@@ -897,6 +926,11 @@ model Approval {
   reviewedAt    DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @default(now()) @updatedAt
+
+  @@index([projectId])
+  @@index([graphicRequirementId])
+  @@index([entityType, entityId])
+  @@index([targetRole, approvalType])
 }
 
 model ClientConfirmation {
@@ -909,6 +943,8 @@ model ClientConfirmation {
   remarks             String?
   recordedBy          String
   createdAt           DateTime       @default(now())
+
+  @@index([projectId])
 }
 
 model Revision {
@@ -919,6 +955,9 @@ model Revision {
   project                ShootProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
   revisionNumber         Int           @default(1)
   reason                 String
+
+  @@index([projectId])
+  @@index([entityType, entityId])
   detailedRequest        String
   priority               String        @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
   dueDate                DateTime?
@@ -963,6 +1002,10 @@ model FileMetadata {
   uploadedBy           User                @relation(fields: [uploadedById], references: [id])
   scriptEditorAssignments ScriptEditorAssignment[]
   createdAt            DateTime            @default(now())
+
+  @@index([projectId])
+  @@index([graphicRequirementId])
+  @@index([uploadedById])
 }
 
 model Communication {
@@ -1000,6 +1043,10 @@ model Communication {
   publishDate          DateTime          @default(now())
   expiryDate           DateTime?
   createdAt            DateTime          @default(now())
+
+  @@index([projectId])
+  @@index([senderId])
+  @@index([entityType, entityId])
 }
 
 model CommunicationAttachment {
@@ -1051,6 +1098,10 @@ model Notification {
   communicationId       String?
 
   createdAt             DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, createdAt])
 }
 
 model ActivityLog {
@@ -1185,6 +1236,9 @@ model CalendarApprovalHistory {
   newStatus       String
   comment         String?
   timestamp       DateTime               @default(now())
+
+  @@index([calendarEventId])
+  @@index([calendarEventId, timestamp])
 }
 
 model CalendarEditRequest {

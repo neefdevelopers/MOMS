@@ -33,11 +33,19 @@ export default function AllEquipmentPage() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [conditionFilter, setConditionFilter] = useState('ALL');
   const [locationFilter, setLocationFilter] = useState('ALL');
   const [showMoreFilters, setShowMoreFilters] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Pagination
   const { currentPage, setCurrentPage, pageSize, setPageSize, paginate } = usePagination(15);
@@ -72,8 +80,8 @@ export default function AllEquipmentPage() {
   // Filtered items
   const filteredList = useMemo(() => {
     return equipmentList.filter((item) => {
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
+      if (debouncedSearchQuery.trim()) {
+        const q = debouncedSearchQuery.toLowerCase().trim();
         const matchesName = item.name?.toLowerCase().includes(q);
         const matchesId = item.equipmentId?.toLowerCase().includes(q);
         const matchesSerial = item.serialNumber?.toLowerCase().includes(q);
@@ -200,7 +208,6 @@ export default function AllEquipmentPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-200">
           <div>
             <h1 className="text-xl font-semibold text-gray-900">Equipment</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Track and manage all equipment</p>
           </div>
           {isManager && (
             <Link

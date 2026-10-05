@@ -13,6 +13,7 @@ import { KeyboardShortcutsModal } from '../common/KeyboardShortcutsModal';
 import { useRouter, usePathname } from 'next/navigation';
 import Loading from '@/app/loading';
 
+import { preloadReferenceData } from '@/lib/useReferenceData';
 import { RoleGuard } from '../common/RoleGuard';
 
 export function MainLayout({
@@ -31,6 +32,9 @@ export function MainLayout({
 
   useEffect(() => {
     setMounted(true);
+    if (user) {
+      preloadReferenceData().catch(() => {});
+    }
 
     const handleGlobalDateInputClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;

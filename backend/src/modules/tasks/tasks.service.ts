@@ -725,8 +725,8 @@ export class TasksService {
         workloadPercentage,
         status,
         isOverloaded,
-        activeTaskCount: activeTasks.length,
-        taskCount: activeTasks.length,
+        tasks: activeTasks,
+        activeTasks,
         currentProjectsCount: currentProjectNames.length,
         currentProjects: currentProjectNames,
         dailyTarget,
@@ -737,6 +737,48 @@ export class TasksService {
     });
 
     return result;
+  }
+
+  async getAssignedWork(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        employeeProfile: { include: { department: true } },
+        tasks: {
+          include: {
+            task: {
+              include: {
+                project: { select: { id: true, projectId: true, name: true, status: true } },
+                graphicRequirement: { select: { id: true, requirementId: true, name: true, status: true } },
+                brand: { select: { id: true, name: true, shortCode: true } },
+                client: { select: { id: true, name: true } },
+                assignedEmployees: {
+                  include: {
+                    user: { select: { id: true, name: true, role: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    const allTasks = user.tasks.map((t) => t.task).filter(Boolean);
+    const activeTasks = allTasks.filter(
+      (t) => t.status !== TaskStatus.COMPLETED && t.status !== TaskStatus.CANCELLED,
+    );
+
+    return {
+      userId: user.id,
+      name: user.name,
+      tasks: activeTasks,
+      allTasks,
+    };
   }
   private async validateActiveEmployees(assignedUserIds: string[]) {
     if (!assignedUserIds || assignedUserIds.length === 0) return;
@@ -1516,7 +1558,7 @@ export class TasksService {
 
       if (!isAssignmentAccepted) {
         throw new ForbiddenException(
-          'Task acceptance is required before you can perform this action. The task is currently in read-only mode.',
+          'Task acceptance is required before you can perform this action.',
         );
       }
     }
@@ -1557,7 +1599,7 @@ export class TasksService {
         TaskStatus.COMPLETED,
       ];
       if (!isShootTask && !isOther && reviewStatuses.includes(task.status as any)) {
-        throw new ForbiddenException("Task is currently undergoing review and in read-only mode. Updates are locked during review.");
+        throw new ForbiddenException("Task is currently undergoing review. Updates are locked during review.");
       }
     }
 
@@ -1982,7 +2024,7 @@ export class TasksService {
         TaskStatus.COMPLETED,
       ];
       if (reviewStatuses.includes(task.status as any)) {
-        throw new ForbiddenException("Task is currently undergoing review and in read-only mode. Remarks are locked for staff during review.");
+        throw new ForbiddenException("Task is currently undergoing review. Remarks are locked for staff during review.");
       }
     }
 
@@ -2048,7 +2090,7 @@ export class TasksService {
         TaskStatus.COMPLETED,
       ];
       if (reviewStatuses.includes(task.status as any)) {
-        throw new ForbiddenException("Task is currently undergoing review and in read-only mode. Deliverable uploads are locked for staff during review.");
+        throw new ForbiddenException("Task is currently undergoing review. Deliverable uploads are locked for staff during review.");
       }
     }
 

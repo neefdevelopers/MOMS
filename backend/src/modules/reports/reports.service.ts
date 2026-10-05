@@ -2991,7 +2991,29 @@ export class ReportsService {
               include: {
                 client: { select: { id: true, name: true } },
                 brand: { select: { id: true, name: true } },
-                project: { select: { id: true, projectId: true, name: true, client: { select: { name: true } }, brand: { select: { name: true } } } },
+                project: {
+                  select: {
+                    id: true,
+                    projectId: true,
+                    name: true,
+                    client: { select: { name: true } },
+                    brand: { select: { name: true } },
+                    files: { select: { id: true, fileName: true, storagePath: true } },
+                  },
+                },
+                graphicRequirement: {
+                  select: {
+                    id: true,
+                    requirementId: true,
+                    name: true,
+                    deliverables: { select: { id: true, fileName: true, fileUrl: true } },
+                    files: { select: { id: true, fileName: true, storagePath: true } },
+                  },
+                },
+                deliverableHistory: {
+                  select: { id: true, fileName: true, fileUrl: true, version: true, createdAt: true },
+                  orderBy: { version: 'desc' },
+                },
               },
             },
           },
@@ -3010,6 +3032,7 @@ export class ReportsService {
       let inProgress = 0;
       let pending = 0;
       let overdue = 0;
+      let totalOutputs = 0;
 
       for (const assignment of staff.tasks) {
         const task = assignment.task;
@@ -3056,6 +3079,65 @@ export class ReportsService {
         const isOverdue = task.status !== 'COMPLETED' && task.dueDate && new Date(task.dueDate) < now;
         if (isOverdue) overdue++;
 
+        // Collect deliverable outputs
+        const taskDeliverables: any[] = (task.deliverableHistory || []).map((dh: any) => ({
+          id: dh.id,
+          fileName: dh.fileName || `Output v${dh.version}`,
+          fileUrl: dh.fileUrl,
+          version: dh.version,
+          createdAt: dh.createdAt,
+          isActive: dh.fileUrl === task.activeDeliverableUrl,
+        }));
+
+        if (task.activeDeliverableUrl && !taskDeliverables.some((d) => d.fileUrl === task.activeDeliverableUrl)) {
+          taskDeliverables.unshift({
+            id: `active-${task.id}`,
+            fileName: task.activeDeliverableFileName || `${task.title} Active Output`,
+            fileUrl: task.activeDeliverableUrl,
+            version: task.activeDeliverableVersion || 1,
+            createdAt: task.updatedAt || task.createdAt,
+            isActive: true,
+          });
+        }
+
+        if (taskDeliverables.length === 0 && task.graphicRequirement?.files && task.graphicRequirement.files.length > 0) {
+          task.graphicRequirement.files.forEach((f: any) => {
+            const rawUrl = f.storagePath;
+            if (rawUrl) {
+              taskDeliverables.push({
+                id: f.id,
+                fileName: f.fileName || 'Attached Output',
+                fileUrl: rawUrl,
+                version: 1,
+                createdAt: task.createdAt,
+                isActive: true,
+              });
+            }
+          });
+        }
+
+        if (taskDeliverables.length === 0 && task.graphicRequirement?.deliverables?.length) {
+          task.graphicRequirement.deliverables.forEach((d: any) => {
+            if (d.fileUrl) {
+              taskDeliverables.push({
+                id: d.id,
+                fileName: d.fileName || 'Graphic Output',
+                fileUrl: d.fileUrl,
+                version: 1,
+                createdAt: task.createdAt,
+                isActive: true,
+              });
+            }
+          });
+        }
+
+        const primaryOutputUrl = task.activeDeliverableUrl || taskDeliverables[0]?.fileUrl || null;
+        const primaryOutputFileName = task.activeDeliverableFileName || taskDeliverables[0]?.fileName || null;
+
+        if (primaryOutputUrl || taskDeliverables.length > 0) {
+          totalOutputs++;
+        }
+
         detailedTasks.push({
           id: task.id,
           taskId: task.id,
@@ -3071,6 +3153,11 @@ export class ReportsService {
           dueDate: task.dueDate ? task.dueDate.toISOString() : null,
           status: task.status,
           isOverdue,
+          activeDeliverableUrl: primaryOutputUrl,
+          activeDeliverableFileName: primaryOutputFileName,
+          activeDeliverableVersion: task.activeDeliverableVersion || 1,
+          deliverables: taskDeliverables,
+          outputCount: taskDeliverables.length,
         });
       }
 
@@ -3085,6 +3172,7 @@ export class ReportsService {
           inProgress,
           pending,
           overdue,
+          totalOutputs,
         });
       }
     }

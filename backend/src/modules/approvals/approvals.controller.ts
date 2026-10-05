@@ -25,7 +25,7 @@ export class ApprovalsController {
     return this.approvalsService.getApprovalQueue();
   }
 
-  @Roles(Role.TECHNICAL_MANAGER)
+  @Roles(Role.TECHNICAL_MANAGER, Role.ADMINISTRATOR)
   @Post('tech-review')
   submitTechnicalReview(
     @Body() data: { projectId: string; status: 'APPROVED' | 'REJECTED'; remarks?: string },
@@ -34,7 +34,7 @@ export class ApprovalsController {
     return this.approvalsService.submitTechnicalReview(data, reviewerId);
   }
 
-  @Roles(Role.MEDIA_MANAGER)
+  @Roles(Role.MEDIA_MANAGER, Role.ADMINISTRATOR)
   @Post('media-review')
   submitMediaReview(
     @Body() data: { projectId: string; status: 'APPROVED' | 'REJECTED'; remarks?: string },

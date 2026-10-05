@@ -57,6 +57,11 @@ export class TasksController {
     return this.tasksService.getOverloadedEmployeeAlternatives(userId);
   }
 
+  @Get('assigned-work/:userId')
+  getAssignedWork(@Param('userId') userId: string) {
+    return this.tasksService.getAssignedWork(userId);
+  }
+
   @Get(':id/reassign-recommendations')
   getReassignmentRecommendations(@Param('id') id: string) {
     return this.tasksService.getReassignmentRecommendations(id);

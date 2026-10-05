@@ -491,7 +491,7 @@ function ClientsContent() {
                   <option value="ACTIVE">ACTIVE (Can receive projects)</option>
                   <option value="ON_HOLD">ON HOLD (Temporarily paused)</option>
                   <option value="INACTIVE">INACTIVE</option>
-                  <option value="ARCHIVED">ARCHIVED (ReadOnly historical)</option>
+                  <option value="ARCHIVED">ARCHIVED (Historical)</option>
                 </select>
               </div>
 

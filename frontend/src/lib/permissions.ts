@@ -126,7 +126,7 @@ export const PERMISSION_TYPES_CONFIG: Record<PermissionType, PermissionMeta> = {
   ARCHIVE: {
     type: 'ARCHIVE',
     label: 'Archive',
-    description: 'Move inactive records to read-only historical cold storage',
+    description: 'Move inactive records to historical cold storage',
     iconName: 'Archive',
     badgeBg: 'bg-slate-100',
     badgeText: 'text-slate-800',

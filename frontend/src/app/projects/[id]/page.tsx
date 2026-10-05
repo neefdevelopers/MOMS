@@ -930,7 +930,7 @@ export default function ProjectDetailPage() {
                 }`}
               >
                 {project.status === 'COMPLETED'
-                  ? '✓ COMPLETED · READ ONLY'
+                  ? '✓ COMPLETED'
                   : project.status === 'CONVERTED_TO_VIDEO_EDITING' || (project.videoEditingConverted && project.status !== 'COMPLETED')
                   ? 'CONVERTED TO VIDEO EDITING'
                   : project.status.replace(/_/g, ' ')}
@@ -2537,7 +2537,7 @@ export default function ProjectDetailPage() {
                   Convert to Video Editing
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Assign a Video Editor to every Script below, then convert the Project to Video Editing. Existing Clip Codes are shown read-only.
+                  Assign a Video Editor to every Script below, then convert the Project to Video Editing.
                 </p>
               </div>
               <button

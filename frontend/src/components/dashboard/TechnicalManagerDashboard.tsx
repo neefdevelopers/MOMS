@@ -789,7 +789,7 @@ export default function TechnicalManagerDashboard({ user }: TechnicalManagerDash
                 <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
                   Projects Requiring Technical Involvement ({projectsAttention.length})
                 </h3>
-                <p className="text-[10px] text-slate-500 font-mono">Read-Only Technical Status, Progress & Task Audit</p>
+                <p className="text-[10px] text-slate-500 font-mono">Technical Status, Progress & Task Audit</p>
               </div>
             </div>
             <Link href="/projects" className="text-[11px] text-blue-700 hover:text-blue-900 font-bold">

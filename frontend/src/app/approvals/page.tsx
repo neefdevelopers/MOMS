@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { fetchApi, resolveFileUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -31,6 +31,7 @@ import {
   Sparkles,
   Eye,
   Plus,
+  Copy,
 } from 'lucide-react';
 import { useBrand } from '@/lib/brand-context';
 import { RoleGuard } from '@/components/common/RoleGuard';
@@ -54,6 +55,24 @@ const PRESET_FEEDBACK_CHIPS = [
   'Frame Drop / Stutter Observed',
   'Incorrect Naming Standard',
   'Aspect Ratio Crop Issue',
+];
+
+const MEDIA_CHECKLIST_ITEMS = [
+  'Brand Guidelines & Tone Consistency',
+  'Story Flow, Hook & Narrative Pacing',
+  'Visual Polish & Graphic Overlays',
+  'Audio Balance, Dialogue & BG Music',
+  'Platform Aspect Ratio & Safe Zones',
+];
+
+const MEDIA_PRESET_FEEDBACK_CHIPS = [
+  'Brand Guidelines Adhered',
+  'Pacing & Story Flow Approved',
+  'Trim Clip Duration',
+  'Adjust Intro/Hook Timing',
+  'Refine Background Music Level',
+  'Fix Brand Logo/Asset Placement',
+  'Revise Aspect Ratio/Formatting',
 ];
 
 interface ConfirmModalState {
@@ -159,13 +178,15 @@ export default function ApprovalsPage() {
     }
   };
 
-  const handleMediaReview = async (projectId: string, status: 'APPROVED' | 'REJECTED') => {
+  const handleMediaReview = async (projectId: string, status: 'APPROVED' | 'REJECTED', explicitRemarks?: string) => {
     try {
       setSubmittingId(projectId);
+      const reviewRemarks = explicitRemarks !== undefined ? explicitRemarks : (itemRemarksMap[projectId] || remarks || undefined);
       await fetchApi('/approvals/media-review', {
         method: 'POST',
-        body: JSON.stringify({ projectId, status, remarks: remarks || undefined }),
+        body: JSON.stringify({ projectId, status, remarks: reviewRemarks }),
       });
+      setItemRemarksMap((prev) => ({ ...prev, [projectId]: '' }));
       setRemarks('');
       await loadQueue();
     } catch (err: any) {
@@ -175,13 +196,15 @@ export default function ApprovalsPage() {
     }
   };
 
-  const handleMarketingReview = async (projectId: string, status: 'APPROVED' | 'REJECTED') => {
+  const handleMarketingReview = async (projectId: string, status: 'APPROVED' | 'REJECTED', explicitRemarks?: string) => {
     try {
       setSubmittingId(projectId);
+      const reviewRemarks = explicitRemarks !== undefined ? explicitRemarks : (itemRemarksMap[projectId] || remarks || undefined);
       await fetchApi('/approvals/marketing-review', {
         method: 'POST',
-        body: JSON.stringify({ projectId, status, remarks: remarks || undefined }),
+        body: JSON.stringify({ projectId, status, remarks: reviewRemarks }),
       });
+      setItemRemarksMap((prev) => ({ ...prev, [projectId]: '' }));
       setRemarks('');
       await loadQueue();
     } catch (err: any) {
@@ -410,46 +433,59 @@ export default function ApprovalsPage() {
     return 'Details Session';
   };
 
-  const rawTechQueue: any[] = queue?.technicalReviewQueue || [];
-  const effectiveMarketingQueue = (queue?.marketingReviewQueue || []).filter(
-    (item: any) =>
-      !activeBrandId ||
-      item.brandId === activeBrandId ||
-      item.project?.brandId === activeBrandId ||
-      item.graphicRequirement?.brandId === activeBrandId ||
-      item.brand?.id === activeBrandId,
-  );
-  const effectiveClientConfirmationQueue = (queue?.clientConfirmationQueue || []).filter(
-    (item: any) =>
-      !activeBrandId ||
-      item.brandId === activeBrandId ||
-      item.project?.brandId === activeBrandId ||
-      item.graphicRequirement?.brandId === activeBrandId ||
-      item.brand?.id === activeBrandId,
-  );
+  const rawTechQueue: any[] = useMemo(() => queue?.technicalReviewQueue || [], [queue]);
 
-  const filteredTechQueue = rawTechQueue.filter((item) => {
-    const itemType = getItemType(item);
-    if (typeFilter !== 'ALL' && itemType !== typeFilter) return false;
+  const effectiveMarketingQueue = useMemo(() => {
+    const list = queue?.marketingReviewQueue || [];
+    if (!activeBrandId) return list;
+    return list.filter(
+      (item: any) =>
+        item.brandId === activeBrandId ||
+        item.project?.brandId === activeBrandId ||
+        item.graphicRequirement?.brandId === activeBrandId ||
+        item.brand?.id === activeBrandId,
+    );
+  }, [queue?.marketingReviewQueue, activeBrandId]);
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const codeMatch = (item.projectId || item.taskId || item.scriptId || item.requirementId || item.id || '').toLowerCase().includes(q);
-      const nameMatch = (item.name || item.title || '').toLowerCase().includes(q);
-      const clientMatch = (item.client?.name || item.brand?.name || '').toLowerCase().includes(q);
-      const deliverables = getDeliverableItems(item);
-      const fileMatch = deliverables.some((d) => d.fileName.toLowerCase().includes(q) || d.taskTitle.toLowerCase().includes(q));
-      return codeMatch || nameMatch || clientMatch || fileMatch;
-    }
+  const effectiveClientConfirmationQueue = useMemo(() => {
+    const list = queue?.clientConfirmationQueue || [];
+    if (!activeBrandId) return list;
+    return list.filter(
+      (item: any) =>
+        item.brandId === activeBrandId ||
+        item.project?.brandId === activeBrandId ||
+        item.graphicRequirement?.brandId === activeBrandId ||
+        item.brand?.id === activeBrandId,
+    );
+  }, [queue?.clientConfirmationQueue, activeBrandId]);
 
-    return true;
-  });
+  const filteredTechQueue = useMemo(() => {
+    return rawTechQueue.filter((item) => {
+      const itemType = getItemType(item);
+      if (typeFilter !== 'ALL' && itemType !== typeFilter) return false;
 
-  const totalDeliverablesCount = rawTechQueue.reduce((acc, item) => acc + getDeliverableItems(item).length, 0);
-  const tasksCount = rawTechQueue.filter((i) => getItemType(i) === 'TASK').length;
-  const scriptsCount = rawTechQueue.filter((i) => getItemType(i) === 'SCRIPT').length;
-  const graphicCount = rawTechQueue.filter((i) => getItemType(i) === 'GRAPHIC_REQ').length;
-  const projectsCount = rawTechQueue.filter((i) => getItemType(i) === 'PROJECT').length;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const codeMatch = (item.projectId || item.taskId || item.scriptId || item.requirementId || item.id || '').toLowerCase().includes(q);
+        const nameMatch = (item.name || item.title || '').toLowerCase().includes(q);
+        const clientMatch = (item.client?.name || item.brand?.name || '').toLowerCase().includes(q);
+        const deliverables = getDeliverableItems(item);
+        const fileMatch = deliverables.some((d) => d.fileName.toLowerCase().includes(q) || d.taskTitle.toLowerCase().includes(q));
+        return codeMatch || nameMatch || clientMatch || fileMatch;
+      }
+
+      return true;
+    });
+  }, [rawTechQueue, typeFilter, searchQuery]);
+
+  const totalDeliverablesCount = useMemo(() => {
+    return rawTechQueue.reduce((acc, item) => acc + getDeliverableItems(item).length, 0);
+  }, [rawTechQueue]);
+
+  const tasksCount = useMemo(() => rawTechQueue.filter((i) => getItemType(i) === 'TASK').length, [rawTechQueue]);
+  const scriptsCount = useMemo(() => rawTechQueue.filter((i) => getItemType(i) === 'SCRIPT').length, [rawTechQueue]);
+  const graphicCount = useMemo(() => rawTechQueue.filter((i) => getItemType(i) === 'GRAPHIC_REQ').length, [rawTechQueue]);
+  const projectsCount = useMemo(() => rawTechQueue.filter((i) => getItemType(i) === 'PROJECT').length, [rawTechQueue]);
 
   if (loading) {
     return (
@@ -477,7 +513,7 @@ export default function ApprovalsPage() {
                     : isMediaManager
                     ? 'Media Manager Review Session'
                     : isMarketingManager
-                    ? 'Marketing Manager Approval Session'
+                    ? 'Event Approval Session'
                     : '3-Stage Production Approval Engine'}
                 </h1>
               </div>
@@ -972,108 +1008,318 @@ export default function ApprovalsPage() {
         )}
 
         {/* Media Review Queue Tab (non-tech managers) */}
-        {activeTab === 'MEDIA' && !isTechnicalManager && (
-          <div className="bg-white border border-slate-200 p-6 rounded-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <div>
-                <h2 className="font-bold text-purple-600 text-base flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5" /> 2. Media Review Queue
-                </h2>
-                <p className="text-slate-500 text-xs mt-0.5">
-                  Media Manager verifies branding, creative execution, campaign objective & completeness.
-                </p>
+        {activeTab === 'MEDIA' && !isTechnicalManager && (() => {
+          const mediaList = queue?.mediaReviewQueue || [];
+          
+          return (
+            <div className="bg-white border border-slate-200/80 p-6 rounded-2xl space-y-5 shadow-xs">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+                <div>
+                  <h2 className="font-extrabold text-purple-950 text-base flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-purple-600" />
+                    <span>2. Media Manager Review Queue</span>
+                  </h2>
+                  <p className="text-slate-500 text-xs mt-0.5">
+                    Review and sign off on creative quality, brand identity, pacing, and overall deliverable readiness.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-purple-900 font-mono bg-purple-50 px-3 py-1 rounded-full border border-purple-200 text-xs shadow-2xs">
+                    {mediaList.length} Pending Item{mediaList.length === 1 ? '' : 's'}
+                  </span>
+                </div>
               </div>
-              <span className="font-bold text-purple-700 font-mono bg-purple-50 px-3 py-1 rounded-full border border-purple-200 text-xs">
-                {queue?.mediaReviewQueue?.length || 0} Pending Items
-              </span>
-            </div>
 
-            {queue?.mediaReviewQueue?.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 space-y-2">
-                <CheckCircle2 className="w-10 h-10 text-gray-600 mx-auto" />
-                <p className="font-semibold text-sm">No items pending media manager approval.</p>
-                <p className="text-xs text-gray-600">Items will appear here after passing technical review sign-off.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {queue?.mediaReviewQueue?.map((proj: any) => {
-                  const deliverables = getDeliverableItems(proj);
-                  const detailsUrl = getItemDetailsUrl(proj);
-                  const sessionLabel = getItemSessionName(proj);
+              {mediaList.length === 0 ? (
+                <div className="py-14 text-center text-slate-400 space-y-3 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                  <CheckCircle2 className="w-12 h-12 text-slate-300 mx-auto" />
+                  <p className="font-bold text-slate-700 text-sm">No items pending Media Manager Review.</p>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Items will appear here in real-time once they pass Level 1 Technical Quality validation.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  {mediaList.map((proj: any) => {
+                    const deliverables = getDeliverableItems(proj);
+                    const detailsUrl = getItemDetailsUrl(proj);
+                    const sessionLabel = getItemSessionName(proj);
+                    const itemType = getItemType(proj);
 
-                  return (
-                    <div key={proj.id} className="p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-4 shadow-lg">
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <span className="font-mono text-purple-600 font-bold text-xs">{proj.projectId || proj.id}</span>
-                          <h3 className="font-bold text-slate-900 text-sm">{proj.name || proj.title}</h3>
-                          <p className="text-slate-500 text-xs">{proj.client?.name} • {proj.brand?.name}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setDetailModalItem(proj)}
-                            className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs flex items-center gap-1"
-                            title="View Details"
-                          >
-                            <Info className="w-3.5 h-3.5 text-purple-600" />
-                          </button>
-                          <Link
-                            href={detailsUrl}
-                            className="px-2 py-1 rounded bg-purple-50 hover:bg-purple-900 text-purple-700 border border-purple-200 text-[10px] font-bold font-mono flex items-center gap-1"
-                          >
-                            <span>{sessionLabel}</span>
-                            <ArrowUpRight className="w-3 h-3" />
-                          </Link>
-                        </div>
-                      </div>
+                    // Extract script and clip code if available
+                    const scriptName =
+                      proj.projectScript?.name ||
+                      proj.script?.name ||
+                      proj.name ||
+                      'Shooting Script';
 
-                      <div className="space-y-1.5 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                        {deliverables.map((d: any) => (
-                          <div key={d.id} className="flex items-center justify-between text-xs">
-                            <span className="text-slate-700 truncate max-w-[70%]">{d.fileName}</span>
-                            <a
-                              href={d.fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-purple-600 hover:text-purple-700 text-[11px] font-bold flex items-center gap-1"
-                            >
-                              Open
-                            </a>
+                    const clipCode =
+                      proj.clipCode ||
+                      proj.projectScript?.clipCode ||
+                      proj.script?.clipCode ||
+                      null;
+
+                    const priority = proj.priority || proj.project?.priority || 'MEDIUM';
+                    const assignedStaff =
+                      proj.assignedEmployees?.[0]?.user?.name ||
+                      proj.assignedEmployees?.[0]?.name ||
+                      proj.assignedTeam?.[0]?.user?.name ||
+                      proj.assignedTeam?.[0]?.name ||
+                      'Production Staff';
+
+                    const currentItemRemarks = itemRemarksMap[proj.id] || '';
+                    const isItemSubmitting = submittingId === proj.id;
+
+                    return (
+                      <div
+                        key={proj.id}
+                        className="bg-white border border-slate-200/90 hover:border-purple-300 rounded-2xl p-5 shadow-xs hover:shadow-xl transition-all space-y-4 relative overflow-hidden flex flex-col justify-between"
+                      >
+                        {/* Top Accent Strip */}
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-indigo-500 to-purple-600" />
+
+                        <div className="space-y-3.5">
+                          {/* Top Row: IDs, Badges, Quick Inspect Actions */}
+                          <div className="flex items-start justify-between gap-2 pt-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-xs font-black bg-purple-50 text-purple-900 px-2.5 py-1 rounded-md border border-purple-200">
+                                {proj.projectId || proj.taskId || proj.requirementId || proj.id}
+                              </span>
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
+                                {itemType === 'TASK' ? (
+                                  <Film className="w-3 h-3 text-purple-600" />
+                                ) : itemType === 'GRAPHIC_REQ' ? (
+                                  <Palette className="w-3 h-3 text-pink-600" />
+                                ) : (
+                                  <Layers className="w-3 h-3 text-blue-600" />
+                                )}
+                                <span>{proj.taskType === 'VIDEO_EDITING' ? 'Video Editing' : itemType.replace(/_/g, ' ')}</span>
+                              </span>
+                              <span className={"px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase " + (
+                                priority === 'CRITICAL' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                priority === 'HIGH' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                                'bg-blue-50 text-blue-700 border border-blue-200'
+                              )}>
+                                {priority}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setDetailModalItem(proj)}
+                                className="p-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 text-xs flex items-center gap-1 font-bold transition-colors cursor-pointer shadow-2xs"
+                                title="Inspect Details & Script"
+                              >
+                                <Info className="w-3.5 h-3.5 text-purple-700" />
+                                <span className="hidden sm:inline text-[11px]">Inspect</span>
+                              </button>
+                              <Link
+                                href={detailsUrl}
+                                className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs flex items-center gap-1 font-bold transition-colors"
+                                title="Open Full Session"
+                              >
+                                <ArrowUpRight className="w-3.5 h-3.5 text-slate-600" />
+                              </Link>
+                            </div>
                           </div>
-                        ))}
-                      </div>
 
-                      <div className="space-y-3 bg-slate-50 border border-slate-200 p-4 rounded-lg">
-                        <input
-                          type="text"
-                          placeholder="Media Creative Quality Remarks..."
-                          onChange={(e) => setRemarks(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded text-xs"
-                        />
-                        <div className="flex gap-2 pt-1">
-                          <button
-                            onClick={() => handleMediaReview(proj.id, 'APPROVED')}
-                            className="flex-1 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded flex items-center justify-center gap-1.5 text-xs shadow-md shadow-purple-600/30"
-                          >
-                            <Check className="w-4 h-4" /> Approve Media Quality
-                          </button>
+                          {/* Title & Client / Brand */}
+                          <div>
+                            <h3 className="font-extrabold text-slate-900 text-base leading-snug">
+                              {proj.name || proj.title || 'Production Item'}
+                            </h3>
+                            <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
+                              {proj.client?.name && (
+                                <span className="flex items-center gap-1 font-medium text-slate-700">
+                                  <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>{proj.client.name}</span>
+                                </span>
+                              )}
+                              {proj.brand?.name && (
+                                <span className="flex items-center gap-1 font-semibold text-purple-900 bg-purple-50/60 px-2 py-0.5 rounded border border-purple-200/60 text-[11px]">
+                                  <Tag className="w-3 h-3 text-purple-500" />
+                                  <span>{proj.brand.name}</span>
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1 font-medium text-slate-600 ml-auto text-[11px]">
+                                <UserIcon className="w-3 h-3 text-slate-400" />
+                                <span>{assignedStaff}</span>
+                              </span>
+                            </div>
+                          </div>
 
-                          <button
-                            onClick={() => handleMediaReview(proj.id, 'REJECTED')}
-                            className="flex-1 py-2 bg-red-600/30 hover:bg-red-600/40 text-rose-700 border border-rose-200 font-bold rounded flex items-center justify-center gap-1.5 text-xs"
-                          >
-                            <X className="w-4 h-4" /> Reject (Return to Production)
-                          </button>
+                          {/* Script & Clip Code Badge (Video Editing & Project Highlights) */}
+                          {(proj.projectScript || clipCode || proj.script) && (
+                            <div className="p-2.5 bg-purple-50/70 border border-purple-200/80 rounded-xl flex items-center justify-between gap-2 text-xs">
+                              <div className="flex items-center gap-1.5 truncate">
+                                <FileText className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                                <span className="text-slate-500 font-medium">Script:</span>
+                                <strong className="text-slate-900 font-bold truncate">{scriptName}</strong>
+                              </div>
+                              {clipCode && (
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="font-mono text-[11px] font-extrabold bg-purple-100 text-purple-900 border border-purple-300 px-2 py-0.5 rounded-md shadow-2xs">
+                                    {clipCode}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard?.writeText(clipCode);
+                                      alert(`Copied clip code "${clipCode}" to clipboard!`);
+                                    }}
+                                    className="p-1 text-purple-700 hover:text-purple-900 hover:bg-purple-100 rounded transition-colors"
+                                    title="Copy Clip Code"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Deliverables Section */}
+                          <div className="space-y-2 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                                <Film className="w-3.5 h-3.5 text-purple-600" />
+                                <span>Output Deliverables ({deliverables.length})</span>
+                              </span>
+                              <span className="text-[10px] text-purple-700 font-mono font-semibold">
+                                Ready for QC
+                              </span>
+                            </div>
+
+                            {deliverables.length === 0 ? (
+                              <p className="text-slate-400 italic text-xs py-1.5 text-center bg-white rounded-lg border border-dashed border-slate-200">
+                                Video Editor output submitted for creative review.
+                              </p>
+                            ) : (
+                              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                                {deliverables.map((d: any) => (
+                                  <div
+                                    key={d.id}
+                                    className="p-2 bg-white rounded-lg border border-purple-100/90 flex items-center justify-between text-xs shadow-2xs hover:border-purple-300 transition-colors"
+                                  >
+                                    <div className="truncate max-w-[65%]">
+                                      <span className="font-bold text-slate-900 block truncate text-xs">{d.fileName}</span>
+                                      <span className="text-[10px] text-slate-500 block">By {d.uploadedBy}</span>
+                                    </div>
+                                    <a
+                                      href={d.fileUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-md text-[11px] flex items-center gap-1 transition-colors shadow-2xs shrink-0"
+                                    >
+                                      <span>Review Asset</span>
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Media Creative Validation Checklist */}
+                          <div className="bg-purple-50/40 border border-purple-100 p-3 rounded-xl space-y-1.5">
+                            <div className="flex items-center justify-between border-b border-purple-200/50 pb-1">
+                              <span className="text-[10px] text-purple-900 font-extrabold uppercase tracking-wider flex items-center gap-1">
+                                <CheckCheck className="w-3.5 h-3.5 text-purple-700" />
+                                <span>Media Creative Checklist</span>
+                              </span>
+                              <span className="text-[9px] font-mono text-purple-700 font-bold">5 Quality Points</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[10px] text-slate-700">
+                              {MEDIA_CHECKLIST_ITEMS.map((checkItem, cIdx) => (
+                                <label key={cIdx} className="flex items-center gap-1.5 bg-white/80 px-2 py-0.5 rounded border border-purple-100 cursor-pointer">
+                                  <input type="checkbox" defaultChecked className="w-3 h-3 accent-purple-600 rounded cursor-pointer" />
+                                  <span className="truncate">{checkItem}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions & Feedback Presets */}
+                        <div className="space-y-2.5 pt-2 border-t border-slate-100">
+                          {/* Quick Feedback Presets */}
+                          <div className="space-y-1">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                              Feedback Presets:
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {MEDIA_PRESET_FEEDBACK_CHIPS.map((chip) => (
+                                <button
+                                  key={chip}
+                                  type="button"
+                                  onClick={() => {
+                                    setItemRemarksMap((prev) => {
+                                      const current = prev[proj.id] || '';
+                                      const next = current ? `${current}; ${chip}` : chip;
+                                      return { ...prev, [proj.id]: next };
+                                    });
+                                  }}
+                                  className="text-[9px] font-mono px-2 py-0.5 bg-slate-50 hover:bg-purple-50 text-slate-700 hover:text-purple-900 border border-slate-200 hover:border-purple-300 rounded-full transition-colors cursor-pointer"
+                                >
+                                  + {chip}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Remarks Text Input */}
+                          <input
+                            type="text"
+                            value={currentItemRemarks}
+                            placeholder="Enter Media creative remarks or revision notes..."
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setItemRemarksMap((prev) => ({ ...prev, [proj.id]: val }));
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-900 px-3 py-2 rounded-xl text-xs focus:outline-none focus:border-purple-500 focus:bg-white placeholder-slate-400 transition-all shadow-2xs"
+                          />
+
+                          {/* Decision Buttons */}
+                          <div className="flex items-center gap-2 pt-0.5">
+                            <button
+                              type="button"
+                              disabled={isItemSubmitting}
+                              onClick={() => handleMediaReview(proj.id, 'APPROVED', currentItemRemarks)}
+                              className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-extrabold rounded-xl flex items-center justify-center gap-1.5 text-xs shadow-md shadow-purple-600/25 transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              <Check className="w-4 h-4" />
+                              <span>Approve Media Quality</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={isItemSubmitting}
+                              onClick={() => {
+                                let rem = currentItemRemarks;
+                                if (!rem.trim()) {
+                                  const entered = prompt('Please enter a rejection reason or revision instruction:');
+                                  if (!entered || !entered.trim()) return;
+                                  rem = entered.trim();
+                                  setItemRemarksMap((prev) => ({ ...prev, [proj.id]: rem }));
+                                }
+                                handleMediaReview(proj.id, 'REJECTED', rem);
+                              }}
+                              className="flex-1 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-extrabold rounded-xl flex items-center justify-center gap-1.5 text-xs transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              <X className="w-4 h-4" />
+                              <span>Reject &amp; Request Revision</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Marketing Review Queue Tab (restricted to Marketing Manager & Admin) */}
         {activeTab === 'MARKETING' && isMarketingManager && (() => {
@@ -1537,134 +1783,411 @@ export default function ApprovalsPage() {
               </div>
 
               {/* VIDEO_EDITING_APPROVAL_MODAL_VIEW */}
-              {detailModalItem.taskType === 'VIDEO_EDITING' ? (
-                <div className="space-y-4">
-                  {/* Video Editing Metadata Attributes */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Script</span>
-                      <strong className="text-slate-900 block truncate">{detailModalItem.projectScript?.name || detailModalItem.name}</strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Clip Code</span>
-                      <span className="font-mono text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded text-[11px] inline-block mt-0.5">
-                        {detailModalItem.clipCode || detailModalItem.projectScript?.clipCode || 'N/A'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Project Priority</span>
-                      <span className={"inline-block mt-0.5 px-2 py-0.5 rounded font-extrabold uppercase text-[10px] " + (
-                        detailModalItem.priority === 'CRITICAL' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                        detailModalItem.priority === 'HIGH' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
-                        'bg-blue-50 text-blue-700 border border-blue-200'
-                      )}>
-                        {detailModalItem.priority || 'MEDIUM'} Priority
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Due Date</span>
-                      <strong className="text-amber-800 block mt-0.5">
-                        {detailModalItem.dueDate ? new Date(detailModalItem.dueDate).toLocaleDateString() : 'N/A'}
-                      </strong>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Assigned Video Editor</span>
-                      <strong className="text-slate-800 block mt-0.5">
-                        {detailModalItem.assignedEmployees?.[0]?.user?.name || detailModalItem.assignedEmployees?.[0]?.name || 'Video Editor'}
-                      </strong>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Review Status</span>
-                      <span className="font-mono text-cyan-800 font-bold bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200 text-[11px] inline-block mt-0.5">
-                        {detailModalItem.status || 'WAITING_FOR_TECHNICAL_REVIEW'}
-                      </span>
-                    </div>
-                  </div>
+              {detailModalItem.taskType === 'VIDEO_EDITING' ? (() => {
+                const rawNotes = detailModalItem.project?.notes;
+                let parsedScript: any = null;
+                if (rawNotes) {
+                  try {
+                    const parsed = extractEventScripts({ notes: rawNotes }, 'Script');
+                    parsedScript = parsed.find(
+                      (s: any) =>
+                        s.id === detailModalItem.scriptId ||
+                        s.id === detailModalItem.projectScriptId ||
+                        s.title === detailModalItem.projectScript?.name ||
+                        s.title === detailModalItem.title?.replace(/^Video Editing\s*-\s*/, '') ||
+                        s.title === detailModalItem.name?.replace(/^Video Editing\s*-\s*/, '')
+                    );
+                  } catch {
+                    // ignore parse error
+                  }
+                }
 
-                  {/* Script-Specific Clips Card */}
-                  <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3 text-xs">
-                    <div className="flex items-center justify-between border-b border-purple-200 pb-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
-                        <FileText className="w-4 h-4 text-purple-700" /> Script-Specific Attached Clips ({(detailModalItem.clips || detailModalItem.projectScript?.clips || []).length})
-                      </span>
-                      <span className="font-mono text-[10px] text-purple-700 font-semibold">
-                        Clip Code: {detailModalItem.clipCode || detailModalItem.projectScript?.clipCode || 'N/A'}
-                      </span>
+                const scriptName =
+                  detailModalItem.projectScript?.name ||
+                  parsedScript?.title ||
+                  detailModalItem.script?.name ||
+                  detailModalItem.title?.replace(/^Video Editing\s*-\s*/, '') ||
+                  detailModalItem.name ||
+                  'Shooting Script';
+
+                const clipCode =
+                  detailModalItem.clipCode ||
+                  detailModalItem.projectScript?.clipCode ||
+                  parsedScript?.clipCodes?.map((c: any) => (typeof c === 'string' ? c : c.code)).join(', ') ||
+                  'N/A';
+
+                const scriptText =
+                  detailModalItem.projectScript?.description ||
+                  parsedScript?.scriptText ||
+                  parsedScript?.text ||
+                  detailModalItem.script?.description ||
+                  detailModalItem.script?.content ||
+                  '';
+
+                const scriptHook = parsedScript?.hook || null;
+                const scriptDuration = parsedScript?.duration || null;
+                const sceneNumber = parsedScript?.sceneNumber || null;
+                const targetPlatform = parsedScript?.targetPlatform || null;
+
+                const allScriptDocs = (detailModalItem.project?.files || detailModalItem.files || []).filter(
+                  (f: any) =>
+                    (f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+                     f.folderCategory === 'Script Documents' ||
+                     f.fileType === 'SCRIPT' ||
+                     f.category === 'SCRIPT' ||
+                     f.storagePath?.includes('Script Documents') ||
+                     f.fileName?.match(/\.(pdf|docx?|txt|rtf)$/i)) &&
+                    f.attachmentCategory !== 'REFERENCE_FILE'
+                );
+
+                const specificScriptFiles = allScriptDocs.filter((f: any) => {
+                  const normScriptName = (scriptName || '').toLowerCase().trim();
+                  const normFileName = (f.fileName || f.name || f.title || '').toLowerCase().trim();
+                  if (detailModalItem.scriptId && (f.id === detailModalItem.scriptId || f.scriptId === detailModalItem.scriptId)) return true;
+                  if (detailModalItem.projectScriptId && (f.id === detailModalItem.projectScriptId || f.scriptId === detailModalItem.projectScriptId)) return true;
+                  if (normFileName && normScriptName && (normFileName === normScriptName || normFileName.includes(normScriptName) || normScriptName.includes(normFileName))) return true;
+                  return false;
+                });
+
+                const scriptFiles = specificScriptFiles.length > 0 ? specificScriptFiles : (allScriptDocs.length === 1 ? allScriptDocs : []);
+
+                return (
+                  <div className="space-y-4">
+                    {/* Video Editing Metadata Attributes */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Project Priority</span>
+                        <span className={"inline-block mt-0.5 px-2 py-0.5 rounded font-extrabold uppercase text-[10px] " + (
+                          detailModalItem.priority === 'CRITICAL' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                          detailModalItem.priority === 'HIGH' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                          'bg-blue-50 text-blue-700 border border-blue-200'
+                        )}>
+                          {detailModalItem.priority || 'MEDIUM'} Priority
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Due Date</span>
+                        <strong className="text-amber-800 block mt-0.5">
+                          {detailModalItem.dueDate ? new Date(detailModalItem.dueDate).toLocaleDateString() : 'N/A'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Assigned Video Editor</span>
+                        <strong className="text-slate-800 block mt-0.5 truncate">
+                          {detailModalItem.assignedEmployees?.[0]?.user?.name || detailModalItem.assignedEmployees?.[0]?.name || 'Video Editor'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Review Status</span>
+                        <span className="font-mono text-cyan-800 font-bold bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200 text-[11px] inline-block mt-0.5">
+                          {detailModalItem.status || 'WAITING_FOR_TECHNICAL_REVIEW'}
+                        </span>
+                      </div>
                     </div>
-                    {(detailModalItem.clips || detailModalItem.projectScript?.clips || []).length === 0 ? (
-                      <p className="text-slate-400 italic text-center py-2">No clips attached to this script.</p>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {(detailModalItem.clips || detailModalItem.projectScript?.clips || []).map((clip, cIdx) => {
-                          const clipUrl = clip.storagePath?.startsWith('http')
-                            ? clip.storagePath
-                            : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000') + '/' + (clip.storagePath ? clip.storagePath.replace(/^\/?/, '') : '');
-                          return (
-                            <div
-                              key={clip.id || cIdx}
-                              className="p-3 bg-white border border-purple-200 rounded-lg flex items-center justify-between gap-3 shadow-xs"
-                            >
-                              <div className="truncate">
-                                <span className="font-bold text-slate-900 block truncate text-xs">{clip.name || ("Clip " + (cIdx + 1))}</span>
-                                {clip.durationSec && (
-                                  <span className="text-[10px] text-slate-500 font-mono">{clip.durationSec}s duration</span>
-                                )}
-                              </div>
-                              {clip.storagePath && (
-                                <a
-                                  href={clipUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all shrink-0"
-                                >
-                                  <Eye className="w-3.5 h-3.5" /> View
-                                </a>
-                              )}
+
+                    {/* 1. SEPARATE CLIP CODE SECTION */}
+                    <div className="p-3.5 bg-purple-50/80 border border-purple-200 rounded-xl space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-950 flex items-center gap-1.5">
+                          <Film className="w-4 h-4 text-purple-700" /> Assigned Clip Code
+                        </span>
+                        <span className="text-[10px] text-purple-700 font-medium">Footage Identifier</span>
+                      </div>
+                      <div className="p-3 bg-white border border-purple-200 rounded-lg flex items-center justify-between gap-3 shadow-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500 font-medium">Clip Code:</span>
+                          <span className="font-mono text-purple-900 font-extrabold bg-purple-100 px-2.5 py-1 rounded-md text-xs border border-purple-300 tracking-wider">
+                            {clipCode}
+                          </span>
+                        </div>
+                        {clipCode && clipCode !== 'N/A' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard?.writeText(clipCode);
+                              alert(`Copied clip code "${clipCode}" to clipboard!`);
+                            }}
+                            className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 rounded text-[11px] font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                            title="Copy Clip Code"
+                          >
+                            <Copy className="w-3.5 h-3.5 text-purple-700" />
+                            <span>Copy</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 2. SEPARATE ATTACHED SCRIPT SECTION */}
+                    <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-xl space-y-3 text-xs">
+                      <div className="flex items-center justify-between border-b border-blue-200 pb-2">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-950 flex items-center gap-1.5">
+                          <FileText className="w-4 h-4 text-blue-700" /> Attached Script
+                        </span>
+                        <span className="font-bold text-xs text-blue-900 bg-white border border-blue-200 px-2.5 py-0.5 rounded-full shadow-2xs">
+                          {scriptName}
+                        </span>
+                      </div>
+
+                      {/* Script Metadata Badges if available */}
+                      {(scriptHook || scriptDuration || sceneNumber || targetPlatform) && (
+                        <div className="flex flex-wrap gap-2 text-[10px]">
+                          {sceneNumber && (
+                            <span className="px-2 py-0.5 bg-white border border-blue-200 rounded text-slate-700 font-semibold">
+                              Scene: <strong className="text-blue-900 font-bold">{sceneNumber}</strong>
+                            </span>
+                          )}
+                          {scriptDuration && (
+                            <span className="px-2 py-0.5 bg-white border border-blue-200 rounded text-slate-700 font-semibold">
+                              Est. Duration: <strong className="text-blue-900 font-bold">{scriptDuration}</strong>
+                            </span>
+                          )}
+                          {targetPlatform && (
+                            <span className="px-2 py-0.5 bg-white border border-blue-200 rounded text-slate-700 font-semibold">
+                              Platform: <strong className="text-blue-900 font-bold">{targetPlatform}</strong>
+                            </span>
+                          )}
+                          {scriptHook && (
+                            <div className="w-full mt-1 p-2 bg-white/80 border border-blue-100 rounded text-[11px] text-blue-950">
+                              <span className="font-bold text-blue-800 mr-1">Hook:</span>
+                              <span className="italic">"{scriptHook}"</span>
                             </div>
-                          );
-                        })}
+                          )}
+                        </div>
+                      )}
+
+                      {/* Script Body / Content */}
+                      {scriptText ? (
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold text-blue-900 uppercase tracking-wider block">Script Content</span>
+                          <div className="p-3 bg-white border border-blue-200 rounded-lg text-slate-900 text-xs leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto shadow-2xs">
+                            {scriptText}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-white/60 border border-blue-100 rounded-lg text-slate-500 italic text-center text-xs">
+                          No text content found for this script.
+                        </div>
+                      )}
+
+                      {/* Attached Script Files / Documents */}
+                      {scriptFiles.length > 0 && (
+                        <div className="space-y-1.5 pt-1">
+                          <span className="text-[10px] font-bold text-blue-900 uppercase tracking-wider block">Attached Script Documents ({scriptFiles.length})</span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {scriptFiles.map((file: any, fIdx: number) => {
+                              const fileUrl = file.storagePath?.startsWith('http')
+                                ? file.storagePath
+                                : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000') + '/' + (file.storagePath ? file.storagePath.replace(/^\/?/, '') : '');
+                              return (
+                                <div
+                                  key={file.id || fIdx}
+                                  className="p-2.5 bg-white border border-blue-200 rounded-lg flex items-center justify-between gap-2 shadow-2xs"
+                                >
+                                  <div className="flex items-center gap-2 truncate">
+                                    <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                                    <span className="font-medium text-slate-900 truncate text-xs">{file.fileName || file.name || `Script Document ${fIdx + 1}`}</span>
+                                  </div>
+                                  <a
+                                    href={fileUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
+                                  >
+                                    <Eye className="w-3 h-3" /> View
+                                  </a>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Task Description */}
+                    {detailModalItem.description && detailModalItem.description !== scriptText && (
+                      <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1.5 text-xs">
+                        <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Task Description</span>
+                        <p className="text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">{detailModalItem.description}</p>
                       </div>
                     )}
-                  </div>
 
-                  {/* Task Description */}
-                  {detailModalItem.description && (
-                    <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl space-y-1.5 text-xs">
-                      <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Description</span>
-                      <p className="text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">{detailModalItem.description}</p>
-                    </div>
-                  )}
+                    {/* Stage-Aware Review Decision Action Controls */}
+                    {(() => {
+                      const isMediaStage =
+                        detailModalItem.status === 'WAITING_FOR_MEDIA_REVIEW' ||
+                        detailModalItem.status === 'MEDIA_MANAGER_REVIEW' ||
+                        activeTab === 'MEDIA' ||
+                        isMediaManager;
 
-                  {/* Technical Review Action Controls */}
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">
-                      Technical Review Decision
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDetailModalItem(null);
-                          openTechConfirmation(detailModalItem, 'APPROVED');
-                        }}
-                        className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-md transition-all flex items-center justify-center gap-2"
-                      >
-                        <ShieldCheck className="w-4 h-4" /> Approve Technical Review
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDetailModalItem(null);
-                          openTechConfirmation(detailModalItem, 'REJECTED');
-                        }}
-                        className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs shadow-md transition-all flex items-center justify-center gap-2"
-                      >
-                        <X className="w-4 h-4" /> Reject & Request Revision
-                      </button>
-                    </div>
+                      const isMarketingStage =
+                        detailModalItem.status === 'WAITING_FOR_MARKETING_APPROVAL' ||
+                        detailModalItem.status === 'WAITING_FOR_MARKETING_MANAGER_REVIEW' ||
+                        detailModalItem.status === 'PENDING_MARKETING_APPROVAL' ||
+                        activeTab === 'MARKETING' ||
+                        (isMarketingManager && activeTab !== 'TECH' && activeTab !== 'MEDIA');
+
+                      return (
+                        <div className={`p-4 rounded-xl space-y-3 border ${
+                          isMediaStage
+                            ? 'bg-purple-50/80 border-purple-200'
+                            : isMarketingStage
+                            ? 'bg-amber-50/80 border-amber-200'
+                            : 'bg-slate-50 border-slate-200'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <span className={`text-[11px] uppercase font-extrabold tracking-wider flex items-center gap-1.5 ${
+                              isMediaStage
+                                ? 'text-purple-950'
+                                : isMarketingStage
+                                ? 'text-amber-950'
+                                : 'text-slate-900'
+                            }`}>
+                              {isMediaStage ? (
+                                <>
+                                  <CheckCircle2 className="w-4 h-4 text-purple-700" />
+                                  Media Manager Review Decision
+                                </>
+                              ) : isMarketingStage ? (
+                                <>
+                                  <Sparkles className="w-4 h-4 text-amber-700" />
+                                  Marketing Manager Review Decision
+                                </>
+                              ) : (
+                                <>
+                                  <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                                  Technical Review Decision
+                                </>
+                              )}
+                            </span>
+                            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                              isMediaStage
+                                ? 'bg-purple-100 text-purple-800'
+                                : isMarketingStage
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-cyan-100 text-cyan-800'
+                            }`}>
+                              {detailModalItem.status || (isMediaStage ? 'WAITING_FOR_MEDIA_REVIEW' : isMarketingStage ? 'WAITING_FOR_MARKETING_APPROVAL' : 'WAITING_FOR_TECHNICAL_REVIEW')}
+                            </span>
+                          </div>
+
+                          <input
+                            type="text"
+                            value={itemRemarksMap[detailModalItem.id] || remarks || ''}
+                            placeholder={
+                              isMediaStage
+                                ? 'Media creative quality remarks / feedback notes...'
+                                : isMarketingStage
+                                ? 'Marketing approval remarks / sign-off notes...'
+                                : 'Technical review remarks (optional for approval, required for rejection)...'
+                            }
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setItemRemarksMap((prev) => ({ ...prev, [detailModalItem.id]: val }));
+                              setRemarks(val);
+                            }}
+                            className="w-full bg-white border border-slate-200 text-slate-900 px-3 py-2 rounded-lg text-xs focus:outline-none focus:border-purple-500 shadow-2xs"
+                          />
+
+                          <div className="flex items-center gap-3">
+                            {isMediaStage ? (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={submittingId === detailModalItem.id}
+                                  onClick={async () => {
+                                    const currentRemarks = itemRemarksMap[detailModalItem.id] || remarks || '';
+                                    setDetailModalItem(null);
+                                    await handleMediaReview(detailModalItem.id, 'APPROVED', currentRemarks);
+                                  }}
+                                  className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                                >
+                                  <Check className="w-4 h-4" /> Approve Media Review
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={submittingId === detailModalItem.id}
+                                  onClick={async () => {
+                                    let currentRemarks = itemRemarksMap[detailModalItem.id] || remarks || '';
+                                    if (!currentRemarks.trim()) {
+                                      const entered = prompt('Please enter a rejection reason or revision instruction:');
+                                      if (!entered || !entered.trim()) return;
+                                      currentRemarks = entered.trim();
+                                      setRemarks(currentRemarks);
+                                    }
+                                    setDetailModalItem(null);
+                                    await handleMediaReview(detailModalItem.id, 'REJECTED', currentRemarks);
+                                  }}
+                                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                                >
+                                  <X className="w-4 h-4" /> Reject & Request Revision
+                                </button>
+                              </>
+                            ) : isMarketingStage ? (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={submittingId === detailModalItem.id}
+                                  onClick={async () => {
+                                    const currentRemarks = itemRemarksMap[detailModalItem.id] || remarks || '';
+                                    setDetailModalItem(null);
+                                    await handleMarketingReview(detailModalItem.id, 'APPROVED', currentRemarks);
+                                  }}
+                                  className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                                >
+                                  <Check className="w-4 h-4" /> Approve Marketing Review
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={submittingId === detailModalItem.id}
+                                  onClick={async () => {
+                                    let currentRemarks = itemRemarksMap[detailModalItem.id] || remarks || '';
+                                    if (!currentRemarks.trim()) {
+                                      const entered = prompt('Please enter a rejection reason or revision instruction:');
+                                      if (!entered || !entered.trim()) return;
+                                      currentRemarks = entered.trim();
+                                      setRemarks(currentRemarks);
+                                    }
+                                    setDetailModalItem(null);
+                                    await handleMarketingReview(detailModalItem.id, 'REJECTED', currentRemarks);
+                                  }}
+                                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                                >
+                                  <X className="w-4 h-4" /> Reject & Request Revision
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={submittingId === detailModalItem.id}
+                                  onClick={() => {
+                                    setDetailModalItem(null);
+                                    openTechConfirmation(detailModalItem, 'APPROVED');
+                                  }}
+                                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                                >
+                                  <ShieldCheck className="w-4 h-4" /> Approve Technical Review
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={submittingId === detailModalItem.id}
+                                  onClick={() => {
+                                    setDetailModalItem(null);
+                                    openTechConfirmation(detailModalItem, 'REJECTED');
+                                  }}
+                                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                                >
+                                  <X className="w-4 h-4" /> Reject & Request Revision
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
-                </div>
-              ) : (
+                );
+              })() : (
                 <>
               {/* Client & Metadata Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -1699,6 +2222,14 @@ export default function ApprovalsPage() {
 
               {/* Script / Screenplay Copy (Multi-script aware) */}
               {(() => {
+                const isGraphicReq =
+                  detailModalItem.type === 'GRAPHIC_REQUIREMENT' ||
+                  detailModalItem.itemType === 'GRAPHIC_REQUIREMENT' ||
+                  detailModalItem.eventSource === 'GRAPHIC_REQUIREMENT' ||
+                  !!detailModalItem.graphicRequirementId ||
+                  !!detailModalItem.graphicRequirement;
+                if (isGraphicReq) return null;
+
                 const scripts: ProjectScript[] = extractEventScripts(
                   detailModalItem,
                   detailModalItem.title || detailModalItem.name
@@ -1803,12 +2334,17 @@ export default function ApprovalsPage() {
               )}
 
               {/* Script Documents Review Card */}
-              <div className="bg-purple-50/70 border border-purple-200 p-4 rounded-xl space-y-3">
-                <div className="flex items-center justify-between border-b border-purple-200 pb-2">
-                  <span className="text-[10px] text-purple-900 font-mono uppercase block font-bold flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-purple-700" />
-                    Attached Script Documents (PDF/DOC/DOCX/TXT)
-                  </span>
+              {detailModalItem.type !== 'GRAPHIC_REQUIREMENT' &&
+               detailModalItem.itemType !== 'GRAPHIC_REQUIREMENT' &&
+               detailModalItem.eventSource !== 'GRAPHIC_REQUIREMENT' &&
+               !detailModalItem.graphicRequirementId &&
+               !detailModalItem.graphicRequirement && (
+                <div className="bg-purple-50/70 border border-purple-200 p-4 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between border-b border-purple-200 pb-2">
+                    <span className="text-[10px] text-purple-900 font-mono uppercase block font-bold flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-purple-700" />
+                      Attached Script Documents (PDF/DOC/DOCX/TXT)
+                    </span>
                   <div className="flex items-center gap-2">
                     <label className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-[11px] flex items-center gap-1 cursor-pointer transition-all shadow-xs">
                       <Plus className="w-3.5 h-3.5" />
@@ -1871,6 +2407,7 @@ export default function ApprovalsPage() {
                   );
                 })()}
               </div>
+              )}
 
               {/* Deliverable Assets List */}
               <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2.5">

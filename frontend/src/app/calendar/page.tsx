@@ -8,6 +8,7 @@ import Link from 'next/link';
 import ConvertEventToTaskModal from '@/components/tasks/ConvertEventToTaskModal';
 import { TimelineView, TimelineEntry } from '@/components/common/TimelineView';
 import { useBrand } from '@/lib/brand-context';
+import { useReferenceData } from '@/lib/useReferenceData';
 import { ScriptDocumentViewerModal } from '@/components/common/ScriptDocumentViewerModal';
 
 const APPROVED_CALENDAR_STATUSES = [
@@ -81,12 +82,8 @@ const getEventCalendarDate = (evt: any): any => {
 export default function CalendarPage() {
   const { user } = useAuth();
   const { activeBrandId, activeBrand, setActiveBrandId } = useBrand();
+  const { clients, brands, products, users: staffUsers, equipment: equipmentList } = useReferenceData();
   const [events, setEvents] = useState<any[]>([]);
-  const [clients, setClients] = useState<any[]>([]);
-  const [brands, setBrands] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [staffUsers, setStaffUsers] = useState<any[]>([]);
-  const [equipmentList, setEquipmentList] = useState<any[]>([]);
   const [graphicRequirements, setGraphicRequirements] = useState<any[]>([]);
   const [shootProjectsList, setShootProjectsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,20 +132,38 @@ export default function CalendarPage() {
   }, [viewModalEvent]);
 
   const loadEventFiles = async (eventObj: any) => {
-    if (!eventObj) return;
+    if (!eventObj) {
+      setEventFiles([]);
+      return;
+    }
+    const grId =
+      eventObj.graphicRequirementId ||
+      eventObj.graphicRequirement?.id ||
+      eventObj.graphicReqs?.[0]?.id;
+
     const projectId =
       eventObj.shootId ||
       eventObj.shoot?.id ||
       eventObj.shootProjects?.[0]?.id ||
-      eventObj.graphicRequirement?.projectId ||
-      eventObj.shootProjects?.[0]?.projectId;
+      eventObj.shootProjects?.[0]?.projectId ||
+      eventObj.projectId;
 
-    const queryKey = projectId || eventObj.id;
+    const queryKey = grId || projectId || eventObj.id;
     if (queryKey) {
       try {
         setLoadingEventFiles(true);
         const res = await fetchApi(`/files/project/${queryKey}`);
-        setEventFiles(res.allFiles || []);
+        let all = res.allFiles || [];
+        if (grId || eventObj.eventSource === 'GRAPHIC_REQUIREMENT') {
+          if (grId) {
+            all = all.filter((f: any) => f.graphicRequirementId === grId);
+          } else {
+            all = [];
+          }
+        } else if (eventObj.eventSource === 'SHOOT' || eventObj.shootId || eventObj.shoot) {
+          all = all.filter((f: any) => !f.graphicRequirementId);
+        }
+        setEventFiles(all);
       } catch {
         setEventFiles([]);
       } finally {
@@ -413,19 +428,12 @@ export default function CalendarPage() {
       if (showLoadingState || events.length === 0) {
         setLoading(true);
       }
-      const [resEvents, resClients, resBrands, resProducts, resUsers, resEq, resGr, resProj] = await Promise.all([
-        fetchApi('/calendar?status=ALL', { skipCache: true }).catch((err) => {
+      const [resEvents, resGr, resProj] = await Promise.all([
+        fetchApi('/calendar?status=ALL').catch((err) => {
           console.error('Failed to fetch /calendar:', err);
           return null;
         }),
-        fetchApi('/clients').catch(() => []),
-        fetchApi('/brands').catch(() => []),
-        fetchApi('/products').catch(() => []),
-        fetchApi('/users').catch(() => []),
-        fetchApi('/equipment').catch(() => []),
         fetchApi('/graphic-reqs?all=true').catch(() => []),
-        // all=true bypasses per-user visibility filtering so the parent-project dropdowns
-        // list every project, not just the ones this user is assigned to.
         fetchApi('/projects?all=true').catch(() => []),
       ]);
 
@@ -436,15 +444,10 @@ export default function CalendarPage() {
         const rawEvents = Array.isArray(resEvents) ? resEvents : (resEvents?.data || resEvents?.events || resEvents?.items || []);
         setEvents(rawEvents);
       }
-      setClients(Array.isArray(resClients) ? resClients : []);
-      setBrands(Array.isArray(resBrands) ? resBrands : []);
-      setProducts(Array.isArray(resProducts) ? resProducts : []);
-      setStaffUsers(Array.isArray(resUsers) ? resUsers : []);
-      setEquipmentList(Array.isArray(resEq) ? resEq : []);
       setGraphicRequirements(rawGr);
       setShootProjectsList(rawProj);
     } catch (err) {
-      console.error('Error loading calendar reference data:', err);
+      console.error('Error loading calendar data:', err);
     } finally {
       setLoading(false);
     }
@@ -485,6 +488,7 @@ export default function CalendarPage() {
   const handleGraphicReqSelect = (reqId: string) => {
     if (!reqId) {
       setFormData((prev) => ({ ...prev, graphicRequirementId: '' }));
+      setEventFiles([]);
       return;
     }
     const selectedGr = graphicRequirements.find((gr) => gr.id === reqId);
@@ -501,6 +505,8 @@ export default function CalendarPage() {
     const deadlineStr = selectedGr.estimatedCompletion
       ? new Date(selectedGr.estimatedCompletion).toISOString().split('T')[0]
       : new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    loadEventFiles({ graphicRequirementId: reqId, eventSource: 'GRAPHIC_REQUIREMENT' });
 
     setFormData((prev) => ({
       ...prev,
@@ -699,6 +705,8 @@ export default function CalendarPage() {
         const targetGrId =
           savedRes?.graphicRequirementId ||
           savedRes?.graphicRequirement?.id ||
+          savedRes?.graphicReqs?.[0]?.id ||
+          formData.graphicRequirementId ||
           editingEvent?.graphicRequirementId ||
           editingEvent?.graphicRequirement?.id;
 
@@ -820,6 +828,10 @@ export default function CalendarPage() {
   const resetForm = () => {
     const defaultClient = activeBrand ? activeBrand.clientId : (clients.find((c) => c.status === 'ACTIVE')?.id || '');
     const defaultBrand = activeBrand ? activeBrand.id : (brands.find((b) => b.status === 'ACTIVE' && (!defaultClient || b.clientId === defaultClient))?.id || '');
+
+    setEventFiles([]);
+    setScriptDocFiles([]);
+    setCreativeAssetFiles([]);
 
     setFormData({
       eventSource: 'GRAPHIC_REQUIREMENT',
@@ -1175,9 +1187,9 @@ export default function CalendarPage() {
           {canCreateEvents && (
             <button
               onClick={() => {
+                setEditingEvent(null);
                 resetForm();
                 refreshGraphicReqs();
-                setEditingEvent(null);
                 setShowAddModal(true);
               }}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-blue-600/30 w-max"
@@ -2720,16 +2732,28 @@ export default function CalendarPage() {
 
             {/* SECTION: ATTACHED REFERENCE DOCUMENTS & CREATIVE ASSETS */}
             {(() => {
-              const existingReferenceFiles = (eventFiles || []).filter(
-                (f: any) =>
-                  f.attachmentCategory === 'REFERENCE_FILE' ||
-                  f.folderCategory === 'Reference Documents' ||
-                  f.folderCategory === 'Creative Assets' ||
-                  f.folderCategory === 'Attachments' ||
-                  (f.attachmentCategory !== 'SCRIPT_DOCUMENT' &&
-                   f.folderCategory !== 'Script Documents' &&
-                   !f.storagePath?.includes('Script Documents'))
-              );
+              const currentGrId = formData.graphicRequirementId || editingEvent?.graphicRequirementId || editingEvent?.graphicRequirement?.id;
+              const isGraphicSource = formData.eventSource === 'GRAPHIC_REQUIREMENT' || Boolean(currentGrId);
+
+              const existingReferenceFiles = editingEvent
+                ? (eventFiles || []).filter(
+                    (f: any) => {
+                      if (isGraphicSource) {
+                        return f.graphicRequirementId && f.graphicRequirementId === currentGrId;
+                      }
+                      return (
+                        !f.graphicRequirementId &&
+                        (f.attachmentCategory === 'REFERENCE_FILE' ||
+                         f.folderCategory === 'Reference Documents' ||
+                         f.folderCategory === 'Creative Assets' ||
+                         f.folderCategory === 'Attachments' ||
+                         (f.attachmentCategory !== 'SCRIPT_DOCUMENT' &&
+                          f.folderCategory !== 'Script Documents' &&
+                          !f.storagePath?.includes('Script Documents')))
+                      );
+                    }
+                  )
+                : [];
               const totalRefDocsCount = existingReferenceFiles.length + creativeAssetFiles.length;
 
               return (
@@ -2871,14 +2895,21 @@ export default function CalendarPage() {
             })()}
 
             {/* SCRIPT DOCUMENTS (MULTI-FILE SUPPORT & VAULT MANAGEMENT) */}
-            {formData.eventSource !== 'GRAPHIC_REQUIREMENT' && !formData.graphicRequirementId && (() => {
-              const existingScriptFiles = (eventFiles || []).filter(
-                (f: any) =>
-                  (f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
-                   f.folderCategory === 'Script Documents' ||
-                   f.storagePath?.includes('Script Documents')) &&
-                  f.attachmentCategory !== 'REFERENCE_FILE'
-              );
+            {formData.eventSource !== 'GRAPHIC_REQUIREMENT' &&
+             !formData.graphicRequirementId &&
+             !editingEvent?.graphicRequirementId &&
+             !editingEvent?.graphicRequirement &&
+             editingEvent?.eventSource !== 'GRAPHIC_REQUIREMENT' && (() => {
+              const existingScriptFiles = editingEvent
+                ? (eventFiles || []).filter(
+                    (f: any) =>
+                      !f.graphicRequirementId &&
+                      (f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+                       f.folderCategory === 'Script Documents' ||
+                       f.storagePath?.includes('Script Documents')) &&
+                      f.attachmentCategory !== 'REFERENCE_FILE'
+                  )
+                : [];
               const totalCount = existingScriptFiles.length + scriptDocFiles.length;
 
               return (
@@ -3348,10 +3379,10 @@ export default function CalendarPage() {
                   <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div>
                     <h4 className="font-extrabold text-amber-900 text-xs uppercase tracking-wide flex items-center gap-1.5">
-                      Under Review — Read-Only Mode
+                      Under Review
                     </h4>
                     <p className="text-[11px] text-amber-800 leading-relaxed">
-                      This calendar event is currently undergoing formal review (Status: <strong className="font-mono font-bold text-amber-900">{viewModalEvent.status}</strong>). Direct content modifications and scheduling updates are locked in read-only mode until review decision is completed.
+                      This calendar event is currently undergoing formal review (Status: <strong className="font-mono font-bold text-amber-900">{viewModalEvent.status}</strong>). Direct content modifications and scheduling updates are locked until review decision is completed.
                     </p>
                   </div>
                 </div>
@@ -3569,15 +3600,25 @@ export default function CalendarPage() {
 
             {/* 1. ATTACHED REFERENCE DOCUMENTS & CREATIVE ASSETS CARD */}
             {(() => {
+              const currentGrId = viewModalEvent.graphicRequirementId || viewModalEvent.graphicRequirement?.id;
+              const isGraphicSource = viewModalEvent.eventSource === 'GRAPHIC_REQUIREMENT' || Boolean(currentGrId);
+
               const referenceFiles = (eventFiles || []).filter(
-                (f: any) =>
-                  f.attachmentCategory === 'REFERENCE_FILE' ||
-                  f.folderCategory === 'Reference Documents' ||
-                  f.folderCategory === 'Creative Assets' ||
-                  f.folderCategory === 'Attachments' ||
-                  (f.attachmentCategory !== 'SCRIPT_DOCUMENT' &&
-                   f.folderCategory !== 'Script Documents' &&
-                   !f.storagePath?.includes('Script Documents'))
+                (f: any) => {
+                  if (isGraphicSource) {
+                    return f.graphicRequirementId && f.graphicRequirementId === currentGrId;
+                  }
+                  return (
+                    !f.graphicRequirementId &&
+                    (f.attachmentCategory === 'REFERENCE_FILE' ||
+                     f.folderCategory === 'Reference Documents' ||
+                     f.folderCategory === 'Creative Assets' ||
+                     f.folderCategory === 'Attachments' ||
+                     (f.attachmentCategory !== 'SCRIPT_DOCUMENT' &&
+                      f.folderCategory !== 'Script Documents' &&
+                      !f.storagePath?.includes('Script Documents')))
+                  );
+                }
               );
               const hasLegacyUrl = !!viewModalEvent.creativePreviewUrl;
 
@@ -3669,7 +3710,10 @@ export default function CalendarPage() {
             })()}
 
             {/* 2. SCRIPT DOCUMENTS CARD */}
-            {viewModalEvent.eventSource !== 'GRAPHIC_REQUIREMENT' && !viewModalEvent.graphicRequirementId && !viewModalEvent.graphicRequirement && (
+            {viewModalEvent.eventSource !== 'GRAPHIC_REQUIREMENT' &&
+             !viewModalEvent.graphicRequirementId &&
+             !viewModalEvent.graphicRequirement &&
+             !viewModalEvent.graphicReqs?.length && (
               <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3 text-xs">
                 <div className="flex items-center justify-between border-b border-purple-200 pb-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
@@ -3685,6 +3729,7 @@ export default function CalendarPage() {
                 ) : (() => {
                   const scriptFiles = (eventFiles || []).filter(
                     (f: any) =>
+                      !f.graphicRequirementId &&
                       (f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
                        f.folderCategory === 'Script Documents' ||
                        f.storagePath?.includes('Script Documents')) &&
@@ -3773,11 +3818,18 @@ export default function CalendarPage() {
               // 2. Approval History
               if (Array.isArray(viewModalEvent.approvalHistory)) {
                 viewModalEvent.approvalHistory.forEach((ah: any, idx: number) => {
+                  const roleName = ah.role ? ah.role.replace(/_/g, ' ') : 'Marketing Manager';
+                  const userName = ah.user?.name || (ah.role ? roleName : 'Marketing Manager');
                   timelineEntries.push({
                     id: ah.id || `ah-${idx}`,
                     createdAt: ah.timestamp || ah.createdAt,
                     action: ah.action || 'APPROVAL_UPDATE',
-                    user: ah.user || { role: ah.role || 'MARKETING_MANAGER' },
+                    user: {
+                      id: ah.user?.id || ah.userId,
+                      name: userName,
+                      role: ah.user?.role || ah.role || 'MARKETING_MANAGER',
+                      avatarUrl: ah.user?.avatarUrl,
+                    },
                     description: ah.comment || (ah.newStatus ? `Status transitioned from ${ah.previousStatus || 'NONE'} to ${ah.newStatus}` : 'Approval action recorded'),
                     remarks: ah.comment,
                   });

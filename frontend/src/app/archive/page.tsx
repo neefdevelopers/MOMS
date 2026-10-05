@@ -27,7 +27,7 @@ export default function ArchivePage() {
     <div className="space-y-6 text-xs">
       <div className="bg-white border border-slate-200 p-6 rounded-xl">
         <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-          <Archive className="w-5 h-5 text-purple-600" /> Read-Only Production Archive
+          <Archive className="w-5 h-5 text-purple-600" /> Production Archive
         </h1>
       </div>
 
@@ -44,7 +44,7 @@ export default function ArchivePage() {
               <div className="flex justify-between items-center">
                 <span className="font-mono text-xs font-bold text-purple-600">{p.projectId}</span>
                 <span className="px-2 py-0.5 bg-slate-50 text-slate-500 border border-slate-200 rounded text-[10px] font-bold">
-                  READ ONLY ARCHIVE
+                  ARCHIVE
                 </span>
               </div>
               <h3 className="font-bold text-slate-900 text-sm">{p.name}</h3>

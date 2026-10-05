@@ -172,7 +172,7 @@ export default function NotificationsPage() {
       {/* Page Header */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2">
             <div className="p-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl">
               <Bell className="w-5 h-5" />
             </div>
@@ -185,9 +185,6 @@ export default function NotificationsPage() {
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500">
-            Real-time activity notifications, assignment alerts, approval updates, and workflow reminders.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5 self-start md:self-auto">

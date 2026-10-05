@@ -69,6 +69,7 @@ export default function ClientReviewPage() {
   const [editRequests, setEditRequests] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedEditRequest, setSelectedEditRequest] = useState<any | null>(null);
+  const [editRequestModalTab, setEditRequestModalTab] = useState<'CHANGES_ONLY' | 'FULL_DETAILS' | 'DIFF_TABLE'>('CHANGES_ONLY');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -188,37 +189,49 @@ export default function ClientReviewPage() {
     }
   };
 
-  const filteredEvents = events.filter((e) => {
-    if (activeBrandId && e.brandId !== activeBrandId) return false;
-    if (statusFilter === 'PENDING_CLIENT_APPROVAL') {
-      if (
-        e.status !== 'PENDING_CLIENT_APPROVAL' &&
-        e.status !== 'PENDING_CLIENT_REVIEW' &&
-        e.status !== 'PENDING_MARKETING_APPROVAL' &&
-        e.status !== 'WAITING_FOR_MEDIA_REVIEW'
-      )
+  const filteredEvents = React.useMemo(() => {
+    return events.filter((e) => {
+      if (activeBrandId && e.brandId !== activeBrandId) return false;
+      if (statusFilter === 'PENDING_CLIENT_APPROVAL') {
+        if (
+          e.status !== 'PENDING_CLIENT_APPROVAL' &&
+          e.status !== 'PENDING_CLIENT_REVIEW' &&
+          e.status !== 'PENDING_MARKETING_APPROVAL' &&
+          e.status !== 'WAITING_FOR_MEDIA_REVIEW'
+        )
+          return false;
+      } else if (statusFilter === 'APPROVED') {
+        if (e.status !== 'APPROVED' && e.status !== 'CLIENT_APPROVED') return false;
+      } else if (statusFilter && statusFilter !== 'ALL' && e.status !== statusFilter) {
         return false;
-    } else if (statusFilter === 'APPROVED') {
-      if (e.status !== 'APPROVED' && e.status !== 'CLIENT_APPROVED') return false;
-    } else if (statusFilter && statusFilter !== 'ALL' && e.status !== statusFilter) {
-      return false;
-    }
+      }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      const matchTitle = e.title?.toLowerCase().includes(q);
-      const matchId = (e.eventId || e.id).toLowerCase().includes(q);
-      const matchBrand = e.brand?.name?.toLowerCase().includes(q);
-      const matchCaption = e.caption?.toLowerCase().includes(q);
-      return matchTitle || matchId || matchBrand || matchCaption;
-    }
-    return true;
-  });
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchTitle = e.title?.toLowerCase().includes(q);
+        const matchId = (e.eventId || e.id).toLowerCase().includes(q);
+        const matchBrand = e.brand?.name?.toLowerCase().includes(q);
+        const matchCaption = e.caption?.toLowerCase().includes(q);
+        return matchTitle || matchId || matchBrand || matchCaption;
+      }
+      return true;
+    });
+  }, [events, activeBrandId, statusFilter, searchQuery]);
 
-  const selectedEvent = selectedEventId ? events.find((e) => e.id === selectedEventId) || null : null;
+  const selectedEvent = React.useMemo(() => {
+    return selectedEventId ? events.find((e) => e.id === selectedEventId) || null : null;
+  }, [selectedEventId, events]);
 
   const refreshEventFiles = async (eventObj: any = selectedEvent) => {
-    if (!eventObj) return;
+    if (!eventObj) {
+      setEventFiles([]);
+      return;
+    }
+    const grId =
+      eventObj.graphicRequirementId ||
+      eventObj.graphicRequirement?.id ||
+      eventObj.graphicReqs?.[0]?.id;
+
     const projectId =
       eventObj.shootId ||
       eventObj.shoot?.id ||
@@ -226,12 +239,22 @@ export default function ClientReviewPage() {
       eventObj.graphicRequirement?.projectId ||
       eventObj.shootProjects?.[0]?.projectId;
 
-    const queryKey = projectId || eventObj.id;
+    const queryKey = grId || projectId || eventObj.id;
     if (queryKey) {
       try {
         setLoadingFiles(true);
         const res = await fetchApi(`/files/project/${queryKey}`);
-        setEventFiles(res.allFiles || []);
+        let all = res.allFiles || [];
+        if (grId || eventObj.eventSource === 'GRAPHIC_REQUIREMENT') {
+          if (grId) {
+            all = all.filter((f: any) => f.graphicRequirementId === grId);
+          } else {
+            all = [];
+          }
+        } else if (eventObj.eventSource === 'SHOOT' || eventObj.shootId || eventObj.shoot) {
+          all = all.filter((f: any) => !f.graphicRequirementId);
+        }
+        setEventFiles(all);
       } catch {
         setEventFiles([]);
       } finally {
@@ -351,10 +374,14 @@ export default function ClientReviewPage() {
         payload.priority = editPriority;
       }
 
-      await fetchApi(`/calendar/${selectedEvent.id}/client-review`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      await fetchApi(
+        `/calendar/${selectedEvent.id}/client-review`,
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+        60000,
+      );
 
       const updatedStatus =
         reviewModalAction === 'APPROVE'
@@ -382,6 +409,50 @@ export default function ClientReviewPage() {
     }
   };
 
+  const pendingEventsCount = React.useMemo(() => {
+    return events.filter(
+      (e) =>
+        (!activeBrandId || e.brandId === activeBrandId) &&
+        (e.status === 'PENDING_CLIENT_APPROVAL' ||
+          e.status === 'PENDING_CLIENT_REVIEW' ||
+          e.status === 'PENDING_MARKETING_APPROVAL' ||
+          e.status === 'WAITING_FOR_MEDIA_REVIEW'),
+    ).length;
+  }, [events, activeBrandId]);
+
+  const scopedEditRequests = React.useMemo(() => {
+    return editRequests.filter(
+      (r) => !activeBrandId || r.brandId === activeBrandId || r.calendarEvent?.brandId === activeBrandId,
+    );
+  }, [editRequests, activeBrandId]);
+
+  const scopedVideoTasks = React.useMemo(() => {
+    return videoTasks.filter(
+      (t) =>
+        !activeBrandId ||
+        t.brandId === activeBrandId ||
+        t.project?.brandId === activeBrandId ||
+        t.graphicRequirement?.brandId === activeBrandId,
+    );
+  }, [videoTasks, activeBrandId]);
+
+  const pendingCount = pendingEventsCount + scopedEditRequests.length + scopedVideoTasks.length;
+
+  const filteredVideoTasks = React.useMemo(() => {
+    return scopedVideoTasks.filter((t) => {
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchTitle = (t.name || t.title || '').toLowerCase().includes(q);
+        const matchId = (t.taskId || t.id || '').toLowerCase().includes(q);
+        const matchClient = (t.client?.name || '').toLowerCase().includes(q);
+        const matchBrand = (t.brand?.name || '').toLowerCase().includes(q);
+        const matchClip = (t.clipCode || t.projectScript?.clipCode || '').toLowerCase().includes(q);
+        return matchTitle || matchId || matchClient || matchBrand || matchClip;
+      }
+      return true;
+    });
+  }, [scopedVideoTasks, searchQuery]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -392,42 +463,6 @@ export default function ClientReviewPage() {
       </div>
     );
   }
-
-  const pendingEventsCount = events.filter(
-    (e) =>
-      (!activeBrandId || e.brandId === activeBrandId) &&
-      (e.status === 'PENDING_CLIENT_APPROVAL' ||
-        e.status === 'PENDING_CLIENT_REVIEW' ||
-        e.status === 'PENDING_MARKETING_APPROVAL' ||
-        e.status === 'WAITING_FOR_MEDIA_REVIEW'),
-  ).length;
-
-  const scopedEditRequests = editRequests.filter(
-    (r) => !activeBrandId || r.brandId === activeBrandId || r.calendarEvent?.brandId === activeBrandId,
-  );
-
-  const scopedVideoTasks = videoTasks.filter(
-    (t) =>
-      !activeBrandId ||
-      t.brandId === activeBrandId ||
-      t.project?.brandId === activeBrandId ||
-      t.graphicRequirement?.brandId === activeBrandId,
-  );
-
-  const pendingCount = pendingEventsCount + scopedEditRequests.length + scopedVideoTasks.length;
-
-  const filteredVideoTasks = scopedVideoTasks.filter((t) => {
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      const matchTitle = (t.name || t.title || '').toLowerCase().includes(q);
-      const matchId = (t.taskId || t.id || '').toLowerCase().includes(q);
-      const matchClient = (t.client?.name || '').toLowerCase().includes(q);
-      const matchBrand = (t.brand?.name || '').toLowerCase().includes(q);
-      const matchClip = (t.clipCode || t.projectScript?.clipCode || '').toLowerCase().includes(q);
-      return matchTitle || matchId || matchClient || matchBrand || matchClip;
-    }
-    return true;
-  });
 
   return (
     <div className="space-y-6 pb-12 select-none">
@@ -463,8 +498,7 @@ export default function ClientReviewPage() {
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Marketing Manager Approval Session</h1>
-            <p className="text-xs text-slate-500">Review and authorize video editing deliverables, creative assets, and calendar event schedules</p>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Event Approval Session</h1>
           </div>
         </div>
 
@@ -1104,157 +1138,162 @@ export default function ClientReviewPage() {
             </div>
 
             {/* SECTION 2: SCRIPT DOCUMENTS & ATTACHMENTS (REVIEW, DELETE & UPLOAD NEW) */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-purple-700" /> Section 2: Script Documents &amp; Materials
-                </span>
+            {selectedEvent.eventSource !== 'GRAPHIC_REQUIREMENT' &&
+             !selectedEvent.graphicRequirementId &&
+             !selectedEvent.graphicRequirement &&
+             !selectedEvent.graphicReqs?.length && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-purple-700" /> Section 2: Script Documents &amp; Materials
+                  </span>
 
-                <div className="flex items-center gap-2">
-                  <label
-                    htmlFor="clientReviewScriptFileInput"
-                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>{uploadingScriptDoc ? 'Uploading...' : '+ Upload Script Document(s)'}</span>
-                  </label>
-                  <input
-                    id="clientReviewScriptFileInput"
-                    type="file"
-                    multiple
-                    accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                    className="hidden"
-                    disabled={uploadingScriptDoc}
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        handleUploadScriptFiles(e.target.files);
-                        e.target.value = '';
-                      }
-                    }}
-                  />
+                  <div className="flex items-center gap-2">
+                    <label
+                      htmlFor="clientReviewScriptFileInput"
+                      className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{uploadingScriptDoc ? 'Uploading...' : '+ Upload Script Document(s)'}</span>
+                    </label>
+                    <input
+                      id="clientReviewScriptFileInput"
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                      className="hidden"
+                      disabled={uploadingScriptDoc}
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          handleUploadScriptFiles(e.target.files);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {scriptSuccessMsg && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{scriptSuccessMsg}</span>
-                </div>
-              )}
+                {scriptSuccessMsg && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{scriptSuccessMsg}</span>
+                  </div>
+                )}
 
-              {/* Script Documents List */}
-              {(() => {
-                const scriptDocFiles = (eventFiles || []).filter(
-                  (f: any) =>
-                    f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
-                    f.folderCategory === 'Script Documents'
-                );
-
-                if (loadingFiles) {
-                  return (
-                    <div className="p-6 bg-slate-50/80 border border-slate-200 rounded-2xl text-center">
-                      <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                      <p className="text-xs text-slate-500 font-medium">Loading attached script documents...</p>
-                    </div>
+                {/* Script Documents List */}
+                {(() => {
+                  const scriptDocFiles = (eventFiles || []).filter(
+                    (f: any) =>
+                      f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+                      f.folderCategory === 'Script Documents'
                   );
-                }
 
-                if (scriptDocFiles.length === 0) {
+                  if (loadingFiles) {
+                    return (
+                      <div className="p-6 bg-slate-50/80 border border-slate-200 rounded-2xl text-center">
+                        <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                        <p className="text-xs text-slate-500 font-medium">Loading attached script documents...</p>
+                      </div>
+                    );
+                  }
+
+                  if (scriptDocFiles.length === 0) {
+                    return (
+                      <div className="p-6 bg-purple-50/40 border-2 border-dashed border-purple-200 rounded-2xl text-center space-y-2">
+                        <FileText className="w-8 h-8 text-purple-400 mx-auto" />
+                        <p className="text-xs font-bold text-slate-800">No Script Documents Attached Yet</p>
+                        <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+                          Click <strong>"+ Upload Script Document(s)"</strong> above or drag script files (PDF, Word Doc, TXT) here to attach scripts for this event.
+                        </p>
+                        <label
+                          htmlFor="clientReviewScriptFileInput"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-purple-300 hover:bg-purple-50 text-purple-700 font-bold text-xs rounded-xl cursor-pointer shadow-xs transition-colors mt-2"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Select Script Files
+                        </label>
+                      </div>
+                    );
+                  }
+
                   return (
-                    <div className="p-6 bg-purple-50/40 border-2 border-dashed border-purple-200 rounded-2xl text-center space-y-2">
-                      <FileText className="w-8 h-8 text-purple-400 mx-auto" />
-                      <p className="text-xs font-bold text-slate-800">No Script Documents Attached Yet</p>
-                      <p className="text-[11px] text-slate-500 max-w-md mx-auto">
-                        Click <strong>"+ Upload Script Document(s)"</strong> above or drag script files (PDF, Word Doc, TXT) here to attach scripts for this event.
-                      </p>
-                      <label
-                        htmlFor="clientReviewScriptFileInput"
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-purple-300 hover:bg-purple-50 text-purple-700 font-bold text-xs rounded-xl cursor-pointer shadow-xs transition-colors mt-2"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Select Script Files
-                      </label>
-                    </div>
-                  );
-                }
+                    <div className="p-4 bg-gradient-to-br from-purple-50/50 to-slate-50 border border-purple-200/90 rounded-2xl space-y-3 shadow-xs">
+                      <div className="flex items-center justify-between pb-2 border-b border-purple-200/60">
+                        <span className="text-xs font-bold text-slate-800">
+                          Attached Scripts ({scriptDocFiles.length} file{scriptDocFiles.length > 1 ? 's' : ''})
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          Review, open, or replace documents
+                        </span>
+                      </div>
 
-                return (
-                  <div className="p-4 bg-gradient-to-br from-purple-50/50 to-slate-50 border border-purple-200/90 rounded-2xl space-y-3 shadow-xs">
-                    <div className="flex items-center justify-between pb-2 border-b border-purple-200/60">
-                      <span className="text-xs font-bold text-slate-800">
-                        Attached Scripts ({scriptDocFiles.length} file{scriptDocFiles.length > 1 ? 's' : ''})
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono">
-                        Review, open, or replace documents
-                      </span>
-                    </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {scriptDocFiles.map((sf: any) => {
+                          const ext = sf.fileName?.split('.').pop()?.toUpperCase() || 'FILE';
+                          const isDeleting = deletingFileId === sf.id;
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {scriptDocFiles.map((sf: any) => {
-                        const ext = sf.fileName?.split('.').pop()?.toUpperCase() || 'FILE';
-                        const isDeleting = deletingFileId === sf.id;
-
-                        return (
-                          <div
-                            key={sf.id}
-                            className="flex items-center justify-between p-3 bg-white border border-purple-200/80 rounded-xl hover:border-purple-300 shadow-xs hover:shadow-sm transition-all gap-2"
-                          >
-                            <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
-                              <span className="px-2 py-1 bg-purple-100 text-purple-900 font-mono text-[10px] font-extrabold rounded-md shrink-0">
-                                {ext}
-                              </span>
-                              <div className="overflow-hidden min-w-0">
-                                <p className="text-xs font-bold text-slate-900 truncate" title={sf.fileName}>
-                                  {sf.fileName}
-                                </p>
-                                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono flex-wrap mt-0.5">
-                                  {sf.fileSize ? <span>{(sf.fileSize / 1024).toFixed(1)} KB</span> : null}
-                                  {sf.uploadedBy && (
-                                    <span className="font-semibold text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded border border-purple-200">
-                                      Uploaded by {sf.uploadedBy.name || 'User'} ({sf.uploadedBy.role?.replace(/_/g, ' ') || 'Staff'})
-                                    </span>
-                                  )}
-                                  {sf.createdAt && (
-                                    <span className="text-slate-400">
-                                      • {new Date(sf.createdAt).toLocaleDateString()}
-                                    </span>
-                                  )}
+                          return (
+                            <div
+                              key={sf.id}
+                              className="flex items-center justify-between p-3 bg-white border border-purple-200/80 rounded-xl hover:border-purple-300 shadow-xs hover:shadow-sm transition-all gap-2"
+                            >
+                              <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
+                                <span className="px-2 py-1 bg-purple-100 text-purple-900 font-mono text-[10px] font-extrabold rounded-md shrink-0">
+                                  {ext}
+                                </span>
+                                <div className="overflow-hidden min-w-0">
+                                  <p className="text-xs font-bold text-slate-900 truncate" title={sf.fileName}>
+                                    {sf.fileName}
+                                  </p>
+                                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono flex-wrap mt-0.5">
+                                    {sf.fileSize ? <span>{(sf.fileSize / 1024).toFixed(1)} KB</span> : null}
+                                    {sf.uploadedBy && (
+                                      <span className="font-semibold text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded border border-purple-200">
+                                        Uploaded by {sf.uploadedBy.name || 'User'} ({sf.uploadedBy.role?.replace(/_/g, ' ') || 'Staff'})
+                                      </span>
+                                    )}
+                                    {sf.createdAt && (
+                                      <span className="text-slate-400">
+                                        • {new Date(sf.createdAt).toLocaleDateString()}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
 
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <a
-                                href={sf.storagePath?.startsWith('http') ? sf.storagePath : `/api/files/download/${sf.id}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors shadow-xs"
-                                title="Open / Preview script file"
-                              >
-                                <Eye className="w-3.5 h-3.5" /> View
-                              </a>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <a
+                                  href={sf.storagePath?.startsWith('http') ? sf.storagePath : `/api/files/download/${sf.id}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors shadow-xs"
+                                  title="Open / Preview script file"
+                                >
+                                  <Eye className="w-3.5 h-3.5" /> View
+                                </a>
 
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteScriptFile(sf.id, sf.fileName)}
-                                disabled={isDeleting}
-                                className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs transition-colors disabled:opacity-50"
-                                title="Delete this script document"
-                              >
-                                {isDeleting ? (
-                                  <RotateCcw className="w-3.5 h-3.5 animate-spin text-rose-600" />
-                                ) : (
-                                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                                )}
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteScriptFile(sf.id, sf.fileName)}
+                                  disabled={isDeleting}
+                                  className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs transition-colors disabled:opacity-50"
+                                  title="Delete this script document"
+                                >
+                                  {isDeleting ? (
+                                    <RotateCcw className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                                  ) : (
+                                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                  )}
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                );
-              })()}
-            </div>
+                  );
+                })()}
+              </div>
+            )}
 
             {/* SECTION 2: SCHEDULE, TIMING & MILESTONES */}
             <div className="space-y-2">
@@ -1475,12 +1514,23 @@ export default function ClientReviewPage() {
               </span>
 
               {(() => {
+                const currentGrId = selectedEvent.graphicRequirementId || selectedEvent.graphicRequirement?.id || selectedEvent.graphicReqs?.[0]?.id;
+                const isGraphicSource = selectedEvent.eventSource === 'GRAPHIC_REQUIREMENT' || Boolean(currentGrId);
+
                 const referenceFiles = (eventFiles || []).filter(
-                  (f: any) =>
-                    f.attachmentCategory === 'REFERENCE_FILE' ||
-                    f.folderCategory === 'Reference Documents' ||
-                    f.folderCategory === 'Creative Assets' ||
-                    (f.attachmentCategory !== 'SCRIPT_DOCUMENT' && f.folderCategory !== 'Script Documents')
+                  (f: any) => {
+                    if (isGraphicSource) {
+                      return f.graphicRequirementId && f.graphicRequirementId === currentGrId;
+                    }
+                    return (
+                      !f.graphicRequirementId &&
+                      (f.attachmentCategory === 'REFERENCE_FILE' ||
+                       f.folderCategory === 'Reference Documents' ||
+                       f.folderCategory === 'Creative Assets' ||
+                       f.folderCategory === 'Attachments' ||
+                       (f.attachmentCategory !== 'SCRIPT_DOCUMENT' && f.folderCategory !== 'Script Documents' && !f.storagePath?.includes('Script Documents')))
+                    );
+                  }
                 );
                 const hasLegacyUrl = !!selectedEvent.creativePreviewUrl;
 
@@ -1880,80 +1930,426 @@ export default function ClientReviewPage() {
         </div>
       )}
 
-      {/* Side-by-Side Field Comparison Modal for Edit Requests */}
-      {selectedEditRequest && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-2xl animate-in fade-in zoom-in-95">
-            {/* Header */}
-            <div className="flex items-start justify-between border-b border-slate-200 pb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 uppercase font-bold">
-                    EDIT REQUEST • {selectedEditRequest.calendarEvent?.eventId || `EVT-${selectedEditRequest.calendarEventId.substring(0, 6).toUpperCase()}`}
-                  </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 uppercase">
-                    {selectedEditRequest.status}
-                  </span>
+      {/* Comprehensive Edit Request Review Modal (Separate Edited Changes & Full Event Details) */}
+      {selectedEditRequest && (() => {
+        const fullEvent =
+          events.find((e) => e.id === selectedEditRequest.calendarEventId) ||
+          selectedEditRequest.calendarEvent ||
+          {};
+
+        const originalObj =
+          typeof selectedEditRequest.originalValues === 'string'
+            ? JSON.parse(selectedEditRequest.originalValues || '{}')
+            : (selectedEditRequest.originalValues || {});
+        const requestedObj =
+          typeof selectedEditRequest.requestedValues === 'string'
+            ? JSON.parse(selectedEditRequest.requestedValues || '{}')
+            : (selectedEditRequest.requestedValues || {});
+
+        const allKeys = Array.from(new Set([...Object.keys(originalObj), ...Object.keys(requestedObj)]));
+        const changedKeys = allKeys.filter(
+          (k) => JSON.stringify(originalObj[k]) !== JSON.stringify(requestedObj[k])
+        );
+
+        const getFriendlyLabel = (key: string): string => {
+          const map: Record<string, string> = {
+            title: 'Event / Shoot Title',
+            caption: 'Objective / Caption Brief',
+            description: 'Description',
+            productionNotes: 'Production Notes',
+            shootDate: 'Shoot / Event Date',
+            clientApprovalDeadline: 'Client Approval Deadline',
+            deadline: 'Target Completion Deadline',
+            startTime: 'Call / Start Time',
+            endTime: 'Wrap / End Time',
+            location: 'Studio / Location Name',
+            locationCategory: 'Location Category',
+            exactLocationAddress: 'Location Address',
+            shootType: 'Shoot Type (Indoor / Outdoor)',
+            priority: 'Priority Level',
+            platform: 'Target Platform',
+            contentType: 'Content / Requirement Type',
+            assignedStaffId: 'Assigned Lead Staff',
+            teamUserIds: 'Assigned Production Crew',
+            equipmentIds: 'Reserved Production Equipment',
+            influencerTalent: 'Influencer / Talent',
+            selectedDeliverables: 'Selected Deliverables',
+            creativePreviewUrl: 'Creative Asset URL / Link',
+            creativeAssetName: 'Creative Asset Name',
+          };
+          return map[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase());
+        };
+
+        const formatVal = (key: string, val: any) => {
+          if (val === null || val === undefined || val === '') {
+            return <span className="text-slate-400 italic font-sans text-xs">None / Not Set</span>;
+          }
+          if (typeof val === 'boolean') {
+            return val ? 'Yes' : 'No';
+          }
+          if (Array.isArray(val)) {
+            return val.length > 0 ? val.join(', ') : <span className="text-slate-400 italic">None</span>;
+          }
+          if (typeof val === 'object') {
+            return JSON.stringify(val);
+          }
+          if (
+            typeof val === 'string' &&
+            (key.toLowerCase().includes('date') || key.toLowerCase().includes('deadline')) &&
+            /^\d{4}-\d{2}-\d{2}/.test(val)
+          ) {
+            return new Date(val).toLocaleDateString();
+          }
+          return String(val);
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200 rounded-2xl max-w-4xl w-full max-h-[92vh] overflow-y-auto p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95">
+              {/* Header */}
+              <div className="flex items-start justify-between border-b border-slate-200 pb-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 uppercase font-bold">
+                      EDIT REQUEST • {fullEvent.eventId || `EVT-${selectedEditRequest.calendarEventId.substring(0, 6).toUpperCase()}`}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 uppercase">
+                      {selectedEditRequest.status}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      {changedKeys.length} {changedKeys.length === 1 ? 'Field Modified' : 'Fields Modified'}
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    {fullEvent.title || selectedEditRequest.calendarEvent?.title || 'Calendar Event'}
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Requested By: <strong className="text-slate-800">{selectedEditRequest.requestedBy?.name || 'Media Manager'}</strong> ({selectedEditRequest.requestedBy?.role || 'Media Manager'}) • Date: <span className="text-amber-800 font-semibold">{new Date(selectedEditRequest.createdAt).toLocaleString()}</span>
+                  </p>
                 </div>
-                <h2 className="text-xl font-bold text-slate-900">{selectedEditRequest.calendarEvent?.title}</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Requested By: <strong className="text-slate-800">{selectedEditRequest.requestedBy?.name || 'Media Manager'}</strong> ({selectedEditRequest.requestedBy?.role}) • Date: <span className="text-amber-800">{new Date(selectedEditRequest.createdAt).toLocaleString()}</span>
-                </p>
+                <button
+                  onClick={() => setSelectedEditRequest(null)}
+                  className="text-slate-500 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                  title="Close edit request review"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                onClick={() => setSelectedEditRequest(null)}
-                className="text-slate-500 hover:text-slate-900 p-1 rounded-lg hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            {selectedEditRequest.reason && (
-              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-1">
-                <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Request Reason / Justification:</span>
-                <p className="text-amber-900 font-medium italic">"{selectedEditRequest.reason}"</p>
+              {/* Justification Reason Card */}
+              {selectedEditRequest.reason && (
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-1">
+                  <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> Request Reason &amp; Operational Justification:
+                  </span>
+                  <p className="text-amber-950 font-medium italic">"{selectedEditRequest.reason}"</p>
+                </div>
+              )}
+
+              {/* View Switcher Tabs (Edited Details vs Full Event Details vs Side-by-Side Diff) */}
+              <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setEditRequestModalTab('CHANGES_ONLY')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    editRequestModalTab === 'CHANGES_ONLY'
+                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Edited Details Only</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-white text-slate-900 font-extrabold ml-0.5">
+                    {changedKeys.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEditRequestModalTab('FULL_DETAILS')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    editRequestModalTab === 'FULL_DETAILS'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Full Event Details</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEditRequestModalTab('DIFF_TABLE')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    editRequestModalTab === 'DIFF_TABLE'
+                      ? 'bg-slate-800 text-white shadow-md shadow-slate-800/20'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Side-by-Side Diff Table</span>
+                </button>
               </div>
-            )}
 
-            {/* Side-by-Side Field Comparison Table */}
-            {(() => {
-              const originalObj = typeof selectedEditRequest.originalValues === 'string' ? JSON.parse(selectedEditRequest.originalValues || '{}') : (selectedEditRequest.originalValues || {});
-              const requestedObj = typeof selectedEditRequest.requestedValues === 'string' ? JSON.parse(selectedEditRequest.requestedValues || '{}') : (selectedEditRequest.requestedValues || {});
-              const allKeys = Array.from(new Set([...Object.keys(originalObj), ...Object.keys(requestedObj)]));
+              {/* ── TAB 1: EDITED CHANGES ONLY ── */}
+              {editRequestModalTab === 'CHANGES_ONLY' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-amber-600" /> Modified Attributes ({changedKeys.length})
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-mono">
+                      Showing only the specific fields requested for modification
+                    </span>
+                  </div>
 
-              return (
+                  {changedKeys.length === 0 ? (
+                    <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                      <p className="font-bold text-slate-800 text-sm">No Specific Field Modifications Detected</p>
+                      <p className="text-slate-500 text-xs">
+                        This request is submitted with justification notes for review without altering raw schema attributes.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3">
+                      {changedKeys.map((key) => {
+                        const origVal = originalObj[key];
+                        const reqVal = requestedObj[key];
+                        const fieldLabel = getFriendlyLabel(key);
+
+                        return (
+                          <div
+                            key={key}
+                            className="p-4 rounded-xl border border-amber-200 bg-amber-50/40 hover:bg-amber-50/70 transition-all space-y-2.5 shadow-xs"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-extrabold text-slate-900 text-xs uppercase tracking-wider font-mono flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                {fieldLabel}
+                              </span>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold uppercase">
+                                Modified Field
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                              {/* Before / Live Value */}
+                              <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                  Current Live Value (Before)
+                                </span>
+                                <div className="text-xs text-slate-700 font-semibold break-words">
+                                  {formatVal(key, origVal)}
+                                </div>
+                              </div>
+
+                              {/* After / Requested Value */}
+                              <div className="p-3 bg-emerald-50/90 border border-emerald-300 rounded-lg space-y-1">
+                                <span className="text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider block flex items-center gap-1">
+                                  <Check className="w-3 h-3 text-emerald-700" /> Requested New Value (Proposed)
+                                </span>
+                                <div className="text-xs text-emerald-950 font-bold break-words">
+                                  {formatVal(key, reqVal)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── TAB 2: FULL EVENT DETAILS (COMPLETE BREAKDOWN) ── */}
+              {editRequestModalTab === 'FULL_DETAILS' && (
+                <div className="space-y-4 text-xs">
+                  {/* General Specifications */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <span className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-blue-600" /> 1. General Event &amp; Client Overview
+                      </span>
+                      <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-white text-slate-700 border border-slate-200 font-bold">
+                        {fullEvent.eventSource || 'SHOOT'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Client Name</span>
+                        <p className="font-bold text-slate-900">{fullEvent.client?.name || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Brand</span>
+                        <p className="font-bold text-slate-900">{fullEvent.brand?.name || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Product</span>
+                        <p className="font-bold text-slate-900">{fullEvent.product?.name || 'General Product'}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Requirement / Content Type</span>
+                        <p className="font-bold text-slate-900">{fullEvent.contentType || 'Post'}</p>
+                        {changedKeys.includes('contentType') && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-300">
+                            → {requestedObj.contentType}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Platform</span>
+                        <p className="font-bold text-slate-900">{fullEvent.platform || 'Instagram'}</p>
+                        {changedKeys.includes('platform') && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-300">
+                            → {requestedObj.platform}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Priority Level</span>
+                        <span className="font-bold font-mono px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px]">
+                          {fullEvent.priority || 'MEDIUM'}
+                        </span>
+                        {changedKeys.includes('priority') && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-300 ml-1">
+                            → {requestedObj.priority}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Schedule & Operational Timing */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <span className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-indigo-600" /> 2. Schedule, Timing &amp; Deadlines
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Shoot / Event Date</span>
+                        <p className="font-bold text-slate-900">
+                          {fullEvent.shootDate ? new Date(fullEvent.shootDate).toLocaleDateString() : 'N/A'}
+                        </p>
+                        {changedKeys.includes('shootDate') && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-300">
+                            → {new Date(requestedObj.shootDate).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Call Time</span>
+                        <p className="font-bold text-blue-700 font-mono">{fullEvent.startTime || '09:00 AM'}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Wrap Time</span>
+                        <p className="font-bold text-blue-700 font-mono">{fullEvent.endTime || '05:00 PM'}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Client Approval Deadline</span>
+                        <p className="font-bold text-amber-700">
+                          {fullEvent.clientApprovalDeadline ? new Date(fullEvent.clientApprovalDeadline).toLocaleDateString() : 'N/A'}
+                        </p>
+                        {changedKeys.includes('clientApprovalDeadline') && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-300">
+                            → {new Date(requestedObj.clientApprovalDeadline).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Location & Studio Logistics */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <span className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-purple-600" /> 3. Location &amp; Physical Logistics
+                      </span>
+                      <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200 font-bold">
+                        {fullEvent.shootType || 'INDOOR'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Studio / Location Name</span>
+                        <p className="font-bold text-slate-900">{fullEvent.location || 'Main Studio Floor'}</p>
+                        {changedKeys.includes('location') && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-300">
+                            → {requestedObj.location}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Location Category</span>
+                        <p className="font-bold text-slate-700">{fullEvent.locationCategory || 'Studio Bay'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Objective & Production Copy */}
+                  {(fullEvent.caption || fullEvent.productionNotes || fullEvent.description || requestedObj.caption || requestedObj.productionNotes) && (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                      <span className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-cyan-600" /> 4. Objective, Caption &amp; Production Notes
+                      </span>
+                      {fullEvent.caption && (
+                        <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-1">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Objective / Caption Brief</span>
+                          <p className="text-slate-800 whitespace-pre-wrap leading-relaxed">{fullEvent.caption}</p>
+                        </div>
+                      )}
+                      {fullEvent.productionNotes && (
+                        <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-1">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Production Notes</span>
+                          <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">{fullEvent.productionNotes}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── TAB 3: SIDE-BY-SIDE DIFF TABLE ── */}
+              {editRequestModalTab === 'DIFF_TABLE' && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Side-by-Side Field Diff Comparison</span>
-                    <span className="text-[10px] text-amber-600 font-mono">* Highlighted rows indicate requested modifications</span>
+                    <span className="text-[10px] text-amber-700 font-mono font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      * Highlighted amber rows indicate modified fields
+                    </span>
                   </div>
 
                   <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500">
+                        <tr className="bg-slate-100 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-600">
                           <th className="p-3 w-1/4">FIELD</th>
                           <th className="p-3 w-3/8 text-slate-700">ORIGINAL VALUE (LIVE)</th>
-                          <th className="p-3 w-3/8 text-emerald-600">REQUESTED VALUE</th>
+                          <th className="p-3 w-3/8 text-emerald-700">REQUESTED VALUE</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-800/60 font-mono">
+                      <tbody className="divide-y divide-slate-200 font-mono">
                         {allKeys.map((key) => {
                           const origVal = originalObj[key];
                           const reqVal = requestedObj[key];
                           const isDifferent = JSON.stringify(origVal) !== JSON.stringify(reqVal);
 
                           return (
-                            <tr key={key} className={isDifferent ? 'bg-amber-50' : 'bg-slate-50/40 opacity-70'}>
-                              <td className="p-3 font-bold text-slate-700 capitalize font-sans">{key.replace(/([A-Z])/g, ' $1')}</td>
-                              <td className="p-3 text-slate-500 truncate max-w-xs">{origVal !== undefined && origVal !== null ? String(origVal) : <span className="text-gray-600 italic">None</span>}</td>
+                            <tr key={key} className={isDifferent ? 'bg-amber-50/80 font-bold' : 'bg-white opacity-75'}>
+                              <td className="p-3 text-slate-800 capitalize font-sans">{getFriendlyLabel(key)}</td>
+                              <td className="p-3 text-slate-600 truncate max-w-xs">{formatVal(key, origVal)}</td>
                               <td className="p-3">
                                 {isDifferent ? (
-                                  <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 block truncate max-w-xs">
-                                    {reqVal !== undefined && reqVal !== null ? String(reqVal) : <span className="text-gray-600 italic">None</span>}
+                                  <span className="text-emerald-900 font-extrabold bg-emerald-100/90 px-2 py-0.5 rounded border border-emerald-300 block truncate max-w-xs">
+                                    {formatVal(key, reqVal)}
                                   </span>
                                 ) : (
-                                  <span className="text-slate-400">{reqVal !== undefined && reqVal !== null ? String(reqVal) : <span className="text-gray-600 italic">Unchanged</span>}</span>
+                                  <span className="text-slate-400">{formatVal(key, reqVal)}</span>
                                 )}
                               </td>
                             </tr>
@@ -1963,81 +2359,81 @@ export default function ClientReviewPage() {
                     </table>
                   </div>
                 </div>
-              );
-            })()}
+              )}
 
-            {/* Decision Note / Comment Input */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">
-                Marketing Manager Decision Note / Rejection Reason / Change Instructions:
-              </label>
-              <textarea
-                rows={2}
-                value={editRequestComment}
-                onChange={(e) => setEditRequestComment(e.target.value)}
-                placeholder="Enter review notes, feedback instructions, or approval comments..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white"
-              />
-            </div>
+              {/* Decision Note / Comment Input */}
+              <div className="space-y-1.5 pt-2">
+                <label className="text-xs font-bold text-slate-700">
+                  Marketing Manager Decision Note / Rejection Reason / Change Instructions:
+                </label>
+                <textarea
+                  rows={2}
+                  value={editRequestComment}
+                  onChange={(e) => setEditRequestComment(e.target.value)}
+                  placeholder="Enter review notes, feedback instructions, or approval comments..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white"
+                />
+              </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center justify-between border-t border-slate-200 pt-4">
-              <button
-                onClick={() => setSelectedEditRequest(null)}
-                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold"
-              >
-                Close
-              </button>
-
-              <div className="flex items-center gap-2">
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between border-t border-slate-200 pt-4">
                 <button
-                  onClick={async () => {
-                    if (!editRequestComment.trim()) {
-                      alert('Rejection reason is required.');
-                      return;
-                    }
-                    try {
-                      await fetchApi(`/calendar/edit-requests/${selectedEditRequest.id}/reject`, {
-                        method: 'POST',
-                        body: JSON.stringify({ reason: editRequestComment }),
-                      });
-                      alert('Edit Request Rejected. Original event remains unchanged.');
-                      setSelectedEditRequest(null);
-                      setEditRequestComment('');
-                      loadClientData();
-                    } catch (err: any) {
-                      alert(err.message || 'Failed to reject edit request');
-                    }
-                  }}
-                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-md shadow-red-600/20"
+                  onClick={() => setSelectedEditRequest(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold"
                 >
-                  Reject Changes
+                  Close
                 </button>
 
-                <button
-                  onClick={async () => {
-                    try {
-                      await fetchApi(`/calendar/edit-requests/${selectedEditRequest.id}/approve`, {
-                        method: 'POST',
-                        body: JSON.stringify({ reviewComment: editRequestComment }),
-                      });
-                      alert('Edit Request Approved!\n\nOriginal Media Calendar Event has been updated in-place (same ID preserved), audit log & timeline recorded.');
-                      setSelectedEditRequest(null);
-                      setEditRequestComment('');
-                      loadClientData();
-                    } catch (err: any) {
-                      alert(err.message || 'Failed to approve edit request');
-                    }
-                  }}
-                  className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20"
-                >
-                  Approve Changes
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={async () => {
+                      if (!editRequestComment.trim()) {
+                        alert('Rejection reason is required.');
+                        return;
+                      }
+                      try {
+                        await fetchApi(`/calendar/edit-requests/${selectedEditRequest.id}/reject`, {
+                          method: 'POST',
+                          body: JSON.stringify({ reason: editRequestComment }),
+                        });
+                        alert('Edit Request Rejected. Original event remains unchanged.');
+                        setSelectedEditRequest(null);
+                        setEditRequestComment('');
+                        loadClientData();
+                      } catch (err: any) {
+                        alert(err.message || 'Failed to reject edit request');
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-md shadow-red-600/20 cursor-pointer"
+                  >
+                    Reject Changes
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      try {
+                        await fetchApi(`/calendar/edit-requests/${selectedEditRequest.id}/approve`, {
+                          method: 'POST',
+                          body: JSON.stringify({ reviewComment: editRequestComment }),
+                        });
+                        alert('Edit Request Approved!\n\nOriginal Media Calendar Event has been updated in-place (same ID preserved), audit log & timeline recorded.');
+                        setSelectedEditRequest(null);
+                        setEditRequestComment('');
+                        loadClientData();
+                      } catch (err: any) {
+                        alert(err.message || 'Failed to approve edit request');
+                      }
+                    }}
+                    className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 cursor-pointer"
+                  >
+                    Approve Changes
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Video Editing Task Review & Full Details Modal */}
       {selectedVideoTask && (

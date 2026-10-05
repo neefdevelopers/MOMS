@@ -414,7 +414,7 @@ function BrandsContent() {
               >
                 <option value="ACTIVE">ACTIVE (Can create new projects)</option>
                 <option value="INACTIVE">INACTIVE</option>
-                <option value="ARCHIVED">ARCHIVED (Historical read-only)</option>
+                <option value="ARCHIVED">ARCHIVED (Historical)</option>
               </select>
             </div>
 

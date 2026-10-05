@@ -18,6 +18,7 @@ import RequestRevisionModal from '@/components/revisions/RequestRevisionModal';
 import { TimelineView, TimelineEntry } from '@/components/common/TimelineView';
 import { RouteGuard } from '@/components/common/RouteGuard';
 import { useBrand } from '@/lib/brand-context';
+import { useReferenceData } from '@/lib/useReferenceData';
 import { ScriptDocumentViewerModal } from '@/components/common/ScriptDocumentViewerModal';
 
 const isTaskRevision = (t: any) =>
@@ -352,7 +353,9 @@ export default function TasksPage() {
   };
 
   // Filtration States (Project-Style Filtration Control Panel)
+  const { clients: refClients, brands: refBrands, products: refProducts, users: refUsers, equipment: refEquip } = useReferenceData();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedTaskType, setSelectedTaskType] = useState('ALL');
   const [selectedClient, setSelectedClient] = useState('');
@@ -362,9 +365,26 @@ export default function TasksPage() {
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [clientsList, setClientsList] = useState<any[]>([]);
-  const [brandsList, setBrandsList] = useState<any[]>([]);
-  const [productsList, setProductsList] = useState<any[]>([]);
+  const [clientsList, setClientsList] = useState<any[]>(refClients);
+  const [brandsList, setBrandsList] = useState<any[]>(refBrands);
+  const [productsList, setProductsList] = useState<any[]>(refProducts);
+
+  useEffect(() => {
+    if (refClients.length > 0) setClientsList(refClients);
+  }, [refClients]);
+  useEffect(() => {
+    if (refBrands.length > 0) setBrandsList(refBrands);
+  }, [refBrands]);
+  useEffect(() => {
+    if (refProducts.length > 0) setProductsList(refProducts);
+  }, [refProducts]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Task Inspector Modal state (All 15 Mandatory Attributes)
   const [inspectedTask, setInspectedTask] = useState<any>(null);
@@ -437,7 +457,7 @@ export default function TasksPage() {
     const gId = fullGraphicReq?.id || inspectedTask?.graphicRequirement?.id || inspectedTask?.graphicRequirementId;
     if (!gId) return;
     if (isPendingAcceptance) {
-      alert('Task is in read-only mode. Please accept the task assignment first.');
+      alert('Please accept the task assignment first.');
       return;
     }
     setSavingGraphicReq(true);
@@ -501,13 +521,32 @@ export default function TasksPage() {
 
   const openWorkDetailsModal = async (emp: any) => {
     setSelectedWorkDetailsEmp(emp);
+    if (emp.tasks && Array.isArray(emp.tasks) && emp.tasks.length > 0) {
+      setEmpAssignedWorkTasks(emp.tasks);
+    } else if (emp.activeTasks && Array.isArray(emp.activeTasks) && emp.activeTasks.length > 0) {
+      setEmpAssignedWorkTasks(emp.activeTasks);
+    } else {
+      setEmpAssignedWorkTasks([]);
+    }
+
     setLoadingEmpWorkDetails(true);
     try {
-      const res = await fetchApi(`/tasks?employeeId=${emp.userId}`);
-      setEmpAssignedWorkTasks(Array.isArray(res) ? res : []);
-    } catch (err) {
-      console.error('Failed to load employee assigned work tasks:', err);
-      setEmpAssignedWorkTasks([]);
+      const data = await fetchApi(`/tasks/assigned-work/${emp.userId}`);
+      if (data?.tasks && Array.isArray(data.tasks)) {
+        setEmpAssignedWorkTasks(data.tasks);
+      } else if (Array.isArray(data)) {
+        setEmpAssignedWorkTasks(data);
+      } else {
+        const fallback = await fetchApi(`/tasks?employeeId=${emp.userId}`);
+        setEmpAssignedWorkTasks(Array.isArray(fallback) ? fallback : emp.tasks || []);
+      }
+    } catch {
+      try {
+        const fallback = await fetchApi(`/tasks?employeeId=${emp.userId}`);
+        setEmpAssignedWorkTasks(Array.isArray(fallback) ? fallback : emp.tasks || []);
+      } catch {
+        setEmpAssignedWorkTasks(emp.tasks || emp.activeTasks || []);
+      }
     } finally {
       setLoadingEmpWorkDetails(false);
     }
@@ -537,7 +576,7 @@ export default function TasksPage() {
     ].includes(task.status);
 
     if (isUnderReview) {
-      alert(`Task is currently under review (${task.status}) and in Read-Only mode. Progress and status updates cannot be modified during review.`);
+      alert(`Task is currently under review (${task.status}). Progress and status updates cannot be modified during review.`);
       return;
     }
 
@@ -735,36 +774,28 @@ export default function TasksPage() {
 
   const loadReferenceData = async () => {
     try {
-      const [resCap, resProj, resGraphic, resUsers, resClients, resBrands, resProducts, resEquip] = await Promise.all([
-        fetchApi('/tasks/capacity/overview').catch(() => null),
+      const [resProj, resGraphic] = await Promise.all([
         // all=true bypasses per-user visibility filtering so the parent-project dropdowns
         // list every project, not just the ones this user is assigned to.
         fetchApi('/projects?all=true').catch(() => []),
         fetchApi('/graphic-reqs').catch(() => []),
-        fetchApi('/users').catch(() => []),
-        fetchApi('/clients').catch(() => []),
-        fetchApi('/brands').catch(() => []),
-        fetchApi('/products').catch(() => []),
-        fetchApi('/equipment').catch(() => []),
       ]);
       
       setProjectsList(Array.isArray(resProj) ? resProj : []);
       setGraphicReqsList(Array.isArray(resGraphic) ? resGraphic : []);
-      setStaffUsersList(Array.isArray(resUsers) ? resUsers : []);
-      setClientsList(Array.isArray(resClients) ? resClients : []);
-      setBrandsList(Array.isArray(resBrands) ? resBrands : []);
-      setProductsList(Array.isArray(resProducts) ? resProducts : []);
-      setEquipmentList(Array.isArray(resEquip) ? resEquip : []);
+      setStaffUsersList(refUsers || []);
+      setEquipmentList(refEquip || []);
     } catch (err) {
       console.error('Failed to load tasks reference metadata:', err);
     }
   };
 
-  const loadTasks = async (showLoading = true) => {
-    if (showLoading) setLoading(true);
+  const loadTasks = async (showLoading = false) => {
+    const shouldShowSpinner = showLoading || tasks.length === 0;
+    if (shouldShowSpinner) setLoading(true);
     try {
       let query = '?';
-      if (searchQuery.trim()) query += `search=${encodeURIComponent(searchQuery.trim())}&`;
+      if (debouncedSearchQuery.trim()) query += `search=${encodeURIComponent(debouncedSearchQuery.trim())}&`;
       if (statusFilter && statusFilter !== 'ALL' && user?.role !== 'STAFF') query += `status=${statusFilter}&`;
       if (selectedTaskType && selectedTaskType !== 'ALL') query += `taskType=${selectedTaskType}&`;
       if (selectedClient) query += `clientId=${selectedClient}&`;
@@ -779,7 +810,7 @@ export default function TasksPage() {
     } catch (err) {
       console.error('Failed to load tasks list:', err);
     } finally {
-      if (showLoading) setLoading(false);
+      if (shouldShowSpinner) setLoading(false);
     }
   };
 
@@ -862,7 +893,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     loadTasks();
-  }, [user, searchQuery, statusFilter, selectedTaskType, selectedClient, selectedBrand, activeBrandId, selectedProduct, selectedProject, selectedEmployee, selectedPriority]);
+  }, [user, debouncedSearchQuery, statusFilter, selectedTaskType, selectedClient, selectedBrand, activeBrandId, selectedProduct, selectedProject, selectedEmployee, selectedPriority]);
 
   const loadData = loadTasks;
 
@@ -1157,7 +1188,7 @@ export default function TasksPage() {
     const isNotAcceptedYet = isAssigned && userAssignment?.acceptanceStatus !== 'ACCEPTED' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN';
 
     if (isNotAcceptedYet) {
-      alert('Task is in read-only mode. Please accept the task assignment before recording remarks.');
+      alert('Please accept the task assignment before recording remarks.');
       return;
     }
 
@@ -1191,7 +1222,7 @@ export default function TasksPage() {
     const isNotAcceptedYet = isAssigned && userAssignment?.acceptanceStatus !== 'ACCEPTED' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN';
 
     if (isNotAcceptedYet) {
-      alert('Task is in read-only mode. Please accept the task assignment before uploading deliverables.');
+      alert('Please accept the task assignment before uploading deliverables.');
       return;
     }
 
@@ -1237,7 +1268,7 @@ export default function TasksPage() {
     const isNotAcceptedYet = isAssigned && userAssignment?.acceptanceStatus !== 'ACCEPTED' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN';
 
     if (isNotAcceptedYet) {
-      alert('Task is in read-only mode. Please accept the task assignment before requesting technical review.');
+      alert('Please accept the task assignment before requesting technical review.');
       return;
     }
 
@@ -1474,8 +1505,25 @@ export default function TasksPage() {
             )}
           </div>
 
-          {/* Controls: Advanced Toggle & Reset */}
+          {/* Controls: Status Dropdown, Advanced Toggle & Reset */}
           <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-semibold focus:outline-none focus:border-blue-500 focus:bg-white text-xs cursor-pointer shadow-xs"
+              title="Filter by Task Status"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="PENDING">PENDING</option>
+              <option value="ASSIGNED">ASSIGNED</option>
+              <option value="ACCEPTED">ACCEPTED</option>
+              <option value="IN_PROGRESS">IN PROGRESS</option>
+              <option value="ON_HOLD">ON HOLD</option>
+              <option value="WAITING_FOR_REVIEW">WAITING FOR REVIEW</option>
+              <option value="COMPLETED">COMPLETED</option>
+              <option value="CANCELLED">CANCELLED</option>
+            </select>
+
             <button
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
               className={`px-3.5 py-2 rounded-lg font-semibold flex items-center gap-1.5 transition-colors border ${
@@ -1523,70 +1571,16 @@ export default function TasksPage() {
           </div>
         </div>
 
-        {/* Quick Status Filter Tabs */}
-        {user?.role === 'STAFF' ? (
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 border-t border-slate-200">
-            <span className="text-slate-500 font-bold text-[10px] uppercase mr-1">Filter Tasks:</span>
-            {(() => {
-              const allCount = visibleTasks.length;
-              const acceptedCount = visibleTasks.filter((t) => {
-                const userAssignment = t.assignedEmployees?.find((a: any) => a.userId === user?.id || a.user?.id === user?.id);
-                return userAssignment?.acceptanceStatus === 'ACCEPTED' || t.status === 'ACCEPTED' || t.status === 'IN_PROGRESS' || t.status === 'COMPLETED';
-              }).length;
-              const pendingCount = visibleTasks.filter((t) => {
-                const userAssignment = t.assignedEmployees?.find((a: any) => a.userId === user?.id || a.user?.id === user?.id);
-                return userAssignment?.acceptanceStatus !== 'ACCEPTED' && t.status !== 'COMPLETED';
-              }).length;
-
-              const staffTabs = [
-                { id: 'ALL', label: 'All Tasks', count: allCount, activeClass: 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-600/30' },
-                { id: 'ACCEPTED', label: 'Accepted', count: acceptedCount, activeClass: 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-600/30' },
-                { id: 'PENDING', label: 'Pending', count: pendingCount, activeClass: 'bg-amber-500 border-amber-400 text-slate-950 shadow-md shadow-amber-500/30' },
-              ];
-
-              return staffTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setStatusFilter(tab.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 whitespace-nowrap ${
-                    statusFilter === tab.id
-                      ? tab.activeClass
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300'
-                  }`}
-                >
-                  <span>{tab.label}</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-                    statusFilter === tab.id ? 'bg-black/20 text-inherit' : 'bg-slate-200 text-slate-700'
-                  }`}>
-                    {tab.count}
-                  </span>
-                </button>
-              ));
-            })()}
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 border-t border-slate-200">
-            <span className="text-slate-500 font-bold text-[10px] uppercase mr-1">Status:</span>
-            {['ALL', 'PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'ON_HOLD', 'WAITING_FOR_REVIEW', 'COMPLETED', 'CANCELLED'].map((st) => (
-              <button
-                key={st}
-                onClick={() => setStatusFilter(st)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors whitespace-nowrap ${
-                  statusFilter === st
-                    ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-600/30'
-                    : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-200'
-                }`}
-              >
-                {st === 'ALL' ? 'All Statuses' : st.replace(/_/g, ' ')}
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* Active Filter Chips / Pills */}
-        {(selectedTaskType !== 'ALL' || selectedClient || selectedBrand || selectedProduct || selectedProject || selectedEmployee || selectedPriority) && (
+        {(statusFilter !== 'ALL' || selectedTaskType !== 'ALL' || selectedClient || selectedBrand || selectedProduct || selectedProject || selectedEmployee || selectedPriority) && (
           <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-200">
             <span className="text-slate-400 text-[11px] font-semibold">Active Filters:</span>
+            {statusFilter !== 'ALL' && (
+              <span className="px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full flex items-center gap-1 text-[11px] font-bold">
+                Status: {statusFilter.replace(/_/g, ' ')}
+                <X className="w-3 h-3 cursor-pointer hover:text-slate-900" onClick={() => setStatusFilter('ALL')} />
+              </span>
+            )}
             {selectedTaskType !== 'ALL' && (
               <span className="px-2.5 py-1 bg-slate-100 text-slate-800 border border-slate-300 rounded-full flex items-center gap-1 text-[11px] font-bold">
                 Type: {selectedTaskType === 'OTHERS' ? 'Others' : selectedTaskType === 'SHOOT' ? 'Shoot' : selectedTaskType === 'GRAPHIC' ? 'Graphic' : selectedTaskType === 'VIDEO_EDITING' ? 'Video Editing' : selectedTaskType}
@@ -1767,7 +1761,7 @@ export default function TasksPage() {
                 <tr>
                   <th className="px-3 py-3 font-semibold w-[26%]">
                     <TableSortHeader
-                      label="Task ID &amp; Deliverable"
+                      label="Task ID"
                       field="name"
                       currentSort={sortBy}
                       currentOrder={sortOrder}
@@ -1902,57 +1896,43 @@ export default function TasksPage() {
 
                       {/* Parent Entity */}
                       <td className="px-3 py-3 text-xs min-w-0">
-                        {task.taskType === 'VIDEO_EDITING' || task.sourceType === 'VIDEO_EDITING' ? (
-                          <div className="space-y-1 min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="px-2 py-0.5 bg-amber-50 text-amber-900 border border-amber-300 rounded font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
-                                <FileText className="w-3 h-3 text-amber-600" />
-                                {task.projectScript?.name || task.script?.name || task.title?.replace(/^Video Editing\s*-\s*/, '') || 'Script'}
+                        {task.project ? (
+                          <div className="space-y-0.5 min-w-0">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="px-1.5 py-0.2 bg-blue-50 text-blue-700 border border-blue-200 rounded-full font-mono text-[9px] inline-block shrink-0 font-semibold">
+                                {task.project.projectId || 'Shoot Project'}
                               </span>
-                              {(task.projectScript?.clipCode || task.clipCode) && (
-                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-900 border border-emerald-300 rounded font-mono font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
-                                  <Film className="w-3 h-3 text-emerald-600" />
-                                  Clip: {task.projectScript?.clipCode || task.clipCode}
+                              {task.graphicRequirement && (
+                                <span className="px-1.5 py-0.2 bg-amber-50 text-amber-800 border border-amber-200 rounded-full font-mono text-[9px] inline-block shrink-0">
+                                  {task.graphicRequirement.requirementId || 'Graphic Req'}
                                 </span>
                               )}
                             </div>
-                            {task.project && (
-                              <div className="text-slate-500 font-medium text-[10px] truncate">
-                                Project: {task.project.name || task.project.projectId}
-                              </div>
-                            )}
-                          </div>
-                        ) : task.script ? (
-                          <Link
-                            href={`/scripts?inspect=${task.script.id}`}
-                            className="space-y-0.5 min-w-0 block group"
-                            title="Click to View & Update Script Template"
-                          >
-                            <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 border border-purple-200 rounded-full font-mono text-[9px] inline-block shrink-0 group-hover:border-purple-500 group-hover:text-slate-900 transition-colors">
-                              Script Task {task.project ? `• ${task.project.name}` : ''}
-                            </span>
-                            <div className="text-slate-800 group-hover:text-purple-700 font-medium text-[11px] truncate transition-colors">{task.script.name}</div>
-                          </Link>
-                        ) : task.sourceType === 'SCRIPT' ? (
-                          <div className="space-y-0.5 min-w-0">
-                            <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 border border-purple-200 rounded-full font-mono text-[9px] inline-block shrink-0">
-                              Script Task {task.project ? `• ${task.project.name}` : ''}
-                            </span>
-                            <div className="text-slate-800 font-medium text-[11px] truncate">{task.title}</div>
+                            <Link
+                              href={`/projects/${task.project.id}`}
+                              className="text-slate-800 hover:text-blue-600 font-medium text-[11px] truncate block transition-colors"
+                              title={task.project.name}
+                            >
+                              {task.project.name}
+                            </Link>
                           </div>
                         ) : task.graphicRequirement ? (
                           <div className="space-y-0.5 min-w-0">
-                            <span className="px-1.5 py-0.2 bg-amber-50 text-amber-800 border border-amber-200 rounded-full font-mono text-[9px] inline-block shrink-0">
-                              Graphic Req {task.project ? `• ${task.project.name}` : ''}
+                            <span className="px-1.5 py-0.2 bg-amber-50 text-amber-800 border border-amber-200 rounded-full font-mono text-[9px] inline-block shrink-0 font-semibold">
+                              {task.graphicRequirement.requirementId || 'Graphic Req'}
                             </span>
-                            <div className="text-slate-800 font-medium text-[11px] truncate">{task.graphicRequirement.name}</div>
+                            <div className="text-slate-800 font-medium text-[11px] truncate" title={task.graphicRequirement.name}>
+                              {task.graphicRequirement.name}
+                            </div>
                           </div>
-                        ) : task.project ? (
+                        ) : task.calendarEvent ? (
                           <div className="space-y-0.5 min-w-0">
-                            <span className="px-1.5 py-0.2 bg-blue-50 text-blue-700 border border-blue-200 rounded-full font-mono text-[9px] inline-block shrink-0">
-                              Shoot Project
+                            <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 border border-purple-200 rounded-full font-mono text-[9px] inline-block shrink-0 font-semibold">
+                              {task.calendarEvent.eventId || 'Calendar Event'}
                             </span>
-                            <div className="text-slate-800 font-medium text-[11px] truncate">{task.project.name}</div>
+                            <div className="text-slate-800 font-medium text-[11px] truncate" title={task.calendarEvent.title}>
+                              {task.calendarEvent.title}
+                            </div>
                           </div>
                         ) : (
                           <span className="text-slate-400 italic text-[10px] font-mono">Standalone Task</span>
@@ -2019,166 +1999,15 @@ export default function TasksPage() {
 
                       {/* Actions */}
                       <td className="px-3 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1 flex-wrap">
-                          {(() => {
-                            const isAssigned = task.assignedEmployees?.some((a: any) => a.userId === user?.id || a.user?.id === user?.id);
-                            const userAssignment = task.assignedEmployees?.find((a: any) => a.userId === user?.id || a.user?.id === user?.id);
-                            const isNotAcceptedYet = isAssigned && userAssignment?.acceptanceStatus !== 'ACCEPTED' && user?.role !== 'ADMINISTRATOR' && (user?.role as string) !== 'ADMIN';
-
-                            if (isNotAcceptedYet) {
-                              return (
-                                <button
-                                  onClick={() => handleAcknowledgeAcceptance(task.id)}
-                                  disabled={acceptingTaskId === task.id}
-                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-[11px] transition-all shadow flex items-center gap-1 animate-pulse disabled:opacity-60 disabled:cursor-wait disabled:animate-none"
-                                  title="Accept Task Assignment to Unlock Work Controls"
-                                >
-                                  {acceptingTaskId === task.id ? 'Accepting…' : 'Accept Task'}
-                                </button>
-                              );
-                            }
-
-                            return (
-                              <>
-                                {/* Assigned Staff Action: Start Work -> In Progress */}
-                                {!['IN_PROGRESS', 'WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'WAITING_FOR_REVIEW', 'COMPLETED', 'CANCELLED'].includes(task.status?.toUpperCase()) &&
-                                 (task.status === 'ACCEPTED' || isAssigned) && (
-                                  <button
-                                    onClick={() => handleStartInProgress(task.id)}
-                                    className="px-1.5 py-0.5 bg-amber-50 hover:bg-amber-600/30 text-amber-800 border border-amber-200 rounded text-[10px] font-medium transition-colors flex items-center gap-1 shadow"
-                                    title="Change Task Status to In Progress"
-                                  >
-                                    Start In Progress
-                                  </button>
-                                )}
-
-                                {/* Actions locked when task is under review */}
-                                {['WAITING_FOR_TECHNICAL_REVIEW', 'TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'MEDIA_MANAGER_REVIEW', 'WAITING_FOR_REVIEW', 'PENDING_MARKETING_APPROVAL', 'WAITING_FOR_MARKETING_APPROVAL', 'PENDING_CLIENT_APPROVAL', 'PENDING_CLIENT_REVIEW', 'WAITING_FOR_CLIENT_CONFIRMATION', 'COMPLETED'].includes(task.status) ? (
-                                  <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded font-mono text-[9px] font-bold flex items-center gap-1">
-                                    <ShieldCheck className="w-3 h-3 text-amber-600" />
-                                    {task.status === 'COMPLETED' ? 'Completed' : 'Under Review (Read-Only)'}
-                                  </span>
-                                ) : (
-                                  <>
-                                    <button
-                                      onClick={() => openUpdateTaskModal(task)}
-                                      className="px-1.5 py-0.5 bg-slate-50 hover:bg-slate-100 text-amber-800 border border-slate-200 hover:border-amber-200 rounded text-[10px] font-medium transition-colors"
-                                      title="Update Task Status & Progress"
-                                    >
-                                      Update
-                                    </button>
-
-                                    {/* Direct Complete Action for OTHER Tasks */}
-                                    {isTaskOther(task) && task.status !== 'COMPLETED' && task.status !== 'CANCELLED' && (
-                                      <button
-                                        onClick={async () => {
-                                          if (window.confirm(`Mark "${task.title}" as Completed?`)) {
-                                            await handleUpdateStatus(task.id, 'COMPLETED');
-                                          }
-                                        }}
-                                        className="px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold transition-all shadow flex items-center gap-1"
-                                        title="Assigned Staff: Mark this other task as Completed (100%)"
-                                      >
-                                        <Check className="w-3 h-3" /> Complete
-                                      </button>
-                                    )}
-
-                                    {/* Upload Deliverables Action — hidden for VIDEO_EDITING tasks */}
-                                    {['IN_PROGRESS', 'ON_HOLD'].includes(task.status) && task.taskType !== 'VIDEO_EDITING' && (
-                                      <button
-                                        onClick={() => setUploadTask(task)}
-                                        className="px-1.5 py-0.5 bg-slate-50 hover:bg-slate-100 text-cyan-700 border border-slate-200 hover:border-cyan-200 rounded text-[10px] font-medium transition-colors"
-                                        title="Upload Deliverable Output"
-                                      >
-                                        Deliverable
-                                      </button>
-                                    )}
-
-                                    {/* Request Technical Review Action — strictly for VIDEO_EDITING */}
-                                    {task.taskType === 'VIDEO_EDITING' && !['WAITING_FOR_TECHNICAL_REVIEW', 'WAITING_FOR_MEDIA_REVIEW', 'PENDING_MARKETING_APPROVAL', 'APPROVED', 'COMPLETED'].includes(task.status) && (
-                                      <button
-                                        onClick={() => {
-                                          fetchApi(`/projects/${task.projectId}/video-editing-task/${task.id}/submit-technical-review`, {
-                                             method: 'POST',
-                                             body: JSON.stringify({
-                                               deliverableUrl: `/uploads/${task.projectId}/video-editing/${task.taskId}.mp4`,
-                                               deliverableFileName: 'edited-cut.mp4',
-                                             }),
-                                           })
-                                            .then(() => {
-                                              alert('Video Editing Task submitted for Technical Review!');
-                                              loadData();
-                                            })
-                                            .catch((err) => alert(err.message || 'Failed to submit for Technical Review'));
-                                        }}
-                                        className="px-1.5 py-0.5 bg-purple-900/40 hover:bg-purple-800/60 text-purple-700 border border-purple-300 rounded text-[10px] font-bold transition-all shadow"
-                                        title="Submit for Technical Review & Approval"
-                                      >
-                                        Tech Review
-                                      </button>
-                                    )}
-
-                                    {/* Video Editing: Media Manager Review */}
-                                    {task.taskType === 'VIDEO_EDITING' && task.status === 'COMPLETED' && user?.role === 'MEDIA_MANAGER' && (
-                                      <button
-                                        onClick={() => {
-                                          const c = window.prompt('Optional comment for Media Manager review (leave blank to approve):', '');
-                                          if (c === null) return;
-                                          fetchApi(`/projects/${task.projectId}/video-editing-task/${task.id}/media-review`, {
-                                            method: 'POST',
-                                            body: JSON.stringify({ action: 'APPROVE', comment: c }),
-                                          })
-                                            .then(() => { alert('Approved by Media Manager.'); loadData(); })
-                                            .catch((err) => alert(err.message || 'Failed to approve'));
-                                        }}
-                                        className="px-1.5 py-0.5 bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-300 rounded text-[10px] font-bold transition-all shadow"
-                                        title="Media Manager: approve this editing task"
-                                      >
-                                        Media Approve
-                                      </button>
-                                    )}
-
-                                    {/* Video Editing: Marketing Manager Review */}
-                                    {task.taskType === 'VIDEO_EDITING' && hasTaskBrand(task) && (task.status === 'WAITING_FOR_MARKETING_MANAGER_REVIEW' || task.status === 'WAITING_FOR_MARKETING_APPROVAL') && user?.role === 'MARKETING_MANAGER' && (
-                                      <button
-                                        onClick={() => {
-                                          const c = window.prompt('Optional comment for Marketing review (leave blank to approve):', '');
-                                          if (c === null) return;
-                                          fetchApi(`/projects/${task.projectId}/video-editing-task/${task.id}/marketing-review`, {
-                                            method: 'POST',
-                                            body: JSON.stringify({ action: 'APPROVE', comment: c }),
-                                          })
-                                            .then(() => { alert('Approved by Marketing.'); loadData(); })
-                                            .catch((err) => alert(err.message || 'Failed to approve'));
-                                        }}
-                                        className="px-1.5 py-0.5 bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-300 rounded text-[10px] font-bold transition-all shadow"
-                                        title="Marketing Manager: approve this editing task"
-                                      >
-                                        Marketing Approve
-                                      </button>
-                                    )}
-                                  </>
-                                )}
-                              </>
-                            );
-                          })()}
-
+                        <div className="flex items-center justify-end">
                           <button
                             onClick={() => setInspectedTask(task)}
-                            className="px-1.5 py-0.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 hover:border-slate-200 rounded text-[10px] font-medium transition-colors"
+                            className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 hover:text-blue-600 border border-slate-200 hover:border-blue-300 rounded-lg text-xs font-semibold shadow-2xs transition-all flex items-center gap-1.5"
+                            title="Inspect Task Details & Controls"
                           >
-                            Inspect
+                            <Eye className="w-3.5 h-3.5 text-slate-500 hover:text-blue-600" />
+                            <span>Inspect</span>
                           </button>
-
-                          {user?.role === 'MEDIA_MANAGER' && (
-                            <button
-                              onClick={() => openReassignDrawer(task)}
-                              className="px-1.5 py-0.5 bg-purple-50 hover:bg-purple-900/60 text-purple-700 border border-purple-200 rounded text-[10px] font-medium transition-colors"
-                              title="Reassign Task"
-                            >
-                              Reassign
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -3956,7 +3785,7 @@ export default function TasksPage() {
                           <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                           <div>
                             <h4 className="font-extrabold text-amber-900 text-xs uppercase tracking-wide">
-                              Under Review — Read-Only Mode
+                              Under Review
                             </h4>
                             <p className="text-[11px] text-amber-800 leading-relaxed">
                               This video editing task is currently undergoing review (Status: <strong className="font-mono font-bold text-amber-900">{inspectedTask.status}</strong>).
@@ -4414,10 +4243,10 @@ export default function TasksPage() {
                         <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                         <div>
                           <h4 className="font-extrabold text-amber-900 text-xs uppercase tracking-wide flex items-center gap-1.5">
-                            Under Review — Read-Only Mode
+                            Under Review
                           </h4>
                           <p className="text-[11px] text-amber-800 leading-relaxed">
-                            This task is currently undergoing formal review (Status: <strong className="font-mono font-bold text-amber-900">{inspectedTask.status}</strong>). Content modifications, progress updates, and deliverable uploads are locked in read-only mode until the review decision is finalized.
+                            This task is currently undergoing formal review (Status: <strong className="font-mono font-bold text-amber-900">{inspectedTask.status}</strong>). Content modifications, progress updates, and deliverable uploads are locked until the review decision is finalized.
                           </p>
                         </div>
                       </div>
@@ -5024,7 +4853,7 @@ export default function TasksPage() {
                                   type="button"
                                   onClick={() => {
                                     if (isPendingAcceptance) {
-                                      alert('Task is in read-only mode. Please accept the task assignment first.');
+                                      alert('Please accept the task assignment first.');
                                       return;
                                     }
                                     setGraphicDirectionTab('edit');
@@ -5085,7 +4914,7 @@ export default function TasksPage() {
                               {isPendingAcceptance ? (
                                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs flex items-center gap-2">
                                   <Lock className="w-4 h-4 text-amber-600 shrink-0" />
-                                  <span>Task is in read-only mode. Accept the task assignment to edit direction.</span>
+                                  <span>Accept the task assignment to edit direction.</span>
                                 </div>
                               ) : (
                                 <>
@@ -5444,7 +5273,7 @@ export default function TasksPage() {
                             disabled={isPendingAcceptance}
                             onChange={(e) => setNewRemarkText(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddRemark(inspectedTask.id); } }}
-                            placeholder={isPendingAcceptance ? "Task is in read-only mode. Accept task assignment to add remarks." : "Add an operational work note or status remark… (Enter to send)"}
+                            placeholder={isPendingAcceptance ? "Accept task assignment to add remarks." : "Add an operational work note or status remark… (Enter to send)"}
                             rows={2}
                             className="flex-1 bg-white border border-slate-200 text-slate-900 px-3 py-2 rounded-lg text-[11px] resize-none focus:border-amber-500 focus:outline-none placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
                           />

@@ -787,7 +787,27 @@ export default function GraphicReqsPage() {
     const matchesProject = !selectedProject || g.projectId === selectedProject || g.project?.id === selectedProject;
     const matchesType = !selectedType || g.requirementType === selectedType;
     const matchesPriority = !selectedPriority || g.priority === selectedPriority;
-    const matchesEmployee = !selectedEmployee || assignedUserIds.includes(selectedEmployee);
+    const matchesEmployee = (() => {
+      if (!selectedEmployee) return true;
+      if (user?.role === 'SOCIAL_MEDIA_MANAGER' && selectedEmployee === user?.id) {
+        // For Social Media Manager viewing "My Requirements", strictly only show requirements created by that social media manager
+        return Boolean(
+          g.createdById === user.id ||
+          g.createdBy?.id === user.id ||
+          g.calendarEvent?.createdById === user.id ||
+          linkedEvent?.createdById === user.id ||
+          g.project?.createdById === user.id
+        );
+      }
+      return (
+        assignedUserIds.includes(selectedEmployee) ||
+        g.createdById === selectedEmployee ||
+        g.createdBy?.id === selectedEmployee ||
+        g.calendarEvent?.createdById === selectedEmployee ||
+        linkedEvent?.createdById === selectedEmployee ||
+        g.project?.createdById === selectedEmployee
+      );
+    })();
 
     const matchesDate = (() => {
       if (!dateFrom && !dateTo) return true;
@@ -1806,7 +1826,7 @@ export default function GraphicReqsPage() {
                     </span>
                     {isReviewLocked && (
                       <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded font-bold text-[10px] flex items-center gap-1 font-mono">
-                        <Lock className="w-2.5 h-2.5 text-amber-600" /> READ-ONLY
+                        <Lock className="w-2.5 h-2.5 text-amber-600" /> LOCKED
                       </span>
                     )}
                     <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 text-slate-700 rounded font-semibold text-[10px]">
@@ -1843,7 +1863,7 @@ export default function GraphicReqsPage() {
                     <Lock className="w-4 h-4 text-amber-700 shrink-0" />
                     <div>
                       <span className="font-extrabold text-amber-950 block text-[11px] uppercase tracking-wide">
-                        READ-ONLY MODE — Marketing Manager Approval Session
+                        Event Approval Session
                       </span>
                       <span className="text-[11px] text-amber-800 leading-tight">
                         You are inspecting Graphic Requirement specifications, deliverables, and assets in view-only mode. All mutation actions are disabled.
@@ -1851,7 +1871,7 @@ export default function GraphicReqsPage() {
                     </div>
                   </div>
                   <span className="px-2.5 py-0.5 bg-amber-200 text-amber-900 border border-amber-400 rounded font-mono font-bold text-[10px] shrink-0">
-                    READ-ONLY
+                    LOCKED
                   </span>
                 </div>
               )}
@@ -2413,8 +2433,8 @@ export default function GraphicReqsPage() {
                                   />
                                 </label>
                               ) : (
-                                <span className="px-2 py-0.5 bg-slate-100 text-slate-400 border border-slate-200 rounded font-semibold text-[10px] flex items-center gap-1 cursor-not-allowed" title="File uploads locked in read-only mode">
-                                  <Lock className="w-2.5 h-2.5" /> Read-Only
+                                <span className="px-2 py-0.5 bg-slate-100 text-slate-400 border border-slate-200 rounded font-semibold text-[10px] flex items-center gap-1 cursor-not-allowed" title="File uploads locked">
+                                  <Lock className="w-2.5 h-2.5" /> Locked
                                 </span>
                               )}
                             </div>
@@ -3029,7 +3049,7 @@ export default function GraphicReqsPage() {
                     </div>
                   ) : (
                     <div className="p-2.5 bg-slate-50/60 rounded-lg border border-slate-200 text-slate-400 italic text-[11px] text-center">
-                      Remark submission is disabled in read-only inspection mode.
+                      Remark submission is disabled during inspection mode.
                     </div>
                   )}
                 </div>
