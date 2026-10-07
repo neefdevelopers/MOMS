@@ -101,7 +101,16 @@ export class ApprovalsService {
       include: {
         client: true,
         brand: true,
-        project: true,
+        project: {
+          include: {
+            files: true,
+            scripts: {
+              include: {
+                clips: { orderBy: { order: 'asc' } },
+              },
+            },
+          },
+        },
         graphicRequirement: true,
         projectScript: {
           include: {
@@ -118,7 +127,16 @@ export class ApprovalsService {
       include: {
         client: true,
         brand: true,
-        project: true,
+        project: {
+          include: {
+            files: true,
+            scripts: {
+              include: {
+                clips: { orderBy: { order: 'asc' } },
+              },
+            },
+          },
+        },
         graphicRequirement: true,
         projectScript: {
           include: {
@@ -153,7 +171,16 @@ export class ApprovalsService {
       include: {
         client: true,
         brand: true,
-        project: true,
+        project: {
+          include: {
+            files: true,
+            scripts: {
+              include: {
+                clips: { orderBy: { order: 'asc' } },
+              },
+            },
+          },
+        },
         graphicRequirement: true,
         projectScript: {
           include: {
@@ -208,83 +235,159 @@ export class ApprovalsService {
       isGraphicRequirement: true,
     }));
 
-    // Map Standalone Tasks as queue items
-    const mappedTaskTech = taskTechQueue.map((t: any) => ({
-      id: t.id,
-      projectId: t.taskId,
-      taskId: t.taskId,
-      name: t.title,
-      taskType: t.taskType,
-      client: t.client,
-      brand: t.brand,
-      status: t.status,
-      priority: t.priority,
-      dueDate: t.dueDate,
-      scriptId: t.scriptId,
-      projectScriptId: t.projectScriptId,
-      projectScript: t.projectScript,
-      clipCode: t.clipCode || t.projectScript?.clipCode,
-      clips: t.projectScript?.clips || [],
-      assignedEmployees: t.assignedEmployees,
-      tasks: [t],
-      activeDeliverableUrl: t.activeDeliverableUrl,
-      activeDeliverableFileName: t.activeDeliverableFileName,
-      activeDeliverableVersion: t.activeDeliverableVersion,
-      deliverableHistory: t.deliverableHistory,
-      isStandaloneTask: true,
-    }));
+    // Helper to resolve script details from project or notes if task.projectScript is null
+    const resolveTaskScriptData = (t: any) => {
+      let resolvedScript = t.projectScript || null;
+      let resolvedClips = t.projectScript?.clips || [];
+      let resolvedClipCode = t.clipCode || t.projectScript?.clipCode || '';
 
-    const mappedTaskMedia = taskMediaQueue.map((t: any) => ({
-      id: t.id,
-      projectId: t.taskId,
-      taskId: t.taskId,
-      name: t.title,
-      taskType: t.taskType,
-      client: t.client,
-      brand: t.brand,
-      status: t.status,
-      priority: t.priority,
-      dueDate: t.dueDate,
-      scriptId: t.scriptId,
-      projectScriptId: t.projectScriptId,
-      projectScript: t.projectScript,
-      clipCode: t.clipCode || t.projectScript?.clipCode,
-      clips: t.projectScript?.clips || [],
-      assignedEmployees: t.assignedEmployees,
-      tasks: [t],
-      activeDeliverableUrl: t.activeDeliverableUrl,
-      activeDeliverableFileName: t.activeDeliverableFileName,
-      activeDeliverableVersion: t.activeDeliverableVersion,
-      deliverableHistory: t.deliverableHistory,
-      isStandaloneTask: true,
-    }));
+      const projectScriptList = t.project?.scripts || t.project?.projectScripts || [];
+      if (!resolvedScript && Array.isArray(projectScriptList) && projectScriptList.length > 0) {
+        const matched = projectScriptList.find((ps: any) =>
+          (t.projectScriptId && ps.id === t.projectScriptId) ||
+          (t.scriptId && ps.id === t.scriptId) ||
+          (t.clipCode && ps.clipCode === t.clipCode) ||
+          (ps.name && t.title && t.title.toLowerCase().includes(ps.name.toLowerCase()))
+        ) || (projectScriptList.length === 1 ? projectScriptList[0] : null);
+
+        if (matched) {
+          resolvedScript = matched;
+          resolvedClips = matched.clips || [];
+          resolvedClipCode = resolvedClipCode || matched.clipCode || '';
+        }
+      }
+
+      if (!resolvedScript && t.project?.notes) {
+        try {
+          const parsedNotes = typeof t.project.notes === 'string' ? JSON.parse(t.project.notes) : t.project.notes;
+          const scriptList = Array.isArray(parsedNotes) ? parsedNotes : parsedNotes?.scripts || [];
+          const matchedFromNotes = scriptList.find((s: any) =>
+            (t.projectScriptId && s.id === t.projectScriptId) ||
+            (t.scriptId && s.id === t.scriptId) ||
+            (t.clipCode && (s.clipCode === t.clipCode || s.clipCodes?.includes(t.clipCode))) ||
+            (s.title && t.title && t.title.toLowerCase().includes(s.title.toLowerCase()))
+          ) || (scriptList.length === 1 ? scriptList[0] : null);
+
+          if (matchedFromNotes) {
+            resolvedScript = {
+              id: matchedFromNotes.id,
+              name: matchedFromNotes.title || matchedFromNotes.name || t.title,
+              title: matchedFromNotes.title || matchedFromNotes.name || t.title,
+              description: matchedFromNotes.description || matchedFromNotes.scriptText || matchedFromNotes.body || '',
+              body: matchedFromNotes.description || matchedFromNotes.scriptText || matchedFromNotes.body || '',
+              clipCode: matchedFromNotes.clipCode || t.clipCode || '',
+              clips: matchedFromNotes.clips || [],
+            };
+            resolvedClips = matchedFromNotes.clips || [];
+            resolvedClipCode = resolvedClipCode || matchedFromNotes.clipCode || '';
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      return {
+        projectScript: resolvedScript,
+        clips: resolvedClips,
+        clipCode: resolvedClipCode,
+      };
+    };
+
+    // Map Standalone Tasks as queue items
+    const mappedTaskTech = taskTechQueue.map((t: any) => {
+      const { projectScript, clips, clipCode } = resolveTaskScriptData(t);
+      return {
+        id: t.id,
+        projectId: t.taskId,
+        taskId: t.taskId,
+        name: t.title,
+        title: t.title,
+        description: t.description,
+        taskType: t.taskType,
+        client: t.client,
+        brand: t.brand,
+        project: t.project,
+        status: t.status,
+        priority: t.priority,
+        dueDate: t.dueDate,
+        scriptId: t.scriptId,
+        projectScriptId: t.projectScriptId,
+        projectScript,
+        clipCode,
+        clips,
+        assignedEmployees: t.assignedEmployees,
+        tasks: [t],
+        activeDeliverableUrl: t.activeDeliverableUrl,
+        activeDeliverableFileName: t.activeDeliverableFileName,
+        activeDeliverableVersion: t.activeDeliverableVersion,
+        deliverableHistory: t.deliverableHistory,
+        isStandaloneTask: true,
+      };
+    });
+
+    const mappedTaskMedia = taskMediaQueue.map((t: any) => {
+      const { projectScript, clips, clipCode } = resolveTaskScriptData(t);
+      return {
+        id: t.id,
+        projectId: t.taskId,
+        taskId: t.taskId,
+        name: t.title,
+        title: t.title,
+        description: t.description,
+        taskType: t.taskType,
+        client: t.client,
+        brand: t.brand,
+        project: t.project,
+        status: t.status,
+        priority: t.priority,
+        dueDate: t.dueDate,
+        scriptId: t.scriptId,
+        projectScriptId: t.projectScriptId,
+        projectScript,
+        clipCode,
+        clips,
+        assignedEmployees: t.assignedEmployees,
+        tasks: [t],
+        activeDeliverableUrl: t.activeDeliverableUrl,
+        activeDeliverableFileName: t.activeDeliverableFileName,
+        activeDeliverableVersion: t.activeDeliverableVersion,
+        deliverableHistory: t.deliverableHistory,
+        isStandaloneTask: true,
+      };
+    });
 
     const mappedTaskMarketing = taskMarketingQueue
       .filter((t: any) => isTaskWithBrand(t))
-      .map((t: any) => ({
-      id: t.id,
-      projectId: t.taskId,
-      taskId: t.taskId,
-      name: t.title,
-      taskType: t.taskType,
-      client: t.client,
-      brand: t.brand,
-      status: t.status,
-      priority: t.priority,
-      dueDate: t.dueDate,
-      scriptId: t.scriptId,
-      projectScriptId: t.projectScriptId,
-      projectScript: t.projectScript,
-      clipCode: t.clipCode || t.projectScript?.clipCode,
-      clips: t.projectScript?.clips || [],
-      assignedEmployees: t.assignedEmployees,
-      tasks: [t],
-      activeDeliverableUrl: t.activeDeliverableUrl,
-      activeDeliverableFileName: t.activeDeliverableFileName,
-      activeDeliverableVersion: t.activeDeliverableVersion,
-      deliverableHistory: t.deliverableHistory,
-      isStandaloneTask: true,
-    }));
+      .map((t: any) => {
+        const { projectScript, clips, clipCode } = resolveTaskScriptData(t);
+        return {
+          id: t.id,
+          projectId: t.taskId,
+          taskId: t.taskId,
+          name: t.title,
+          title: t.title,
+          description: t.description,
+          taskType: t.taskType,
+          client: t.client,
+          brand: t.brand,
+          project: t.project,
+          status: t.status,
+          priority: t.priority,
+          dueDate: t.dueDate,
+          scriptId: t.scriptId,
+          projectScriptId: t.projectScriptId,
+          projectScript,
+          clipCode,
+          clips,
+          assignedEmployees: t.assignedEmployees,
+          tasks: [t],
+          activeDeliverableUrl: t.activeDeliverableUrl,
+          activeDeliverableFileName: t.activeDeliverableFileName,
+          activeDeliverableVersion: t.activeDeliverableVersion,
+          deliverableHistory: t.deliverableHistory,
+          isStandaloneTask: true,
+        };
+      });
 
     return {
       technicalReviewQueue: [...techQueue, ...mappedGrTech, ...mappedTaskTech],

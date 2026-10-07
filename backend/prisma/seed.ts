@@ -539,21 +539,15 @@ async function main() {
   });
 
   // 8. Scripts & Graphic Requirements
-  const script1 = await prisma.script.create({
+  const script1 = await prisma.projectScript.create({
     data: {
-      scriptId: 'SCR-000001',
       name: 'DW-130726-OJ-EN-001',
+      clipCode: 'CC-001',
       projectId: project1.id,
-      clientId: client1.id,
-      brandId: brand1.id,
-      productId: product1.id,
-      language: 'English',
-      category: 'Product Demo',
-      objective: 'Highlight 100% natural immunity boost formula in 30 seconds.',
       description: 'Hook: Morning routine tiredness. Transition: Ojas spoon drop in warm water.',
-      estimatedDuration: '30s',
-      status: 'IN_PRODUCTION',
-      priority: 'HIGH',
+      status: 'READY',
+      order: 1,
+      createdById: mediaManagerUser.id,
     },
   });
 
@@ -581,7 +575,7 @@ async function main() {
       title: 'Assembly Cut & Color Grading - Ojas Reel',
       description: 'Edit raw footage, apply brand green LUT, sync voiceover.',
       projectId: project1.id,
-      scriptId: script1.id,
+      projectScriptId: script1.id,
       clientId: client1.id,
       brandId: brand1.id,
       productId: product1.id,
@@ -600,7 +594,7 @@ async function main() {
       title: 'Sound Design & Subtitle Animation',
       description: 'Add dynamic kinetic subtitles and ambient sound effects.',
       projectId: project1.id,
-      scriptId: script1.id,
+      projectScriptId: script1.id,
       clientId: client1.id,
       brandId: brand1.id,
       productId: product1.id,
@@ -712,7 +706,6 @@ async function main() {
       storagePath: '/projects/SP-000001/Final Deliverables/DW-130726-OJ-Reel_v1_4K.mp4',
       activeVersion: true,
       projectId: project1.id,
-      scriptId: script1.id,
       uploadedById: staff1.id,
     },
   });

@@ -474,17 +474,63 @@ export class TasksService {
 
     // VIDEO_EDITING task isolation & script-specific clip population
     if (task.taskType === 'VIDEO_EDITING') {
-      if (!task.projectScript && (task.projectScriptId || task.scriptId)) {
+      if (!task.projectScript) {
         const psId = task.projectScriptId || task.scriptId;
-        task.projectScript = await this.prisma.projectScript.findFirst({
-          where: {
-            OR: [
-              { id: psId },
-              ...(task.projectId ? [{ projectId: task.projectId, id: psId }] : []),
-            ],
-          },
-          include: { clips: { orderBy: { order: 'asc' } } },
-        });
+        if (psId) {
+          task.projectScript = await this.prisma.projectScript.findFirst({
+            where: {
+              OR: [
+                { id: psId },
+                ...(task.projectId ? [{ projectId: task.projectId, id: psId }] : []),
+              ],
+            },
+            include: { clips: { orderBy: { order: 'asc' } } },
+          });
+        }
+        if (!task.projectScript && task.projectId) {
+          if (task.clipCode) {
+            task.projectScript = await this.prisma.projectScript.findFirst({
+              where: {
+                projectId: task.projectId,
+                clipCode: task.clipCode,
+              },
+              include: { clips: { orderBy: { order: 'asc' } } },
+            });
+          }
+          if (!task.projectScript) {
+            task.projectScript = await this.prisma.projectScript.findFirst({
+              where: { projectId: task.projectId },
+              include: { clips: { orderBy: { order: 'asc' } } },
+            });
+          }
+        }
+      }
+
+      if (!task.projectScript && task.project?.notes) {
+        try {
+          const parsedNotes = typeof task.project.notes === 'string' ? JSON.parse(task.project.notes) : task.project.notes;
+          const scriptList = Array.isArray(parsedNotes) ? parsedNotes : parsedNotes?.scripts || [];
+          const matchedFromNotes = scriptList.find((s: any) =>
+            (task.projectScriptId && s.id === task.projectScriptId) ||
+            (task.scriptId && s.id === task.scriptId) ||
+            (task.clipCode && (s.clipCode === task.clipCode || s.clipCodes?.includes(task.clipCode))) ||
+            (s.title && task.title && task.title.toLowerCase().includes(s.title.toLowerCase()))
+          ) || (scriptList.length === 1 ? scriptList[0] : null);
+
+          if (matchedFromNotes) {
+            task.projectScript = {
+              id: matchedFromNotes.id,
+              name: matchedFromNotes.title || matchedFromNotes.name || task.title,
+              title: matchedFromNotes.title || matchedFromNotes.name || task.title,
+              description: matchedFromNotes.description || matchedFromNotes.scriptText || matchedFromNotes.body || '',
+              body: matchedFromNotes.description || matchedFromNotes.scriptText || matchedFromNotes.body || '',
+              clipCode: matchedFromNotes.clipCode || task.clipCode || '',
+              clips: matchedFromNotes.clips || [],
+            };
+          }
+        } catch {
+          // ignore parse error
+        }
       }
 
       if (task.projectScript) {
@@ -492,7 +538,7 @@ export class TasksService {
       }
 
       // Backend Isolation: For VIDEO_EDITING tasks, staff members should NOT receive full Shoot Project operational details
-      if (task.project) {
+      if (task.project && user?.role === 'STAFF') {
         task.project = {
           id: task.project.id,
           projectId: task.project.projectId,

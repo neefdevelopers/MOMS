@@ -14,7 +14,9 @@
     "start:prod": "node dist/main",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
-    "prisma:seed": "ts-node prisma/seed.ts"
+    "prisma:seed": "ts-node prisma/seed.ts",
+    "prisma:clear": "ts-node prisma/clear-db.ts",
+    "prisma:clear:operational": "ts-node prisma/clear-operational-data.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

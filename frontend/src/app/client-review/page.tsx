@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, resolveFileUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import {
   CheckCircle2,
@@ -107,6 +107,137 @@ export default function ClientReviewPage() {
   const [commentText, setCommentText] = useState<string>('');
   const [editRequestComment, setEditRequestComment] = useState<string>('');
   const [submittingReview, setSubmittingReview] = useState(false);
+
+  const resolveScriptData = (task: any) => {
+    if (!task) return null;
+
+    // 1. Direct projectScript object
+    if (task.projectScript) {
+      const s = task.projectScript;
+      const title = s.name || s.title || task.title?.replace(/^Video Editing\s*-\s*/, '') || task.name || 'Specific Video Script';
+      const body = s.description || s.body || s.scriptText || task.description || '';
+      const clipCode = task.clipCode || s.clipCode || '';
+      const clips = s.clips || task.clips || [];
+      return { title, body, clipCode, clips, id: s.id };
+    }
+
+    // 2. Direct script object
+    if (task.script) {
+      const s = task.script;
+      const title = s.name || s.title || task.title?.replace(/^Video Editing\s*-\s*/, '') || task.name || 'Specific Video Script';
+      const body = s.description || s.body || s.content || s.scriptText || task.description || '';
+      const clipCode = task.clipCode || s.clipCode || '';
+      const clips = s.clips || task.clips || [];
+      return { title, body, clipCode, clips, id: s.id };
+    }
+
+    // 3. From project.scripts or project.projectScripts array
+    const projectScriptsList = task.project?.scripts || task.project?.projectScripts;
+    if (Array.isArray(projectScriptsList) && projectScriptsList.length > 0) {
+      const matched = projectScriptsList.find((s: any) =>
+        (task.projectScriptId && s.id === task.projectScriptId) ||
+        (task.scriptId && s.id === task.scriptId) ||
+        (task.clipCode && s.clipCode === task.clipCode) ||
+        (s.name && task.title && task.title.toLowerCase().includes(s.name.toLowerCase()))
+      ) || (projectScriptsList.length === 1 ? projectScriptsList[0] : null);
+
+      if (matched) {
+        return {
+          title: (matched as any).name || (matched as any).title || task.title?.replace(/^Video Editing\s*-\s*/, '') || 'Specific Video Script',
+          body: (matched as any).description || (matched as any).body || (matched as any).scriptText || task.description || '',
+          clipCode: task.clipCode || (matched as any).clipCode || '',
+          clips: (matched as any).clips || task.clips || [],
+          id: (matched as any).id,
+        };
+      }
+    }
+
+    // 4. From project.notes (JSON serialized scripts)
+    const rawNotes = task.project?.notes || task.notes;
+    if (rawNotes) {
+      try {
+        const parsed = extractEventScripts({ notes: rawNotes }, 'Script') as any[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const matched = parsed.find((s: any) =>
+            (task.projectScriptId && s.id === task.projectScriptId) ||
+            (task.scriptId && s.id === task.scriptId) ||
+            (task.clipCode && (s.clipCodes?.some((c: any) => (typeof c === 'string' ? c : c.code) === task.clipCode) || s.clipCode === task.clipCode)) ||
+            (s.title && task.title && task.title.toLowerCase().includes(s.title.toLowerCase()))
+          ) || (parsed.length === 1 ? parsed[0] : null);
+
+          if (matched) {
+            return {
+              title: matched.title || matched.name || task.title?.replace(/^Video Editing\s*-\s*/, '') || 'Specific Video Script',
+              body: matched.scriptText || matched.text || matched.description || matched.body || task.description || '',
+              clipCode: task.clipCode || (matched.clipCodes?.map((c: any) => typeof c === 'string' ? c : c.code).join(', ')) || matched.clipCode || '',
+              clips: matched.clips || task.clips || [],
+              id: matched.id,
+            };
+          }
+        }
+      } catch {
+        // ignore parse error
+      }
+    }
+
+    // 5. Fallback from task itself if clipCode, description, or title is present
+    if (task.clipCode || task.description || task.scriptName || task.title) {
+      return {
+        title: task.scriptName || task.title?.replace(/^Video Editing\s*-\s*/, '') || task.name || 'Specific Video Script',
+        body: task.description || '',
+        clipCode: task.clipCode || '',
+        clips: task.clips || [],
+        id: task.id,
+      };
+    }
+
+    return null;
+  };
+
+  const resolveScriptFiles = (task: any, scriptName?: string) => {
+    const allFiles = task?.project?.files || task?.files || [];
+    const scriptDocs = allFiles.filter((f: any) => {
+      return (
+        f.attachmentCategory === 'SCRIPT_DOCUMENT' ||
+        f.folderCategory === 'Script Documents' ||
+        f.fileType === 'SCRIPT' ||
+        f.category === 'SCRIPT' ||
+        f.storagePath?.includes('Script Documents') ||
+        f.fileName?.match(/\.(pdf|docx?|txt|rtf)$/i)
+      ) && f.attachmentCategory !== 'REFERENCE_FILE';
+    });
+
+    if (scriptDocs.length === 0) return [];
+    if (scriptDocs.length === 1) return scriptDocs;
+
+    if (scriptName) {
+      const normName = scriptName.toLowerCase().trim();
+      const matched = scriptDocs.filter((f: any) => {
+        const fn = (f.fileName || f.name || f.title || '').toLowerCase().trim();
+        return fn.includes(normName) || normName.includes(fn);
+      });
+      if (matched.length > 0) return matched;
+    }
+    return scriptDocs;
+  };
+
+  const handleOpenVideoTaskDetail = async (task: any) => {
+    setSelectedVideoTask(task);
+    try {
+      const fullTask = await fetchApi(`/tasks/${task.id}`);
+      if (fullTask && (fullTask.id || fullTask.taskId)) {
+        setSelectedVideoTask((prev: any) => ({
+          ...task,
+          ...fullTask,
+          project: fullTask.project || task.project,
+          projectScript: fullTask.projectScript || task.projectScript,
+          clips: fullTask.projectScript?.clips || fullTask.clips || task.clips,
+        }));
+      }
+    } catch {
+      // Keep task already set
+    }
+  };
 
   const loadClientData = async () => {
     try {
@@ -566,14 +697,15 @@ export default function ClientReviewPage() {
             {filteredVideoTasks.map((task: any) => {
               const videoUrl = task.activeDeliverableUrl || task.tasks?.[0]?.activeDeliverableUrl;
               const isVideo = videoUrl && (videoUrl.match(/\.(mp4|webm|mov)(\?.*)?$/i) || videoUrl.includes('video'));
-              const script = task.projectScript || task.tasks?.[0]?.projectScript;
-              const clipCode = task.clipCode || task.tasks?.[0]?.clipCode || script?.clipCode;
+              const scriptData = resolveScriptData(task);
+              const scriptFiles = resolveScriptFiles(task, scriptData?.title);
+              const clipCode = task.clipCode || task.tasks?.[0]?.clipCode || scriptData?.clipCode;
               const editorName = task.assignedEmployees?.[0]?.user?.name || task.tasks?.[0]?.assignedEmployees?.[0]?.user?.name || 'Assigned Editor';
 
               return (
                 <div
                   key={task.id}
-                  onClick={() => setSelectedVideoTask(task)}
+                  onClick={() => handleOpenVideoTaskDetail(task)}
                   className="group p-5 rounded-2xl bg-white border border-purple-200 hover:border-purple-400 hover:shadow-xl transition-all cursor-pointer space-y-4 flex flex-col justify-between"
                 >
                   <div className="space-y-3">
@@ -658,7 +790,7 @@ export default function ClientReviewPage() {
                     )}
 
                     {/* Script & Clip Code Section */}
-                    {(clipCode || script) && (
+                    {(clipCode || scriptData) && (
                       <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5 text-xs">
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-amber-900 text-[11px] flex items-center gap-1">
@@ -670,15 +802,33 @@ export default function ClientReviewPage() {
                             </span>
                           )}
                         </div>
-                        {script?.title && (
+                        {scriptData?.title && (
                           <p className="font-semibold text-slate-800 text-xs truncate">
-                            {script.title}
+                            {scriptData.title}
                           </p>
                         )}
-                        {(script?.body || script?.description) && (
+                        {scriptData?.body && (
                           <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed whitespace-pre-wrap">
-                            {script.body || script.description}
+                            {scriptData.body}
                           </p>
+                        )}
+                        {scriptFiles.length > 0 && (
+                          <div className="pt-1 flex items-center gap-1.5 flex-wrap">
+                            {scriptFiles.slice(0, 2).map((sf: any, sfIdx: number) => (
+                              <a
+                                key={sf.id || sfIdx}
+                                href={resolveFileUrl(sf.storagePath || sf.url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-amber-300 hover:border-amber-400 text-amber-900 rounded text-[10px] font-medium"
+                              >
+                                <FileText className="w-3 h-3 text-amber-600" />
+                                <span className="truncate max-w-[120px]">{sf.fileName || sf.name || 'Script Doc'}</span>
+                                <ExternalLink className="w-2.5 h-2.5 text-amber-500" />
+                              </a>
+                            ))}
+                          </div>
                         )}
                       </div>
                     )}
@@ -2544,48 +2694,85 @@ export default function ClientReviewPage() {
             </div>
 
             {/* Corresponding Script & Clip Breakdown */}
-            <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-amber-600" /> Corresponding Video Script &amp; Shot Codes
-                </span>
-                {(selectedVideoTask.clipCode || selectedVideoTask.projectScript?.clipCode) && (
-                  <span className="px-2.5 py-1 bg-amber-200 text-amber-900 border border-amber-300 rounded-lg font-mono font-extrabold text-xs">
-                    Code: {selectedVideoTask.clipCode || selectedVideoTask.projectScript?.clipCode}
-                  </span>
-                )}
-              </div>
+            {(() => {
+              const modalScript = resolveScriptData(selectedVideoTask);
+              const modalScriptFiles = resolveScriptFiles(selectedVideoTask, modalScript?.title);
+              const modalClipCode = selectedVideoTask.clipCode || modalScript?.clipCode;
+              const modalClips = modalScript?.clips || selectedVideoTask.clips || [];
 
-              {selectedVideoTask.projectScript?.title && (
-                <h4 className="font-bold text-slate-900 text-sm">
-                  {selectedVideoTask.projectScript.title}
-                </h4>
-              )}
-
-              {(selectedVideoTask.projectScript?.body || selectedVideoTask.projectScript?.description || selectedVideoTask.description) && (
-                <div className="p-3 bg-white border border-amber-200 rounded-lg text-xs text-slate-800 leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
-                  {selectedVideoTask.projectScript?.body || selectedVideoTask.projectScript?.description || selectedVideoTask.description}
-                </div>
-              )}
-
-              {/* Clip Breakdown if Available */}
-              {selectedVideoTask.clips && selectedVideoTask.clips.length > 0 && (
-                <div className="space-y-1.5 pt-2">
-                  <span className="text-[11px] font-bold text-slate-600 block">Shot &amp; Clip Breakdown:</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {selectedVideoTask.clips.map((clip: any, idx: number) => (
-                      <div key={clip.id || idx} className="p-2.5 bg-white border border-slate-200 rounded-lg text-xs space-y-1">
-                        <div className="flex items-center justify-between text-[11px] font-mono">
-                          <span className="font-bold text-purple-700">Clip #{clip.order || idx + 1} ({clip.clipCode || `SHOT-${idx + 1}`})</span>
-                          <span className="text-slate-500">{clip.duration ? `${clip.duration}s` : ''}</span>
-                        </div>
-                        {clip.description && <p className="text-slate-700 text-[11px]">{clip.description}</p>}
-                      </div>
-                    ))}
+              return (
+                <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-amber-600" /> Corresponding Video Script &amp; Shot Codes
+                    </span>
+                    {modalClipCode && (
+                      <span className="px-2.5 py-1 bg-amber-200 text-amber-900 border border-amber-300 rounded-lg font-mono font-extrabold text-xs">
+                        Clip Code: {modalClipCode}
+                      </span>
+                    )}
                   </div>
+
+                  {modalScript?.title && (
+                    <h4 className="font-bold text-slate-900 text-sm">
+                      {modalScript.title}
+                    </h4>
+                  )}
+
+                  {modalScript?.body ? (
+                    <div className="p-3 bg-white border border-amber-200 rounded-lg text-xs text-slate-800 leading-relaxed whitespace-pre-wrap max-h-56 overflow-y-auto font-normal">
+                      {modalScript.body}
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-white/60 border border-amber-200 rounded-lg text-xs text-slate-500 italic">
+                      No script text or dialogue description provided for this video task.
+                    </div>
+                  )}
+
+                  {/* Attached Script Document Files */}
+                  {modalScriptFiles.length > 0 && (
+                    <div className="pt-1 space-y-1.5">
+                      <span className="text-[11px] font-bold text-amber-950 block">Attached Script Document(s):</span>
+                      <div className="flex flex-wrap gap-2">
+                        {modalScriptFiles.map((f: any, fIdx: number) => (
+                          <a
+                            key={f.id || fIdx}
+                            href={resolveFileUrl(f.storagePath || f.url)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 hover:border-amber-500 hover:shadow-sm text-amber-950 rounded-lg text-xs font-semibold transition-all"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span className="truncate max-w-[200px]">{f.fileName || f.name || 'Script Document'}</span>
+                            <ExternalLink className="w-3 h-3 text-amber-500 shrink-0" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Clip Breakdown if Available */}
+                  {modalClips.length > 0 && (
+                    <div className="space-y-1.5 pt-2 border-t border-amber-200/60">
+                      <span className="text-[11px] font-bold text-slate-700 block">Shot &amp; Clip Breakdown ({modalClips.length}):</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                        {modalClips.map((clip: any, idx: number) => (
+                          <div key={clip.id || idx} className="p-2.5 bg-white border border-slate-200 rounded-lg text-xs space-y-1">
+                            <div className="flex items-center justify-between text-[11px] font-mono">
+                              <span className="font-bold text-purple-700">Clip #{clip.order || idx + 1} ({clip.clipCode || clip.code || `SHOT-${idx + 1}`})</span>
+                              <span className="text-slate-500">{clip.durationSec || clip.duration ? `${clip.durationSec || clip.duration}s` : ''}</span>
+                            </div>
+                            {(clip.description || clip.name) && (
+                              <p className="text-slate-700 text-[11px]">{clip.description || clip.name}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Decision Notes Input */}
             <div className="space-y-1.5">
