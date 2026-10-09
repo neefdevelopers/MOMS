@@ -1,10 +1,13 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { ClientsService } from './clients.service';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/permissions/permissions.decorator';
 import { Role, ClientStatus, ModuleType, PermissionType } from '../../common/enums';
 
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('clients')
 export class ClientsController {
   constructor(private readonly clientsService: ClientsService) {}
@@ -42,37 +45,47 @@ export class ClientsController {
 
   /**
    * POST /api/v1/clients
-   * Creates a new client record. Restricted to Marketing Manager.
+   * Creates a new client record. Restricted to Marketing Manager / Administrator / Media Manager.
    */
-  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
+  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR, Role.MEDIA_MANAGER)
   @RequirePermission(ModuleType.CLIENTS, PermissionType.CREATE)
   @Post()
-  create(@Body() data: any) {
-    return this.clientsService.create(data);
+  create(@Body() data: any, @CurrentUser() user: any) {
+    return this.clientsService.create(data, user);
+  }
+
+  /**
+   * PUT /api/v1/clients/:id
+   */
+  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR, Role.MEDIA_MANAGER)
+  @RequirePermission(ModuleType.CLIENTS, PermissionType.EDIT)
+  @Put(':id')
+  putUpdate(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) {
+    return this.clientsService.update(id, data, user);
   }
 
   /**
    * PATCH /api/v1/clients/:id
-   * Partially updates a client record. Restricted to Marketing Manager.
+   * Partially updates a client record.
    */
-  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
+  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR, Role.MEDIA_MANAGER)
   @RequirePermission(ModuleType.CLIENTS, PermissionType.EDIT)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() data: any) {
-    return this.clientsService.update(id, data);
+  update(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) {
+    return this.clientsService.update(id, data, user);
   }
 
   /**
    * DELETE /api/v1/clients/:id
    * Soft-deletes a client (sets status=INACTIVE, isArchived=true).
-   * Blocked if the client has active projects. Restricted to Marketing Manager.
+   * Blocked if the client has active projects.
    */
-  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR)
+  @Roles(Role.MARKETING_MANAGER, Role.ADMINISTRATOR, Role.MEDIA_MANAGER)
   @RequirePermission(ModuleType.CLIENTS, PermissionType.DELETE)
   @HttpCode(HttpStatus.OK)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.clientsService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.clientsService.remove(id, user);
   }
 }
 

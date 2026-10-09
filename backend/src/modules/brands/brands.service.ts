@@ -64,12 +64,23 @@ export class BrandsService {
     return brand;
   }
 
-  async create(data: any) {
+  async create(data: any, user?: any) {
     // 1. Verify Client exists and is ACTIVE
     const client = await this.prisma.client.findUnique({ where: { id: data.clientId } });
     if (!client) throw new NotFoundException('Parent client not found');
     if (client.status !== 'ACTIVE') {
       throw new BadRequestException('Cannot create a brand for a non-active client.');
+    }
+
+    if (user && user.role === 'MARKETING_MANAGER') {
+      const assignments = await this.prisma.clientAssignment.findMany({
+        where: { userId: user.id },
+        select: { clientId: true },
+      });
+      const assignedIds = assignments.map((a) => a.clientId);
+      if (!assignedIds.includes(data.clientId)) {
+        throw new ForbiddenException('Access Denied: You are not authorized to create a brand for this client.');
+      }
     }
 
     const codeUpper = data.shortCode.toUpperCase();
@@ -94,8 +105,8 @@ export class BrandsService {
     });
   }
 
-  async update(id: string, data: any) {
-    const existing = await this.findOne(id);
+  async update(id: string, data: any, user?: any) {
+    const existing = await this.findOne(id, user);
     const updateData: any = {};
 
     if (data.name) updateData.name = data.name;

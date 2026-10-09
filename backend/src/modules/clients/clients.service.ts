@@ -118,7 +118,7 @@ export class ClientsService {
     return client;
   }
 
-  async create(data: any) {
+  async create(data: any, user?: any) {
     if (!data.name || !data.companyName || !data.contactPerson || !data.mobile || !data.email) {
       throw new BadRequestException('Client Name, Company Name, Contact Person, Mobile, and Email are required.');
     }
@@ -157,7 +157,7 @@ export class ClientsService {
       throw new ConflictException(`A client with email address '${trimmedEmail}' already exists.`);
     }
 
-    return this.prisma.client.create({
+    const client = await this.prisma.client.create({
       data: {
         name: trimmedName,
         companyName: trimmedCompany,
@@ -171,10 +171,21 @@ export class ClientsService {
         internalNotes: data.internalNotes,
       },
     });
+
+    if (user && user.role === 'MARKETING_MANAGER') {
+      await this.prisma.clientAssignment.create({
+        data: {
+          userId: user.id,
+          clientId: client.id,
+        },
+      });
+    }
+
+    return client;
   }
 
-  async update(id: string, data: any) {
-    const existingClient = await this.findOne(id);
+  async update(id: string, data: any, user?: any) {
+    const existingClient = await this.findOne(id, user);
 
     if (data.mobile) {
       const cleanMobile = data.mobile.replace(/[^\d+]/g, '');
@@ -228,9 +239,9 @@ export class ClientsService {
     });
   }
 
-  async remove(id: string) {
-    // Guard: ensure the client exists first
-    await this.findOne(id);
+  async remove(id: string, user?: any) {
+    // Guard: ensure the client exists and is accessible
+    await this.findOne(id, user);
 
     // Cascade protection: block deletion if there are active (non-ARCHIVED) projects
     const activeProjects = await this.prisma.shootProject.count({
